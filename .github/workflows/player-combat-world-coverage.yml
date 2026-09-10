@@ -1,14 +1,10 @@
 name: Player Combat World Coverage
 on:
   pull_request:
-    paths:
-      - 'src/3d/gameplay/playerCombatWorldCoverage.js'
-      - 'scripts/checkPlayerCombatWorldCoverage.mjs'
+    paths: ['src/3d/gameplay/playerCombatWorldCoverage.js', 'scripts/checkPlayerCombatWorldCoverage.mjs']
   push:
     branches: [main, 'codex/kizil-ufuk-world-coverage-*']
-    paths:
-      - 'src/3d/gameplay/playerCombatWorldCoverage.js'
-      - 'scripts/checkPlayerCombatWorldCoverage.mjs'
+    paths: ['src/3d/gameplay/playerCombatWorldCoverage.js', 'scripts/checkPlayerCombatWorldCoverage.mjs']
 permissions: { contents: read }
 jobs:
   contract:
