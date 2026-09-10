@@ -17971,3 +17971,92 @@ preserved instead of canonicalized) are both known from this run's investigation
 straight to implementing+verifying a key-sorting fix without re-discovery. Terrain macro-relief (priority
 item 1) remains blocked on the owner's `aapw` repo-rename/LFS decision in `QUESTIONS_FOR_OWNER.md` —
 unchanged, not re-reported this run (no new information since Run 365's direct escalation).
+
+---
+
+## Run 367 (2026-09-10, scheduled routine) — canonicalize `scalarRecord()` key order, fix "action normalization is deterministic"
+
+Picked up the concrete, already-root-caused finding logged at the end of Run 366:
+`scripts/checkSettlementVerticalSliceEvents.mjs` `FAIL: 1 assertions — action normalization is
+deterministic`. Root cause (already isolated by Run 366's investigation, re-confirmed here by direct
+invocation before touching code): `normalizeSettlementSliceActionRequest()` in
+`src/3d/gameplay/settlementVerticalSliceEvents.js` copies `payload`/`context` fields through a shared
+`scalarRecord()` helper using a plain `for...of Object.entries(value)` loop — insertion order preserved,
+not canonicalized. Two payload objects with identical key/value pairs but different authored key order
+(`{quantity, offerId}` vs `{offerId, quantity}`) therefore normalized to objects whose `JSON.stringify`
+output differed only in key order; the check script's `same()` helper does a strict
+`JSON.stringify(a) === JSON.stringify(b)` comparison, correctly flagging the mismatch.
+
+**Fix.** `scalarRecord()` now sorts its own result's keys (`Object.keys(result).sort()`) into a fresh
+object before returning, after the existing truncation-to-`limit` and type-filtering logic — truncation
+still operates on the *source* object's original insertion order (unchanged semantics: "first `limit`
+scalar entries"), only the *output* object's key order is canonicalized. This is the shared helper behind
+`normalizeContext()`, `normalizeNodeRequest()`, and the `envelope()` builder used for every
+`SETTLEMENT_SLICE_EVENTS` emission, so — per Run 366's own blast-radius note — this run re-ran the full
+event-bridge check script (not just the one assertion) plus every other settlement-vertical-slice check
+script before committing.
+
+**Verification.**
+- `node --check` PASS on the touched file; repo-wide `node --check` sweep across every `src/**/*.js` and
+  `scripts/**/*.js`/`*.mjs` — 0 errors.
+- `scripts/checkSettlementVerticalSliceEvents.mjs` — was `FAIL: 1` (`action normalization is
+  deterministic`), now **PASS: 44** (was 43 passing + 1 failing before this run). All 43 previously-passing
+  assertions in this script remain unaffected (none of them do a full-object `JSON.stringify` equality
+  check — only the fixed one does).
+- Blast-radius check across the other four settlement-vertical-slice check scripts, before/after this
+  commit: `checkSettlementVerticalSliceMatrix.mjs` — unaffected, `PASS: 367` both times;
+  `checkSettlementVerticalSliceContent.mjs` — unaffected, `PASS: 135` both times;
+  `checkSettlementVerticalSliceJourney.mjs` — same 6 pre-existing craft/door/save/gated-recovery
+  failures, identical failure list before/after; `checkSettlementVerticalSliceRoleRuntime.mjs` — same 21
+  pre-existing role-identity/capability-gate/proximity-gate/failed-transition failures, identical failure
+  list before/after. Only the one touched helper's downstream determinism assertion changed state; no
+  other script's baseline moved. (`settlementVerticalSlice.js`/`settlementVerticalSliceEvents.js` are not
+  yet wired into any playable scene or any other module — confirmed via repo-wide grep for their exported
+  symbols, so the change's real blast radius is contained to this file pair.)
+- Full DoD gate sweep: `checkSmokeCheckRegistry.js` OK — 44 smoke checks/19 modules, 684 JS files within
+  the 600-line cap, same 14 pre-existing near-cap WARNs, none newly introduced, none in a file this run
+  touched (the touched file is 335/600 lines after the fix). `checkTechnicalDebt.js` PASS — 0 new
+  forbidden markers, 0 new debt markers (see concurrency note below for why this needed a re-run).
+  `checkSeededRandomPolicy.js` PASS (no `Math.random()` introduced). `checkAssetsManifest.js` OK, 547
+  entries, unaffected. `checkWorldEventDeterminism.js` PASS, checksum unchanged. `checkPwaInstallability.js`
+  OK, unaffected. Browser-half smoke test (`scripts/smokeTestGame3D.js`) remains environment-blocked this
+  session — same pre-existing LFS/repo-rename condition (all `.glb`/`.fbx` are ~130-byte git-lfs pointer
+  stubs, `git lfs` not installed as a CLI in this container), consistent with every run since 355; not
+  resampled, no new information, not re-reported (see below).
+
+**Concurrency note (§8.14).** Before committing, `checkTechnicalDebt.js` initially failed with
+`spawnSync git ENOBUFS` on its `git diff origin/main...HEAD` call. Root-caused rather than retried blind:
+this container's cached `remotes/origin/main` ref was 237 commits stale (pointing at `f698d2a`, an
+ancestor from an earlier point in this same commit history, not a diverged/concurrent branch), producing
+a ~2MB diff that overflowed the script's default subprocess buffer. `git fetch origin main` updated the
+ref to the true current tip (`3b52a86`, identical to local `HEAD` — confirmed via
+`git merge-base --is-ancestor` both directions collapsing to equal refs), after which the same check
+passed cleanly. No concurrent session, no drift in actual repository content, no work discarded; local
+`main` (which was itself one commit behind `HEAD`/`origin/main`) was reset to `origin/main` with
+`git checkout -B main origin/main` before committing, preserving the in-progress working-tree edit.
+
+Risk: LOW (7-line change confined to one already-unwired helper module; truncation/type-filter semantics
+unchanged, only output key order now canonicalized; verified against all five settlement-vertical-slice
+check scripts, not just the one that was failing). Visual evidence: N/A, no rendering/UI surface touched —
+this module is still not wired into any playable scene. Performance: no runtime behavior reachable from
+the live game; no `perf_log.csv` row added (no renderer/runtime code touched, no browser session available
+this session, consistent with every run since 355). Memory leak checklist: N/A, no object lifecycles
+involved. Technical debt: net 0 new markers — this fixes a real non-determinism bug in shared
+normalization logic, not a workaround; no TEMP/HACK/FIXME/WORKAROUND comment added, no ADR needed (a
+key-ordering bugfix with a already-documented root cause is not a design decision). World Coverage:
+unchanged. World Evolution Report: no yol/orman/kale/NPC/hayvan/event count change; "oyuncu fark eder
+mi" — hayır, bu değişiklik yalnızca henüz hiçbir oynanabilir sahneye bağlanmamış bir geliştirici
+alt-sisteminin (settlement vertical slice event bridge) kendi iç determinizm hatasını düzeltiyor.
+Asset/LFS blocker (owner decision pending in `QUESTIONS_FOR_OWNER.md`, `RCA_RUN344_LFS_REPO_RENAME.md`):
+reconfirmed still present (git-lfs pointer stubs, `git lfs` CLI absent) but not resampled/re-reported this
+run — no new information since Run 365's direct escalation, consistent with the standing "no new
+information" convention from runs 349/355/364/365. Terrain macro-relief (priority item 1) remains blocked
+on that same owner decision.
+
+**Next safe step:** `checkSettlementVerticalSliceJourney.mjs`'s 6 failures (craft/door/save
+capability-gating + gated-recovery) and `checkSettlementVerticalSliceRoleRuntime.mjs`'s 21 failures
+(role identity / capability action-gating / item/reputation/proximity gates / failed-transition stability)
+are the next concrete, already-isolated candidates in this same file family — neither was investigated for
+root cause this run (out of scope, kept to the one already-diagnosed fix per session-quality-gate
+discipline); a future run should root-cause one of those two before attempting a fix, per this project's
+own "read/verify before touching" convention.

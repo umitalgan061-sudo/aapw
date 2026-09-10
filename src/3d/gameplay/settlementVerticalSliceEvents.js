@@ -45,7 +45,13 @@ function scalarRecord(value, limit = 24) {
     if (!normalized) continue;
     if (raw === null || typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') result[normalized] = raw;
   }
-  return result;
+  // Canonicalize key order (insertion order is otherwise caller-dependent) so two logically-identical
+  // records serialize identically regardless of the source object's own key order — see
+  // scripts/checkSettlementVerticalSliceEvents.mjs's "action normalization is deterministic" assertion,
+  // which compares normalized payloads via JSON.stringify.
+  const sorted = {};
+  for (const key of Object.keys(result).sort()) sorted[key] = result[key];
+  return sorted;
 }
 
 function normalizeContext(value) {
