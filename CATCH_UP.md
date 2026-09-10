@@ -6,6 +6,25 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 371 itibarıyla (2026-09-10) — İlk kez yağmur var, GitHub sürprizinin gerçek nedeni bulundu, ve tarayıcı testleri sonunda çalışmaya başladı
+
+Bu 9 çalıştırmanın (363-371) çoğu perde arkasıydı, ama iki gerçek haber var. Birincisi: **oyunda artık
+yağmur efektı var** — uzaktaki fırtına bulutları artık sadece bir bildirim değil, gerçekten ekranda
+düşen yağmur damlaları görünüyor (dünya olayı tetiklendiğinde birkaç saniye içinde başlayıp sonra
+yavaşça kesiliyor). İkincisi ve daha önemlisi: **geçen ay boyunca "3D modeller neden hâlâ boş kutu
+gibi görünüyor" sorusunun cevabı yanlış anlaşılmıştı.** Sana defalarca "GitHub deposunun adını geri
+çevir" diye rapor edildi (deponun `aapw` diye yeniden adlandırıldığı fark edilmişti) — ama bu run
+gerçek bir teknik iz sürerek bunun yanlış olduğunu kanıtladı: sorun depo adıyla hiç ilgili değil, bu
+çalıştığın ortamın internet erişim sisteminin normal `git` işlemlerini onaylıyor ama model dosyalarını
+indiren ayrı bir aracı (git-lfs) hiç onaylamaması. Yani depo adını değiştirsen bile modeller yine
+gelmeyecekti — gerçek çözüm başka bir yerde (owner kararı gerekiyor, `QUESTIONS_FOR_OWNER.md`'de üç
+seçenek var). Son olarak: aylardır "bu ortamda tarayıcı testleri çalışmıyor" denilen şey artık kısmen
+yanlış çıktı — bu run gerçek bir tarayıcıyı (Chromium) başarıyla çalıştırıp oyunun ekran görüntüsünü
+aldı, ilk kez. Perde arkasında ayrıca altı yerleşim-sistemi test dosyasındaki gerçek kod hataları
+bulunup düzeltildi (oyunda henüz kullanılmayan bir alt sistem, oyuncu bunu fark etmez).
+
+---
+
 ## Run 362 itibarıyla (2026-09-09) — İlk kez ses var, arazi artık gerçekten dağlık, ve bir GitHub sürprizi
 
 Bu giriş normalde her ~10 çalıştırmada bir gelmesi gerekirken 22 çalıştırma (Run 341→362) geçti — geri
