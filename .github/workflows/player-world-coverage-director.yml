@@ -1,0 +1,79 @@
+name: Kızıl Ufuk Player World Coverage Director
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/playerWorldCoverageDirector.js'
+      - 'src/3d/gameplay/playerWorldCoverageRuntimeAdapter.js'
+      - 'src/3d/gameplay/playerWorldCoverageReplayContract.js'
+      - 'src/3d/gameplay/playerWorldCoverageAssetEvidence.js'
+      - 'src/3d/gameplay/playerWorldCoverageScenarioMatrix.js'
+      - 'scripts/checkPlayerWorldCoverageDirector.mjs'
+      - 'scripts/setupNodeThreeShim.mjs'
+      - '.github/workflows/player-world-coverage-director.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/3d/gameplay/playerWorldCoverageDirector.js
+          node --check src/3d/gameplay/playerWorldCoverageRuntimeAdapter.js
+          node --check src/3d/gameplay/playerWorldCoverageReplayContract.js
+          node --check src/3d/gameplay/playerWorldCoverageAssetEvidence.js
+          node --check src/3d/gameplay/playerWorldCoverageScenarioMatrix.js
+          node --check scripts/checkPlayerWorldCoverageDirector.mjs
+
+      - name: Enforce shared material/placement boundary
+        run: |
+          node -e "const fs=require('fs'); const files=['src/3d/gameplay/playerWorldCoverageDirector.js','src/3d/gameplay/playerWorldCoverageRuntimeAdapter.js','src/3d/gameplay/playerWorldCoverageReplayContract.js','src/3d/gameplay/playerWorldCoverageAssetEvidence.js','src/3d/gameplay/playerWorldCoverageScenarioMatrix.js']; for (const f of files) { const s=fs.readFileSync(f,'utf8'); if (s.includes('EditorMaterialStudio')) throw new Error(f+' imports editor UI'); if (/from ['\"]three['\"]/.test(s)) throw new Error(f+' owns Three runtime'); } if (!fs.existsSync('src/3d/materials/MaterialAssignmentCore.js')) throw new Error('shared MaterialAssignmentCore missing'); if (!fs.existsSync('src/3d/world/WorldAssetPlacementPipeline.js')) throw new Error('shared placement pipeline missing');"
+
+      - name: Run full world coverage contract
+        run: node scripts/checkPlayerWorldCoverageDirector.mjs
+
+      - name: Run deterministic contract twice
+        run: |
+          node scripts/checkPlayerWorldCoverageDirector.mjs > /tmp/world-coverage-a.json
+          node scripts/checkPlayerWorldCoverageDirector.mjs > /tmp/world-coverage-b.json
+          cmp /tmp/world-coverage-a.json /tmp/world-coverage-b.json
+
+      - name: Enforce changed-line budget
+        run: |
+          base='${{ github.event.pull_request.base.sha || github.event.before }}'
+          head='${{ github.event.pull_request.head.sha || github.sha }}'
+          git fetch --no-tags origin "$base" --depth=1
+          changed=$(git diff --numstat "$base" "$head" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          echo "changed=$changed"
+          test "$changed" -le 3000
+
+      - name: Upload contract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-world-coverage-director
+          path: |
+            /tmp/world-coverage-a.json
+            /tmp/world-coverage-b.json
+          if-no-files-found: error
+          retention-days: 7
