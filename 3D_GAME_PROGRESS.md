@@ -18917,3 +18917,33 @@ Three more (`GuardImpactExhaustion`, `MeleeCombo`, `RecoveryAttackBuffer`) were 
 commit time.
 
 **DoD:** verification-only, no code changed this entry. No ADR.
+
+## Run 371l (2026-09-10, scheduled routine) — fourth confirmed real PASS (recovery/attack buffer); two more failures are a distinct, not-yet-understood class, deliberately not guess-fixed
+
+**`checkPlayerRecoveryAttackBufferRuntime.mjs` confirmed real PASS**: `PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK {"blockedWindows":0,"eligibleSerial":1,"errors":0}`. Four of nine
+player-combat checks now independently confirmed passing (`HitStagger`, `LockOn`, `CombatHud`,
+`RecoveryAttackBuffer`).
+
+**`checkPlayerGuardImpactExhaustionRuntime.mjs`** and **`checkPlayerMeleeComboRuntime.mjs`** both
+failed, but on a **different class of issue** than every other fix in this run — not navigation, not
+the asset-gap console noise. Both time out waiting for a specific *in-game state transition* (grounded
+sprint after a dodge; heavy-attack recovery finishing) inside many small, per-transition
+`waitEvidence()`/`waitFor()` calls (5-10s each) scattered through each file, and both produce real,
+plausible telemetry right up to the timeout (stamina/poise/position frames actively updating) — so this
+is not the file hanging, something real is happening, it is just not reaching the expected state in the
+budgeted window. Unlike the `GAME_READY`-adjacent timeouts fixed elsewhere this run (which were clearly
+"boot/asset-loading takes longer here"), it is not yet established *why* these specific gameplay-state
+transitions run slower than their own authors budgeted for — possibly the same software-rendering
+slowness (a game loop pinned to very low real FPS can still track elapsed real time correctly via
+`delta`, but each `page.evaluate()` telemetry read may lag several render-frames behind the actual game
+state), possibly something else. **Deliberately not guess-bumped**: GOVERNANCE.md's "BİLMEME KURALI"
+applies — blindly raising these specific timeouts without understanding the mechanism risks silently
+masking a real regression in dodge-recovery or heavy-attack-recovery timing, which is exactly the kind
+of thing this check family exists to catch.
+
+**DoD:** no code changed for the two undiagnosed failures. No ADR (this entry is a diagnosis record).
+
+**Sıradaki adım:** `GuardImpactExhaustion`/`MeleeCombo` need a dedicated investigation (frame-by-frame
+telemetry review against wall-clock time) before their timeouts are touched, not a quick fix. The
+remaining 3 of 9 (`StaminaDodge`, `DodgeIFrame`, `Gamepad`) have not been run this session and are
+still fully unverified.
