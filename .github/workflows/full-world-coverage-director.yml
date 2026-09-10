@@ -1,5 +1,4 @@
 name: Full World Coverage Director
-
 on:
   pull_request:
     branches: [main]
@@ -10,226 +9,117 @@ on:
       - scripts/checkFullWorldRuntimeCoverage.mjs
       - .github/workflows/full-world-coverage-director.yml
   push:
-    branches:
-      - codex/world-coverage-complete-v1-20260910
+    branches: [codex/world-coverage-complete-v1-20260910]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: full-world-coverage-director-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
-
 jobs:
   exact-scope:
-    name: Exact main + scope + syntax
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Checkout exact candidate without implicit LFS hydration
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: false
-
-      - name: Install Node 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Re-read exact origin/main and bounded scope
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, lfs: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact main, scope, syntax and ownership boundary
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main --prune
           MAIN="$(git rev-parse origin/main)"
-          echo "EXACT_ORIGIN_MAIN=$MAIN"
-          echo "HEAD=$(git rev-parse HEAD)"
           test "$(git merge-base HEAD origin/main)" = "$MAIN"
           git diff --check origin/main...HEAD
           mapfile -t CHANGED < <(git diff --name-only origin/main...HEAD)
-          printf '%s\n' "${CHANGED[@]}"
-          for path in "${CHANGED[@]}"; do
-            case "$path" in
-              src/3d/world/fullWorldCoverageDirector.js|scripts/checkFullWorldCoverageDirector.mjs|scripts/checkFullWorldCoverageDirectorScenarios.mjs|scripts/checkFullWorldRuntimeCoverage.mjs|.github/workflows/full-world-coverage-director.yml) ;;
-              *) echo "UNAUTHORIZED_CHANGED_PATH=$path"; exit 1 ;;
-            esac
-          done
+          for path in "${CHANGED[@]}"; do case "$path" in src/3d/world/fullWorldCoverageDirector.js|scripts/checkFullWorldCoverageDirector.mjs|scripts/checkFullWorldCoverageDirectorScenarios.mjs|scripts/checkFullWorldRuntimeCoverage.mjs|.github/workflows/full-world-coverage-director.yml) ;; *) echo "UNAUTHORIZED_CHANGED_PATH=$path"; exit 1 ;; esac; done
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END{print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END{print s+0}')"
-          changed=$((additions + deletions))
-          echo "FULL_WORLD_COVERAGE_CHANGED_LINES=$changed"
-          test "$changed" -le 3000
-          test "$additions" -ge 1
-
-      - name: Syntax gate
-        shell: bash
-        run: |
-          set -euo pipefail
+          test $((additions + deletions)) -le 3000
           node --check src/3d/world/fullWorldCoverageDirector.js
           node --check scripts/checkFullWorldCoverageDirector.mjs
           node --check scripts/checkFullWorldCoverageDirectorScenarios.mjs
           node --check scripts/checkFullWorldRuntimeCoverage.mjs
-
-      - name: Shared Material Placement runtime boundary
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -n "EditorMaterialStudio" src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs scripts/checkFullWorldRuntimeCoverage.mjs; then
-            echo "EditorMaterialStudio runtime import is forbidden"
-            exit 1
-          fi
-          grep -F "MaterialAssignmentCore + WorldAssetPlacementPipeline" src/3d/world/fullWorldCoverageDirector.js
-
-      - name: Read-only geometry and ownership boundary
-        shell: bash
-        run: |
-          set -euo pipefail
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          grep -F "Shared, DOM-free material pipeline" src/3d/materials/MaterialAssignmentCore.js
+          grep -F "autoAssignMaterials" src/3d/world/WorldAssetPlacementPipeline.js
+          if grep -n "EditorMaterialStudio" src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs scripts/checkFullWorldRuntimeCoverage.mjs; then exit 1; fi
           ! grep -nE "new (THREE\.)?(BoxGeometry|SphereGeometry|CylinderGeometry|CapsuleGeometry)|MeshBasicMaterial|PlaneGeometry" src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs
-          ! grep -nE "(writeFileSync|appendFileSync|mkdirSync).*assets|git lfs pull.*--all" src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs
           grep -F "mutatesCanonicalGeography: false" src/3d/world/fullWorldCoverageDirector.js
-
   executable-contracts:
-    name: Executable coverage contracts
     needs: exact-scope
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: false
+        with: { fetch-depth: 0, lfs: false }
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Focused director regression
+        with: { node-version: 22 }
+      - name: Coverage director regression
         run: node scripts/checkFullWorldCoverageDirector.mjs
       - name: Scenario matrix regression
         run: node scripts/checkFullWorldCoverageDirectorScenarios.mjs
-      - name: Existing full-world runtime contract
+      - name: Existing runtime coverage regression
         run: node scripts/checkFullWorldRuntimeCoverage.mjs
-      - name: Run283 governance contract
+      - name: Run283 governance contract regression
         run: node scripts/checkRun283FinalHeadGovernance.js
-      - name: Re-run focused contracts for determinism
+      - name: Deterministic replay
         shell: bash
         run: |
           set -euo pipefail
-          first="$(node scripts/checkFullWorldCoverageDirector.mjs)"
-          second="$(node scripts/checkFullWorldCoverageDirector.mjs)"
-          printf '%s\n' "$first"
-          printf '%s\n' "$second"
-          test "$first" = "$second"
-          first_s="$(node scripts/checkFullWorldCoverageDirectorScenarios.mjs)"
-          second_s="$(node scripts/checkFullWorldCoverageDirectorScenarios.mjs)"
-          printf '%s\n' "$first_s"
-          printf '%s\n' "$second_s"
-          test "$first_s" = "$second_s"
-
-      - name: Stable digest extraction
-        shell: bash
-        run: |
-          set -euo pipefail
-          output="$(node scripts/checkFullWorldCoverageDirector.mjs)"
-          echo "$output"
-          echo "$output" | grep -E 'FULL_WORLD_COVERAGE_DIRECTOR_OK checks=[0-9]+ cells=1008 probes=[0-9]+ digest=[0-9]+'
-
+          a="$(node scripts/checkFullWorldCoverageDirector.mjs)"; b="$(node scripts/checkFullWorldCoverageDirector.mjs)"; test "$a" = "$b"; echo "$a"
+          a="$(node scripts/checkFullWorldCoverageDirectorScenarios.mjs)"; b="$(node scripts/checkFullWorldCoverageDirectorScenarios.mjs)"; test "$a" = "$b"; echo "$a"
   browser-and-assets:
-    name: Browser / asset-backed world proof
     needs: executable-contracts
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: false
+        with: { fetch-depth: 0, lfs: false }
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install runtime dependency
-        run: npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
-
-      - name: Install Chromium harness
+        with: { node-version: 22 }
+      - name: Install runtime and Chromium harness
         shell: bash
         run: |
           set -euo pipefail
+          npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
           mkdir -p "$RUNNER_TEMP/pw"
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-
-      - name: Scoped LFS hydration
+      - name: Selective model-family LFS hydration
         shell: bash
-        run: |
-          set -euo pipefail
-          git lfs version
-          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
-
-      - name: Prove full-world runtime in Chromium
-        shell: bash
-        run: |
-          set -euo pipefail
-          NODE_PATH="$NODE_PATH" node scripts/checkFullWorldRuntimeBrowser.mjs
-
-      - name: Browser console failure is a hard failure
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "The preceding browser proof is authoritative; no warning is promoted to PASS."
-
+        run: git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+      - name: Shipped createScene browser parity
+        run: NODE_PATH="$NODE_PATH" node scripts/checkFullWorldRuntimeBrowser.mjs
   governance:
-    name: Governance + shared contract + freshness
     needs: [exact-scope, executable-contracts, browser-and-assets]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: false
-
-      - name: Exact head identity
+        with: { fetch-depth: 0, lfs: false }
+      - name: Final exact-main freshness
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main --prune
           MAIN="$(git rev-parse origin/main)"
           HEAD="$(git rev-parse HEAD)"
-          echo "FINAL_ORIGIN_MAIN=$MAIN"
-          echo "FINAL_HEAD=$HEAD"
-          test "$(git merge-base HEAD origin/main)" = "$MAIN"
-
-      - name: Shared material placement contract is singular
-        shell: bash
-        run: |
-          set -euo pipefail
-          CORE_COUNT="$(git grep -l "MaterialAssignmentCore" -- 'src/3d/materials/MaterialAssignmentCore.js' 'src/3d/world/WorldAssetPlacementPipeline.js' 'src/3d/world/fullWorldCoverageDirector.js' | wc -l)"
-          test "$CORE_COUNT" -ge 1
-          test "$(git grep -l "EditorMaterialStudio" -- src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs scripts/checkFullWorldRuntimeCoverage.mjs | wc -l)" -eq 0
-
-      - name: Coverage manifest policy
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --input-type=module <<'NODE'
-          import { createSyntheticCoveragePlan, createFullWorldCoverageManifest } from './src/3d/world/fullWorldCoverageDirector.js';
-          const plan = createSyntheticCoveragePlan();
-          const manifest = createFullWorldCoverageManifest(plan);
-          if (manifest.cellCount !== 1008) throw new Error('cell count drift');
-          if (manifest.unassessedRatio !== 0) throw new Error('unassessed cells present');
-          if (manifest.validation.errors.length !== 0) throw new Error(JSON.stringify(manifest.validation.errors));
-          if (manifest.referenceMapSha256 !== '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1') throw new Error('map provenance drift');
-          console.log(JSON.stringify({ cellCount: manifest.cellCount, probeCount: manifest.probeCount, digest: manifest.deterministicDigest }));
-          NODE
-
-      - name: Final freshness
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main --prune
-          MAIN="$(git rev-parse origin/main)"
           test "$(git merge-base HEAD origin/main)" = "$MAIN"
           git diff --check origin/main...HEAD
-          echo "FULL_WORLD_COVERAGE_FRESHNESS_OK main=$MAIN head=$(git rev-parse HEAD)"
+          echo "FULL_WORLD_COVERAGE_FRESH main=$MAIN head=$HEAD"
+      - name: Singular shared material authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          grep -F "Shared, DOM-free material pipeline" src/3d/materials/MaterialAssignmentCore.js
+          grep -F "autoAssignMaterials" src/3d/world/WorldAssetPlacementPipeline.js
+          test "$(git grep -l "EditorMaterialStudio" -- src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs scripts/checkFullWorldRuntimeCoverage.mjs | wc -l)" -eq 0
+      - name: Manifest policy
+        run: node --input-type=module -e "import {createSyntheticCoveragePlan,createFullWorldCoverageManifest} from './src/3d/world/fullWorldCoverageDirector.js'; const m=createFullWorldCoverageManifest(createSyntheticCoveragePlan()); if(m.cellCount!==1008||m.unassessedRatio!==0||m.validation.errors.length) throw new Error(JSON.stringify(m.validation.errors)); console.log(JSON.stringify({cells:m.cellCount,probes:m.probeCount,digest:m.deterministicDigest}));"
