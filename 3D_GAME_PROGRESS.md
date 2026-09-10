@@ -18902,3 +18902,18 @@ repeatedly across this run (371f/371g/371h). Raised to 45000ms; re-verification 
 time.
 
 **DoD:** `node --check` PASS. No ADR (timeout tuning, not a design decision).
+
+## Run 371k (2026-09-10, scheduled routine) — third confirmed real PASS (combat HUD)
+
+**`checkPlayerCombatHudRuntime.mjs` confirmed real PASS** end-to-end after 371j's timeout raise:
+`PLAYER_COMBAT_HUD_RUNTIME_OK` with real combat-state HUD text captured across every state this check
+exercises — free/idle, unlocked-range light attack, locked-but-out-of-range, locked-in-range, parry,
+guard/block (`"ÇatışmaHafif · VURUŞ · Seri x1 · Erişim 1.6 m · Güç x1.00"`,
+`"ÇatışmaPARRY · 20.0 savuşturuldu · Kilit · runtime-guard · 1.2 m"`, etc.). Three of nine player-combat
+checks now independently confirmed genuinely passing (`HitStagger`, `LockOn`, `CombatHud`) — strong,
+repeated evidence the `waitUntil`/asset-gap-soft-filter fix family (371e-371j) is correct, not
+coincidental, and that this real, live, player-facing combat system's underlying mechanics are sound.
+Three more (`GuardImpactExhaustion`, `MeleeCombo`, `RecoveryAttackBuffer`) were mid-verification at
+commit time.
+
+**DoD:** verification-only, no code changed this entry. No ADR.
