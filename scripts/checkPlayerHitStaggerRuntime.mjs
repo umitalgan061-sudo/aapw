@@ -47,7 +47,9 @@ async function isolateDamageSources() {
   });
 }
 try {
-  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  // Run 371 fix: 'commit' (not 'domcontentloaded', which hangs the full timeout in this
+  // environment) — 3D_GAME_PROGRESS.md Run 371e/371f/371g.
+  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'commit', timeout: 30000 });
   await isolateDamageSources();
   await page.locator('#run266-entry-enter').click();
   await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });

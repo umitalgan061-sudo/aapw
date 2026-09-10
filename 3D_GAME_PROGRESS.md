@@ -18765,3 +18765,22 @@ software-rendering load. **Conclusion:** this run's fix is correct and verified 
 fix; it does not make these 10 scripts pass end-to-end by itself. The entry-gate-dismissal gap (9/10
 files) and this environment's apparent sensitivity to concurrent-context load are separate, real
 next-step candidates, not silently folded into "fixed" here.
+
+## Run 371h (2026-09-10, scheduled routine) — same waitUntil fix for 9 player-combat runtime checks (a real, wired gameplay system's own smoke coverage, not settlementCampaign's unwired one)
+
+Checking beyond `settlementCampaign*` and the mobile/capture scripts already covered in 371e-371g,
+found the exact same `waitUntil: 'domcontentloaded'` navigation hang in all 9
+`checkPlayer*Runtime.mjs` scripts — `GuardImpactExhaustion`, `HitStagger`, `LockOn`, `MeleeCombo`,
+`RecoveryAttackBuffer`, `StaminaDodge`, `CombatHud`, `DodgeIFrame`, `Gamepad`. These cover the
+**player's actual combat system** (a real, wired, player-facing feature, unlike `settlementCampaign*`'s
+unwired subsystem) — the highest-value cluster found so far to unblock.
+
+Unlike the 371g batch, these 9 files already handle the entry gate correctly
+(`page.locator('#run266-entry-enter').click()` — the safe click style, not the `elementHandle.click()`
+that hung earlier this run) and already pass `waitForFunction`'s `arg` correctly (`null`, not omitted)
+— **only the one `waitUntil` line needed fixing in each file**, a single, uniform, mechanical
+replacement (`'domcontentloaded'` → `'commit'`), applied identically across all 9.
+
+**DoD:** `node --check` PASS on all 9 files. Spot-verification in progress at commit time — see the
+next progress entry for the actual pass/fail result (not claimed here in advance). No ADR (bugfix,
+same root cause already documented in 371e/371f, no new design decision).
