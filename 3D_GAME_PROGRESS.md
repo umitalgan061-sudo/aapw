@@ -18698,6 +18698,30 @@ instead: migrate `scripts/check*.js`/`scripts/capture*.js`'s `game3d.html` navig
 `waitUntil:'commit'`, one file (or a small batched group) at a time, each re-verified against its own
 assertions before moving to the next.
 
-**DoD:** `node --check scripts/collectPerfSnapshot.js` PASS. Diagnosis of the 273-file pattern is
-read-only (grep only), no code changed beyond the one file. No ADR (bugfix + investigation record, not
-a design decision).
+**A second, distinct bug surfaced right after the first fix**: navigation now resolved, but the very
+next step — `page.waitForFunction(predicate, { timeout: 60000, polling: 250 })` — still timed out at
+exactly Playwright's **30000ms default**, not the 60000ms written in the source. Root cause:
+`page.waitForFunction(pageFunction, arg, options)` takes the page-function's own argument as its
+*second* positional parameter; the `{timeout, polling}` object was landing in that `arg` slot (silently
+ignored — the predicate takes no parameter) instead of `options`, so the real timeout was always
+Playwright's built-in default. Fixed by passing `undefined` for `arg` and raising the real timeout to
+120000ms (matching what `weatherVisualQa.js` empirically needed for the same GAME_READY wait). A quick
+follow-up grep found this exact 2-argument mis-call shape in at least 10 more files
+(`checkVillageArchitectureNavigationBrowser.mjs`, `checkWorldEnvironmentAcceptanceMatrix.mjs`,
+`checkMobileVegetationCullingRun141.js`, `checkMobileVegetationLod.js`, `checkMobileJumpControl.js`,
+`checkMobileSpawnVegetation.js`, `captureRun339PauseMenuEvidence.js`, `captureRun130MobileEvidence.js`,
+`captureRun134MobileLodEvidence.js`, `captureRun136MobileVegetationEvidence.js`) — likely an
+undercount, since this search only matches single-line arrow-function predicates immediately followed
+by the options object; not mass-fixed this run for the same reason as the `waitUntil` pattern above
+(needs per-file re-verification, not a blind find-replace) — folded into the same next-subtask note.
+
+**Result:** `collectPerfSnapshot.js` finally sampled successfully —
+`2026-09-10,run371-weather-and-settlement-fixes,0,65,717123,66,20,215` appended to `perf_log.csv`,
+the first real row since Run 354. 65 draw calls / 717,123 triangles — same order of magnitude as
+Run 354's own 61/769,878, comfortably inside the desktop <2500 draw-call/<5M triangle budget, no
+regression signal. `fps: 0` is the module's own documented caveat (software-rendered headless
+Chromium in this container, not comparable to a real device) rather than a new finding.
+
+**DoD:** `node --check scripts/collectPerfSnapshot.js` PASS. Diagnosis of both spread patterns
+(`waitUntil`, `waitForFunction` arg-position) is read-only (grep only), no code changed beyond the one
+file. No ADR (two narrow bugfixes + an investigation record, not a design decision).
