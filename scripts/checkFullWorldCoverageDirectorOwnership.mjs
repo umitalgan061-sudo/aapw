@@ -14,18 +14,11 @@ import {
   getWorldCoverageConstants,
 } from '../src/3d/world/fullWorldCoverageDirector.js';
 
-function assert(condition, message) {
-  if (!condition) throw new Error(`[full-world-ownership] ${message}`);
-}
-
+function assert(condition, message) { if (!condition) throw new Error(`[full-world-ownership] ${message}`); }
 const root = path.resolve('.');
-const directorPath = path.join(root, 'src/3d/world/fullWorldCoverageDirector.js');
-const directorSource = fs.readFileSync(directorPath, 'utf8');
-const materialCorePath = path.join(root, 'src/3d/materials/MaterialAssignmentCore.js');
-const placementPipelinePath = path.join(root, 'src/3d/world/WorldAssetPlacementPipeline.js');
-const materialCoreSource = fs.readFileSync(materialCorePath, 'utf8');
-const placementSource = fs.readFileSync(placementPipelinePath, 'utf8');
-
+const directorSource = fs.readFileSync(path.join(root, 'src/3d/world/fullWorldCoverageDirector.js'), 'utf8');
+const materialCoreSource = fs.readFileSync(path.join(root, 'src/3d/materials/MaterialAssignmentCore.js'), 'utf8');
+const placementSource = fs.readFileSync(path.join(root, 'src/3d/world/WorldAssetPlacementPipeline.js'), 'utf8');
 const constants = getWorldCoverageConstants();
 assert(constants.WORLD_BOUNDS.xMin === 0 && constants.WORLD_BOUNDS.yMin === 0, 'coverage origin drifted');
 assert(constants.WORLD_BOUNDS.xMax === 9000 && constants.WORLD_BOUNDS.yMax === 7000, 'coverage extent drifted');
@@ -45,7 +38,6 @@ const adapter = createRuntimeCoverageAdapter(plan, { batchSize: 24 });
 const viewport = createViewportCoverageSchedule(plan, { samples: 7 });
 const ownerEvidence = createOwnerEvidenceRequest(plan, { owner: 'buzul-muhafizi' });
 const seamAudit = createSeamAudit(plan);
-
 assert(plan.cellCount === 1008, `expected 1008 cells, received ${plan.cellCount}`);
 assert(plan.grid.columns * plan.grid.rows === 1008, 'grid product does not cover the full lattice');
 assert(plan.coverageRatio === 1, `synthetic plan coverage ${plan.coverageRatio}`);
@@ -66,45 +58,32 @@ assert(ownerEvidence.requiredChecks.includes('asset-hydration'), 'owner evidence
 assert(ownerEvidence.noPassClaimUntilObserved === true, 'owner evidence allows unobserved PASS claims');
 assert(seamAudit.pairCount === 1952, `expected 1952 seam pairs, received ${seamAudit.pairCount}`);
 assert(seamAudit.unresolvedCount === 0, 'coverage lattice contains self-seam pairs');
-
-const boundaryCounts = {
-  north: plan.boundaries.north.length,
-  south: plan.boundaries.south.length,
-  west: plan.boundaries.west.length,
-  east: plan.boundaries.east.length,
-};
+const boundaryCounts = { north: plan.boundaries.north.length, south: plan.boundaries.south.length, west: plan.boundaries.west.length, east: plan.boundaries.east.length };
 assert(boundaryCounts.north === 36, 'north boundary is not complete');
 assert(boundaryCounts.south === 36, 'south boundary is not complete');
 assert(boundaryCounts.west === 28, 'west boundary is not complete');
 assert(boundaryCounts.east === 28, 'east boundary is not complete');
-
 for (const phase of plan.evidence) assert(typeof phase.phase === 'string' && typeof phase.passed === 'boolean', `invalid phase evidence ${JSON.stringify(phase)}`);
 assert(plan.evidence.some((phase) => phase.phase === 'determinism'), 'determinism phase missing');
 assert(plan.evidence.some((phase) => phase.phase === 'parity'), 'parity phase missing');
 assert(plan.evidence.some((phase) => phase.phase === 'cross-seam'), 'seam phase missing');
-
 for (const feature of constants.DEFAULT_REQUIRED_FEATURES) {
   assert(plan.featureMatrix[feature], `feature matrix missing ${feature}`);
   assert(Number.isFinite(plan.featureMatrix[feature].coverage), `${feature} coverage is not finite`);
 }
-
-const forbiddenRuntimeTokens = ['EditorMaterialStudio', 'MeshBasicMaterial', 'BoxGeometry', 'SphereGeometry', 'CylinderGeometry', 'CapsuleGeometry', 'PlaneGeometry', 'writeFileSync', 'appendFileSync', 'mkdirSync', 'git lfs pull --all'];
-for (const token of forbiddenRuntimeTokens) assert(!directorSource.includes(token), `director contains forbidden token: ${token}`);
+for (const token of ['EditorMaterialStudio','MeshBasicMaterial','BoxGeometry','SphereGeometry','CylinderGeometry','CapsuleGeometry','PlaneGeometry','writeFileSync','appendFileSync','mkdirSync','git lfs pull --all']) assert(!directorSource.includes(token), `director contains forbidden token: ${token}`);
 assert(directorSource.includes('mutatesCanonicalGeography'), 'director read-only marker missing');
 assert(directorSource.includes('createsGeometry'), 'director geometry marker missing');
 assert(directorSource.includes('sharedMaterialPlacementAuthority'), 'shared material authority marker missing');
 assert(materialCoreSource.includes('Shared, DOM-free material pipeline'), 'shared MaterialAssignmentCore contract marker missing');
 assert(materialCoreSource.includes('validateMaterialAssignment'), 'shared material validation API missing');
 assert(placementSource.includes('autoAssignMaterials'), 'WorldAssetPlacementPipeline material bridge missing');
-assert(placementSource.includes("../materials/MaterialAssignmentCore.js"), 'placement pipeline does not use shared material core');
+assert(placementSource.includes('../materials/MaterialAssignmentCore.js'), 'placement pipeline does not use shared material core');
 assert(!placementSource.includes('EditorMaterialStudio'), 'placement pipeline imports editor UI');
-
-const serialized = JSON.stringify(manifest);
-const reparsed = JSON.parse(serialized);
+const reparsed = JSON.parse(JSON.stringify(manifest));
 assert(reparsed.cellCount === manifest.cellCount, 'manifest serialization lost cell count');
 assert(reparsed.deterministicDigest === manifest.deterministicDigest, 'manifest serialization changed digest');
 assert(reparsed.validation.ok === manifest.validation.ok, 'manifest serialization changed validation');
-
 const riskTotal = Object.values(plan.risks).reduce((sum, value) => sum + value, 0);
 assert(riskTotal === 0, `synthetic ownership plan contains runtime risks: ${JSON.stringify(plan.risks)}`);
 assert(plan.gaps.length === 0, `synthetic ownership plan contains ${plan.gaps.length} coverage gaps`);
