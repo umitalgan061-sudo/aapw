@@ -45,7 +45,10 @@ const interiors = listSettlementInteriors();
 equal(interiors.length, 8, 'interior-count');
 const interiorManifest = buildSettlementInteriorManifest();
 ok(validateSettlementInteriorContract(interiorManifest).ok, 'interior-contract');
-for (const role of interiors) { const action = resolveSettlementInteriorAction(role, role === 'blacksmith' ? 'craft' : role === 'gate' ? 'travel' : 'talk'); ok(action.ok, `interior-action:${role}`); }
+// farm is the one settlement role authored without a 'talk' action (see settlementCampaignContent.js's
+// SERVICES.farm and settlementCampaignAuthoringAudit.js's REQUIRED_FUNCTIONAL_ACTIONS.farm, both of which
+// already omit it and are already-green production contracts) - 'interact' is farm's own generic action.
+for (const role of interiors) { const action = resolveSettlementInteriorAction(role, role === 'blacksmith' ? 'craft' : role === 'gate' ? 'travel' : role === 'farm' ? 'interact' : 'talk'); ok(action.ok, `interior-action:${role}`); }
 ok(resolveSettlementTransition('enter', { sourceKind: 'settlement', targetKind: 'interior' }).ok, 'enter-transition');
 ok(!resolveSettlementTransition('travel', { sourceKind: 'settlement', targetKind: 'travel' }).ok, 'bad-travel-transition');
 const placement = buildPlacementEvidence('blacksmith', { sourceAsset: 'assets/models/settlements/workshop.glb', materialValidated: true, materialManifestId: 'mat-blacksmith', groundAligned: true, manifestProduced: true, sceneAttached: true });

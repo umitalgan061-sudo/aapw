@@ -18276,3 +18276,116 @@ either (a) the follow-up noted above (unify the two `normalizeGate()` implementa
 still-broken, structurally separate `settlementCampaignContracts`/`CampaignRuntime`/`CampaignDeepSlice`
 scripts (a different subsystem, not investigated this run) — a future run should root-cause one of those
 before attempting a fix, per this project's own "read/verify before touching" convention.
+
+---
+
+## Run 370 (2026-09-10, scheduled routine) — root-cause and repair `checkSettlementCampaignContracts.mjs`'s `interior-action:farm` crash; wider `settlementCampaign*` breakage surveyed
+
+Session snapshot re-read in full per `GOVERNANCE_CONTINUATION_OVERRIDE.md` §5 order (`GOVERNANCE.md`,
+`GOVERNANCE_CONTINUATION_OVERRIDE.md`, `GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md`,
+`GOVERNANCE_FULL_GAME_DIRECTIVE.md`, this file's tail through Run 369, `git log`, `QUESTIONS_FOR_OWNER.md`
+tail). `git fetch origin main` confirmed local `main` already matched `origin/main` at `7fb1ee97` (Run 369's
+own commit) — no drift, no concurrent session. Re-verified the standing LFS/repo-rename blocker in this
+session's own environment before touching anything: `git lfs version` still reports no `lfs` git command,
+`assets/models/settlements/*.glb` samples are still ~130-131 byte pointer text — same condition as every
+run since 355, no new information, not re-reported (per this project's own anti-spam convention). This
+confirms priority-list items 1/1.2/1.5/1.7 (terrain macro relief, road network, ground colour, castle
+texturing) remain asset-blocked in this environment, same as every recent run's read.
+
+Picked up Run 369's own named "next safe step" option (b): the settlement-vertical-slice check family
+(Matrix/Content/Events/Journey/RoleRuntime/RoleCatalog) is now fully green, so this run moved to the
+sibling, structurally separate `settlementCampaign*` subsystem's broken check scripts, starting with the
+smallest/simplest crash (`checkSettlementCampaignContracts.mjs`, single assertion failure) rather than the
+two larger multi-step scripts (`checkSettlementCampaignRuntime.mjs`, `checkSettlementCampaignDeepSlice.mjs`)
+Run 369 had already flagged, per this project's "one file family, smallest first" discipline.
+
+**Root cause (confirmed by direct invocation before touching code, not guessed).**
+`checkSettlementCampaignContracts.mjs` crashed on `interior-action:farm` — its per-role loop tested every
+non-blacksmith/gate interior role with a blanket `'talk'` action, assuming uniform dialogue support across
+all 8 settlement roles. That assumption is false for exactly one role: `farm`. Cross-checked three
+independent, already-authored, already-passing sources before concluding this was a test bug and not a
+production gap: (1) `settlementCampaignContent.js`'s `SERVICES.farm.actions` is `['interact','trade','rest',
+'travel']` — no `talk`; (2) `settlementCampaignInterior.js`'s `INTERIORS.farm.activities` matches exactly;
+(3) `settlementCampaignAuthoringAudit.js`'s own `REQUIRED_FUNCTIONAL_ACTIONS.farm` is `['rest','travel']` —
+deliberately excludes `talk`, and `auditSettlementServices()` (the live authoring contract built from this
+exact spec) ran clean (`ok:true`) both before and after this fix, confirming farm's talk-less design is the
+project's own already-green intent, not an oversight this run should "fix" in production. (All 7 other
+roles' actions were also printed and checked individually — blacksmith, unlike the test's per-role special
+case for it, actually does include `talk`; the test picks `craft` for blacksmith to exercise a different
+action, not because blacksmith lacks `talk`.) Farm is the one location authored as an NPC-less
+resource/travel stop, unlike tavern/market/barracks/stable/house/blacksmith which all support dialogue.
+
+**Fix.** `scripts/checkSettlementCampaignContracts.mjs`: the per-role action-probe ternary now special-cases
+`farm` to `'interact'` (farm's own generic action, present in all three sources above) instead of falling
+through to `'talk'`, with a comment citing the three cross-checked sources. No production file touched.
+
+**Verification.**
+- `node --check` PASS on the touched file; repo-wide sweep across every `src/**/*.js`/`*.mjs` and
+  `scripts/**/*.js`/`*.mjs` — 0 errors.
+- `checkSettlementCampaignContracts.mjs` was a hard crash at check 48; now **`SETTLEMENT_CAMPAIGN_CONTRACTS_OK
+  checks=64`** — full pass, all 64 assertions green.
+- Blast-radius: zero, by construction — the fix touched only the test script, no production module. Verified
+  anyway: `git stash`, re-ran the fix-adjacent siblings — identical pre-existing pass/fail state before and
+  after (see next paragraph), `git stash pop` restored cleanly.
+- **New information surfaced this run, not previously recorded:** surveying the full `settlementCampaign*`
+  check-script family (11 scripts total) found the breakage is wider than Run 369's own note named. Besides
+  the two Run 369 already flagged (`checkSettlementCampaignRuntime.mjs`, `checkSettlementCampaignDeepSlice.mjs`),
+  four MORE scripts in the same family also currently hard-crash on their first failing assertion:
+  `checkSettlementCampaignAccessibility.mjs`, `checkSettlementCampaignAuthoring.mjs`,
+  `checkSettlementCampaignEventBridge.mjs`, `checkSettlementCampaignQuestChains.mjs`. Confirmed via
+  `git stash` that all six (these four plus the two Run 369 already named) were already broken identically
+  before this run's own change (not caused by it). Three siblings remain green and unaffected:
+  `checkSettlementCampaignAssetEvidence.mjs` (14 checks), `checkSettlementCampaignEquipment.mjs` (17 checks),
+  `checkSettlementCampaignNavigation.mjs` (25 checks). The 11th script, `checkSettlementCampaignBrowser.mjs`,
+  also fails, but for a different, already-known-category reason, not a new logic bug: it hard-imports
+  `playwright` at module scope (`import { chromium } from 'playwright'`, no guard, unlike
+  `smokeTestGame3D.js`'s own `loadPlaywright()` which degrades gracefully) and this environment has no
+  `playwright` package installed — the same class of "browser tooling unavailable in this session's
+  environment" condition as `smokeTestGame3D.js`'s own standing, already-reported block, not counted
+  against the 6 real logic-bug scripts below. So: of 11 scripts, 1 fixed this run (Contracts), 3 already
+  green, 6 broken by real, not-yet-root-caused logic bugs, 1 environment-blocked (Browser, same known
+  category as the LFS/browser condition). This is a materially larger open cluster than the "two remaining
+  candidates" Run 369's own note implied — flagged here as new information per this project's own anti-spam
+  convention (this is new, not a re-report of an unchanged item).
+- Full DoD gate sweep, re-run fresh after `git fetch origin main` (still `7fb1ee97`, no drift):
+  `checkSmokeCheckRegistry.js` OK — 44 smoke checks/19 modules, 684 JS files within the 600-line cap, same
+  class of near-cap WARNs (5 world-module files 554-597/600), none newly introduced, none in the touched
+  file (`checkSettlementCampaignContracts.mjs` is a small fixture script, well under the cap).
+  `checkTechnicalDebt.js` PASS — 0 new forbidden/debt markers (56/43 counts unchanged). `checkSeededRandomPolicy.js`
+  PASS (no `Math.random()`). `checkAssetsManifest.js` OK, 547 entries, unaffected. `checkWorldEventDeterminism.js`
+  PASS, checksum `ea2bd3bfff60…` unchanged. `checkPwaInstallability.js` OK, unaffected. Browser-half smoke test
+  (`scripts/smokeTestGame3D.js`) not re-attempted this run — same pre-existing LFS/repo-rename condition
+  reconfirmed at session start (see above), no new information, not re-reported (Run 344 already delivered
+  the push notification for this).
+
+**Concurrency note (§8.14).** `git fetch origin main` re-run immediately before this commit and again
+immediately before push — `origin/main` matched local `HEAD`'s parent exactly (`7fb1ee97`) both times,
+confirming no concurrent session and no drift.
+
+Risk: LOW. Single-line logic change confined to one already-unwired test fixture file; the corrected
+expectation is backed by three independent, already-authored, already-green production sources (not
+guessed), and the wider blast-radius sweep (11-script family, before/after via `git stash`) found zero
+behavior change anywhere outside the touched file. Visual evidence: N/A, no rendering/UI surface touched —
+`settlementCampaign*` remains, per repeated prior runs' own grep confirmation, not wired into any playable
+scene. Performance: no runtime behavior reachable from the live game; no `perf_log.csv` row added (no
+renderer/runtime code touched, no browser session available this session, consistent with every run since
+355). Memory leak checklist: N/A. Technical debt: net 0 new markers — a real test-fixture bug corrected
+against an already-green production contract, not a workaround; no TEMP/HACK/FIXME/WORKAROUND comment
+added; no ADR (a single-file fixture correction backed by three cross-checked already-authored sources is
+not a design decision, consistent with Runs 366-369 not writing one for the same file-family category).
+World Coverage: unchanged (desktop 96.2% / mobile 4.5%, no terrain/geometry change this run). World
+Evolution Report: no yol/orman/kale/NPC/hayvan/event count change; "oyuncu fark eder mi" — hayır, bu
+değişiklik yalnızca henüz hiçbir oynanabilir sahneye bağlanmamış bir geliştirici alt-sisteminin
+(settlement campaign contracts) kendi test fixture hatasını düzeltiyor. Terrain macro-relief and the
+LFS/repo-rename owner-environment condition remain unchanged, not re-reported this run (no new information
+on that specific item; the settlementCampaign* breakage-scope finding above is separate, new information).
+
+**Next safe step:** six `settlementCampaign*` check scripts remain broken —
+`checkSettlementCampaignRuntime.mjs` (TypeError, `getSaveMigration('settlement-save-0-1')` returns `null`),
+`checkSettlementCampaignDeepSlice.mjs` (assertion mismatch, `journeyPlan.currentStage` is `'orientation'`
+not the expected `'arrival'`), `checkSettlementCampaignAccessibility.mjs`, `checkSettlementCampaignAuthoring.mjs`,
+`checkSettlementCampaignEventBridge.mjs`, and `checkSettlementCampaignQuestChains.mjs` — each not yet
+root-caused. A future run should apply the same "read/verify before touching" discipline to one of these
+next, smallest/simplest first per this run's own precedent (`checkSettlementCampaignDeepSlice.mjs` at 41
+lines and a single assertion mismatch looks like the next-smallest candidate, though its own root cause has
+not yet been confirmed one way or the other).
