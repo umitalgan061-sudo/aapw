@@ -6,6 +6,7 @@ on:
       - 'src/3d/world/worldCoverageVisualRuntimeV52.js'
       - 'src/3d/world/worldCoverageVisualRuntimeV52Policies.js'
       - 'scripts/checkWorldCoverageVisual*V52.mjs'
+      - 'scripts/worldCoverageVisualNodeLoaderV52.mjs'
   workflow_dispatch:
 
 permissions:
@@ -21,6 +22,10 @@ jobs:
         with:
           fetch-depth: 0
       - name: Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Configure Node resolver for vendored Three.js
         run: |
           set -euo pipefail
           echo "NODE_OPTIONS=--experimental-loader=$(pwd)/scripts/worldCoverageVisualNodeLoaderV52.mjs" >> "$GITHUB_ENV"
@@ -30,6 +35,7 @@ jobs:
           set -euo pipefail
           node --check src/3d/world/worldCoverageVisualRuntimeV52.js
           node --check src/3d/world/worldCoverageVisualRuntimeV52Policies.js
+          node --check scripts/worldCoverageVisualNodeLoaderV52.mjs
       - name: Syntax check v52 scripts
         run: |
           set -euo pipefail
