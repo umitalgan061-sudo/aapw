@@ -19192,3 +19192,72 @@ the separate, already-escalated LFS proxy-auth gap — not re-reported this run.
 Risk: LOW (documentation + one instrument added and reverted within this run, zero net runtime
 delta). Concurrency re-check immediately before this commit: `git fetch origin main` re-run,
 `origin/main` still at `ba9916e`, no drift since this run's own start.
+
+## Run 376 (2026-09-11, scheduled routine) — re-verification only: fresh full non-browser regression/governance sweep re-run clean for the third consecutive run, both standing environment blockers reconfirmed unchanged, chain paused pending owner review (43 accumulated `QUESTIONS_FOR_OWNER.md` entries, 2 still-unresolved 🔴 environment blockers)
+
+Session snapshot per `GOVERNANCE.md`: `GOVERNANCE.md`/`GOVERNANCE_CONTINUATION_OVERRIDE.md`/
+`GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md`/`GOVERNANCE_FULL_GAME_DIRECTIVE.md` all read fresh — no
+gap found against the scheduled prompt's requested rule text (diffed section-by-section, same
+finding Run 375 already recorded: everything already present, no update needed). `3D_GAME_PROGRESS.md`
+tail, `QUESTIONS_FOR_OWNER.md` (43 entries — head + tail), `CATCH_UP.md` head (current through Run
+371, next due ~run 380, not yet due), `RCA_RUN370_LFS_PROXY_AUTH.md` and `RCA_RUN375_HEADLESS_FRAMERATE.md`
+both read fresh, `git log -10` read fresh. Concurrency re-check: this container's local `main` ref
+started stale (`f698d2a`, same recurring container-artifact pattern as runs 291/292/295/349/374) —
+`git fetch origin main` showed real `origin/main` at `bf4edf4` (Run 375's own tip, no concurrent-session
+drift), local `main` reset to match (`git log origin/main..main` empty both before and after, zero
+local-only work lost).
+
+**Both priority items 1-1.7 (terrain macro relief, road network, ground colour, castle texturing)
+re-confirmed still LFS-blocked** (`assets/**/*.glb` still ~130-131 byte git-lfs pointer stubs in this
+session's checkout; `RCA_RUN370_LFS_PROXY_AUTH.md` unchanged, no re-notification — same already-escalated
+item). **The four `checkPlayer*Runtime.mjs` combat-timeout checks remain in the "environment-inconclusive"
+temporary-default state Run 375 set** (headless Chromium here still has no GPU acceleration; not
+re-measured this run since Run 375's own numbers are recent and nothing changed that would move them).
+
+**Ran the full non-browser/governance sweep fresh rather than skip it, since it had not been re-run
+since Run 374 (Run 375 touched no source):** `checkTechnicalDebt.js` PASS (0 new debt, 56 recorded /
+43 owner-tracking entries — unchanged), `checkSeededRandomPolicy.js` PASS (no `Math.random()` under
+`src/3d`), `terrainSeatSafetyCheck.js` PASS 14/14 (raw+gameplay heights byte-identical to the Run 349
+baseline recorded above, water level 6m — this run's own pass took 83s wall-clock in this session,
+consistent with the broader slow-environment pattern `RCA_RUN375` already characterised, not a new
+finding), `roadNetworkSafetyCheck.js` PASS (13 topology edges, total rendered length 6.81km unchanged,
+all grades <20°, river non-collision holds), `checkWorldEventDeterminism.js` PASS (24-emission checksum
+`9a4ded2685cf…` unchanged), `checkAssetsManifest.js` OK (547 entries resolve, unchanged). Every value
+matches Run 374/375's own last-recorded figures exactly — zero drift, zero regression, nothing
+actionable surfaced.
+
+**Chain explicitly paused here rather than skipping ahead to a lower-priority item (FAZ 7 dragon /
+FAZ 5-6 remaining animals / new features).** This is now the third consecutive scheduled run (374,
+375, 376) to find the identical clean-but-stuck state with no new owner-independent lead — `GOVERNANCE.md`'s
+own escape clause ("only real owner decisions ... may stop the current chain") applies: both blocking
+questions (LFS/proxy-auth, `RCA_RUN370_LFS_PROXY_AUTH.md`; headless no-GPU framerate,
+`RCA_RUN375_HEADLESS_FRAMERATE.md`) are genuine owner decisions among named options, not something a
+future run should keep re-confirming without new information. Jumping ahead to FAZ 7/8-10 work was
+considered and deliberately not taken this run: every priority-1-7 category came back fully clean
+(0 debt, all governance gates PASS), so there is no safety/bug/perf/debt work to do either, and
+speculatively starting new gameplay-feature work out of priority order, while both higher-priority
+items sit on unresolved owner questions, was judged a bigger scope/risk trade-off than a single
+re-verification run should make unilaterally.
+
+**Separately worth flagging (not a new finding, an accumulation observation):** `QUESTIONS_FOR_OWNER.md`
+now holds 43 entries. The owner-facing push-notification escalation pattern this project already uses
+(Run 151 for the first batch of structural items, Run 344 for the LFS block) has not fired again since
+— this run's own contribution is exactly this observation, delivered via the same channel, rather than
+a new environment RCA (two is enough; a third would be redundant).
+
+**DoD:** documentation-only entry (this file), `node --check` N/A (no source file touched — confirmed
+`git status`/`git diff` both clean before this commit). No ADR (no design decision made — a
+re-verification record, same category as Runs 374/375). Memory-leak checklist: N/A. Technical debt: 0
+new. World Coverage: unchanged (desktop 96.2% / mobile 4.5%). World Evolution Report: no road/forest/
+castle/NPC/animal/event/cart count change; "oyuncu fark eder mi" — hayır, oyunda görünür hiçbir
+değişiklik yok. No stable tag cut (same reasoning as Runs 349/374/375 — this environment still cannot
+verify "the game opens without issues" against real rendered assets).
+
+**Sıradaki adım:** owner review of `QUESTIONS_FOR_OWNER.md`'s two 🔴 environment-blocker entries (LFS
+proxy-auth options; headless no-GPU check-timeout options) is the genuine next step — no further
+code-level lead exists that a future scheduled run hasn't already exhausted without it. Once either
+is resolved, priority items 1-1.7 (terrain/road/ground/castle visual work) become the immediate next
+subtask.
+
+Risk: LOW (docs-only, zero runtime delta). Concurrency re-check immediately before this commit:
+`git fetch origin main` re-run, `origin/main` still at `bf4edf4`, no drift since this run's own start.
