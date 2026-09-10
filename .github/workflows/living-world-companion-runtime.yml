@@ -1,0 +1,82 @@
+name: Living World Companion Runtime
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldCompanionRuntimeAdapter.js'
+      - 'scripts/checkLivingWorldCompanionRuntime.mjs'
+      - 'scripts/checkLivingWorldCompanionRuntimeBrowser.mjs'
+      - 'scripts/checkLivingWorldCompanionRuntimeCoverage.mjs'
+      - 'scripts/checkLivingWorldCompanionRuntimePerformance.mjs'
+      - '.github/workflows/living-world-companion-runtime.yml'
+      - 'docs/architecture/living-world-companion-runtime.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  companion-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact main ancestry and diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --force
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$BASE_SHA" HEAD)" = "$BASE_SHA"
+          CHANGED="$(git diff --name-only "$BASE_SHA" HEAD)"
+          test "$(printf '%s\n' "$CHANGED" | sed '/^$/d' | wc -l)" -le 7
+          ALLOWED='^(src/3d/gameplay/livingWorldCompanionRuntimeAdapter\.js|scripts/checkLivingWorldCompanionRuntime\.mjs|scripts/checkLivingWorldCompanionRuntimeBrowser\.mjs|scripts/checkLivingWorldCompanionRuntimeCoverage\.mjs|scripts/checkLivingWorldCompanionRuntimePerformance\.mjs|\.github/workflows/living-world-companion-runtime\.yml|docs/architecture/living-world-companion-runtime\.md)$'
+          printf '%s\n' "$CHANGED" | grep -Ev "$ALLOWED" | grep -q . && exit 1 || true
+          LINES="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$LINES" -le 3000
+          test "$LINES" -ge 2000
+          printf 'COMPANION_BUDGET_PASS base=%s files=%s changed-lines=%s\n' "$BASE_SHA" "$(printf '%s\n' "$CHANGED" | sed '/^$/d' | wc -l)" "$LINES"
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/livingWorldCompanionRuntimeAdapter.js
+          node --check scripts/checkLivingWorldCompanionRuntime.mjs
+          node --check scripts/checkLivingWorldCompanionRuntimeBrowser.mjs
+          node --check scripts/checkLivingWorldCompanionRuntimeCoverage.mjs
+          node --check scripts/checkLivingWorldCompanionRuntimePerformance.mjs
+      - name: Companion runtime contract
+        run: node scripts/checkLivingWorldCompanionRuntime.mjs
+      - name: Companion coverage matrix
+        run: node scripts/checkLivingWorldCompanionRuntimeCoverage.mjs
+      - name: Companion performance budget
+        run: node scripts/checkLivingWorldCompanionRuntimePerformance.mjs
+      - name: Install browser dependency
+        run: npm install --no-save playwright@1.55.0
+      - name: Shipped Three.js browser proof
+        run: node scripts/checkLivingWorldCompanionRuntimeBrowser.mjs
+      - name: Shared Material Placement Contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Seeded random policy
+        run: node scripts/checkSeededRandomPolicy.js
+      - name: World event determinism
+        run: node scripts/checkWorldEventDeterminism.js
+      - name: PWA installability
+        run: node scripts/checkPwaInstallability.js
+      - name: Technical debt
+        run: node scripts/checkTechnicalDebt.js
+      - name: Run283 governance contract
+        run: node scripts/checkRun283FinalHeadGovernance.js
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --force
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base "$BASE_SHA" HEAD)" = "$BASE_SHA"
+          printf 'COMPANION_FRESHNESS_PASS base=%s head=%s\n' "$BASE_SHA" "$(git rev-parse HEAD)"
