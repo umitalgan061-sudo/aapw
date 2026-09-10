@@ -6,8 +6,7 @@ const clamp = (v, min, max) => Math.max(min, Math.min(max, finite(v, min)));
 const point = (v = {}) => ({ x: finite(v.x), y: finite(v.y), z: finite(v.z) });
 const stable = (v) => v === null || v === undefined ? 'null' : typeof v === 'number' ? (Number.isFinite(v) ? String(v) : '0') : typeof v === 'boolean' ? String(v) : typeof v === 'string' ? JSON.stringify(v) : Array.isArray(v) ? `[${v.map(stable).join(',')}]` : `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;
 const digest = (v) => {
-	let h = 2166136261;
-	const s = stable(v);
+	let h = 2166136261; const s = stable(v);
 	for (let i = 0; i < s.length; i += 1) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
 	return (h >>> 0).toString(16).padStart(8, '0');
 };
@@ -20,12 +19,13 @@ function resolvePort(port) {
 function callPort(port, context) {
 	const fn = resolvePort(port);
 	if (!fn) return { available: false, value: null, error: 'missing-port' };
-	try { return { available: true, value: fn(context), error: null }; } catch (error) { return { available: true, value: null, error: error instanceof Error ? error.message : String(error) }; }
+	try { return { available: true, value: fn(context), error: null }; }
+	catch (error) { return { available: false, value: null, error: error instanceof Error ? error.message : String(error) }; }
 }
 function groundOf(raw, input) {
 	const v = raw.value ?? raw ?? {};
 	const supportY = finite(v.supportY ?? v.groundY ?? v.y, input.position.y);
-	return { supportY, grounded: Boolean(v.grounded ?? Math.abs(input.position.y - supportY) <= input.groundSnapMeters), normal: point(v.normal ?? { x: 0, y: 1, z: 0 }) };
+	return { supportY, grounded: Boolean(v.grounded ?? (raw.available && Math.abs(input.position.y - supportY) <= input.groundSnapMeters)), normal: point(v.normal ?? { x: 0, y: 1, z: 0 }) };
 }
 function colliderOf(raw) {
 	const v = raw.value ?? raw ?? {};
@@ -50,7 +50,7 @@ export function createPlayerCombatWorldCoverage(options = {}) {
 		const visualColliderDelta = Math.abs(input.position.y - ground.supportY);
 		const allPortsAvailable = [groundPort, colliderPort, waterPort, slopePort].every((p) => p.available);
 		const combatSafe = allPortsAvailable && visualColliderDelta <= groundSnapMeters && !collider.blocked && !slope.blocked;
-		const value = { version: PLAYER_WORLD_COVERAGE_VERSION, order: PLAYER_WORLD_COVERAGE_PORTS, position: input.position, ground, collider, water, slope, allPortsAvailable, visualColliderDelta, combatSafe, readiness: { grounded: ground.grounded, supportAvailable: groundPort.available, worldPortsReady: allPortsAvailable } };
+		const value = { version: PLAYER_WORLD_COVERAGE_VERSION, order: PLAYER_WORLD_COVERAGE_PORTS, position: input.position, ground, collider, water, slope, allPortsAvailable, visualColliderDelta, combatSafe, readiness: { grounded: groundPort.available && ground.grounded, supportAvailable: groundPort.available, worldPortsReady: allPortsAvailable } };
 		return Object.freeze({ ...value, digest: digest(value) });
 	}
 	function applyGrounding(transform, coverageSample) {
