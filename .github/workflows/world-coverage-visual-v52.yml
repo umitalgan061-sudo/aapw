@@ -16,6 +16,8 @@ jobs:
   world-coverage-visual-v52:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    env:
+      NODE_OPTIONS: --experimental-loader=${{ github.workspace }}/scripts/worldCoverageVisualNodeLoaderV52.mjs
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v4
@@ -28,8 +30,8 @@ jobs:
       - name: Configure Node resolver for vendored Three.js
         run: |
           set -euo pipefail
-          echo "NODE_OPTIONS=--experimental-loader=$(pwd)/scripts/worldCoverageVisualNodeLoaderV52.mjs" >> "$GITHUB_ENV"
           node --version
+          echo "Using Node loader: $NODE_OPTIONS"
       - name: Syntax check production module
         run: |
           set -euo pipefail
