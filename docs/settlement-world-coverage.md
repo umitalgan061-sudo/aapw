@@ -132,8 +132,6 @@ The adapter must reject an incompatible settlement checkpoint rather than silent
 
 World Coverage projections are expected to produce stable fingerprints for identical inputs. History, intent queues, receipts and acceptance proof have explicit bounds. A single malformed numeric field must not leak `NaN` or `Infinity` into the public projection.
 
-Readiness ranking is a UX projection over the canonical plan, not a new gameplay priority system. The selected action and bounded quick-action list must be deterministic for equivalent inputs; a service can rank ahead of the gate when its canonical action has the higher configured readiness score. The gate remains a safe fallback and an actionable alternative when it is not the top-ranked service.
-
 Determinism is verified in:
 
 - `checkSettlementWorldCoverageSlice.mjs`
