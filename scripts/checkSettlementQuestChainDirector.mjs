@@ -4,8 +4,8 @@ import { createSettlementQuestChainDirector } from '../src/3d/gameplay/settlemen
 const director = createSettlementQuestChainDirector({
   nodes: [
     { id: 'talk-warden', type: 'talk', title: 'Warden briefing', order: 2, requiredDialogueChoice: 'warden-helped' },
-    { id: 'market-run', type: 'trade', title: 'Restock the market', order: 1, requiredFlag: 'market-open' },
-    { id: 'forge-blade', type: 'craft', title: 'Forge a field blade', requiredDependency: 'market-run', requiredItem: 'iron-ingot', requiredSkill: 'smithing', requiredSkillLevel: 2, requiredReputation: 5, order: 3 },
+    { id: 'market-run', type: 'trade', title: 'Restock the market', order: 1, requiredFlag: 'market-open', requiredGold: 25 },
+    { id: 'forge-blade', type: 'craft', title: 'Forge a field blade', requiredDependency: 'market-run', requiredItem: 'iron-ingot', requiredItemCount: 2, requiredSkill: 'smithing', requiredSkillLevel: 2, requiredReputation: 5, order: 3 },
   ],
 });
 
@@ -15,7 +15,8 @@ const input = {
   alive: true,
   state: {
     flags: { 'market-open': true },
-    items: { 'iron-ingot': 1 },
+    gold: 25,
+    items: { 'iron-ingot': 2 },
     skills: { smithing: 2 },
     reputation: { craft: 5 },
     dialogueChoices: { 'warden-helped': true },
@@ -33,22 +34,34 @@ assert.equal(first.rows.find((row) => row.id === 'forge-blade').available, true)
 assert.equal(Object.isFrozen(first), true);
 assert.equal(Object.isFrozen(first.rows[0]), true);
 
+const quantityBlocked = director.evaluate({
+  ...input,
+  state: { ...input.state, items: { 'iron-ingot': 1 } },
+});
+assert.equal(quantityBlocked.rows.find((row) => row.id === 'forge-blade').blockedReason, 'missing-item:iron-ingot');
+
+const goldBlocked = director.evaluate({
+  ...input,
+  state: { ...input.state, gold: 10, completedSteps: {} },
+});
+assert.equal(goldBlocked.rows.find((row) => row.id === 'market-run').blockedReason, 'insufficient-gold:25');
+
 const dependencyBlocked = director.evaluate({
   ...input,
-  state: { flags: { 'market-open': true }, items: { 'iron-ingot': 1 }, skills: { smithing: 2 }, reputation: { craft: 5 }, services: { trade: true, craft: true } },
+  state: { flags: { 'market-open': true }, gold: 25, items: { 'iron-ingot': 2 }, skills: { smithing: 2 }, reputation: { craft: 5 }, services: { trade: true, craft: true } },
 });
 assert.equal(dependencyBlocked.rows.find((row) => row.id === 'forge-blade').blockedReason, 'dependency-incomplete:market-run');
 
 const blocked = director.evaluate({
   ...input,
-  state: { services: { trade: false, craft: false }, items: { 'iron-ingot': 1 }, skills: { smithing: 2 }, reputation: { craft: 0 } },
+  state: { services: { trade: false, craft: false }, gold: 25, items: { 'iron-ingot': 2 }, skills: { smithing: 2 }, reputation: { craft: 0 } },
 });
 assert.equal(blocked.rows.find((row) => row.id === 'market-run').blockedReason, 'missing-flag:market-open');
 assert.equal(blocked.rows.find((row) => row.id === 'forge-blade').blockedReason, 'dependency-incomplete:market-run');
 
 const dialogueBlocked = director.evaluate({
   ...input,
-  state: { flags: { 'market-open': true }, items: { 'iron-ingot': 1 }, skills: { smithing: 2 }, reputation: { craft: 5 }, services: { trade: true, craft: true } },
+  state: { flags: { 'market-open': true }, gold: 25, items: { 'iron-ingot': 2 }, skills: { smithing: 2 }, reputation: { craft: 5 }, services: { trade: true, craft: true } },
 });
 assert.equal(dialogueBlocked.rows.find((row) => row.id === 'talk-warden').blockedReason, 'dialogue-choice-missing:warden-helped');
 
