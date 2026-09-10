@@ -41,6 +41,8 @@ function normalizeNode(node, index) {
   const requiredDependency = text(node?.dependsOn);
   const requiredReputation = finite(node?.requiredReputation, 0);
   const requiredSkillLevel = Math.max(0, finite(node?.requiredSkillLevel));
+  const requiredItemCount = Math.max(0, Math.floor(finite(node?.requiredItemCount, requiredItem ? 1 : 0)));
+  const requiredGold = Math.max(0, Math.floor(finite(node?.requiredGold, 0)));
   return {
     id,
     type,
@@ -51,6 +53,8 @@ function normalizeNode(node, index) {
     requiredFlag,
     requiredQuest,
     requiredItem,
+    requiredItemCount,
+    requiredGold,
     requiredSkill,
     requiredSkillLevel,
     requiredDialogueChoice,
@@ -59,9 +63,9 @@ function normalizeNode(node, index) {
   };
 }
 
-function hasItem(items, itemId) {
-  if (!itemId) return true;
-  return finite(items?.[itemId]) > 0;
+function hasItem(items, itemId, count) {
+  if (!itemId || count <= 0) return true;
+  return finite(items?.[itemId]) >= count;
 }
 
 function hasSkill(skills, skillId, level) {
@@ -81,7 +85,8 @@ function blockedReason(node, state, completedIds) {
   if (node.requiredQuest && state.quests?.[node.requiredQuest] !== 'complete') return `quest-not-complete:${node.requiredQuest}`;
   if (node.requiredDialogueChoice && state.dialogueChoices?.[node.requiredDialogueChoice] !== true) return `dialogue-choice-missing:${node.requiredDialogueChoice}`;
   if (finite(state.reputation?.[node.service], 0) < node.requiredReputation) return `reputation-too-low:${node.service}`;
-  if (!hasItem(state.items, node.requiredItem)) return `missing-item:${node.requiredItem}`;
+  if (!hasItem(state.items, node.requiredItem, node.requiredItemCount)) return `missing-item:${node.requiredItem}`;
+  if (finite(state.gold, 0) < node.requiredGold) return `insufficient-gold:${node.requiredGold}`;
   if (!hasSkill(state.skills, node.requiredSkill, node.requiredSkillLevel)) return `skill-too-low:${node.requiredSkill}`;
   if (node.type === 'trade' && state.services?.trade !== true) return 'trade-unavailable';
   if (node.type === 'craft' && state.services?.craft !== true) return 'crafting-unavailable';
