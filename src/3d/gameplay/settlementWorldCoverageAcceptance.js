@@ -370,7 +370,7 @@ function acceptanceFlags(model) {
     noPlacementRisk: model.placements.invalidCount === 0,
     camerasValid: model.cameras.valid,
     interactionsValid: model.interactions.valid,
-    servicesCovered: model.services.every((row) => row.status === 'covered' || row.serviceId === 'gate'),
+    servicesCovered: model.services.every((row) => row.status === 'covered'),
   };
 }
 
