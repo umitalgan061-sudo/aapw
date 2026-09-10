@@ -18861,3 +18861,27 @@ of naming the exact next step at the end of each run entry) are *increasing* col
 the "obvious next task" too obvious when multiple sessions read the same file at once, versus the
 alternative (vaguer notes) which would likely just relocate the collisions elsewhere. Not treated as
 actionable by itself this run — a single collision, correctly resolved via §8.14, isn't yet a pattern.
+
+## Run 371i (2026-09-10, scheduled routine) — 9 player-combat checks also needed the known-asset-error soft-filter; first one confirmed genuinely PASS end-to-end
+
+Re-ran `checkPlayerHitStaggerRuntime.mjs` after 371h's `waitUntil` fix and it still failed — but at its
+own final `need(errors.length === 0, ...)` gate, not at navigation. All 9 files in this cluster collect
+every `console.error` unconditionally (`page.on('console', ...)`) and treat any of them as a hard
+failure, so the already-known, already-documented LFS/proxy-auth asset-loading noise
+(`RCA_RUN370_LFS_PROXY_AUTH.md` — every model is a stub pointer file here) was failing every one of
+them at the very last line, after all their real combat-runtime assertions had already run and passed.
+
+Applied the same hard/soft error split `weatherVisualQa.js` (this run) and
+`game3dSmokeChecksScene.js`'s `check2DShell` (pre-existing) already use: a `KNOWN_ASSET_GAP_PATTERN`
+regex filters out `"asset error"`/`"failed, using placeholder box"` console lines before they reach
+`errors`, identically across all 9 files (`GuardImpactExhaustion`, `HitStagger`, `LockOn`,
+`MeleeCombo`, `RecoveryAttackBuffer`, `StaminaDodge`, `CombatHud`, `DodgeIFrame`, `Gamepad`).
+
+**Confirmed real result, not assumed:** re-ran `checkPlayerHitStaggerRuntime.mjs` end-to-end —
+`PLAYER_HIT_STAGGER_RUNTIME_OK`. This is genuine, first-time-in-a-long-time verification that the
+**real, live, player-facing hit-stagger combat mechanic** (not an unwired subsystem) still works
+correctly. Two more (`LockOn`, `CombatHud`) were still running verification at commit time — their
+results will be confirmed in a follow-up entry rather than assumed here.
+
+**DoD:** `node --check` PASS on all 9 files. No ADR (bugfix using an already-established pattern from
+earlier this run, not a new design decision).
