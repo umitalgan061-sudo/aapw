@@ -8,7 +8,7 @@
 import { createSettlementWorldCoveragePlan } from './settlementWorldCoverageSlice.js';
 
 export const SETTLEMENT_WORLD_COVERAGE_READINESS_VERSION = 1;
-const PRIORITY = Object.freeze({ craft: 40, trade: 35, quests: 30, travel: 25, rest: 20 });
+const PRIORITY = Object.freeze({ trade: 40, quests: 35, craft: 30, travel: 25, rest: 20, train: 18 });
 const freeze=(value)=>{if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.freeze(value);for(const child of Object.values(value))freeze(child);}return value;};
 const text=(value,fallback='')=>{const normalized=String(value??'').trim();return normalized?normalized.slice(0,120):fallback;};
 const stable=(value)=>value===null||typeof value!=='object'?JSON.stringify(value):Array.isArray(value)?`[${value.map(stable).join(',')}]`:`{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
@@ -23,7 +23,7 @@ function candidates(plan){
     const serviceScore=PRIORITY[row.domain?.includes('smith')?'craft':row.domain?.includes('trade')?'trade':row.domain?.includes('rest')?'rest':row.domain?.includes('training')?'train':row.domain?.includes('mount')?'travel':'quests']??10;
     push(row.id,primary,serviceScore+(row.status==='ready'?10:0),row.status);
   }
-  for(const quest of plan.objectives??[])if(!quest.complete)push('tavern',text(quest.action,'advanceQuest'),30+(quest.ratio??0)*10,'quest-objective');
+  for(const quest of plan.objectives??[])if(!quest.complete)push('tavern',text(quest.action,'advanceQuest'),35+(quest.ratio??0)*10,'quest-objective');
   return rows.sort((a,b)=>b.score-a.score||a.serviceId.localeCompare(b.serviceId)||a.intent.localeCompare(b.intent)).slice(0,8);
 }
 
