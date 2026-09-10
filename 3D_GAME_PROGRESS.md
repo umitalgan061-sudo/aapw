@@ -18483,3 +18483,48 @@ kalıpları tekrar kullanıldı, hiçbir mevcut sistem değiştirilmedi (sadece 
 **Sıradaki adım:** (1) bir sonraki run tarayıcıda gerçek görsel kanıt alsın (F4 önden/arkadan, yağmur
 tetiklenmiş/tetiklenmemiş), (2) `audio-and-movement` fazının takılma nedenini izole bir script'le
 doğrulasın, (3) `checkSettlementCampaignDeepSlice.mjs` (41 satır, tek assertion) hâlâ bekliyor.
+
+## Run 371b (2026-09-10, scheduled routine) — root-cause and repair checkSettlementCampaignDeepSlice.mjs + checkSettlementCampaignRuntime.mjs (7 fixture bugs, 1 real production bug)
+
+**checkSettlementCampaignDeepSlice.mjs (was: 1 known failure).** `journey-start` expected `'arrival'`
+but `buildSettlementJourney`'s own `stageFromState()` correctly returns `'orientation'` for a fixture
+whose `locationId === settlementId` (already-arrived player, healthy) — test fixture bug, expectation
+corrected. `interaction-craft` called `resolveSettlementInteraction('blacksmith','craft',{snapshot})`
+without the `recipeId` `evaluateCraftingRule` requires — test fixture bug, added `recipeId:'iron_sword'`
+(same recipe the file's own already-passing `craft-execution`/`rules` checks use). Now fully green
+(58 checks).
+
+**checkSettlementCampaignRuntime.mjs (was: 1 known failure, turned out to have 5 total).**
+1. `runtime-migration` used id `'settlement-save-0-1'` — that's only the migration's own `.id` *field*,
+   not its lookup key (`SAVE_MIGRATIONS` is keyed `` `${from}->${to}` ``, e.g. `'0->1'`) — fixture bug.
+2. `trade-quote` expected `7`; `iron_ore` sell unitPrice is 3 × qty 2 = 6 (cross-verified two ways: a
+   direct `quoteSettlementSale()` call, and the sibling DeepSlice file's own already-passing identical
+   assertion) — fixture bug.
+3. `buy-handler-unavailable-fails-closed` checked `.code`; `execute()`'s handler-dispatch failure path
+   (unlike its early-guard `feedback()` path, which does set `.code`) only ever sets `.reason` — fixture
+   bug, not an inconsistency worth "fixing" production for since nothing else reads `.code` there.
+4. **Real production bug:** `compareProgressionCheckpoints(a,b)` in `settlementCampaignProgression.js`
+   called `buildProgressionCheckpoint(a)`/`(b)` again on its own inputs — but callers (by the function's
+   own name and this test's usage) pass already-*built* checkpoints, which carry no `.skillXp` field,
+   so every rebuild silently re-derived xp as 0 for both sides → `changed` was structurally unable to
+   ever be `true` for any real checkpoint pair, not just this test's fixture (no other caller existed
+   to have masked it — confirmed via repo-wide grep). Fixed: use `a`/`b` directly.
+5. `travel.travel.routeId`/`.cost` — this file's own `travel` handler never echoed the computed quote
+   into `result.data` (unlike its sibling `trade`/`craft` handlers, which already do) — fixture bug,
+   added `data: { travel: payload.travel }` to the handler and read `travel.data.travel.*` in the
+   assertion.
+6. `slice.getState()` — `createSettlementVerticalSlice`'s real public API has no such method; `.snapshot().nodeId`
+   is what actually exposes the current node id — fixture bug.
+Now fully green (896 checks — the file loops over its own recorded event history for extra assertions).
+
+**DoD:** `node --check` PASS (3 files). `checkSmokeCheckRegistry.js` OK (688 files, cap intact).
+`checkTechnicalDebt.js` PASS (0 new markers). Re-ran the full `settlementCampaign*` family after: the
+two fixed files stay green, the four still-broken ones (`Accessibility`, `Authoring`, `EventBridge`,
+`QuestChains`) are unchanged/untouched (not attempted this run). Zero live-gameplay impact either way
+— this subsystem remains unwired to any playable scene (re-confirmed, not re-guessed). No ADR: none of
+these are design decisions, each is a verified fixture correction or a narrowly-scoped bugfix backed by
+reading the actual source before changing anything, consistent with this project's own "read/verify
+before touching" precedent from prior runs.
+
+**Sıradaki adım:** `checkSettlementCampaignAccessibility.mjs`/`Authoring.mjs`/`EventBridge.mjs`/
+`QuestChains.mjs` remain, each not yet root-caused.

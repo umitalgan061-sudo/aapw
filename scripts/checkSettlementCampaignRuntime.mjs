@@ -103,7 +103,11 @@ const handlers = {
   craft: async payload => { calls.push(['craft', payload.recipe?.id]); return payload.craftCheck?.ok ? { ok: true, action: 'craft', nodeId: payload.node.id, data: { xp: payload.recipe.xp }, message: 'Üretim tamamlandı.' } : { ok: false, action: 'craft', nodeId: payload.node.id, reason: 'missing-material' }; },
   acceptQuest: async payload => { calls.push(['acceptQuest', payload.node.id]); return { ok: true, action: 'acceptQuest', nodeId: payload.node.id, message: 'Görev kabul edildi.' }; },
   advanceQuest: async payload => { calls.push(['advanceQuest', payload.node.id]); return { ok: true, action: 'advanceQuest', nodeId: payload.node.id, message: 'Görev ilerletildi.' }; },
-  travel: async payload => { calls.push(['travel', payload.travel?.routeId]); return payload.travel?.ok ? { ok: true, action: 'travel', nodeId: payload.node.id, message: 'Yola çıkıldı.' } : { ok: false, action: 'travel', nodeId: payload.node.id, reason: 'travel-invalid' }; },
+  // Run 371: now echoes `data: { travel: payload.travel }` on success, matching the already-established
+  // trade/craft handlers' own convention above of surfacing the computed quote/check object the
+  // runtime passed in — this file's own 'travel-route'/'roadwise-travel-discount' assertions further
+  // down need it and previously read a `.travel` field this handler never actually produced.
+  travel: async payload => { calls.push(['travel', payload.travel?.routeId]); return payload.travel?.ok ? { ok: true, action: 'travel', nodeId: payload.node.id, data: { travel: payload.travel }, message: 'Yola çıkıldı.' } : { ok: false, action: 'travel', nodeId: payload.node.id, reason: 'travel-invalid' }; },
   save: async payload => { calls.push(['save', payload.node.id]); return { ok: true, action: 'save', nodeId: payload.node.id, message: 'Kayıt tamamlandı.' }; },
 };
 const runtime = createSettlementCampaignRuntime({
@@ -117,7 +121,13 @@ equal(runtime.getService('blacksmith').label, 'Demirci', 'runtime-service');
 equal(runtime.getItem('iron_sword').category, 'weapon', 'runtime-item');
 equal(runtime.getRecipe('iron_sword').station, 'blacksmith', 'runtime-recipe');
 ok(runtime.getRoute('north_gate').cost > 0, 'runtime-route'); equal(runtime.getPerk('roadwise').skill, 'travel', 'runtime-perk');
-equal(runtime.getUxMessage('ux-01').status, 'ready', 'runtime-message'); ok(runtime.getSaveMigration('settlement-save-0-1').lossless, 'runtime-migration');
+equal(runtime.getUxMessage('ux-01').status, 'ready', 'runtime-message');
+// Run 371: was 'settlement-save-0-1' — a test-fixture bug, not a production bug.
+// `settlementCampaignContent.js`'s `SAVE_MIGRATIONS` is keyed by `` `${from}->${to}` `` (e.g. '0->1');
+// 'settlement-save-0-1' is only the *value* of that migration's own `.id` field, never a lookup key,
+// so `getSettlementSaveMigration()` correctly returned `null` for it — confirmed against that
+// module's own source, not guessed.
+ok(runtime.getSaveMigration('0->1').lossless, 'runtime-migration');
 
 let view = runtime.open('blacksmith', 'craft');
 equal(view.activeService.id, 'blacksmith', 'open-blacksmith'); equal(view.panel, 'craft', 'craft-panel');
@@ -125,7 +135,11 @@ ok(view.panels.craft.some(recipe => recipe.id === 'iron_sword' && recipe.ready),
 const craft = await runtime.execute('craft', { recipeId: 'iron_sword', requestId: 'craft-1' });
 equal(craft.ok, true, 'craft-action'); equal(craft.data.xp, 40, 'craft-xp'); ok(calls.some(call => call[0] === 'craft' && call[1] === 'iron_sword'), 'craft-handler');
 const trade = await runtime.execute('trade', { itemId: 'iron_ore', quantity: 2, direction: 'sell', requestId: 'trade-1' });
-equal(trade.ok, true, 'trade-action'); equal(trade.data.quote.total, 7, 'trade-quote');
+// Run 371: was 7 — a test-fixture bug. `iron_ore`'s sell unitPrice is 3 (settlementCampaignShop.js),
+// so 2 units is 6, exactly what the sibling checkSettlementCampaignDeepSlice.mjs's own 'trade-total'
+// assertion already independently expects for this same itemId/quantity/direction (confirmed by
+// direct `quoteSettlementSale('iron_ore', 2, {})` call, not just cross-referenced).
+equal(trade.ok, true, 'trade-action'); equal(trade.data.quote.total, 6, 'trade-quote');
 const duplicate = await runtime.execute('trade', { itemId: 'iron_ore', quantity: 2, direction: 'sell', requestId: 'trade-1' });
 equal(duplicate.code, 'duplicate-request', 'duplicate-request-rejected');
 
@@ -136,10 +150,18 @@ const accept = await runtime.execute('acceptQuest', { questId: 'settlement-suppl
 const advance = await runtime.execute('advanceQuest', { questId: 'settlement-supply', requestId: 'quest-2' }); equal(advance.ok, true, 'advance-quest');
 
 runtime.open('market', 'trade');
-const buy = await runtime.execute('buy', { itemId: 'bread', quantity: 3, requestId: 'buy-1' }); equal(buy.code, 'handler-unavailable', 'buy-handler-unavailable-fails-closed');
+// Run 371: was `buy.code` — a test-fixture bug. `settlementCampaignRuntime.js`'s own `execute()` only
+// puts a top-level `.code` on its early *guard*-rejection path (via its internal `feedback()` helper
+// — see the already-passing `duplicate-request-rejected` check a few lines up, which legitimately
+// goes through that path). Once execute() reaches handler dispatch (this case: no `buy` handler was
+// registered and `slice.executeAction` isn't a function either), every result on that path — success
+// or failure, `handler-threw` included — is shaped with `.reason`, not `.code` (confirmed against
+// that source, not guessed); `.code` only ever lands inside internal `state.feedback`, which
+// `execute()`'s return value does not expose.
+const buy = await runtime.execute('buy', { itemId: 'bread', quantity: 3, requestId: 'buy-1' }); equal(buy.reason, 'handler-unavailable', 'buy-handler-unavailable-fails-closed');
 runtime.open('gate', 'travel');
 const travel = await runtime.execute('travel', { routeId: 'north_gate', requestId: 'travel-1' });
-equal(travel.ok, true, 'travel-action'); equal(travel.travel.routeId, 'north_gate', 'travel-route'); ok(travel.travel.cost < getSettlementRoute('north_gate').cost, 'roadwise-travel-discount');
+equal(travel.ok, true, 'travel-action'); equal(travel.data.travel.routeId, 'north_gate', 'travel-route'); ok(travel.data.travel.cost < getSettlementRoute('north_gate').cost, 'roadwise-travel-discount');
 const save = await runtime.save({ requestId: 'save-1', slot: 'settlement-slot-1' }); equal(save.ok, true, 'save-action');
 const exported = runtime.exportState(); equal(exported.version, 1, 'runtime-state-version');
 const manifestA = runtime.manifest(); const manifestB = runtime.manifest(); equal(manifestA.digest, manifestB.digest, 'manifest-deterministic');
@@ -168,7 +190,10 @@ const sellQuote = resolveTradeQuote('bread', 4, 'sell', {}); equal(sellQuote.tot
 const travelQuote = resolveTravelCost('winter_pass', {}); equal(travelQuote.cost, 34, 'travel-cost'); ok(travelQuote.fatigue > 0, 'travel-fatigue');
 
 const slice = createSettlementVerticalSlice({ definition: { id: 'slice-probe', settlementId: 'north-settlement', entryNodeId: 'settlement', nodes: graph.map(node => ({ ...node, gates: node.id === 'blacksmith' ? [{ type: 'capability', capability: 'crafting' }] : [] })) }, handlers: { craft: () => ({ ok: true, action: 'craft', nodeId: 'blacksmith' }), enterSettlement: () => ({ ok: true, action: 'enter', nodeId: 'settlement' }) } });
-equal(slice.getState().nodeId, 'settlement', 'slice-current-node'); ok(slice.availableActions({ capabilities: { door: true } }).includes('enter'), 'slice-enter-action');
+// Run 371: was `slice.getState()` — settlementVerticalSlice.js's public API (its own final
+// `Object.freeze({...})` return) has no such method; `snapshot()` is the one that exposes `.nodeId`
+// for the slice's current node, confirmed against that source.
+equal(slice.snapshot().nodeId, 'settlement', 'slice-current-node'); ok(slice.availableActions({ capabilities: { door: true } }).includes('enter'), 'slice-enter-action');
 ok(runtime.manifest().content.services.includes('blacksmith'), 'runtime-content-source');
 for (const event of events) { ok(event && typeof event.name === 'string', 'event-name'); ok(Number.isFinite(event.at), 'event-time'); ok(Number.isInteger(event.revision), 'event-revision'); }
 console.log(`SETTLEMENT_CAMPAIGN_RUNTIME_OK checks=${checks} events=${events.length} calls=${calls.length} digest=${manifestA.digest}`);
