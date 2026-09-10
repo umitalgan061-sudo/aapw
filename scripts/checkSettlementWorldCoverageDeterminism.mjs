@@ -49,7 +49,7 @@ for(const serviceId of SETTLEMENT_WORLD_COVERAGE_API.services){
 }
 
 const mutations=[];
-const session=createSettlementWorldCoverageSession({initialState:clone(base),assets:clone(assets),now:()=>1700000000000+mutations.length,handlers:{
+const session=createSettlementWorldCoverageSession({initialState:clone(base),assets:clone(assets),now:()=>1700000000000,handlers:{
   talk:({intent})=>{mutations.push(intent);return{ok:true,serviceId:'tavern',reputationDelta:1};},
   craft:({intent})=>{mutations.push(intent);return{ok:true,serviceId:'blacksmith',xpDelta:15};},
   train:({intent})=>{mutations.push(intent);return{ok:true,serviceId:'barracks',xpDelta:12};},
@@ -220,19 +220,11 @@ assert(stableProof.serviceProof.every((row)=>typeof row.status==='string'),'serv
 
 console.log('Settlement World Coverage Determinism: PASS');
 console.log(JSON.stringify({
-  planFingerprint:firstPlan.fingerprint,
-  replayFingerprint:secondPlan.fingerprint,
-  sessionDigest:session.snapshotState().digest,
-  acceptanceFingerprint:acceptance.fingerprint,
-  proofFingerprint:proof.fingerprint,
-  acceptanceStatus:acceptance.status,
-  acceptanceScore:acceptance.score,
+  firstPlan:firstPlan.fingerprint,
+  replayPlan:secondPlan.fingerprint,
+  session:session.snapshotState().digest,
+  proof:proof.fingerprint,
+  mutations,
   serviceCount:SETTLEMENT_WORLD_COVERAGE_API.services.length,
   intentCount:SETTLEMENT_WORLD_COVERAGE_API.intents.length,
-  actionReplayCount:SETTLEMENT_WORLD_COVERAGE_API.intents.length,
-  mutationIsolation:true,
-  pointerPreserved:true,
-  boundedHistory:true,
-  boundedQueue:true,
-  boundedReceipts:true,
-},null,2));
+}));
