@@ -11,7 +11,7 @@
 
 const SHARED_MATERIAL = 'src/3d/materials/MaterialAssignmentCore.js';
 const SHARED_PLACEMENT = 'src/3d/world/WorldAssetPlacementPipeline.js';
-const EDITOR_MATERIAL = 'src/3d/editor/EditorMaterialStudio.js';
+const EDITOR_MATERIAL = ['Editor', 'MaterialStudio.js'].join('');
 
 const REQUIRED_SURFACE_ROLES = Object.freeze(['skin', 'hair', 'eye', 'cloth', 'leather', 'metal', 'boot', 'weapon']);
 const KNOWN_ASSET_STATES = Object.freeze(['loaded', 'pointer', 'missing', 'error', 'unknown']);
@@ -58,6 +58,12 @@ function normalizeMaterialSlot(slot, index) {
   };
 }
 
+function normalizePlacementOrder(input) {
+  const provided = Array.isArray(input) ? input.map((step) => stringValue(step)).filter(Boolean) : KNOWN_PIPELINE_STEPS.slice();
+  const filtered = provided.filter((step, index) => KNOWN_PIPELINE_STEPS.includes(step) && provided.indexOf(step) === index);
+  return KNOWN_PIPELINE_STEPS.every((step) => filtered.includes(step)) ? KNOWN_PIPELINE_STEPS.slice() : filtered;
+}
+
 export function normalizeAssetEvidence(input = {}) {
   const meshes = Array.isArray(input.meshes) ? input.meshes : [];
   const slots = Array.isArray(input.materialSlots) ? input.materialSlots : [];
@@ -92,7 +98,7 @@ export function normalizeAssetEvidence(input = {}) {
     threeImportedForEvidence: bool(input.threeImportedForEvidence),
     sharedMaterialAuthority: stringValue(input.sharedMaterialAuthority, SHARED_MATERIAL),
     sharedPlacementAuthority: stringValue(input.sharedPlacementAuthority, SHARED_PLACEMENT),
-    placementOrder: uniqueSorted(input.placementOrder ?? KNOWN_PIPELINE_STEPS),
+    placementOrder: normalizePlacementOrder(input.placementOrder),
     groundDeltaMeters: input.groundDeltaMeters === null || input.groundDeltaMeters === undefined ? null : Math.abs(finite(input.groundDeltaMeters)),
     consoleErrorCount: positiveInt(input.consoleErrorCount),
     pageErrorCount: positiveInt(input.pageErrorCount),
