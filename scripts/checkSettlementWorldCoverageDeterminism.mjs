@@ -31,7 +31,6 @@ const cameras=['full-world','settlement-far','settlement-center','settlement-nor
 const interactions=SETTLEMENT_WORLD_COVERAGE_ACCEPTANCE_SERVICES.map((serviceId,index)=>({id:`i-${serviceId}`,serviceId,action:index===0?'enter':index===1?'trade':index===2?'talk':index===3?'craft':index===4?'interact':index===5?'train':index===6?'travel':'save',ok:true,sequence:index+1,at:index+1}));
 const proofInput={settlementId:base.settlementId,assets,materials,manifests,placements,cameras,interactions};
 
-const initialSnapshot=clone(base);
 const firstPlan=createSettlementWorldCoveragePlan({snapshot:base,assets});
 const secondPlan=createSettlementWorldCoveragePlan({snapshot:clone(base),assets:clone(assets)});
 assert(JSON.stringify(firstPlan)===JSON.stringify(secondPlan),'plan replay serialization mismatch');
@@ -101,6 +100,7 @@ const secondSession=createSettlementWorldCoverageSession({initialState:clone(bas
   train:()=>({ok:true,serviceId:'barracks',xpDelta:12}),
 }});
 secondSession.open('market','trade');
+secondSession.setPanel('trade');
 await secondSession.execute('talk',{});
 secondSession.open('blacksmith','craft');
 await secondSession.execute('craft',{recipeId:'iron_sword'});
