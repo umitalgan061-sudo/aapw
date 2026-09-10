@@ -38,6 +38,7 @@ function normalizeNode(node, index) {
   const requiredItem = text(node?.requiredItem);
   const requiredSkill = text(node?.requiredSkill);
   const requiredDialogueChoice = text(node?.requiredDialogueChoice);
+  const requiredDependency = text(node?.dependsOn);
   const requiredReputation = finite(node?.requiredReputation, 0);
   const requiredSkillLevel = Math.max(0, finite(node?.requiredSkillLevel));
   return {
@@ -53,6 +54,7 @@ function normalizeNode(node, index) {
     requiredSkill,
     requiredSkillLevel,
     requiredDialogueChoice,
+    requiredDependency,
     requiredReputation,
   };
 }
@@ -73,7 +75,8 @@ function isComplete(node, state) {
   return false;
 }
 
-function blockedReason(node, state) {
+function blockedReason(node, state, completedIds) {
+  if (node.requiredDependency && completedIds.has(node.requiredDependency) === false) return `dependency-incomplete:${node.requiredDependency}`;
   if (node.requiredFlag && state.flags?.[node.requiredFlag] !== true) return `missing-flag:${node.requiredFlag}`;
   if (node.requiredQuest && state.quests?.[node.requiredQuest] !== 'complete') return `quest-not-complete:${node.requiredQuest}`;
   if (node.requiredDialogueChoice && state.dialogueChoices?.[node.requiredDialogueChoice] !== true) return `dialogue-choice-missing:${node.requiredDialogueChoice}`;
@@ -96,9 +99,10 @@ export function createSettlementQuestChainDirector(options = {}) {
     const insideSettlement = bool(input.insideSettlement);
     const alive = input.alive !== false;
     const visibleNodes = insideSettlement && alive ? nodes.slice(0, maxSteps) : [];
+    const completedIds = new Set(visibleNodes.filter((node) => isComplete(node, state)).map((node) => node.id));
     const rows = visibleNodes.map((node) => {
-      const complete = isComplete(node, state);
-      const reason = complete ? null : blockedReason(node, state);
+      const complete = completedIds.has(node.id);
+      const reason = complete ? null : blockedReason(node, state, completedIds);
       return { ...node, complete, available: !complete && !reason, blockedReason: reason };
     });
     const available = rows.filter((row) => row.available);
