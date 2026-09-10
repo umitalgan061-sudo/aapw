@@ -109,6 +109,8 @@ jobs:
         run: node scripts/checkFullWorldCoverageDirectorScenarios.mjs
       - name: Existing full-world runtime contract
         run: node scripts/checkFullWorldRuntimeCoverage.mjs
+      - name: Run283 governance contract
+        run: node scripts/checkRun283FinalHeadGovernance.js
       - name: Re-run focused contracts for determinism
         shell: bash
         run: |
@@ -175,7 +177,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -s /dev/null || true
           echo "The preceding browser proof is authoritative; no warning is promoted to PASS."
 
   governance:
