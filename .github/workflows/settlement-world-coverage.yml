@@ -6,9 +6,11 @@ on:
       - 'src/3d/gameplay/settlementWorldCoverageSlice.js'
       - 'src/3d/gameplay/settlementWorldCoverageAcceptance.js'
       - 'src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js'
+      - 'src/3d/gameplay/settlementWorldCoverageReadiness.js'
       - 'scripts/checkSettlementWorldCoverageSlice.mjs'
       - 'scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs'
       - 'scripts/checkSettlementWorldCoverageContract.mjs'
+      - 'scripts/checkSettlementWorldCoverageReadiness.mjs'
       - '.github/workflows/settlement-world-coverage.yml'
   push:
     branches: [main]
@@ -16,9 +18,11 @@ on:
       - 'src/3d/gameplay/settlementWorldCoverageSlice.js'
       - 'src/3d/gameplay/settlementWorldCoverageAcceptance.js'
       - 'src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js'
+      - 'src/3d/gameplay/settlementWorldCoverageReadiness.js'
       - 'scripts/checkSettlementWorldCoverageSlice.mjs'
       - 'scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs'
       - 'scripts/checkSettlementWorldCoverageContract.mjs'
+      - 'scripts/checkSettlementWorldCoverageReadiness.mjs'
       - '.github/workflows/settlement-world-coverage.yml'
 
 jobs:
@@ -29,18 +33,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install dependencies
-        run: npm ci
       - name: Syntax check
         run: |
           node --check src/3d/gameplay/settlementWorldCoverageSlice.js
           node --check src/3d/gameplay/settlementWorldCoverageAcceptance.js
           node --check src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js
+          node --check src/3d/gameplay/settlementWorldCoverageReadiness.js
           node --check scripts/checkSettlementWorldCoverageSlice.mjs
           node --check scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs
           node --check scripts/checkSettlementWorldCoverageContract.mjs
+          node --check scripts/checkSettlementWorldCoverageReadiness.mjs
       - name: Settlement World Coverage Contract Matrix
-        run: node scripts/checkSettlementWorldCoverageContract.mjs
+        run: |
+          node scripts/checkSettlementWorldCoverageContract.mjs
+          node scripts/checkSettlementWorldCoverageReadiness.mjs
       
   hygiene:
     runs-on: ubuntu-latest
@@ -83,7 +89,8 @@ jobs:
           for file in \
             src/3d/gameplay/settlementWorldCoverageSlice.js \
             src/3d/gameplay/settlementWorldCoverageAcceptance.js \
-            src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js; do
+            src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js \
+            src/3d/gameplay/settlementWorldCoverageReadiness.js; do
             if grep -nE "EditorMaterialStudio|src/3d/materials/MaterialAssignmentCore|src/3d/world/WorldAssetPlacementPipeline" "$file"; then
               echo "coverage modules must not take editor/shared-placement ownership"
               exit 1
@@ -91,7 +98,8 @@ jobs:
           done
           if grep -nE "geometry|BoxGeometry|MeshBasicMaterial|MeshStandardMaterial" \
             src/3d/gameplay/settlementWorldCoverageAcceptance.js \
-            src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js; then
-            echo "acceptance/adapter layers must not author primitive geometry"
+            src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js \
+            src/3d/gameplay/settlementWorldCoverageReadiness.js; then
+            echo "acceptance/readiness/adapter layers must not author primitive geometry"
             exit 1
           fi
