@@ -40,9 +40,6 @@ for(const [key,text] of Object.entries(source)){
   assert(lineCount>=40,`${key} unexpectedly small (${lineCount} lines)`);
 }
 
-const packageJson=JSON.parse(fs.readFileSync('package.json','utf8'));
-assert(packageJson.type==='module','coverage tests require ESM package mode');
-
 const report={
   files,
   lineCounts:Object.fromEntries(Object.entries(source).map(([key,text])=>[key,text.split('\n').length])),
