@@ -127,11 +127,11 @@ assert(!noCopperBuy.ok&&noCopperBuy.reason==='insufficient-copper','zero copper 
 
 const noRecipe=createSettlementWorldCoverageSession({initialState:state,assets:assetEvidence});
 const noRecipeResult=await noRecipe.execute('craft',{});
-assert(!noRecipeResult.ok&&noRecipeResult.reason==='recipe-required','missing recipe guard failed');
+assert(!noRecipeResult.ok&&noRecipeResult.reason==='unknown-recipe','missing recipe guard failed');
 
 const noRoute=createSettlementWorldCoverageSession({initialState:state,assets:assetEvidence});
 const noRouteResult=await noRoute.execute('travel',{});
-assert(!noRouteResult.ok&&noRouteResult.reason==='route-required','missing route guard failed');
+assert(!noRouteResult.ok&&noRouteResult.reason==='unknown-route','missing route guard failed');
 
 const noItem=createSettlementWorldCoverageSession({initialState:state,assets:assetEvidence});
 const noItemResult=await noItem.execute('buy',{});
