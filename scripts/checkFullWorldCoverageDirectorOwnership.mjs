@@ -13,7 +13,6 @@ import {
   createSeamAudit,
   getWorldCoverageConstants,
 } from '../src/3d/world/fullWorldCoverageDirector.js';
-
 function assert(condition, message) { if (!condition) throw new Error(`[full-world-ownership] ${message}`); }
 const root = path.resolve('.');
 const directorSource = fs.readFileSync(path.join(root, 'src/3d/world/fullWorldCoverageDirector.js'), 'utf8');
@@ -28,7 +27,6 @@ assert(constants.REQUIRED_PHASES.length === 10, 'coverage acceptance phases drif
 assert(constants.MAX_HEIGHT_PARITY_METERS === 1e-5, 'height parity gate drifted');
 assert(constants.MAX_UNASSESSED_RATIO === 0, 'unassessed tolerance drifted');
 assert(constants.MAX_DETERMINISM_DRIFT === 0, 'determinism tolerance drifted');
-
 const plan = createSyntheticCoveragePlan();
 const manifest = createFullWorldCoverageManifest(plan);
 const probeIndex = createCoverageProbeIndex(plan);
@@ -67,10 +65,7 @@ for (const phase of plan.evidence) assert(typeof phase.phase === 'string' && typ
 assert(plan.evidence.some((phase) => phase.phase === 'determinism'), 'determinism phase missing');
 assert(plan.evidence.some((phase) => phase.phase === 'parity'), 'parity phase missing');
 assert(plan.evidence.some((phase) => phase.phase === 'cross-seam'), 'seam phase missing');
-for (const feature of constants.DEFAULT_REQUIRED_FEATURES) {
-  assert(plan.featureMatrix[feature], `feature matrix missing ${feature}`);
-  assert(Number.isFinite(plan.featureMatrix[feature].coverage), `${feature} coverage is not finite`);
-}
+for (const feature of constants.DEFAULT_REQUIRED_FEATURES) { assert(plan.featureMatrix[feature], `feature matrix missing ${feature}`); assert(Number.isFinite(plan.featureMatrix[feature].coverage), `${feature} coverage is not finite`); }
 for (const token of ['EditorMaterialStudio','MeshBasicMaterial','BoxGeometry','SphereGeometry','CylinderGeometry','CapsuleGeometry','PlaneGeometry','writeFileSync','appendFileSync','mkdirSync','git lfs pull --all']) assert(!directorSource.includes(token), `director contains forbidden token: ${token}`);
 assert(directorSource.includes('mutatesCanonicalGeography'), 'director read-only marker missing');
 assert(directorSource.includes('createsGeometry'), 'director geometry marker missing');
