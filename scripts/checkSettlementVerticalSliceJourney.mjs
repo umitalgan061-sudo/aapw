@@ -42,7 +42,7 @@ const def = {
   limits: { maxVisibleActions: 6, maxHistory: 12 },
   nodes: [
     { id: 'square', kind: 'settlement', label: 'Settlement Square', actions: ['enter', 'interact', 'travel', 'save'] },
-    { id: 'hall', kind: 'interior', label: 'Settlement Hall', actions: ['talk', 'trade', 'back'] },
+    { id: 'hall', kind: 'interior', label: 'Settlement Hall', actions: ['talk', 'trade', 'back'], gates: [{ type: 'capability', capability: 'dialogue' }] },
     { id: 'forge', kind: 'crafting', label: 'Blacksmith', actions: ['craft', 'back'], gates: [{ type: 'capability', capability: 'crafting' }] },
     { id: 'door', kind: 'door', label: 'West Door', actions: ['exit', 'back'], gates: [{ type: 'proximity', distance: 4 }] },
     { id: 'vendor', kind: 'vendor', label: 'Market Vendor', actions: ['trade', 'back'], gates: [{ type: 'item', itemId: 'market-token', quantity: 1 }] },
@@ -57,7 +57,7 @@ function ctx(overrides = {}) {
   return {
     settlementId: 'spoofed-by-caller',
     locationId: 'square',
-    distance: 2,
+    distance: overrides.distance ?? 2,
     flags: { 'shipment-note': true, 'road-open': true, ...(overrides.flags || {}) },
     items: { 'market-token': 1, iron: 4, ...(overrides.items || {}) },
     reputation: { town: 8, ...(overrides.reputation || {}) },
@@ -87,7 +87,7 @@ const summary = summarizeSettlementSlice(def);
 assert(summary.kinds.crafting === 1, 'summary includes blacksmith role');
 assert(summary.kinds.vendor === 1, 'summary includes market vendor role');
 assert(summary.kinds.quest === 1, 'summary includes quest role');
-assert(summary.gateCount === 7, 'summary includes authored gates');
+assert(summary.gateCount === 9, 'summary includes authored gates');
 
 // Start at settlement square.
 let slice = createSettlementVerticalSlice({ definition: def, handlers });
@@ -175,7 +175,7 @@ assert(result.ok, 'craft delegates');
 assert(calls[0][0] === 'craft', 'craft uses crafting handler');
 assert(calls[0][1].recipeId === 'tempered-knife', 'craft carries recipe id');
 result = slice.execute('craft', { recipeId: 'tempered-knife' }, ctx({ capabilities: { crafting: false } }));
-assert(!result.ok && result.reason === 'action-unavailable', 'craft is blocked without crafting capability');
+assert(!result.ok && result.reason === 'capability-unavailable', 'craft is blocked without crafting capability');
 
 // Travel path: road gate and destination forwarding.
 result = slice.transitionTo('travel', 'road', ctx());
@@ -206,7 +206,7 @@ result = slice.execute('save', { slotId: 'manual-1' }, ctx());
 assert(result.ok, 'save delegates');
 assert(calls[0][1].slotId === 'manual-1', 'save preserves slot id');
 result = slice.execute('save', {}, ctx({ capabilities: { persistence: false } }));
-assert(!result.ok && result.reason === 'action-unavailable', 'save is blocked without persistence capability');
+assert(!result.ok && result.reason === 'capability-unavailable', 'save is blocked without persistence capability');
 
 // Persistence round-trip from a non-entry node.
 result = slice.transitionTo('interior', 'hall', ctx());
