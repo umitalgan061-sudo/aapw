@@ -22,7 +22,7 @@ const assetFamilies={
   houses:['interior-tavern','barracks-main','house-main'],
   props:['npc-tavern','training-barracks','bed-house'],
 };
-const assets=Object.entries(assetFamilies).flatMap(([family,names])=>names.map((assetId)=>({family,assetId,status:'loaded',hydrated:true,materialSlots:3,textured:true,grounded:true})));
+const assets=Object.entries(assetFamilies).flatMap(([family,names])=>names.map((assetId)=>({family,assetId,status:'loaded',hydrated:true,materialSlots:3,textured:true,grounded:true,placementManifestId:`${({door:'gate',road:'gate',vendor:'market',stall:'market',interior:'tavern',npc:'tavern',forge:'blacksmith',workbench:'blacksmith',field:'farm',barn:'farm',barracks:'barracks',training:'barracks',stable:'stable',mount:'stable',house:'house',bed:'house'})[assetId.split('-')[0]]}-manifest`})));
 const materialRoles=['wall','roof','wood','door','window','metal','stone-trim'];
 const materials=materialRoles.map((role,index)=>({id:`material-${role}`,role,kind:'pbr',textured:true,textureSize:index%2?1024:2048,albedo:`albedo-${role}`,normal:`normal-${role}`,roughness:`roughness-${role}`,metalness:role==='metal'?'metalness-metal':''}));
 const manifests=SETTLEMENT_WORLD_COVERAGE_ACCEPTANCE_SERVICES.map((serviceId)=>({id:`${serviceId}-manifest`,assetId:serviceId==='gate'?'door-north':serviceId==='market'?'vendor-market':serviceId==='tavern'?'interior-tavern':serviceId==='blacksmith'?'forge-blacksmith':serviceId==='farm'?'field-farm':serviceId==='barracks'?'barracks-main':serviceId==='stable'?'stable-main':'house-main',serviceId,materialManifestId:`${serviceId}-materials`,status:'validated',surfaceRoles:materialRoles,materialIds:materials.map((item)=>item.id),placeholderCount:0,missingMaterialCount:0,singleSurfaceRisk:false,groundAligned:true,sceneAttached:true}));
@@ -234,6 +234,4 @@ console.log(`planHash=${hash(firstPlan)}`);
 console.log(`proofHash=${hash(proof)}`);
 console.log(`serviceFingerprint=${proof.fingerprint}`);
 console.log(`sessionDigest=${session.snapshotState().digest}`);
-console.log(`mutationCount=${mutations.length}`);
-console.log(`intentCount=${SETTLEMENT_WORLD_COVERAGE_API.intents.length}`);
 console.log(`serviceCount=${SETTLEMENT_WORLD_COVERAGE_API.services.length}`);
