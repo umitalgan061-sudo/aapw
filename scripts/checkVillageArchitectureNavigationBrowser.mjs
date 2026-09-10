@@ -13,7 +13,10 @@ const require = createRequire(import.meta.url);
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 const NAV_TIMEOUT_MS = 60_000;
-const READY_TIMEOUT_MS = 90_000;
+// Run 371: raised from 90s to 120s while fixing a real bug below — waitForFunction's options were
+// landing in its unused `arg` slot (2nd positional param), so this constant was silently ignored and
+// the real wait was always Playwright's 30s default (3D_GAME_PROGRESS.md Run 371e/371f).
+const READY_TIMEOUT_MS = 120_000;
 const VILLAGE_ASSET_RE = /\/assets\/models\/settlements\/(?:log_cabin_et0OmFeZVkb|fantasy_house_dcPho4SUA3|cabin_shed_HTx7PZt6Zm|house_fdaqERLQCc|medium_house_4hI5fNvl6z|small_wooden_house|house_roqiHdrpgc)\.glb(?:\?|$)/;
 
 async function main() {
@@ -45,11 +48,11 @@ async function main() {
   });
 
   try {
-    await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+    await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
     await page.waitForFunction(() => {
       const loading = document.getElementById('game3d-loading');
       return loading && (loading.classList.contains('g3d-loading-hidden') || loading.classList.contains('g3d-loading-error'));
-    }, { timeout: READY_TIMEOUT_MS, polling: 250 });
+    }, undefined, { timeout: READY_TIMEOUT_MS, polling: 250 });
 
     const loadingState = await page.evaluate(() => {
       const loading = document.getElementById('game3d-loading');

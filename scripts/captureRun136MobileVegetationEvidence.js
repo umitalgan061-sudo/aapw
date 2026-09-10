@@ -15,8 +15,10 @@ async function main() {
 	const context = await browser.newContext({ viewport: { width: 430, height: 932 }, isMobile: true, hasTouch: true });
 	const page = await context.newPage();
 	try {
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-		await page.waitForFunction(() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'), { timeout: 60000 });
+		// Run 371 fix: 'commit' navigation + waitForFunction's options moved to the real 3rd
+		// positional argument (see 3D_GAME_PROGRESS.md Run 371e/371f).
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'commit', timeout: 60000 });
+		await page.waitForFunction(() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'), undefined, { timeout: 120000 });
 		await page.waitForTimeout(1500);
 		await page.screenshot({ path: path.join(outDir, 'mobile-near.png'), fullPage: true });
 		await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F4' })));

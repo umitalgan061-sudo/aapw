@@ -18725,3 +18725,27 @@ Chromium in this container, not comparable to a real device) rather than a new f
 **DoD:** `node --check scripts/collectPerfSnapshot.js` PASS. Diagnosis of both spread patterns
 (`waitUntil`, `waitForFunction` arg-position) is read-only (grep only), no code changed beyond the one
 file. No ADR (two narrow bugfixes + an investigation record, not a design decision).
+
+## Run 371g (2026-09-10, scheduled routine) — fixed the confirmed subset of the waitUntil/waitForFunction pattern (10 files)
+
+Applied the two navigation-hang fixes Run 371e/371f root-caused and precisely identified (not the
+full unverified 273/10+ file estimate — only the files whose exact broken call shape was directly
+confirmed by reading their source): `waitUntil:'commit'` for `game3d.html` navigations, and
+`waitForFunction(fn, options)` corrected to `waitForFunction(fn, undefined, options)` so the intended
+timeout actually applies instead of silently falling back to Playwright's 30s default.
+
+Fixed: `checkMobileJumpControl.js`, `checkMobileVegetationCullingRun141.js`,
+`checkMobileVegetationLod.js`, `checkMobileSpawnVegetation.js` (2 occurrences — mobile + desktop
+context), `captureRun130MobileEvidence.js`, `captureRun134MobileLodEvidence.js`,
+`captureRun136MobileVegetationEvidence.js`, `captureRun339PauseMenuEvidence.js` (2 `page.goto` calls +
+1 `waitForFunction`, its own `GAME3D_READY_TIMEOUT_MS` raised 30s→120s),
+`checkVillageArchitectureNavigationBrowser.mjs` (`READY_TIMEOUT_MS` raised 90s→120s). Deliberately
+narrower fix in `checkWorldEnvironmentAcceptanceMatrix.mjs`: only its `waitForFunction` arg-position
+bug was corrected — its own `page.goto` targets a dedicated test-harness fixture page, not
+`game3d.html`, so the `waitUntil:'commit'` fix was **not** applied there (no evidence that page shares
+the `game3d.html`-specific hang; changing it would have been a guess, not a verified fix).
+
+**DoD:** `node --check` PASS on all 10 files. Each fix is mechanical and behavior-preserving (same
+logic, only the wait mechanics corrected) — no ADR. The remaining ~260+ files from Run 371f's broader
+grep estimate are still unverified and untouched; this batch is exactly the set this run actually read
+and confirmed by hand, nothing extrapolated.

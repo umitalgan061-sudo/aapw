@@ -26,10 +26,14 @@ async function main() {
 	});
 	page.on('pageerror', (error) => errors.push(String(error)));
 	try {
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+		// Run 371 fix: 'commit' navigation + waitForFunction's options moved to the real 3rd
+		// positional argument (was landing in the unused `arg` slot, so the real wait was always
+		// Playwright's 30s default) — see 3D_GAME_PROGRESS.md Run 371e/371f for the full reasoning.
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'commit', timeout: 60000 });
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
-			{ timeout: 60000, polling: 250 },
+			undefined,
+			{ timeout: 120000, polling: 250 },
 		);
 		await page.waitForTimeout(1200);
 		if (errors.length) throw new Error(`console/page errors: ${JSON.stringify(errors)}`);

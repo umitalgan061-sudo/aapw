@@ -14,7 +14,11 @@ const fs = require('fs');
 const path = require('path');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
-const GAME3D_READY_TIMEOUT_MS = 30_000;
+// Run 371: raised from 30s — this environment's real GAME_READY cost can run well past that (see
+// 3D_GAME_PROGRESS.md Run 371e/371f), and the options object below was landing in waitForFunction's
+// unused `arg` slot anyway (2nd positional param), silently keeping the real wait at Playwright's 30s
+// default regardless of what this constant said — fixed by passing `undefined` for `arg`.
+const GAME3D_READY_TIMEOUT_MS = 120_000;
 
 async function waitForReady(page) {
 	const handle = await page.waitForFunction(
@@ -22,6 +26,7 @@ async function waitForReady(page) {
 			const el = document.getElementById('game3d-loading');
 			return Boolean(el && el.classList.contains('g3d-loading-hidden'));
 		},
+		undefined,
 		{ timeout: GAME3D_READY_TIMEOUT_MS, polling: 250 },
 	);
 	await handle.jsonValue();
@@ -58,7 +63,7 @@ async function main() {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 		page.on('pageerror', (e) => errors.push(`page:${e.message}`));
 		page.on('console', (m) => { if (m.type() === 'error') errors.push(`console:${m.text()}`); });
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: GAME3D_READY_TIMEOUT_MS });
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: GAME3D_READY_TIMEOUT_MS });
 		await waitForReady(page);
 		await page.screenshot({ path: path.join(outDir, 'desktop-01-before-pause.png') });
 
@@ -80,7 +85,7 @@ async function main() {
 		const mobilePage = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 		mobilePage.on('pageerror', (e) => errors.push(`mobile-page:${e.message}`));
 		mobilePage.on('console', (m) => { if (m.type() === 'error') errors.push(`mobile-console:${m.text()}`); });
-		await mobilePage.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: GAME3D_READY_TIMEOUT_MS });
+		await mobilePage.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: GAME3D_READY_TIMEOUT_MS });
 		await waitForReady(mobilePage);
 		await mobilePage.screenshot({ path: path.join(outDir, 'mobile-01-hud.png') });
 		const overlapCheck = await mobilePage.evaluate(() => {
