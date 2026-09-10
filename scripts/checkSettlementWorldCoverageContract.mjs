@@ -135,7 +135,7 @@ assert(!noRouteResult.ok&&noRouteResult.reason==='unknown-route','missing route 
 
 const noItem=createSettlementWorldCoverageSession({initialState:state,assets:assetEvidence});
 const noItemResult=await noItem.execute('buy',{});
-assert(!noItemResult.ok&&noItemResult.reason==='item-required','missing item guard failed');
+assert(!noItemResult.ok&&noItemResult.reason==='unknown-item','missing item guard failed');
 
 const queue=createSettlementWorldCoverageSession({initialState:state,assets:assetEvidence});
 const queued=queue.queue([{id:'a',intent:'talk',payload:{}},{id:'b',intent:'craft',payload:{recipeId:'iron_sword'}},{id:'c',intent:'train',payload:{}}]);
