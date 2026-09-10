@@ -19055,3 +19055,71 @@ covers it, owner decision still pending in `QUESTIONS_FOR_OWNER.md`).
 per-frame timing numbers; only then decide whether the fix belongs in the checks' timeout budgets, in
 `player.js`'s clamp, or in a small "catch-up" accumulator for the render loop. `GuardImpactExhaustion`/
 `MeleeCombo`/`StaminaDodge`/`DodgeIFrame` remain unfixed and unconfirmed.
+
+## Run 374 (2026-09-10, scheduled routine) — verification-only: stale local `main` ref resynced (217 local-only commits, same recurring container-artifact pattern as runs 291/292/295/349), full non-browser regression/governance sweep re-run fresh, LFS/proxy-auth block (RCA_RUN370) reconfirmed with one corroborating detail
+
+Session snapshot per `GOVERNANCE.md` (already complete since early in this project — no gaps found,
+no update needed this run): `3D_GAME_PROGRESS.md` tail, `QUESTIONS_FOR_OWNER.md` tail, `CATCH_UP.md`
+head (already current through Run 371, next due ~run 380 — no action needed), `git log -10` all read
+fresh.
+
+**Stale local branch, same recurring pattern as runs 291/292/295/349.** This container's local `main`
+ref started 217 commits removed from `origin/main` (tip `f698d2a`, itself Run 349's own resync
+commit — this container's local branch pointer was simply never advanced past that point, while
+`origin/main` moved on ~100 commits through concurrent sessions since). `git fetch origin main`
+confirmed `origin/main` at `8f8f745` (Run 373's own tip, matching this session's starting detached
+`HEAD` exactly — no concurrent drift to reconcile from *this* run's perspective). Per the same
+precedent those earlier runs documented: no real local-only work existed (nothing in this session had
+been committed to the stale local `main` yet), so `git reset --hard origin/main` was correct, not a
+merge — confirmed `git log origin/main..main` was empty afterward, zero commits lost.
+
+**LFS/proxy-auth block (RCA_RUN370_LFS_PROXY_AUTH.md) reconfirmed, one corroborating detail added
+(not a new root cause).** Fresh `apt-get install -y git-lfs` + `git lfs install` both succeeded;
+`git lfs pull` (whole repo, then narrowed to one known-small object) hung with zero output past a
+150s timeout — a different surface symptom than Run 370's own tight/fast retry loop, same net
+result (real bytes never arrive). A direct, unauthenticated `curl POST` to the LFS batch endpoint
+returned `HTTP 307` with an explicit redirect body naming `.../aapw.git/info/lfs/objects/batch` —
+confirming the repo really is still named `aapw` on GitHub's side for anonymous requests (Run 370's
+own trace hadn't captured a redirect target). This doesn't change Run 370's root-cause finding (the
+egress proxy authenticates plain git smart-HTTP but not `git-lfs`'s separate HTTP client) — it only
+answers a loose end Run 370 left open. Full detail appended to `QUESTIONS_FOR_OWNER.md`'s existing
+🔴 entry (additive, existing text untouched). **No new push notification sent** — same already-escalated
+item, no owner-actionable change in substance.
+
+**Given priority items 1/1.2/1.5/1.7 (terrain macro relief, road network, ground colour, castle
+texturing) require real rendered visual evidence (`Görsel Doğrulama Standardı`: 2 camera angles,
+F4 near+far) that this environment still cannot produce with real assets, no gameplay/terrain/visual
+code was changed this run** — same call Run 349 made in the analogous situation. Instead, ran the
+full non-browser, asset-independent regression/governance sweep fresh, all clean:
+`checkTechnicalDebt.js` PASS (0 new debt, 56 recorded/43 owner-tracking entries), `terrainSeatSafetyCheck.js`
+PASS 14/14 (raw+gameplay heights unchanged from last recorded baseline, water level 6m), `roadNetworkSafetyCheck.js`
+PASS (13 topology edges — 7 rendered totalling 6.81km + 6 non-rendered water-crossing/grade-fallback
+gaps by design, all rendered grades <20°, river non-collision holds), `checkWorldReferenceAlignment.js`
+PASS (14/14 seats round-trip, 100.0% runtime reference coverage), `checkSeededRandomPolicy.js` PASS
+(no `Math.random()` under `src/3d`), `checkAssetsManifest.js` OK (547 entries resolve), `checkServiceWorkerCache.js`
+OK, `checkWorldEventDeterminism.js` PASS (24-emission checksum `9a4ded2685cf…` unchanged).
+
+No stable tag cut this run: same reasoning as Run 349 — this environment still cannot verify "the
+game opens without issues" against real rendered assets (the LFS block above), and tagging a
+checkpoint without that verification would overstate what was actually confirmed. The existing latest
+`STABLE_TAGS.md` entry remains the latest verified checkpoint.
+
+Full DoD sweep: not applicable in the usual code sense — zero source/gameplay files touched, only
+`QUESTIONS_FOR_OWNER.md` + this entry (Markdown, `node --check` N/A). Memory-leak checklist: N/A.
+Technical debt: 0 new (`checkTechnicalDebt.js` PASS). World Coverage: unchanged (desktop 96.2% /
+mobile 4.5%, no terrain/geometry delta this run). World Evolution Report: no road/forest/castle/NPC/
+animal/event/cart count change; no new ADR (verification + a corroborating environmental data point,
+not a design decision); "oyuncu fark eder mi" — hayır, oyunda görünür hiçbir değişiklik yok.
+
+Next safe step: Run 373's own open lead (a runtime-diagnostic pass, not a guessed fix, to confirm real
+per-frame timings behind the four still-failing `checkPlayer*Runtime.mjs` timeouts —
+GuardImpactExhaustion/MeleeCombo/StaminaDodge/DodgeIFrame) remains the best-scoped next code task that
+does **not** need real LFS assets (the player-combat check family already soft-filters known
+asset-loading errors per runs 371i-371m and still exercises real gameplay mechanics). A future run
+with budget to spare should pick that up before touching `player.js`'s frame-delta clamp or any
+check's timeout budget. Priority items 1-1.7 (terrain/road/ground/castle visual work) stay blocked
+pending an owner/environment-level fix to the LFS proxy-auth gap (`RCA_RUN370_LFS_PROXY_AUTH.md`'s
+three proposed paths) — none of which are within a single session's safe blast radius.
+
+Risk: LOW (docs-only, zero runtime delta). Concurrency re-check immediately before this commit:
+`git fetch origin main` re-run, `origin/main` still at `8f8f745`, no drift since this run's own start.
