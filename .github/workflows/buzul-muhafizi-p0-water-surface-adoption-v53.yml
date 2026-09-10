@@ -1,0 +1,35 @@
+name: Buzul Muhafızı P0 Water Surface Adoption v53
+on:
+  pull_request:
+    paths:
+      - src/3d/world/p0WaterSurfaceAdoptionV53.js
+      - scripts/checkP0WaterSurfaceAdoptionV53.mjs
+      - .github/workflows/buzul-muhafizi-p0-water-surface-adoption-v53.yml
+  workflow_dispatch:
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: exact-main ancestry
+        run: git merge-base --is-ancestor origin/main HEAD
+      - name: syntax
+        run: node --check src/3d/world/p0WaterSurfaceAdoptionV53.js
+      - name: executable regression
+        run: node scripts/checkP0WaterSurfaceAdoptionV53.mjs
+      - name: forbidden runtime boundaries
+        run: |
+          ! grep -n "EditorMaterialStudio" src/3d/world/p0WaterSurfaceAdoptionV53.js
+          ! grep -nE "new (BoxGeometry|SphereGeometry|ConeGeometry|CylinderGeometry)" src/3d/world/p0WaterSurfaceAdoptionV53.js
+      - name: changed-line ceiling
+        run: |
+          additions=$(git diff --numstat origin/main...HEAD -- src/3d/world/p0WaterSurfaceAdoptionV53.js scripts/checkP0WaterSurfaceAdoptionV53.mjs .github/workflows/buzul-muhafizi-p0-water-surface-adoption-v53.yml | awk '{a+=$1} END {print a+0}')
+          deletions=$(git diff --numstat origin/main...HEAD -- src/3d/world/p0WaterSurfaceAdoptionV53.js scripts/checkP0WaterSurfaceAdoptionV53.mjs .github/workflows/buzul-muhafizi-p0-water-surface-adoption-v53.yml | awk '{d+=$2} END {print d+0}')
+          total=$((additions + deletions))
+          test "$total" -le 3000
+          echo "changed lines: $total"
