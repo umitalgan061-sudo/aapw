@@ -9,7 +9,7 @@
  * @module gameplay/playerCombatAnimationDirector
  */
 
-const ACTIONS = Object.freeze(['light', 'heavy', 'guard', 'parry', 'dodge', 'interact']);
+const ACTIONS = Object.freeze(['light', 'heavy', 'guard', 'parry', 'dodge', 'lockOn', 'interact']);
 const CHANNELS = Object.freeze(['keyboard', 'pointer', 'gamepad', 'touch']);
 const DEFAULT_EQUIPMENT = Object.freeze({
   weapon: Object.freeze({ id: 'unarmed', kind: 'melee', damage: 0, reachMeters: 1.25, socket: 'rightHand' }),
@@ -84,18 +84,18 @@ function normalizeEquipment(raw = {}) {
   });
 }
 
-function normalizeTarget(target, index) {
+function normalizeTarget(target, index, origin = { x: 0, z: 0 }) {
   const position = target?.position ?? target;
   const x = finite(position?.x, NaN), y = finite(position?.y, 0), z = finite(position?.z, NaN);
   if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
   const id = normalizeId(target?.id, `target-${index}`);
-  const dx = x, dz = z;
+  const dx = x - finite(origin?.x, 0), dz = z - finite(origin?.z, 0);
   return Object.freeze({ id, x, y, z, distanceMeters: Math.hypot(dx, dz), hostile: target?.hostile !== false, locked: Boolean(target?.locked) });
 }
 
-function pickLockOnTarget(targets, maxDistanceMeters = 18) {
+function pickLockOnTarget(targets, maxDistanceMeters = 18, origin = { x: 0, z: 0 }) {
   const normalized = (Array.isArray(targets) ? targets : [])
-    .map(normalizeTarget)
+    .map((target, index) => normalizeTarget(target, index, origin))
     .filter(Boolean)
     .filter((target) => target.hostile && target.distanceMeters <= maxDistanceMeters)
     .sort((a, b) => a.distanceMeters - b.distanceMeters || a.id.localeCompare(b.id));
@@ -129,8 +129,7 @@ function deriveFeedback(player = {}, input = {}, equipment = DEFAULT_EQUIPMENT) 
 }
 
 export function createPlayerCombatAnimationDirector({ player = null, equipment = DEFAULT_EQUIPMENT, targetProvider = null, maxLockOnDistanceMeters = 18 } = {}) {
-  const initialEquipment = normalizeEquipment(equipment);
-  let currentEquipment = initialEquipment;
+  let currentEquipment = normalizeEquipment(equipment);
   let lockedTarget = null;
   let sequence = 0;
   let disposed = false;
@@ -140,9 +139,8 @@ export function createPlayerCombatAnimationDirector({ player = null, equipment =
     const normalizedInput = normalizeInputIntent({ ...input, sequence: input.sequence ?? sequence });
     const playerState = player && typeof player.getMotionState === 'function' ? player.getMotionState() : player ?? {};
     const candidates = targets ?? (typeof targetProvider === 'function' ? targetProvider() : []);
-    if (normalizedInput.action === 'interact' && normalizedInput.pressed) lockedTarget = pickLockOnTarget(candidates, maxLockOnDistanceMeters);
-    if (normalizedInput.action === 'dodge' && normalizedInput.pressed) lockedTarget = lockedTarget;
-    if (normalizedInput.action === 'interact' && !normalizedInput.held && !normalizedInput.pressed) lockedTarget = lockedTarget;
+    const origin = player?.object3D?.position ?? playerState?.position ?? { x: 0, z: 0 };
+    if (normalizedInput.action === 'lockOn' && normalizedInput.pressed) lockedTarget = pickLockOnTarget(candidates, maxLockOnDistanceMeters, origin);
     const animation = deriveAnimationIntent(playerState, normalizedInput);
     const feedback = deriveFeedback(playerState, normalizedInput, currentEquipment);
     const output = {
