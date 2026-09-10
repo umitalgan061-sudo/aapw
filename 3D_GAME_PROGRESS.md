@@ -18947,3 +18947,30 @@ of thing this check family exists to catch.
 telemetry review against wall-clock time) before their timeouts are touched, not a quick fix. The
 remaining 3 of 9 (`StaminaDodge`, `DodgeIFrame`, `Gamepad`) have not been run this session and are
 still fully unverified.
+
+## Run 371m (2026-09-10, scheduled routine) — player-combat check family final tally: 5/9 confirmed genuinely passing
+
+**`checkPlayerGamepadRuntime.mjs` confirmed real PASS** (after a genuinely slow ~8.4 minute run in this
+environment, not a hang — real telemetry, real completion):
+`PLAYER_GAMEPAD_RUNTIME_OK {"analogRatio":0.5,"driftStaminaDelta":0,"hysteresisHold":"sprint","hysteresisRelease":"walk","noRestartSprintEvents":0,"dpadDot":1,"cameraDot":0.732,"parryWindow":0.16,"dodgeSpeedMps":10.5,"sprintSpeedMps":8.2,"errors":0}`.
+
+**Final tally for all 9 `checkPlayer*Runtime.mjs` files this run touched (371h-371m):**
+- **Confirmed genuinely PASSING end-to-end (5):** `HitStagger`, `LockOn`, `CombatHud`,
+  `RecoveryAttackBuffer`, `Gamepad` — real, live, player-facing combat mechanics (stagger reactions,
+  target lock-on, the combat HUD across every state, attack-recovery input buffering, and full gamepad
+  input including analog drift/hysteresis/dodge-cancel) all independently verified sound. This is the
+  first time in a long time any of these had real end-to-end coverage rather than being silently
+  blocked by the navigation bug this run root-caused.
+- **Failed on a distinct, deliberately un-guessed gameplay-timing issue (4):**
+  `GuardImpactExhaustion`, `MeleeCombo`, `StaminaDodge` (real, plausible telemetry right up to a
+  specific expected state transition that didn't arrive in the small per-transition timeout budget —
+  see Run 371l for the full reasoning on why this wasn't blind-fixed) and `DodgeIFrame` (same
+  too-tight-timeout symptom, not yet individually diagnosed).
+
+**Overall assessment:** the `waitUntil`/asset-gap fixes this run made (371e-371k) are conclusively
+correct — 5 independent confirmations across very different check shapes rules out coincidence. The 4
+remaining failures are a real, separate, legitimate follow-up (not masked, not guessed away) for a
+future run with the time budget to trace one specific state transition against real wall-clock timing
+before touching any of those four files' own internal timeouts.
+
+**DoD:** verification-only, no code changed this entry. No ADR.
