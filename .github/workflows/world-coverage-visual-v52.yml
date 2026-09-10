@@ -25,56 +25,34 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Configure Node resolver for vendored Three.js
+      - name: World Coverage v52 validation
+        env:
+          WORLD_COVERAGE_LOADER: ${{ github.workspace }}/scripts/worldCoverageVisualNodeLoaderV52.mjs
         run: |
           set -euo pipefail
-          echo "NODE_OPTIONS=--experimental-loader=$GITHUB_WORKSPACE/scripts/worldCoverageVisualNodeLoaderV52.mjs" >> "$GITHUB_ENV"
+          export NODE_OPTIONS="--experimental-loader=$WORLD_COVERAGE_LOADER"
           node --version
           node --input-type=module -e "import 'three'; console.log('Vendored Three.js resolver OK')"
-      - name: Syntax check production module
-        run: |
-          set -euo pipefail
           node --check src/3d/world/worldCoverageVisualRuntimeV52.js
           node --check src/3d/world/worldCoverageVisualRuntimeV52Policies.js
           node --check scripts/worldCoverageVisualNodeLoaderV52.mjs
-      - name: Syntax check v52 scripts
-        run: |
-          set -euo pipefail
           for file in scripts/*WorldCoverageVisual*V52.mjs; do
             node --check "$file"
           done
-      - name: Runtime acceptance
-        run: node scripts/checkWorldCoverageVisualRuntimeV52.mjs
-      - name: Contract boundary
-        run: node scripts/checkWorldCoverageVisualRuntimeV52Contract.mjs
-      - name: Asset-first boundary
-        run: node scripts/checkWorldCoverageVisualAssetContractV52.mjs
-      - name: Canonical parity boundary
-        run: node scripts/checkWorldCoverageVisualCanonicalParityV52.mjs
-      - name: Visual RCA coverage
-        run: node scripts/checkWorldCoverageVisualRcaV52.mjs
-      - name: Policy matrix
-        run: node scripts/checkWorldCoverageVisualPolicyMatrixV52.mjs
-      - name: Determinism
-        run: node scripts/checkWorldCoverageVisualDeterminismV52.mjs
-      - name: Render hook lifecycle
-        run: node scripts/checkWorldCoverageVisualRenderHookV52.mjs
-      - name: Mobile visual budgets
-        run: node scripts/checkWorldCoverageVisualBudgetV52.mjs
-      - name: Source coverage
-        run: node scripts/checkWorldCoverageVisualSourceCoverageV52.mjs
-      - name: Run record schema
-        run: node scripts/checkWorldCoverageVisualRunRecordV52.mjs
-      - name: Camera evidence matrix
-        run: node scripts/checkWorldCoverageVisualCameraMatrixV52.mjs
-      - name: HTML entry contract
-        run: |
-          set -euo pipefail
+          node scripts/checkWorldCoverageVisualRuntimeV52.mjs
+          node scripts/checkWorldCoverageVisualRuntimeV52Contract.mjs
+          node scripts/checkWorldCoverageVisualAssetContractV52.mjs
+          node scripts/checkWorldCoverageVisualCanonicalParityV52.mjs
+          node scripts/checkWorldCoverageVisualRcaV52.mjs
+          node scripts/checkWorldCoverageVisualPolicyMatrixV52.mjs
+          node scripts/checkWorldCoverageVisualDeterminismV52.mjs
+          node scripts/checkWorldCoverageVisualRenderHookV52.mjs
+          node scripts/checkWorldCoverageVisualBudgetV52.mjs
+          node scripts/checkWorldCoverageVisualSourceCoverageV52.mjs
+          node scripts/checkWorldCoverageVisualRunRecordV52.mjs
+          node scripts/checkWorldCoverageVisualCameraMatrixV52.mjs
           grep -F "./src/3d/world/worldCoverageVisualRuntimeV52.js" game3d.html
           test "$(grep -n "worldCoverageVisualRuntimeV52.js" game3d.html | head -n1 | cut -d: -f1)" -lt "$(grep -n "src/3d/game3d.js" game3d.html | head -n1 | cut -d: -f1)"
-      - name: Diff safety
-        run: |
-          set -euo pipefail
           git diff --check "$GITHUB_BASE_REF...HEAD"
           changed="$(git diff --numstat "$GITHUB_BASE_REF...HEAD" | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           echo "World Coverage v52 total changed lines: $changed"
