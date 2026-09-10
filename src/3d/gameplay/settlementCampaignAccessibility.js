@@ -124,13 +124,29 @@ export function buildSettlementSectionLabels(actions = []) {
   return sections;
 }
 
+// Run 371 fix: this used to alert only on `status === 'error' || 'warning'` — but
+// `settlementCampaignRuntime.js`'s own `execute()`, the only real producer of this `feedback` shape,
+// only ever sets `status` to `'success'` or `'blocked'` (confirmed via repo-wide grep; 'error'/
+// 'warning' appear nowhere as an actual feedback status). That made this alert path unreachable for
+// every real action failure — a screen reader would passively announce "Malzeme eksik" as a polite
+// status update instead of interrupting, the opposite of what a failed craft/trade/travel action
+// needs. 'blocked' now alerts too, alongside 'error'/'warning' kept for forward-compatibility with
+// any future producer of this shape that does use those names.
+const ALERT_STATUSES = new Set(['error', 'warning', 'blocked']);
 export function buildSettlementLiveRegion(feedback = {}) {
-  const status = text(feedback.status, 'info');
+  // Run 371 fix: `feedback = {}` as a default parameter only covers `undefined`, not an explicit
+  // `null` — and `null` is a real, reachable value here (a fresh runtime/view before any action has
+  // been taken yet; see `buildSettlementAccessibilityModel`'s own `view.feedback` passthrough below,
+  // which has no other guard). This threw a raw TypeError instead of falling back to the same
+  // 'info'-status default every other falsy input already gets.
+  const source = feedback ?? {};
+  const status = text(source.status, 'info');
+  const isAlert = ALERT_STATUSES.has(status);
   return {
-    role: status === 'error' || status === 'warning' ? 'alert' : 'status',
-    ariaLive: status === 'error' || status === 'warning' ? 'assertive' : 'polite',
+    role: isAlert ? 'alert' : 'status',
+    ariaLive: isAlert ? 'assertive' : 'polite',
     atomic: true,
-    message: text(feedback.message, 'Yerleşim durumu güncellendi.'),
+    message: text(source.message, 'Yerleşim durumu güncellendi.'),
   };
 }
 
@@ -162,10 +178,14 @@ export function validateSettlementAccessibilityModel(model) {
   const errors = [];
   if (model?.version !== 1) errors.push('version');
   if (!model?.panel?.headingId) errors.push('heading');
-  if (!Array.isArray(model?.actions)) errors.push('actions');
+  const actionsIsArray = Array.isArray(model?.actions);
+  if (!actionsIsArray) errors.push('actions');
   if (!Array.isArray(model?.keyboard)) errors.push('keyboard');
   if (!model?.liveRegion?.role) errors.push('live-region');
-  if (model?.actions?.some((item) => item.tabIndex < -1)) errors.push('tab-index');
+  // Run 371 fix: only run the per-action tabIndex scan once `actions` is confirmed to be an array —
+  // this used to call `.some()` unconditionally, so a malformed (e.g. non-array) `actions` crashed
+  // with a raw TypeError instead of being reported as the 'actions' error already pushed above.
+  if (actionsIsArray && model.actions.some((item) => item?.tabIndex < -1)) errors.push('tab-index');
   return { ok: errors.length === 0, errors };
 }
 

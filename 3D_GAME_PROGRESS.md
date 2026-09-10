@@ -18528,3 +18528,48 @@ before touching" precedent from prior runs.
 
 **Sıradaki adım:** `checkSettlementCampaignAccessibility.mjs`/`Authoring.mjs`/`EventBridge.mjs`/
 `QuestChains.mjs` remain, each not yet root-caused.
+
+## Run 371c (2026-09-10, scheduled routine) — root-cause and repair checkSettlementCampaignAccessibility.mjs (3 real production bugs); diagnosed but did not fix checkSettlementCampaignAuthoring.mjs
+
+**checkSettlementCampaignAccessibility.mjs — all 3 root causes were real production bugs, not fixture
+bugs (unusual for this family so far):**
+1. `buildSettlementLiveRegion()` only set `role:'alert'` for `status==='error'||'warning'` — but
+   `settlementCampaignRuntime.js`'s own `execute()`, the only real producer of this shape, only ever
+   emits `status:'success'` or `status:'blocked'` (confirmed via repo-wide grep). The alert path was
+   unreachable for every real action failure: a screen reader would passively announce a failed
+   craft/trade/travel as a polite status update instead of interrupting. Fixed: `'blocked'` now alerts
+   too.
+2. Same function threw a raw `TypeError` for `feedback: null` (a real, reachable state — before any
+   action has been taken) because the `feedback = {}` default parameter only covers `undefined`, not an
+   explicit `null`. Fixed with a `feedback ?? {}` normalization.
+3. `validateSettlementAccessibilityModel()` called `model.actions.some(...)` unconditionally even after
+   already detecting (and pushing an error for) a non-array `actions` two lines above — crashing
+   instead of returning `{ok:false}` for malformed input, which is exactly what a *validator* must not
+   do. Fixed to only run that scan once `Array.isArray(model?.actions)` is confirmed.
+Now fully green (22 checks). Zero live-gameplay impact (subsystem still unwired), but these are real
+correctness/robustness bugs in already-authored code, not test noise.
+
+**checkSettlementCampaignAuthoring.mjs — diagnosed, NOT fixed this run.** `facade-craft` fails because
+`settlementCampaignRuntime.js`'s `open(serviceId, panel)` updates `state.activeService`/`state.panel`
+but never moves the underlying `slice`'s own tracked node (`slice.setNode()` is never called from
+`open()`) — confirmed by direct reproduction: after `facade.enter('blacksmith')`,
+`runtime.getViewModel().availableActions` still reports `['enter','back']` (the *entry* node
+`'settlement'`'s actions), not blacksmith's `['talk','trade','craft','equip','back']`. This only
+surfaces through the **facade**, because `settlementCampaignFacade.js`'s own `can()` gate checks
+`view.availableActions.includes(action)` before calling `runtime.execute()` — `runtime.execute()`
+called directly (as `checkSettlementCampaignDeepSlice.mjs`/`checkSettlementCampaignRuntime.mjs` both
+do) never consults the slice's node at all, which is why those two files' craft/trade checks pass fine.
+**Not fixed, deliberately:** this is a real coupling gap between two independent pieces (`runtime`'s
+service/panel state vs. `slice`'s own node graph, which are parallel id spaces that only happen to
+overlap in this test's own fixture) — whether `open()` should drive the slice's node, or whether
+`facade.can()` should stop depending on `slice.availableActions()` for this, is a design call this run
+declined to guess per GOVERNANCE.md's "BİLMEME KURALI", not a narrow bugfix like the three above.
+
+**DoD:** `node --check` PASS. `checkSmokeCheckRegistry.js` OK (688 files). `checkTechnicalDebt.js` PASS
+(0 new markers). Re-ran `checkSettlementCampaignAccessibility.mjs` + the two previously-fixed sibling
+files (`DeepSlice`, `Runtime`) + `Contracts` — all still green, no regression. No ADR (three narrow bug
+fixes backed by direct source reading + reproduction, not design decisions).
+
+**Sıradaki adım:** `checkSettlementCampaignAuthoring.mjs`'s `open()`/slice-node desync (see above,
+precise repro included) is the next candidate — needs a design call first, not a blind fix.
+`checkSettlementCampaignEventBridge.mjs`/`QuestChains.mjs` remain fully un-investigated.
