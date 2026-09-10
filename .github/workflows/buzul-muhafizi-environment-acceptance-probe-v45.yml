@@ -15,12 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Exact scope and ancestry
         shell: bash
         run: |
+          git fetch origin main --depth=1
           test "$(git diff --name-only origin/main...HEAD | sort | tr '\n' ' ')" = ".github/workflows/buzul-muhafizi-environment-acceptance-probe-v45.yml scripts/checkEnvironmentAcceptanceProbeV45.mjs src/3d/world/environmentAcceptanceProbeV45.js "
           test "$(git rev-list --count origin/main..HEAD)" -le 3
           test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
