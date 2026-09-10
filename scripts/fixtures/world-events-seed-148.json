@@ -17,55 +17,55 @@
     {
       "step": 0,
       "nightFactor": 0,
-      "id": "raven",
+      "id": "distant_storm",
       "timeOfDay": null
     },
     {
       "step": 1,
       "nightFactor": 1,
-      "id": "maester_raven",
+      "id": "horse_gallop",
       "timeOfDay": null
     },
     {
       "step": 2,
       "nightFactor": 0.5,
-      "id": "wandering_healer",
+      "id": "earthquake_tremor",
       "timeOfDay": null
     },
     {
       "step": 3,
       "nightFactor": null,
-      "id": "training_yard_drill",
-      "timeOfDay": "day"
+      "id": "exiled_lord",
+      "timeOfDay": null
     },
     {
       "step": 4,
       "nightFactor": 0,
-      "id": "horse_gallop",
+      "id": "bell_toll",
       "timeOfDay": null
     },
     {
       "step": 5,
       "nightFactor": 1,
-      "id": "wandering_healer",
+      "id": "name_day_song",
       "timeOfDay": null
     },
     {
       "step": 6,
       "nightFactor": null,
-      "id": "hunting_party",
+      "id": "sellsword_arrival",
       "timeOfDay": null
     },
     {
       "step": 7,
       "nightFactor": 0.5,
-      "id": "maester_raven",
+      "id": "horse_gallop",
       "timeOfDay": null
     },
     {
       "step": 8,
       "nightFactor": 0,
-      "id": "name_day_song",
+      "id": "frozen_river_crossing",
       "timeOfDay": null
     },
     {
@@ -77,87 +77,87 @@
     {
       "step": 10,
       "nightFactor": 0.5,
-      "id": "giant_bones_rumor",
+      "id": "drought_warning",
       "timeOfDay": null
     },
     {
       "step": 11,
       "nightFactor": null,
-      "id": "hedge_knight_arrival",
-      "timeOfDay": null
+      "id": "shepherd_flock",
+      "timeOfDay": "day"
     },
     {
       "step": 12,
       "nightFactor": 0,
-      "id": "raven",
+      "id": "distant_storm",
       "timeOfDay": null
     },
     {
       "step": 13,
       "nightFactor": 1,
-      "id": "northern_lights",
-      "timeOfDay": "night"
+      "id": "crow_flock",
+      "timeOfDay": null
     },
     {
       "step": 14,
       "nightFactor": null,
-      "id": "torch_patrol",
-      "timeOfDay": "night"
+      "id": "name_day_song",
+      "timeOfDay": null
     },
     {
       "step": 15,
       "nightFactor": 0.5,
-      "id": "mummer_troupe",
+      "id": "bounty_poster",
       "timeOfDay": null
     },
     {
       "step": 16,
       "nightFactor": 0,
-      "id": "ward_hostage_arrival",
-      "timeOfDay": null
+      "id": "godswood_pilgrimage",
+      "timeOfDay": "day"
     },
     {
       "step": 17,
       "nightFactor": 1,
-      "id": "bell_toll",
+      "id": "tourney_announce",
       "timeOfDay": null
     },
     {
       "step": 18,
       "nightFactor": 0.5,
-      "id": "iron_bank",
+      "id": "shackled_prisoner",
       "timeOfDay": null
     },
     {
       "step": 19,
       "nightFactor": null,
-      "id": "traveling_singer",
-      "timeOfDay": null
+      "id": "falconer_flight",
+      "timeOfDay": "day"
     },
     {
       "step": 20,
       "nightFactor": 0,
-      "id": "horse_gallop",
+      "id": "bell_toll",
       "timeOfDay": null
     },
     {
       "step": 21,
       "nightFactor": 1,
-      "id": "iron_fleet_sighted",
+      "id": "drought_warning",
       "timeOfDay": null
     },
     {
       "step": 22,
       "nightFactor": null,
-      "id": "ward_hostage_arrival",
-      "timeOfDay": null
+      "id": "training_yard_drill",
+      "timeOfDay": "day"
     },
     {
       "step": 23,
       "nightFactor": 0.5,
-      "id": "iron_bank",
+      "id": "shackled_prisoner",
       "timeOfDay": null
     }
   ],
-  "checksum": "ea2bd3bfff609b54a8d9996970f63e663afd5695aaea001265bd9eed722c1dda"
+  "checksum": "9a4ded2685cf410c7940715ef19a3d3c144bf931180c7e7248e5aa4cd4794d29"
 }

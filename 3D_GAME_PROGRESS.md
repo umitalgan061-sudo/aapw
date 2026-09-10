@@ -18389,3 +18389,266 @@ root-caused. A future run should apply the same "read/verify before touching" di
 next, smallest/simplest first per this run's own precedent (`checkSettlementCampaignDeepSlice.mjs` at 41
 lines and a single assertion mismatch looks like the next-smallest candidate, though its own root cause has
 not yet been confirmed one way or the other).
+
+## Run 370 (2026-09-10, scheduled routine) — RCA correction: LFS blocker root cause is proxy auth, not repo rename
+
+**Alt görev:** Run 344'ten beri (344/349/355/362...) tekrar tekrar "LFS hâlâ kırık, owner kararı
+bekliyor" diye yeniden doğrulanan `assets/**/*.glb` pointer-dosyası sorununu, önceki varsayımı kabul
+etmek yerine gerçek bir `GIT_TRACE=1 GIT_CURL_VERBOSE=1 GIT_TRACE_CURL=1 git lfs pull` trace'i alarak
+yeniden inceledim. Kanıt: `git remote -v` bu oturumda zaten `westeros-pwa`; `git lfs pull` 40 saniyede
+115 kez aynı `objects/batch` POST'unu **hiç `Authorization` başlığı olmadan** tekrarlıyor, GitHub'dan
+gelen tek yanıt `307 Temporary Redirect`. Düz `git fetch`/`push` çalışıyor çünkü bu ortamın egress
+proxy'si git'in smart-HTTP trafiğine şeffaf kimlik enjekte ediyor; `git-lfs` ayrı bir HTTP istemcisi
+olduğu için bu enjeksiyonu almıyor ve asla kimliklenemiyor. Detaylar: `RCA_RUN370_LFS_PROXY_AUTH.md`.
+`QUESTIONS_FOR_OWNER.md`'ye düzeltici bir 🔴 madde eklendi (gerçek seçenekler: proxy'ye git-lfs desteği
+talebi / objeleri kimlikli bir makineden çekip düz blob olarak commit etme / oturuma özel bir git-lfs
+kimlik bilgisi enjeksiyonu — üçü de owner/ortam kararı, bu run'da uygulanmadı).
+
+**DoD:** Bu bir tanı/dokümantasyon düzeltmesi, kod değişikliği yok — `node --check` N/A (değişen
+dosyalar `.md`). Smoke test: N/A, dokunulan hiçbir runtime dosyası yok. Görsel kanıt: N/A. Performans:
+N/A. Teknik borç: değişmedi (yeni marker yok). World Coverage: değişmedi (96.2%/4.5%). ADR: gerekmedi
+(tanı düzeltmesi, geri döndürülebilir bir tasarım kararı değil). Konsol temizliği: N/A (tarayıcı
+oturumu açılmadı). Eşzamanlılık: commit'ten hemen önce `git fetch origin main` — drift yok
+(`12dcf8c` == origin/main), push başarılı (`2aa5963`).
+
+**World Evolution Report:** yol/orman/kale/NPC/hayvan/event sayısında değişiklik yok. "Oyuncu fark eder
+mi": hayır — bu run oynanabilir hiçbir şeye dokunmadı, sadece bir aylık yanlış tanıyı düzeltti. Ama
+**önemli**: gerçek 3D modellerin (glTF/GLB) hâlâ hiçbirinin oyunda çalışmadığı gerçeği değişmedi — sadece
+bunun neden böyle olduğuna dair kayıt artık daha doğru.
+
+**Risk:** LOW — sadece dokümantasyon. **Sıradaki adım:** owner'ın `QUESTIONS_FOR_OWNER.md`'deki run370
+maddesindeki üç seçenekten birine karar vermesi gerekiyor; kod tarafında bu oturumdan güvenle
+yapılabilecek başka bir şey yok. Bu blokaj gerçek asset içeriğini etkiliyor ama arazi/yol/NPC/kod
+kalitesi işine (öncelik sırası 1-8) engel değil — sıradaki güvenli alt görev (arazi makro-relıyefi)
+ayrı bir alt görev olarak ele alınmalı.
+
+## Run 371 (2026-09-10, scheduled routine) — new feature: world/Weather (rain tied to distant_storm), game3d.js split for headroom
+
+**Alt görev 1 — `game3d.js` bölme (önkoşul).** Dosya 598/600 satırdaydı (kapasiteye tam sınırda);
+yeni bir sistem eklemeden önce, `mobileSpawnVegetation.js`'ye "mobile spawn-anchored vegetation disc"
+bloğunu (run 135/ADR-0159, davranış değişikliği yok, sadece taşıma) çıkardım — aynı `gameLoopHelpers.js`
+(run 105) / `gameplay/livingWorldSpawner.js` (run 332) emsaliyle. `game3d.js` 555'e düştü.
+
+**Alt görev 2 — `world/weather.js` (yeni özellik, hedef mimarideki boş `world/Weather` klasörü ilk kez
+dolduruldu, GOVERNANCE.md §18 madde 14 "Yeni özellik").** Sabit boyutlu (900 damla) bir
+`THREE.LineSegments` yağmur efekti: her damlanın konumu/fazı `mulberry32` ile deterministik olarak
+kuruluyor (Math.random() yok), her kare kamera etrafında yeniden merkezleniyor (dünya boyutunda tek
+bir parçacık sistemine gerek kalmadan her yerde "üstünde yağıyor" hissi). Yeni bir zamanlama icat
+etmek yerine mevcut FAZ 8 `distant_storm` dünya olayına pasif olarak abone oluyor (`worldEventToast.js`
+ile aynı ilişki, ADR-0056) — bu yüzden `worldEvents.js`'in kendi deterministik çekiliş sırasını hiç
+etkilemiyor, fixture'ı değişmedi. `game3d.js`'e ekleme: import + oluşturma/sahneye ekleme + event
+listener + tick loop'ta `updateSystemSafely` ile sarılı update çağrısı + dispose — toplam ~20 satır,
+dosya 581/600'e çıktı (hâlâ sınırın altında). Doku/model asset'i gerektirmiyor — `RCA_RUN370_LFS_PROXY_AUTH.md`'nin
+belgelediği git-lfs/proxy-auth açığından etkilenmiyor.
+
+**DoD:** `node --check` PASS (4 dosya). `scripts/checkWeatherSystem.js` (yeni check, run içinde yazıldı) —
+determinizm (aynı seed → aynı damla düzeni), boşta görünmezlik, trigger()→fade-in→hold→fade-out→gizlenme
+tam simülasyonla doğrulandı. `checkSmokeCheckRegistry.js` OK (687 dosya, 600 satır sınırının hepsi
+altında). `checkTechnicalDebt.js` PASS (0 yeni marker). `checkSeededRandomPolicy.js` PASS. Performans:
+perf-panel/tarayıcı ölçümü bu run'da alınamadı (aşağıdaki not), ama tasarım gereği tek ekstra draw
+call + ~1800 vertex — bütçeye göre ihmal edilebilir düzeyde (tahmini, ölçülmedi — dürüstçe işaretleniyor).
+Konsol temizliği: N/A (tarayıcı oturumu tamamlanmadı). ADR: gerekmedi (mevcut event-bus/safe-mode
+kalıplarının tekrar kullanımı, yeni bir mimari karar değil).
+
+**🟡 Yan bulgu — tarayıcı smoke test artık ÇALIŞIYOR ama `audio-and-movement` fazında takılıyor.**
+Run 370'ün proxy-auth RCA'sından sonra bu run `NODE_PATH=$(npm root -g) node scripts/smokeTestGame3D.js`
+ile gerçek bir tarayıcı denemesi yaptı (global `playwright@1.56.1` + önceden kurulu Chromium,
+`/opt/pw-browsers`) — önceki ~16 run'ın "ortam engelli" diye bıraktığı şeyin aksine, ilk üç faz
+(`scene-and-debug`, `world-events-and-interaction`, `settlement-and-ui`) gerçekten TAMAMLANDI (her biri
+~50-90 saniyede). Ama `audio-and-movement` fazında 7+ dakikadır ilerleme yok — muhtemelen oyuncu
+karakterinin Mixamo FBX animasyonlarının da (kale modelleri gibi) LFS pointer-stub olması ve bir
+hareket kontrolünün gerçek bir model/animasyon bekleyip sessizce asılı kalması (kanıtlanmadı, bir
+sonraki run'ın kendi trace'iyle doğrulaması gerekiyor — bu satır bir tahmin, kesin RCA değil). **Bu
+kendi başına önemli:** tarayıcı/Playwright altyapısı bu ortamda ÇALIŞIYOR; "ortam engelli" etiketi en
+azından sahne/UI/dünya-olayı/yerleşim fazları için artık yanlış — sadece hareket/animasyon fazı asset
+içeriğine (LFS) bağımlı görünüyor. Bir sonraki run bunu `checkPlayerMovementSmoke` gibi tek bir fazı
+izole ederek (kısa timeout'la) doğrulamalı.
+
+**Node-script `three` bağımlılığı notu:** `checkIceLandmarks.mjs` gibi `world/`'den import eden
+node script'ler `three` paketinin yerel olarak çözülebilir olmasını gerektiriyor (repo'da
+`package.json` yok) — CI workflow'ları bunu `npm install --no-save --no-package-lock three@0.160.0`
+ile her çalıştırmada tazeliyor (`.github/workflows/*.yml`'de görüldü). Bu run aynısını yaptı; taze bir
+konteynerde bu adım atlanırsa `world/`'e dokunan hiçbir node check script'i (hatta önceden var olanlar
+bile) çalışmaz — bu run'a özgü bir keşif değildi ama ilk kez açıkça not düşülüyor.
+
+**World Evolution Report:** yeni bir player-facing özellik (yağmur) eklendi — evet, oyuncu fark eder
+(görsel kanıt bu run'da tarayıcı fazı tamamlanamadığı için alınamadı, bir sonraki run'ın
+`checkWeatherSystem.js` PASS'ının üstüne F4/gerçek render kanıtı eklemesi gerekiyor). Yol/kale/NPC/
+hayvan sayısında değişiklik yok. World Coverage değişmedi.
+
+**Risk:** LOW-MEDIUM — yeni kod eklendi (weather.js, game3d.js wiring) ama mevcut event-bus/safe-mode
+kalıpları tekrar kullanıldı, hiçbir mevcut sistem değiştirilmedi (sadece iki taşıma: vegetation disc
++ import temizliği). Görsel kanıt eksikliği açıkça işaretlendi, DONE olarak iddia edilmiyor.
+
+**Sıradaki adım:** (1) bir sonraki run tarayıcıda gerçek görsel kanıt alsın (F4 önden/arkadan, yağmur
+tetiklenmiş/tetiklenmemiş), (2) `audio-and-movement` fazının takılma nedenini izole bir script'le
+doğrulasın, (3) `checkSettlementCampaignDeepSlice.mjs` (41 satır, tek assertion) hâlâ bekliyor.
+
+## Run 371b (2026-09-10, scheduled routine) — root-cause and repair checkSettlementCampaignDeepSlice.mjs + checkSettlementCampaignRuntime.mjs (7 fixture bugs, 1 real production bug)
+
+**checkSettlementCampaignDeepSlice.mjs (was: 1 known failure).** `journey-start` expected `'arrival'`
+but `buildSettlementJourney`'s own `stageFromState()` correctly returns `'orientation'` for a fixture
+whose `locationId === settlementId` (already-arrived player, healthy) — test fixture bug, expectation
+corrected. `interaction-craft` called `resolveSettlementInteraction('blacksmith','craft',{snapshot})`
+without the `recipeId` `evaluateCraftingRule` requires — test fixture bug, added `recipeId:'iron_sword'`
+(same recipe the file's own already-passing `craft-execution`/`rules` checks use). Now fully green
+(58 checks).
+
+**checkSettlementCampaignRuntime.mjs (was: 1 known failure, turned out to have 5 total).**
+1. `runtime-migration` used id `'settlement-save-0-1'` — that's only the migration's own `.id` *field*,
+   not its lookup key (`SAVE_MIGRATIONS` is keyed `` `${from}->${to}` ``, e.g. `'0->1'`) — fixture bug.
+2. `trade-quote` expected `7`; `iron_ore` sell unitPrice is 3 × qty 2 = 6 (cross-verified two ways: a
+   direct `quoteSettlementSale()` call, and the sibling DeepSlice file's own already-passing identical
+   assertion) — fixture bug.
+3. `buy-handler-unavailable-fails-closed` checked `.code`; `execute()`'s handler-dispatch failure path
+   (unlike its early-guard `feedback()` path, which does set `.code`) only ever sets `.reason` — fixture
+   bug, not an inconsistency worth "fixing" production for since nothing else reads `.code` there.
+4. **Real production bug:** `compareProgressionCheckpoints(a,b)` in `settlementCampaignProgression.js`
+   called `buildProgressionCheckpoint(a)`/`(b)` again on its own inputs — but callers (by the function's
+   own name and this test's usage) pass already-*built* checkpoints, which carry no `.skillXp` field,
+   so every rebuild silently re-derived xp as 0 for both sides → `changed` was structurally unable to
+   ever be `true` for any real checkpoint pair, not just this test's fixture (no other caller existed
+   to have masked it — confirmed via repo-wide grep). Fixed: use `a`/`b` directly.
+5. `travel.travel.routeId`/`.cost` — this file's own `travel` handler never echoed the computed quote
+   into `result.data` (unlike its sibling `trade`/`craft` handlers, which already do) — fixture bug,
+   added `data: { travel: payload.travel }` to the handler and read `travel.data.travel.*` in the
+   assertion.
+6. `slice.getState()` — `createSettlementVerticalSlice`'s real public API has no such method; `.snapshot().nodeId`
+   is what actually exposes the current node id — fixture bug.
+Now fully green (896 checks — the file loops over its own recorded event history for extra assertions).
+
+**DoD:** `node --check` PASS (3 files). `checkSmokeCheckRegistry.js` OK (688 files, cap intact).
+`checkTechnicalDebt.js` PASS (0 new markers). Re-ran the full `settlementCampaign*` family after: the
+two fixed files stay green, the four still-broken ones (`Accessibility`, `Authoring`, `EventBridge`,
+`QuestChains`) are unchanged/untouched (not attempted this run). Zero live-gameplay impact either way
+— this subsystem remains unwired to any playable scene (re-confirmed, not re-guessed). No ADR: none of
+these are design decisions, each is a verified fixture correction or a narrowly-scoped bugfix backed by
+reading the actual source before changing anything, consistent with this project's own "read/verify
+before touching" precedent from prior runs.
+
+**Sıradaki adım:** `checkSettlementCampaignAccessibility.mjs`/`Authoring.mjs`/`EventBridge.mjs`/
+`QuestChains.mjs` remain, each not yet root-caused.
+
+## Run 371c (2026-09-10, scheduled routine) — root-cause and repair checkSettlementCampaignAccessibility.mjs (3 real production bugs); diagnosed but did not fix checkSettlementCampaignAuthoring.mjs
+
+**checkSettlementCampaignAccessibility.mjs — all 3 root causes were real production bugs, not fixture
+bugs (unusual for this family so far):**
+1. `buildSettlementLiveRegion()` only set `role:'alert'` for `status==='error'||'warning'` — but
+   `settlementCampaignRuntime.js`'s own `execute()`, the only real producer of this shape, only ever
+   emits `status:'success'` or `status:'blocked'` (confirmed via repo-wide grep). The alert path was
+   unreachable for every real action failure: a screen reader would passively announce a failed
+   craft/trade/travel as a polite status update instead of interrupting. Fixed: `'blocked'` now alerts
+   too.
+2. Same function threw a raw `TypeError` for `feedback: null` (a real, reachable state — before any
+   action has been taken) because the `feedback = {}` default parameter only covers `undefined`, not an
+   explicit `null`. Fixed with a `feedback ?? {}` normalization.
+3. `validateSettlementAccessibilityModel()` called `model.actions.some(...)` unconditionally even after
+   already detecting (and pushing an error for) a non-array `actions` two lines above — crashing
+   instead of returning `{ok:false}` for malformed input, which is exactly what a *validator* must not
+   do. Fixed to only run that scan once `Array.isArray(model?.actions)` is confirmed.
+Now fully green (22 checks). Zero live-gameplay impact (subsystem still unwired), but these are real
+correctness/robustness bugs in already-authored code, not test noise.
+
+**checkSettlementCampaignAuthoring.mjs — diagnosed, NOT fixed this run.** `facade-craft` fails because
+`settlementCampaignRuntime.js`'s `open(serviceId, panel)` updates `state.activeService`/`state.panel`
+but never moves the underlying `slice`'s own tracked node (`slice.setNode()` is never called from
+`open()`) — confirmed by direct reproduction: after `facade.enter('blacksmith')`,
+`runtime.getViewModel().availableActions` still reports `['enter','back']` (the *entry* node
+`'settlement'`'s actions), not blacksmith's `['talk','trade','craft','equip','back']`. This only
+surfaces through the **facade**, because `settlementCampaignFacade.js`'s own `can()` gate checks
+`view.availableActions.includes(action)` before calling `runtime.execute()` — `runtime.execute()`
+called directly (as `checkSettlementCampaignDeepSlice.mjs`/`checkSettlementCampaignRuntime.mjs` both
+do) never consults the slice's node at all, which is why those two files' craft/trade checks pass fine.
+**Not fixed, deliberately:** this is a real coupling gap between two independent pieces (`runtime`'s
+service/panel state vs. `slice`'s own node graph, which are parallel id spaces that only happen to
+overlap in this test's own fixture) — whether `open()` should drive the slice's node, or whether
+`facade.can()` should stop depending on `slice.availableActions()` for this, is a design call this run
+declined to guess per GOVERNANCE.md's "BİLMEME KURALI", not a narrow bugfix like the three above.
+
+**DoD:** `node --check` PASS. `checkSmokeCheckRegistry.js` OK (688 files). `checkTechnicalDebt.js` PASS
+(0 new markers). Re-ran `checkSettlementCampaignAccessibility.mjs` + the two previously-fixed sibling
+files (`DeepSlice`, `Runtime`) + `Contracts` — all still green, no regression. No ADR (three narrow bug
+fixes backed by direct source reading + reproduction, not design decisions).
+
+**Sıradaki adım:** `checkSettlementCampaignAuthoring.mjs`'s `open()`/slice-node desync (see above,
+precise repro included) is the next candidate — needs a design call first, not a blind fix.
+`checkSettlementCampaignEventBridge.mjs`/`QuestChains.mjs` remain fully un-investigated.
+
+## Run 371d (2026-09-10, scheduled routine) — repair checkSettlementCampaignEventBridge.mjs (1 real bug); diagnosed QuestChains as large-scope content gap, not a quick fix
+
+**checkSettlementCampaignEventBridge.mjs — real production bug, double-wrapped response payloads.**
+`emitResponse(request, result)` built the outer response envelope's `.data` field from the *entire*
+`result` object (e.g. `{ok:true, data: runtime.manifest()}`) instead of unwrapping it first — so for
+every request type that wraps a plain runtime call as `{ok:true, data:X}` ('open', 'panel', 'close',
+'reset', 'state', 'manifest', 'dialogue', 'objective'), the response's own `.data` was itself
+`{ok:true, data:X}`, one nesting level too deep. A caller reading `response.data.digest` (as this
+file's own `manifest-digest` check does) would always get `undefined`; the real value sat at
+`response.data.data.digest`. This is the first assertion in this whole check family to actually
+inspect `.data`'s contents instead of just `.ok`/`.code`, which is why 7 other request types with the
+exact same bug went unnoticed. Fixed: `result?.data ?? result` — unwraps the wrapped branches, and
+falls through unchanged for branches whose `result` has no `.data` of its own (`restore`, every
+error/rejection path), so no other passing assertion in the file regressed. Now green (23 checks).
+
+**checkSettlementCampaignQuestChains.mjs — diagnosed, NOT attempted (out of scope for a quick fix).**
+`validateSettlementQuestChains()` returns **57 real errors**, not 1–2: most quest-chain steps
+reference condition ids in an `item_NN`/`skill_NN`/`quest_NN`/`copper_NN`/`reputation_NN` naming
+scheme that was never actually authored into `DIALOGUE_CONDITIONS` (which only has 40 generic
+`flag_NN`-style entries) or `QUEST_OBJECTIVES` (32 entries, `settlement-objective-NN` naming) — two
+separate content passes that used incompatible taxonomies. This is a genuine content-authoring gap
+(dozens of missing typed condition/objective entries, or a rewrite of every quest-chain step to the
+existing `flag_NN` scheme), not a narrow bug — deliberately left alone this run rather than rushing
+placeholder content.
+
+**Family status after this run's 4 sub-entries (371a-d):** `checkSettlementCampaignDeepSlice.mjs`,
+`checkSettlementCampaignRuntime.mjs`, `checkSettlementCampaignAccessibility.mjs`,
+`checkSettlementCampaignEventBridge.mjs` — all green. Still broken: `Authoring.mjs` (diagnosed,
+`open()`/slice-node desync, needs a design call), `QuestChains.mjs` (diagnosed, needs a real
+content-authoring pass). `Browser.mjs` remains Playwright-only, not attempted.
+
+**DoD:** `node --check` PASS. `checkSmokeCheckRegistry.js` OK (688 files). `checkTechnicalDebt.js`
+PASS (0 new markers). No ADR (bugfix backed by direct source reading, not a design decision).
+
+## Run 371e (2026-09-10, scheduled routine) — real visual evidence for Run 371's weather.js; found and fixed a real bug in the process (rain volume Y wasn't following the camera)
+
+**What happened.** Run 371's `world/weather.js` shipped with only logic-level test coverage
+(`checkWeatherSystem.js`) — this run built `scripts/weatherVisualQa.js` (a focused Playwright capture,
+separate from the still-stalled full `smokeTestGame3D.js`, see Run 371 above) to get the real screenshot
+evidence GOVERNANCE.md's Görsel Doğrulama Standardı requires, since it boots to GAME_READY the same way
+`check3DMode` already proved works this run. **It immediately caught a real bug**: the first "before"
+and "during-rain" screenshots came back byte-identical — the rain volume's `group.position.set(camX, 0,
+camZ)` pinned it to world Y=0, but this world's terrain reaches real elevation (up to ~780m inland), so
+for almost any real spawn point the rain rendered nowhere near the camera. Fixed to
+`group.position.set(camX, camY, camZ)`; also strengthened `checkWeatherSystem.js`'s own camera-position
+fixture to a non-zero Y (it had used `y:0`, which happened to coincidentally match the bug's hardcoded 0,
+masking it from the logic-level test entirely).
+
+**Two more environment quirks fixed along the way (documented in `weatherVisualQa.js`'s own comments for
+the next run):** (1) `game3d.html`'s navigation must use `waitUntil:'commit'`, confirmed by hand via a
+direct trace — both `'load'` and `'domcontentloaded'` hang 30s+ in this environment, matching why
+`smokeTestGame3D.js`'s own `createCommittedNavigationBrowser` already exists. (2) `game3d.html` has an
+interactive "run266 entry gate" overlay (`giriş.png` + "Giriş yap" button) sitting on top of the already-
+booted scene until dismissed — GAME_READY firing doesn't mean it's gone. A real `elementHandle.click()`
+on its enter button hung 30s (the handler itself is a few trivial synchronous lines, so this looks like
+Playwright's own actionability/stability wait misjudging this environment's software-rendered Chromium,
+not a real page hang) — a same-page synthetic `element.click()` via `page.evaluate` sidesteps it.
+
+**Visual evidence:** `artifacts/weather-visual-qa/` (gitignored, 3 screenshots): `01-before-chase-cam.png`
+(clear sky, no rain, "Ejderha Görüldü!" toast from an unrelated ambient world event that happened to fire
+during boot), `02-during-chase-cam.png` (same framing, ~5.5s after manually emitting the real
+`distant_storm` event through the game's own live `EventBus` singleton — visible falling rain line
+segments scattered across the frame, "Uzak Fırtına" toast confirms the event fired), `03-during-freecam.png`
+(F4 debug free-cam, second angle per Görsel Doğrulama Standardı — camera happened to fly up into open sky
+during its WASD movement, no rain visible in *this* frame, but 01/02 already give an unambiguous
+before/after). `weatherVisualQa.js` soft-reports the known asset-gap `console.error`s (LFS/proxy-auth,
+RCA_RUN370_LFS_PROXY_AUTH.md) rather than failing on them, same hard/soft split `game3dSmokeChecksScene.js`'s
+own `check2DShell` already established — exit 0, zero *unexpected* console/page errors.
+
+**DoD:** `node --check` PASS (3 files). `checkWeatherSystem.js` PASS (now with a non-zero-Y fixture, so
+this exact regression class can't hide again). Performance: not separately re-measured this run (Run 371's
+own estimate — 1 draw call, ~1800 verts — stands, unaffected by a position-only fix). No ADR (bugfix, not
+a design decision).
+
+**Sıradaki adım:** none outstanding for `weather.js` itself. The `waitUntil:'commit'` / synthetic-click /
+entry-gate findings above are reusable for any future focused Playwright script in this environment —
+worth folding into `smokeTestGame3D.js`'s own approach if a future run revisits its `audio-and-movement`
+stall.

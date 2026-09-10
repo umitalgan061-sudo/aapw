@@ -64,18 +64,17 @@ import { createInteractionController } from './gameplay/interaction.js';
 import { focusSunShadow, applyShadowRoles } from './renderQuality.js';
 import { createWorldEventSystem } from './gameplay/worldEvents.js';
 import { updateWater, disposeWater } from './world/water.js';
+import { createWeatherSystem } from './world/weather.js';
 import { disposeRiverMesh, disposeWaterfallMesh, updateFlowAnimation } from './world/rivers.js';
 import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.js';
 import { disposeRoadNetwork } from './world/roads.js';
 import { disposeVegetation } from './world/vegetation.js';
 import { disposeVillages } from './world/villages.js';
 import { disposeIceLandmarks } from './world/iceLandmarks.js';
-// Run 135 / ADR-0159 — new import, additive: `createVegetation` itself is unchanged, this file just
-// also calls it a second time (see the mobile spawn-anchored vegetation block below).
-import { createVegetation } from './world/vegetation.js';
-// Run 135 / ADR-0159 — new import, additive: needed for the mobile spawn-anchored vegetation disc's
-// own radius (matches `sceneManager.js`'s own mobile disc sizing, not a fresh constant).
-import { CHUNK_CONFIG } from './config.js';
+// Run 371 — the mobile spawn-anchored vegetation disc itself (previously inlined here, using
+// `createVegetation`/`CHUNK_CONFIG` directly) moved to `mobileSpawnVegetation.js` to keep this file
+// under the 600-line cap; see that module's own doc comment for the "why".
+import { spawnMobileVegetationDisc } from './mobileSpawnVegetation.js';
 import { resolveCameraCollision } from './camera.js';
 import { updateAuroraSky, disposeAuroraSky } from './sky.js';
 import { updateStarfield, disposeStarfield } from './stars.js';
@@ -95,6 +94,12 @@ import {
 
 /** Shared asset loader instance for the whole 3D mode. */
 export const assetLoader = new AssetLoader({ events: gameEvents });
+
+/** Rain-shower hold duration (before `world/weather.js`'s own fade-out), in seconds, triggered by
+ * the `distant_storm` world event. A fixed constant, not randomized, so a given world-event sequence
+ * always produces the same weather timeline — see `weather.js`'s own doc comment on why this keeps
+ * the system fully deterministic without it drawing any randomness of its own. */
+const RAIN_SHOWER_DURATION_SECONDS = 22;
 
 gameEvents.on(EVENTS.ASSET_PROGRESS, ({ ratio }) => {
 	gameState.set('loadProgress', ratio);
@@ -160,52 +165,11 @@ export async function initGame3D() {
 			WORLD_SCALE.MAP_BOUNDS,
 			WORLD_SCALE.METERS_PER_MAP_UNIT,
 		);
-		// Run 135 / ADR-0159 — mobile spawn-anchored vegetation disc. `createScene`'s own vegetation
-		// scatter (`state.vegetation`) is a disc centered on the world origin (0,0), sized to
-		// whatever terrain radius that device class loaded (see `sceneManager.js`'s own doc
-		// comment) — on desktop that disc is `PHASE1_PREVIEW_RADIUS_CHUNKS`'s own 5500m, comfortably
-		// past `spawnWorld`'s own ~4.1km distance from the origin, but on mobile it shrinks to
-		// `STREAM_RADIUS_CHUNKS`'s own 1000m radius, which falls roughly 3km short — measured, not
-		// assumed (see DECISIONS.md ADR-0159's own "Neden" section for the exact numbers) — so a
-		// mobile player never actually walked past a tree during ordinary play, the origin-disc
-		// scatter sitting far outside where mobile's own bounded terrain-streaming radius (ADR-0154)
-		// ever reaches. This second, purely additive scatter reuses the exact same `createVegetation`
-		// placement algorithm (never a second, drifting copy of the water/slope/seat/road exclusion
-		// rules) through a coordinate-shifted view of the same real sampler/seats/roads, then
-		// repositions the returned group by the same shift so each instance's *rendered* world
-		// position is exactly where its height was actually sampled from — a naive post-hoc
-		// `group.position` translate of an origin-sampled scatter would instead leave every tree
-		// floating or sunk relative to the real, non-flat terrain at the new location, since the
-		// heights baked into its instance matrices would still be the *origin* area's heights, not
-		// the spawn area's.
-		let mobileSpawnVegetation = null;
-		if (isCoarsePointerDevice()) {
-			const shiftedSampleHeightMeters = (x, z) => state.groundCollider.getGroundHeight(x + spawnWorld.x, z + spawnWorld.z);
-			const shiftedSeats = state.settlementSeats.map((seat) => ({ x: seat.x - spawnWorld.x, z: seat.z - spawnWorld.z }));
-			const shiftedRoadEdges = state.roadEdges.map((edge) => ({
-				points: edge.points.map((point) => ({ x: point.x - spawnWorld.x, z: point.z - spawnWorld.z })),
-			}));
-			const spawnVegetationResult = createVegetation({
-				sampleHeightMeters: shiftedSampleHeightMeters,
-				seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-				// XOR-tagged so this disc's own instance layout never collides with the origin disc's
-				// draw sequence — same "independent tagged stream" convention `world/vegetation.js`'s
-				// own seat-cluster pass already established for itself (ADR-0140).
-				seed: WORLD_DEFAULTS.WORLD_SEED ^ 0x5350574e, // "SPWN"-ish tag
-				seats: shiftedSeats,
-				roadEdges: shiftedRoadEdges,
-				radiusMeters: CHUNK_CONFIG.STREAM_RADIUS_CHUNKS * CHUNK_CONFIG.CHUNK_SIZE_METERS,
-			});
-			spawnVegetationResult.group.position.set(spawnWorld.x, 0, spawnWorld.z);
-			state.scene.add(spawnVegetationResult.group);
-			mobileSpawnVegetation = spawnVegetationResult.group;
-			console.info(
-				`[game3d] Mobile spawn-anchored vegetation: ${spawnVegetationResult.placedCount}/` +
-					`${spawnVegetationResult.targetCount} tree(s) near spawn (${spawnWorld.x.toFixed(0)}, ` +
-					`${spawnWorld.z.toFixed(0)}).`,
-			);
-		}
-		state.mobileSpawnVegetation = mobileSpawnVegetation;
+		// Run 135 / ADR-0159 — mobile spawn-anchored vegetation disc; the "why" (mobile's streaming
+		// radius falls short of the spawn point) now lives in `mobileSpawnVegetation.js`'s own doc
+		// comment (run 371, extracted purely to keep this file under the 600-line cap — see that
+		// module's header for the full reasoning this used to carry inline here).
+		state.mobileSpawnVegetation = isCoarsePointerDevice() ? spawnMobileVegetationDisc(state, spawnWorld) : null;
 		const player = await createPlayer({
 			assetLoader,
 			groundCollider: state.groundCollider,
@@ -316,13 +280,22 @@ export async function initGame3D() {
 		state.perfPanel = createPerfPanel({ renderer: state.renderer, isMobileClass: isCoarsePointerDevice() });
 
 		// Priority 9.5: periodic world-flavor events routed through the EventBus (DECISIONS.md
-		// ADR-0056) — worldEvents.js only emits, worldEventToast.js is the (only, for now) listener.
+		// ADR-0056) — worldEvents.js only emits; worldEventToast.js and (run 371) weather.js are its
+		// two listeners.
 		state.worldEvents = createWorldEventSystem({
 			eventsBus: gameEvents,
 			seed: WORLD_DEFAULTS.WORLD_SEED,
 			eventName: EVENTS.WORLD_EVENT_TRIGGERED,
 		});
 		state.worldEventToast = new WorldEventToast({ eventsBus: gameEvents, eventName: EVENTS.WORLD_EVENT_TRIGGERED });
+		// world/Weather (run 371, GOVERNANCE.md §18 item 14) — the project's first environmental
+		// weather effect. Passively listens for the already-deterministic `distant_storm` flavor
+		// event rather than running its own schedule — see `world/weather.js`'s own doc comment.
+		state.weather = createWeatherSystem({ seed: WORLD_DEFAULTS.WORLD_SEED });
+		state.scene.add(state.weather.group);
+		const unsubscribeWeatherTrigger = gameEvents.on(EVENTS.WORLD_EVENT_TRIGGERED, (payload) => {
+			if (payload.id === 'distant_storm') state.weather.trigger(RAIN_SHOWER_DURATION_SECONDS);
+		});
 		state.controlsHelp = new ControlsHelp({ isMobileClass: isCoarsePointerDevice() });
 		// Menu/pause flow (run 339, GOVERNANCE_FULL_GAME_DIRECTIVE.md §3 item 7) — this instance only
 		// owns the overlay DOM/open-state; the tick loop below reads `state.paused` (flipped here via
@@ -511,6 +484,14 @@ export async function initGame3D() {
 			// when the mesh is absent or its material never got the flow injection.
 			updateFlowAnimation(state.river, elapsedSeconds);
 			for (const waterfall of state.waterfalls) updateFlowAnimation(waterfall, elapsedSeconds);
+			// world/Weather (run 371) — same §8.13 safe-mode wrapping every other per-frame subsystem
+			// in this loop already gets; `dayNight`/`viewCamera` are already computed above this point.
+			state.weatherDisabledDueToError = updateSystemSafely({
+				disabled: state.weatherDisabledDueToError,
+				label: 'Weather system',
+				update: () => state.weather.update(delta, viewCamera.position),
+				disposeOnError: () => state.weather.dispose(),
+			});
 
 			// Wall-avoidance: pull the camera in front of any terrain/castle occluding the line from
 			// the player to it. Applied last (after sky/stars/water already used the true free-orbit
@@ -557,6 +538,8 @@ export async function initGame3D() {
 			state.perfPanel.dispose();
 			state.worldEvents.dispose();
 			state.worldEventToast.dispose();
+			state.weather.dispose();
+			unsubscribeWeatherTrigger();
 			state.controlsHelp.dispose();
 			state.pauseMenu.dispose();
 			state.audioManager.dispose();

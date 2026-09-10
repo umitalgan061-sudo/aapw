@@ -50,7 +50,17 @@ export function createSettlementCampaignEventBridge(options = {}) {
     return false;
   };
   const emitResponse = (request, result) => {
-    const payload = { ...response(Boolean(result?.ok), request, result?.code ?? result?.reason, result), at: now() };
+    // Run 371 fix: was passing the whole `result` (e.g. `{ok:true, data: runtime.manifest()}`) as
+    // `response()`'s own `data` param — for every branch above that wraps a plain runtime call in
+    // `{ok:true, data:X}` ('open'/'panel'/'close'/'reset'/'state'/'manifest'/'dialogue'/'objective'),
+    // that meant the *response's* `.data` field was itself a redundant `{ok,data}` wrapper around the
+    // real payload, one nesting level too deep (`response.data.digest` when the real value is at
+    // `response.data.data.digest`) — caught by this file's own 'manifest-digest' assertion, the first
+    // one in this file to actually inspect `.data`'s contents rather than just `.ok`/`.code`.
+    // `result?.data ?? result` unwraps those branches to the real payload; branches whose `result` has
+    // no `.data` of its own ('restore', and every error/rejection path) are unaffected — they fall
+    // through to `result` unchanged, exactly as before.
+    const payload = { ...response(Boolean(result?.ok), request, result?.code ?? result?.reason, result?.data ?? result), at: now() };
     bus.emit(SETTLEMENT_CAMPAIGN_EVENT_NAMES.response, payload); return payload;
   };
   const handle = async (rawRequest) => {
