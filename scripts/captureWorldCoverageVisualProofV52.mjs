@@ -31,10 +31,28 @@ function spawnServer() {
 async function waitForUrl(page, url, timeoutMs = 30000) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 }); return; }
-    catch (error) { if (Date.now() - started > timeoutMs - 10000) throw error; await delay(250); }
+    try {
+      await page.goto(url, { waitUntil: 'commit', timeout: 10000 });
+      return;
+    } catch (error) {
+      if (Date.now() - started > timeoutMs - 10000) throw error;
+      await delay(250);
+    }
   }
   throw new Error(`navigation timeout: ${url}`);
+}
+
+async function dismissEntryGate(page) {
+  return page.evaluate(() => {
+    const candidates = [...document.querySelectorAll('button, [role="button"], .overlay button, [data-action]')];
+    const gate = candidates.find((element) => {
+      const text = (element.textContent ?? '').trim().toLowerCase();
+      return /enter|continue|start|başla|oyna|dismiss|kapat/.test(text);
+    });
+    if (!gate) return { dismissed: false, reason: 'no-entry-gate-found' };
+    gate.click();
+    return { dismissed: true, label: (gate.textContent ?? '').trim().slice(0, 80) };
+  });
 }
 
 function centerForWorld(cameraSpec, x, z) {
@@ -56,6 +74,7 @@ async function collectPageDiagnostics(page, sample) {
   return page.evaluate((expected) => {
     const runtime = globalThis.__AapwWorldCoverageVisualRuntimeV52__ ?? null;
     const canvas = document.querySelector('#game3d-canvas');
+    const gate = document.querySelector('[data-run266-entry-gate], .run266-entry-gate, #run266-entry-gate');
     return {
       expected,
       runtimeInstalled: Boolean(runtime?.installed),
@@ -63,6 +82,8 @@ async function collectPageDiagnostics(page, sample) {
       canvasPresent: Boolean(canvas),
       canvasWidth: canvas?.width ?? 0,
       canvasHeight: canvas?.height ?? 0,
+      gatePresent: Boolean(gate),
+      gateHidden: gate ? getComputedStyle(gate).display === 'none' || getComputedStyle(gate).visibility === 'hidden' : null,
       readyText: document.querySelector('#game3d-loading')?.textContent ?? '',
       title: document.title,
     };
@@ -116,6 +137,8 @@ async function main() {
     page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
     page.on('pageerror', (error) => pageErrors.push(error.message));
     await waitForUrl(page, URL);
+    const gateResult = await dismissEntryGate(page);
+    log(`entry gate: ${JSON.stringify(gateResult)}`);
     await delay(SAMPLE_WAIT_MS);
     const results = [];
     for (const sample of CAMERA_SAMPLES) results.push(await captureSample(page, sample));
@@ -123,6 +146,7 @@ async function main() {
       policyId: 'world-coverage-visual-runtime-2026-09-10-v52',
       width: WIDTH,
       height: HEIGHT,
+      entryGate: gateResult,
       samples: results.map((result) => ({ id: result.sample.id, screenshot: path.relative(ROOT, result.screenshotPath), bytes: result.pngBytes, camera: result.cameraResult, diagnostics: result.diagnostics })),
       consoleErrors,
       pageErrors,
