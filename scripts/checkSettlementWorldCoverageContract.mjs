@@ -39,7 +39,7 @@ addManifest('farm','field-farm','materials-farm',['wood','stone-trim']);
 addManifest('barracks','barracks-main','materials-barracks',['wall','roof','wood','door','window','stone-trim']);
 addManifest('stable','stable-main','materials-stable',['wall','roof','wood']);
 addManifest('house','house-main','materials-house',['wall','roof','wood','door','window']);
-for(const [service,token] of [['gate','road'],['market','stall'],['tavern','npc'],['blacksmith','workbench'],['farm','barn'],['barracks','training'],['stable','mount'],['house','bed']])manifestEvidence.push({id:`${service}-${token}-evidence`,serviceId:service,assetId:`${token}-evidence`});
+for(const [service,token] of [['gate','door-road'],['market','vendor-stall'],['tavern','interior-npc'],['blacksmith','forge-workbench'],['farm','field-barn'],['barracks','barracks-training'],['stable','stable-mount'],['house','house-bed']])manifestEvidence.push({id:`${service}-${token}-evidence`,serviceId:service,assetId:`${token}-evidence`});
 
 const placementEvidence=[];
 const addPlacement=(serviceId,assetId)=>placementEvidence.push({id:`${serviceId}-placement`,assetId,serviceId,status:'attached',manifestId:`${serviceId}-manifest`,materialManifestId:`materials-${serviceId}`,position:{x:0,y:0,z:0},groundPosition:{x:0,y:0,z:0},expectedGroundY:0,slope:5,scale:{x:1,y:1,z:1},visible:true,collisionReady:true,materialValidated:true,grounded:true,overlapRisk:false});
