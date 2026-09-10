@@ -18885,3 +18885,20 @@ results will be confirmed in a follow-up entry rather than assumed here.
 
 **DoD:** `node --check` PASS on all 9 files. No ADR (bugfix using an already-established pattern from
 earlier this run, not a new design decision).
+
+## Run 371j (2026-09-10, scheduled routine) — second confirmed real PASS (lock-on), third combat check's own too-tight timeout raised
+
+**`checkPlayerLockOnRuntime.mjs` confirmed real PASS**, end-to-end, after 371h/371i's fixes:
+`PLAYER_LOCK_ON_RUNTIME_OK {"targetId":"Targeryan Muhafızı","distanceMeters":29.903,"approachMeters":1.6,"guidedBursts":11,"sweepAttempts":11,"targetFacingDot":1,"errors":0}`
+— genuine verification that the player's lock-on targeting mechanic works correctly, a second
+independent confirmation (after `HitStagger`) that the `waitUntil`/asset-gap fixes are correct and not
+coincidental.
+
+**`checkPlayerCombatHudRuntime.mjs`** hit a third, distinct issue: its own `waitForFunction` for the
+combat-status HUD text reaching `'Serbest'` (idle) was still timing out at 15000ms even after GAME_READY
+had already fired — not the asset-gap or navigation bugs already fixed, just another too-tight
+timeout for this environment's slow software rendering, matching the same class of issue found
+repeatedly across this run (371f/371g/371h). Raised to 45000ms; re-verification in progress at commit
+time.
+
+**DoD:** `node --check` PASS. No ADR (timeout tuning, not a design decision).

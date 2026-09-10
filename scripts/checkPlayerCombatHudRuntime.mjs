@@ -51,7 +51,10 @@ try {
 	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'commit', timeout: 30000 });
 	await page.locator('#run266-entry-enter').click();
 	await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
-	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.textContent?.includes('Serbest'), null, { timeout: 15000 });
+	// Run 371 fix: raised from 15s — spot-run this run timed out here in this slow-rendering
+	// environment even after GAME_READY had already fired, plausibly needing more settling time for
+	// the combat HUD's own post-boot state than a real device would (see Run 371i's own timing notes).
+	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.textContent?.includes('Serbest'), null, { timeout: 45000 });
 	const baseline = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, role: el.getAttribute('role'), live: el.getAttribute('aria-live'), state: el.dataset.state ?? '', range: el.dataset.range ?? '' }));
 	need(baseline.role === 'status' && baseline.live === 'polite', `combat HUD accessibility contract missing: ${JSON.stringify(baseline)}`);
 
