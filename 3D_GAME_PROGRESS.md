@@ -18389,3 +18389,35 @@ root-caused. A future run should apply the same "read/verify before touching" di
 next, smallest/simplest first per this run's own precedent (`checkSettlementCampaignDeepSlice.mjs` at 41
 lines and a single assertion mismatch looks like the next-smallest candidate, though its own root cause has
 not yet been confirmed one way or the other).
+
+## Run 370 (2026-09-10, scheduled routine) — RCA correction: LFS blocker root cause is proxy auth, not repo rename
+
+**Alt görev:** Run 344'ten beri (344/349/355/362...) tekrar tekrar "LFS hâlâ kırık, owner kararı
+bekliyor" diye yeniden doğrulanan `assets/**/*.glb` pointer-dosyası sorununu, önceki varsayımı kabul
+etmek yerine gerçek bir `GIT_TRACE=1 GIT_CURL_VERBOSE=1 GIT_TRACE_CURL=1 git lfs pull` trace'i alarak
+yeniden inceledim. Kanıt: `git remote -v` bu oturumda zaten `westeros-pwa`; `git lfs pull` 40 saniyede
+115 kez aynı `objects/batch` POST'unu **hiç `Authorization` başlığı olmadan** tekrarlıyor, GitHub'dan
+gelen tek yanıt `307 Temporary Redirect`. Düz `git fetch`/`push` çalışıyor çünkü bu ortamın egress
+proxy'si git'in smart-HTTP trafiğine şeffaf kimlik enjekte ediyor; `git-lfs` ayrı bir HTTP istemcisi
+olduğu için bu enjeksiyonu almıyor ve asla kimliklenemiyor. Detaylar: `RCA_RUN370_LFS_PROXY_AUTH.md`.
+`QUESTIONS_FOR_OWNER.md`'ye düzeltici bir 🔴 madde eklendi (gerçek seçenekler: proxy'ye git-lfs desteği
+talebi / objeleri kimlikli bir makineden çekip düz blob olarak commit etme / oturuma özel bir git-lfs
+kimlik bilgisi enjeksiyonu — üçü de owner/ortam kararı, bu run'da uygulanmadı).
+
+**DoD:** Bu bir tanı/dokümantasyon düzeltmesi, kod değişikliği yok — `node --check` N/A (değişen
+dosyalar `.md`). Smoke test: N/A, dokunulan hiçbir runtime dosyası yok. Görsel kanıt: N/A. Performans:
+N/A. Teknik borç: değişmedi (yeni marker yok). World Coverage: değişmedi (96.2%/4.5%). ADR: gerekmedi
+(tanı düzeltmesi, geri döndürülebilir bir tasarım kararı değil). Konsol temizliği: N/A (tarayıcı
+oturumu açılmadı). Eşzamanlılık: commit'ten hemen önce `git fetch origin main` — drift yok
+(`12dcf8c` == origin/main), push başarılı (`2aa5963`).
+
+**World Evolution Report:** yol/orman/kale/NPC/hayvan/event sayısında değişiklik yok. "Oyuncu fark eder
+mi": hayır — bu run oynanabilir hiçbir şeye dokunmadı, sadece bir aylık yanlış tanıyı düzeltti. Ama
+**önemli**: gerçek 3D modellerin (glTF/GLB) hâlâ hiçbirinin oyunda çalışmadığı gerçeği değişmedi — sadece
+bunun neden böyle olduğuna dair kayıt artık daha doğru.
+
+**Risk:** LOW — sadece dokümantasyon. **Sıradaki adım:** owner'ın `QUESTIONS_FOR_OWNER.md`'deki run370
+maddesindeki üç seçenekten birine karar vermesi gerekiyor; kod tarafında bu oturumdan güvenle
+yapılabilecek başka bir şey yok. Bu blokaj gerçek asset içeriğini etkiliyor ama arazi/yol/NPC/kod
+kalitesi işine (öncelik sırası 1-8) engel değil — sıradaki güvenli alt görev (arazi makro-relıyefi)
+ayrı bir alt görev olarak ele alınmalı.
