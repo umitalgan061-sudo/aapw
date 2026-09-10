@@ -19123,3 +19123,72 @@ three proposed paths) — none of which are within a single session's safe blast
 
 Risk: LOW (docs-only, zero runtime delta). Concurrency re-check immediately before this commit:
 `git fetch origin main` re-run, `origin/main` still at `8f8f745`, no drift since this run's own start.
+
+## Run 375 (2026-09-10, scheduled routine) — Run 373's open lead closed with real numbers: this environment's headless Chromium renders at ~0.2-0.3 FPS, root cause of the player-combat check timeout family confirmed (not a gameplay bug)
+
+Session snapshot per `GOVERNANCE.md` (already complete, all §8-§15 items already present —
+diffed the scheduled prompt's requested rule text against the file section-by-section, all of it
+already there, no update needed): `3D_GAME_PROGRESS.md` tail, `QUESTIONS_FOR_OWNER.md` tail,
+`CATCH_UP.md` head (current through Run 371, next due ~run 380), `git log -10` all read fresh.
+`git fetch origin main` matched this session's starting checkout exactly (`ba9916e`, Run 374's own
+tip) — no concurrent-session drift to reconcile. Priority items 1/1.2/1.5/1.7 (terrain macro relief,
+road network, ground colour, castle texturing) re-confirmed still LFS-blocked
+(`assets/**/*.glb` still ~130-131 byte pointer stubs, `git-lfs` still not installed in this session —
+`RCA_RUN370_LFS_PROXY_AUTH.md`, unchanged, no re-notification needed), so this run again continued
+down the priority list into Run 373's own explicitly-flagged next step, same call Runs 349/373/374
+made in the analogous situation.
+
+**Ran the diagnostic Run 373 specified instead of guessing further.** Added one temporary, opt-in
+line to `game3d.js`'s `tick()` (`if (window.__frameDeltaDiag...) window.__frameDeltaDiag.push(rawDelta)`
+— a no-op in every existing path, since that array only exists when a diagnostic script creates it),
+ran a standalone Playwright script against this session's own headless Chromium capturing real
+`rawDelta` values over a real 4-second wall-clock window of active player movement post-load, then
+reverted the line (`git checkout -- src/3d/game3d.js`, confirmed clean via `git status` and a
+`grep` for the diagnostic symbol returning nothing — nothing shipped with it in place, matching
+`GOVERNANCE.md` §8.8's Geçici Çözüm Yok: a one-off measurement instrument, not left code, so no
+TEMP/HACK marker or removal-condition ADR applies).
+
+**Result, full detail in `RCA_RUN375_HEADLESS_FRAMERATE.md`:** loading the scene took 90.4 real
+seconds (against every one of these checks' own 90000ms loading budget — already tight margin on its
+own, independent of the finding below). Over the subsequent 4000ms window, only 4 real
+`requestAnimationFrame` ticks fired, with real per-frame times of 3.5-8.6 seconds each (mean 4.7s) —
+**all 4 of 4 frames** exceeded `player.js`'s 0.1s `MAX_FRAME_DELTA_SECONDS` clamp, not occasionally
+but every single frame. That is roughly a 1:35 to 1:85 simulated-to-real time ratio in this
+environment for this scene — 35-85x worse per frame than the "a few real seconds" estimate Run 373
+derived from a hypothesized frame cost, meaning the 0.6-simulated-second dodge→sprint transition Run
+373 analyzed can require 14-34 real seconds before the clamped simulation reaches it, comfortably
+explaining the 3000-7000ms-budget timeouts and putting some of the check family's own larger
+12000-25000ms budgets at real risk too. Root cause: this session's headless Chromium has no GPU
+acceleration and falls back to software rendering for this scene's real geometry/lighting/shadow
+load — an environment characteristic (same category as `RCA_RUN370`'s unrelated proxy-auth gap), not
+a code defect. Run 373's mechanism (the clamp has no catch-up accumulator) was correct; this run
+supplies the real magnitude.
+
+**Deliberately not fixed as gameplay or test code this run, for two separate reasons laid out in
+full in the RCA.** (1) `MAX_FRAME_DELTA_SECONDS` should not change — it exists to stop teleporting/
+tunnelling at real (30-60 FPS) frame rates, and nothing here suggests real end-user hardware sees
+anything close to these frame times. (2) Bumping the four checks' timeout budgets is not a safe
+narrow fix either — at the measured ratio, reliably clearing the check family's existing larger waits
+would need many-minutes-scale budgets per check (consistent with Run 371m's independently observed
+8.4-minute gamepad check), which is a real wall-clock/practicality trade-off for the whole check-suite
+duration, an owner call (`GOVERNANCE.md`'s Çalışma Süresi Sınırları exists for exactly this), not
+something one run should decide unilaterally by 10x-ing constants. Added one entry to
+`QUESTIONS_FOR_OWNER.md` (temporary default: treat these four checks as environment-inconclusive
+rather than blocking, same posture as the LFS item) with three concrete options, none applied.
+
+**DoD:** `node --check` N/A (no source file changed net of the revert — confirmed via `git status`
+and `git diff` both clean before this commit). No ADR (diagnosis, not a design decision — same
+category as Run 373's own entry). Memory-leak checklist: N/A, zero runtime delta shipped. World
+Coverage, `perf_log.csv`, `STABLE_TAGS.md` unchanged (no gameplay/terrain/geometry delta). World
+Evolution Report: no road/forest/castle/NPC/animal/event/cart count change; "oyuncu fark eder mi" —
+hayır, oyunda görünür hiçbir değişiklik yok, sadece test-altyapısı teşhisi.
+
+**Sıradaki adım:** owner decision needed on the new `QUESTIONS_FOR_OWNER.md` entry (accept
+many-minutes timeout budgets for this check family in this environment, soft-skip it when no GPU is
+detected, or run it only in a GPU-accelerated session type) before any further work on the four
+still-failing checks. Priority items 1-1.7 (terrain/road/ground/castle visual work) remain blocked on
+the separate, already-escalated LFS proxy-auth gap — not re-reported this run.
+
+Risk: LOW (documentation + one instrument added and reverted within this run, zero net runtime
+delta). Concurrency re-check immediately before this commit: `git fetch origin main` re-run,
+`origin/main` still at `ba9916e`, no drift since this run's own start.
