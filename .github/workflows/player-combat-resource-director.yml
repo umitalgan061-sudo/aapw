@@ -1,0 +1,23 @@
+name: player-combat-resource-director
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatResourceDirector.js'
+      - 'scripts/checkPlayerCombatResourceDirector.mjs'
+      - '.github/workflows/player-combat-resource-director.yml'
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/checkPlayerCombatResourceDirector.mjs
+      - run: node scripts/checkPlayerCombatResourceDirector.mjs > /tmp/a
+      - run: node scripts/checkPlayerCombatResourceDirector.mjs > /tmp/b
+      - run: cmp /tmp/a /tmp/b
+      - run: '! grep -R "EditorMaterialStudio\\|from .three" src/3d/gameplay/playerCombatResourceDirector.js'
