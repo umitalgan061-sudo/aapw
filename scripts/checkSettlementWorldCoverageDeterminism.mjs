@@ -228,3 +228,11 @@ console.log(JSON.stringify({
   serviceCount:SETTLEMENT_WORLD_COVERAGE_API.services.length,
   intentCount:SETTLEMENT_WORLD_COVERAGE_API.intents.length,
 }));
+console.log(`replayHash=${hash(secondSession.snapshotState())}`);
+console.log(`planHash=${hash(firstPlan)}`);
+console.log(`proofHash=${hash(proof)}`);
+console.log(`serviceFingerprint=${proof.fingerprint}`);
+console.log(`sessionDigest=${session.snapshotState().digest}`);
+console.log(`mutationCount=${mutations.length}`);
+console.log(`intentCount=${SETTLEMENT_WORLD_COVERAGE_API.intents.length}`);
+console.log(`serviceCount=${SETTLEMENT_WORLD_COVERAGE_API.services.length}`);
