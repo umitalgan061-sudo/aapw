@@ -18749,3 +18749,19 @@ the `game3d.html`-specific hang; changing it would have been a guess, not a veri
 logic, only the wait mechanics corrected) — no ADR. The remaining ~260+ files from Run 371f's broader
 grep estimate are still unverified and untouched; this batch is exactly the set this run actually read
 and confirmed by hand, nothing extrapolated.
+
+**Post-fix spot-checks (honest result, not overclaimed):** ran 2 of the 10 fixed files end-to-end.
+Both confirm the two targeted bugs are genuinely fixed — navigation and GAME_READY now resolve, which
+neither did before — but both then hit a **separate, pre-existing** failure this run did not fix:
+`checkMobileJumpControl.js` fails at a later `page.click()` on the in-game jump button, blocked by the
+`#run266-entry-gate` overlay intercepting pointer events (this file never dismisses that gate at
+all — true of 9 of the 10 files fixed this run, checked via `grep -l 'run266-entry'`; only
+`captureRun339PauseMenuEvidence.js` handles it). `captureRun339PauseMenuEvidence.js` itself — the one
+file that *does* handle the gate — got past its desktop pass cleanly (screenshots taken) but then
+failed dismissing the gate for its second, mobile-context pass: its own hardcoded 5000ms wait for
+`#run266-entry-gate` to disappear after the click wasn't enough, plausibly because running two live
+browser contexts simultaneously (desktop page still open) doubles this environment's already-heavy
+software-rendering load. **Conclusion:** this run's fix is correct and verified for what it claims to
+fix; it does not make these 10 scripts pass end-to-end by itself. The entry-gate-dismissal gap (9/10
+files) and this environment's apparent sensitivity to concurrent-context load are separate, real
+next-step candidates, not silently folded into "fixed" here.
