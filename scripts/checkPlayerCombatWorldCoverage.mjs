@@ -16,5 +16,7 @@ assert.ok(first.visualColliderDelta <= 0.08); assert.equal(first.digest, second.
 const transform = { position: { ...input.position } };
 assert.equal(coverage.applyGrounding(transform, first), true); assert.equal(transform.position.y, 2.96);
 const failed = createPlayerCombatWorldCoverage({ groundResolver: () => ({ groundY: 0, grounded: true }) }).sample(input);
-assert.equal(failed.allPortsAvailable, false); assert.equal(failed.combatSafe, false); assert.equal(failed.readiness.worldPortsReady, false);
-console.log('PLAYER_COMBAT_WORLD_COVERAGE_OK checks=18');
+assert.equal(failed.allPortsAvailable, false); assert.equal(failed.combatSafe, false); assert.equal(failed.readiness.worldPortsReady, false); assert.equal(failed.readiness.grounded, true);
+const errored = createPlayerCombatWorldCoverage({ groundResolver: () => ({}), colliderResolver: () => { throw new Error('resolver-failed'); }, waterResolver: () => ({}), slopeResolver: () => ({}) }).sample(input);
+assert.equal(errored.allPortsAvailable, false); assert.equal(errored.combatSafe, false);
+console.log('PLAYER_COMBAT_WORLD_COVERAGE_OK checks=20');
