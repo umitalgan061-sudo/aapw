@@ -4,8 +4,8 @@ import { createSettlementQuestChainDirector } from '../src/3d/gameplay/settlemen
 const director = createSettlementQuestChainDirector({
   nodes: [
     { id: 'talk-warden', type: 'talk', title: 'Warden briefing', order: 2, requiredDialogueChoice: 'warden-helped' },
-    { id: 'market-run', type: 'trade', title: 'Restock the market', requiredFlag: 'market-open', order: 1 },
-    { id: 'forge-blade', type: 'craft', title: 'Forge a field blade', requiredItem: 'iron-ingot', requiredSkill: 'smithing', requiredSkillLevel: 2, requiredReputation: 5, order: 3 },
+    { id: 'market-run', type: 'trade', title: 'Restock the market', order: 1, requiredFlag: 'market-open' },
+    { id: 'forge-blade', type: 'craft', title: 'Forge a field blade', requiredDependency: 'market-run', requiredItem: 'iron-ingot', requiredSkill: 'smithing', requiredSkillLevel: 2, requiredReputation: 5, order: 3 },
   ],
 });
 
@@ -33,12 +33,18 @@ assert.equal(first.rows.find((row) => row.id === 'forge-blade').available, true)
 assert.equal(Object.isFrozen(first), true);
 assert.equal(Object.isFrozen(first.rows[0]), true);
 
+const dependencyBlocked = director.evaluate({
+  ...input,
+  state: { flags: { 'market-open': true }, items: { 'iron-ingot': 1 }, skills: { smithing: 2 }, reputation: { craft: 5 }, services: { trade: true, craft: true } },
+});
+assert.equal(dependencyBlocked.rows.find((row) => row.id === 'forge-blade').blockedReason, 'dependency-incomplete:market-run');
+
 const blocked = director.evaluate({
   ...input,
   state: { services: { trade: false, craft: false }, items: { 'iron-ingot': 1 }, skills: { smithing: 2 }, reputation: { craft: 0 } },
 });
 assert.equal(blocked.rows.find((row) => row.id === 'market-run').blockedReason, 'missing-flag:market-open');
-assert.equal(blocked.rows.find((row) => row.id === 'forge-blade').blockedReason, 'reputation-too-low:craft');
+assert.equal(blocked.rows.find((row) => row.id === 'forge-blade').blockedReason, 'dependency-incomplete:market-run');
 
 const dialogueBlocked = director.evaluate({
   ...input,
