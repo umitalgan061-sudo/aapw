@@ -104,7 +104,7 @@ eq(lattice.gapCellCount, 1005, 'lattice gaps');
 ok(lattice.coverageRatio > 0 && lattice.coverageRatio < 1, 'partial coverage is explicit');
 
 const snapshotInput = {
-  player: { position: { x: 0, y: 12, z: 0 }, isGrounded: true, speedMps: 3, locomotion: 'run', lockOn: true, rangedReady: false, stance: 'attack', attackWeight: 0.75 },
+  player: { position: { x: 0, y: 12, z: 0 }, isGrounded: true, speedMps: 3, locomotion: 'run', lockOn: true, rangedReady: false, stance: 'attack', attackWeight: 0.75, inAttack: true },
   movement: { speedMps: 3, locomotion: 'run', inAttack: true, attackWeight: 0.75 },
   combat: { stance: 'attack', isGrounded: true, lockOn: true, rangedReady: false },
   equipment: { weaponReachMeters: 1.8, encumbranceRatio: 0.2, metalWeightRatio: 0.6, leatherWeightRatio: 0.1, socketReady: true, assetReady: true, surfaceRoles: ['skin', 'hair', 'cloth', 'metal', 'boot', 'weapon'] },
