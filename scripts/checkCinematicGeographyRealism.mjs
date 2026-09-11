@@ -29,7 +29,8 @@ requireTokens(terrain, 'terrain owner-map visual contract', [
 ]);
 
 requireTokens(ecologyDetail, 'world transition detail contract', [
-	"revision: 'v1-world-space-irregular-boundary-fabric'",
+	"WORLD_ASSET_TRANSITION_DETAIL_REVISION = 'v1-world-space-irregular-boundary-fabric'",
+	'revision: WORLD_ASSET_TRANSITION_DETAIL_REVISION',
 	'canonicalDistanceReadOnly: true',
 	'canonicalHydrologyReadOnly: true',
 	'canonicalRoadReadOnly: true',
