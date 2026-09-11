@@ -47,9 +47,16 @@ function sortServices(services) {
 function deriveHint(service, state) {
   if (!service.ready) return `locked:${service.id}`;
   if (service.queue > 0) return `queued:${service.id}:${service.queue}`;
-  if (service.kind === 'market' && finite(state?.gold) <= 0) return 'market:needs-gold';
-  if (service.kind === 'blacksmith' && finite(state?.craftingMaterials) <= 0) return 'blacksmith:needs-materials';
+  if (service.kind === 'market' && state.gold <= 0) return 'market:needs-gold';
+  if (service.kind === 'blacksmith' && state.craftingMaterials <= 0) return 'blacksmith:needs-materials';
   return `ready:${service.action}`;
+}
+
+function deriveAvailability(service, state) {
+  if (!service.ready) return { status: 'unavailable', usable: false };
+  if (service.kind === 'market' && state.gold <= 0) return { status: 'blocked', usable: false };
+  if (service.kind === 'blacksmith' && state.craftingMaterials <= 0) return { status: 'blocked', usable: false };
+  return { status: 'available', usable: true };
 }
 
 export function buildSettlementServiceUxProjection(input = {}) {
@@ -64,27 +71,32 @@ export function buildSettlementServiceUxProjection(input = {}) {
     gold: Math.max(0, finite(input.playerState?.gold, 0)),
     craftingMaterials: Math.max(0, finite(input.playerState?.craftingMaterials, 0)),
   });
-  const cards = visible.map((service, index) => Object.freeze({
-    rank: index + 1,
-    serviceId: service.id,
-    title: service.label,
-    action: service.action,
-    status: service.ready ? 'available' : 'unavailable',
-    hint: deriveHint(service, state),
-    distance: service.distance,
-    queue: service.queue,
-  }));
-  const next = cards.find((card) => card.status === 'available') ?? null;
+  const cards = visible.map((service, index) => {
+    const availability = deriveAvailability(service, state);
+    return Object.freeze({
+      rank: index + 1,
+      serviceId: service.id,
+      title: service.label,
+      action: service.action,
+      status: availability.status,
+      usable: availability.usable,
+      hint: deriveHint(service, state),
+      distance: service.distance,
+      queue: service.queue,
+    });
+  });
+  const next = cards.find((card) => card.usable === true) ?? null;
   const summary = Object.freeze({
     settlementId,
     insideSettlement,
     serviceCount: cards.length,
-    availableCount: cards.filter((card) => card.status === 'available').length,
+    availableCount: cards.filter((card) => card.usable === true).length,
+    blockedCount: cards.filter((card) => card.status === 'blocked').length,
     nextAction: next?.action ?? null,
     blockedReason: insideSettlement ? null : 'outside-settlement',
   });
   return Object.freeze({
-    version: 1,
+    version: 2,
     settlementId,
     cards: Object.freeze(cards),
     summary,
@@ -105,6 +117,7 @@ export function stableSettlementServiceUxFingerprint(projection) {
       serviceId: card.serviceId,
       action: card.action,
       status: card.status,
+      usable: card.usable === true,
       hint: card.hint,
       distance: card.distance,
       queue: card.queue,
