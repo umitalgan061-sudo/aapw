@@ -19,6 +19,7 @@ assert.equal(first.samples[1].water.class, 'sea');
 assert.ok(first.samples[1].surface.wetEdge > 0);
 assert.equal(first.samples[2].placement.eligible, false);
 assert.ok(first.riskCounts.seam >= 1);
+assert.ok(first.riskCounts.moire >= first.riskCounts.seam);
 assert.ok(first.riskCounts.rectangularWater >= 1);
 assert.ok(Object.isFrozen(first));
 assert.ok(Object.isFrozen(first.samples[0]));
@@ -32,5 +33,6 @@ assert.equal(applyEnvironmentShorelineAdoptionPlan(null, target), false);
 const malformed = createEnvironmentShorelineAdoptionPlan({ samples: [{ surface: { slope: 'bad', waterDistance: 'bad', waterClass: 'river' } }], atmosphere: { backgroundLuminance: -10 } });
 assert.ok(Number.isFinite(malformed.samples[0].surface.grass));
 assert.equal(malformed.atmosphere.blackSkyRisk, true);
+assert.equal(malformed.samples[0].water.class, 'river');
 
 console.log(JSON.stringify({ ok: true, digest: first.digest, riskCounts: first.riskCounts }));
