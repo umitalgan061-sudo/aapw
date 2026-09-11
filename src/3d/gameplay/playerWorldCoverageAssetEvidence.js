@@ -73,8 +73,13 @@ export function normalizeAssetEvidence(input = {}) {
     ...normalizedSlots.map((slot) => slot.role),
   ]);
   const assetState = KNOWN_ASSET_STATES.includes(input.assetState) ? input.assetState : 'unknown';
-  const textureSizes = uniqueSorted([]);
+  const textureSizes = [];
   for (const slot of normalizedSlots) for (const size of slot.textureSizes) textureSizes.push(String(size));
+  const meshCount = meshes.length > 0 ? meshes.length : positiveInt(input.meshCount);
+  const materialSlotCount = normalizedSlots.length > 0 ? normalizedSlots.length : positiveInt(input.materialSlotCount);
+  const missingAsset = typeof input.missingAsset === 'boolean'
+    ? input.missingAsset
+    : assetState === 'missing' || assetState === 'error';
   return {
     assetId: stringValue(input.assetId ?? input.id, 'unknown-asset'),
     sourcePath: stringValue(input.sourcePath ?? input.src, ''),
@@ -82,17 +87,17 @@ export function normalizeAssetEvidence(input = {}) {
     assetState,
     isLfsPointer: assetState === 'pointer' || bool(input.isLfsPointer),
     loaderVerified: bool(input.loaderVerified),
-    missingAsset: assetState === 'missing' || assetState === 'error',
-    meshCount: meshes.length,
-    materialSlotCount: normalizedSlots.length,
-    materialSlots: normalizedSlots,
+    missingAsset,
+    meshCount,
+    materialSlotCount,
+    materialSlots: normalizedSlots.length > 0 ? normalizedSlots : (Array.isArray(input.materialSlots) ? input.materialSlots : []),
     surfaceRoles,
     requiredRoleCoverage: Object.fromEntries(REQUIRED_SURFACE_ROLES.map((role) => [role, surfaceRoles.includes(role)])),
     namedPartCount: positiveInt(input.namedPartCount),
     layeredFallback: bool(input.layeredFallback),
     importedMaterialsPreserved: bool(input.importedMaterialsPreserved, true),
     paletteIds: uniqueSorted(Array.isArray(input.paletteIds) ? input.paletteIds : normalizedSlots.map((slot) => slot.paletteId)),
-    textureSizes: textureSizes.map(Number).filter(Boolean).sort((a, b) => a - b),
+    textureSizes: textureSizes.length > 0 ? textureSizes.map(Number).filter(Boolean).sort((a, b) => a - b) : (Array.isArray(input.textureSizes) ? input.textureSizes.slice().sort((a, b) => a - b) : []),
     placeholder: bool(input.placeholder),
     editorMaterialStudioImported: bool(input.editorMaterialStudioImported),
     threeImportedForEvidence: bool(input.threeImportedForEvidence),
