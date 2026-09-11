@@ -15,14 +15,7 @@ const browser = await playwright.chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
 page.on('pageerror', (error) => errors.push(`page:${error.message}`));
-// Run 371 fix: known LFS/proxy-auth asset-loading errors (RCA_RUN370_LFS_PROXY_AUTH.md --
-// every assets/**/*.glb/.fbx is a stub pointer file in this environment) are soft-reported,
-// not collected as failures -- AssetLoader's own "failed, using placeholder box" fallback is
-// the *working* recovery path, not a bug this check exists to catch; failing on it would mask
-// this file's real subject (the combat runtime assertions above), matching the same hard/soft
-// split weatherVisualQa.js and game3dSmokeChecksScene.js's check2DShell already established.
-const KNOWN_ASSET_GAP_PATTERN = /asset error|failed, using placeholder box/;
-page.on('console', (message) => { if (message.type() === 'error' && !KNOWN_ASSET_GAP_PATTERN.test(message.text())) errors.push(`console:${message.text()}`); });
+page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
 
 await page.addInitScript(() => {
 	window.__lockRuntimePads = [];
@@ -107,9 +100,7 @@ function facingDot(attack, targetPosition) {
 }
 
 try {
-	// Run 371 fix: 'commit' (not 'domcontentloaded', which hangs the full timeout in this
-	// environment) — 3D_GAME_PROGRESS.md Run 371e/371f/371g.
-	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'commit', timeout: 30000 });
+	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 	await page.locator('#run266-entry-enter').click();
 	await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
 	const baseline = await waitHistory('motion', (motion) => motion.state === 'idle' && motion.isGrounded, 'grounded player baseline', 15000);

@@ -132,18 +132,11 @@ try {
   assert(boot.sharedNormalTextureCount === 1, `terrain chunks must share one normal texture, got ${boot.sharedNormalTextureCount}`);
   assert(boot.sharedRoughnessTextureCount === 1, `terrain chunks must share one roughness texture, got ${boot.sharedRoughnessTextureCount}`);
 
-  // Run 371 fix: waitForFunction's options were landing in its unused `arg` slot (2nd positional
-  // param) — the real wait was always Playwright's 30s default regardless of this line's own
-  // `timeout: 30000` (which, coincidentally, already matches that default here, so this fix changes
-  // nothing observable for this specific call — still correct to fix, since the written intent should
-  // match the real behavior; see 3D_GAME_PROGRESS.md Run 371e/371f for the general pattern). This
-  // file's own `page.goto` targets a dedicated test-harness fixture, not `game3d.html`, so it is not
-  // touched here — no evidence that page shares the `game3d.html`-specific navigation hang.
   await page.waitForFunction(() => {
     const terrain = [...globalThis.__worldAcceptance.state.chunkManager.loaded.values()][0];
     const image = terrain?.material?.map?.image;
     return Boolean(image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
-  }, undefined, { timeout: 30000 });
+  }, { timeout: 30000 });
   const albedoImage = await page.evaluate(() => {
     const terrain = [...globalThis.__worldAcceptance.state.chunkManager.loaded.values()][0];
     const image = terrain.material.map.image;

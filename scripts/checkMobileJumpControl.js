@@ -39,24 +39,8 @@ async function main() {
 		const page = await context.newPage();
 		page.on('pageerror', (error) => errors.push(`page:${error.message}`));
 		page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
-		// Run 371 fix: 'commit' (not 'domcontentloaded', which hangs the full timeout in this
-		// environment — 3D_GAME_PROGRESS.md Run 371e/371f) + waitForFunction's real options must go
-		// in the 3rd positional argument, not the 2nd (which is the page-function's own `arg`, silently
-		// swallowing a bare options object and leaving Playwright's 30s default in effect regardless
-		// of what's written here) — raised to 120000ms to match this environment's real GAME_READY cost.
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: 60000 });
-		await page.waitForFunction(() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'), undefined, { timeout: 120000 });
-
-		// Run 372 fix: Run 266's entry-gate consent overlay (`#run266-entry-gate`) sits on top of the
-		// HUD until dismissed and was intercepting the `.g3d-touch-jump-button` click below (retry-loop
-		// until Playwright's own action timeout, found via a real run of this file post Run 371g's
-		// navigation fixes — 3D_GAME_PROGRESS.md Run 371g). Same dismissal `checkRun266EntryGate.js` and
-		// `captureRun339PauseMenuEvidence.js` already use.
-		const gate = await page.$('#run266-entry-gate');
-		if (gate) {
-			await page.click('#run266-entry-enter');
-			await page.waitForFunction(() => !document.getElementById('run266-entry-gate'), null, { timeout: 5000 });
-		}
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+		await page.waitForFunction(() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'), { timeout: 60000 });
 
 		const layout = await page.evaluate(() => {
 			const toRect = (element) => {

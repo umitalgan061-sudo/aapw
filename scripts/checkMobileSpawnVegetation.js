@@ -110,13 +110,10 @@ async function main() {
 		const mobilePage = await mobileContext.newPage();
 		const mobileLogs = [];
 		mobilePage.on('console', (message) => mobileLogs.push(message.text()));
-		// Run 371 fix: 'commit' navigation + waitForFunction's options moved to the real 3rd
-		// positional argument (see 3D_GAME_PROGRESS.md Run 371e/371f).
-		await mobilePage.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: 60000 });
+		await mobilePage.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 		await mobilePage.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
-			undefined,
-			{ timeout: 120000, polling: 250 },
+			{ timeout: 60000, polling: 250 },
 		);
 		await mobileContext.close();
 		const spawnVegLine = mobileLogs.find((line) => line.includes('[game3d] Mobile spawn-anchored vegetation:'));
@@ -128,12 +125,10 @@ async function main() {
 		const desktopPage = await desktopContext.newPage();
 		const desktopLogs = [];
 		desktopPage.on('console', (message) => desktopLogs.push(message.text()));
-		// Run 371 fix: same two bugs as the mobile page above.
-		await desktopPage.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: 60000 });
+		await desktopPage.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 		await desktopPage.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
-			undefined,
-			{ timeout: 120000, polling: 250 },
+			{ timeout: 60000, polling: 250 },
 		);
 		await desktopContext.close();
 		const desktopNeverLogsIt = !desktopLogs.some((line) => line.includes('[game3d] Mobile spawn-anchored vegetation:'));

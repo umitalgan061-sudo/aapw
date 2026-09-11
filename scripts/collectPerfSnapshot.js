@@ -44,26 +44,12 @@ const SAMPLE_WAIT_MS = 3000;
 async function sample(browser, baseUrl) {
 	const page = await browser.newPage();
 	try {
-		// Run 371 fix: was `waitUntil: 'domcontentloaded'`, which hangs the full timeout in this
-		// environment (confirmed by hand this run, same root cause `smokeTestGame3D.js`'s own
-		// `createCommittedNavigationBrowser` already works around for its checks, and
-		// `weatherVisualQa.js` now documents directly) — `'commit'` resolves in well under a second;
-		// the `waitForFunction` below is still the real readiness gate, so this only changes when
-		// `goto()` itself returns, not what state the page must reach before sampling.
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: 60000 });
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 		// Same readiness signal `game3dSmokeChecksScene.js`'s `check3DMode` already uses: the
 		// `#game3d-loading` element gets `.g3d-loading-hidden` once `GAME_READY` (phase1-scene) fires.
-		// Run 371 fix: `page.waitForFunction(pageFunction, arg, options)` takes the page-function's own
-		// argument as its *second* positional parameter — `{timeout:60000, polling:250}` here was
-		// silently landing in that `arg` slot (ignored, since the predicate takes no parameter) rather
-		// than in `options`, so this always ran with Playwright's built-in 30s default regardless of
-		// the 60s written here. Found by hand (the timeout error genuinely said "30000ms exceeded"
-		// against a 60000-reading source) after the `waitUntil` fix above got navigation itself past
-		// the point where GAME_READY needed more than 30s to fire in this environment.
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
-			undefined,
-			{ timeout: 120000, polling: 250 },
+			{ timeout: 60000, polling: 250 },
 		);
 		// Same activation mechanism every existing F2-panel smoke check already uses
 		// (`game3dSmokeChecksScene.js`'s `checkPerfPanel`) — a real `window` keydown dispatch.

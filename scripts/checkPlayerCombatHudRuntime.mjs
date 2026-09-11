@@ -15,14 +15,7 @@ const browser = await playwright.chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
 page.on('pageerror', (error) => errors.push(`page:${error.message}`));
-// Run 371 fix: known LFS/proxy-auth asset-loading errors (RCA_RUN370_LFS_PROXY_AUTH.md --
-// every assets/**/*.glb/.fbx is a stub pointer file in this environment) are soft-reported,
-// not collected as failures -- AssetLoader's own "failed, using placeholder box" fallback is
-// the *working* recovery path, not a bug this check exists to catch; failing on it would mask
-// this file's real subject (the combat runtime assertions above), matching the same hard/soft
-// split weatherVisualQa.js and game3dSmokeChecksScene.js's check2DShell already established.
-const KNOWN_ASSET_GAP_PATTERN = /asset error|failed, using placeholder box/;
-page.on('console', (message) => { if (message.type() === 'error' && !KNOWN_ASSET_GAP_PATTERN.test(message.text())) errors.push(`console:${message.text()}`); });
+page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
 
 // The attack active window is intentionally short. Capture the HUD after the canonical event has
 // completed dispatch rather than racing a later Playwright DOM read against the following frame.
@@ -46,15 +39,10 @@ await page.addInitScript(() => {
 });
 
 try {
-	// Run 371 fix: 'commit' (not 'domcontentloaded', which hangs the full timeout in this
-	// environment) — 3D_GAME_PROGRESS.md Run 371e/371f/371g.
-	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'commit', timeout: 30000 });
+	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 	await page.locator('#run266-entry-enter').click();
 	await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
-	// Run 371 fix: raised from 15s — spot-run this run timed out here in this slow-rendering
-	// environment even after GAME_READY had already fired, plausibly needing more settling time for
-	// the combat HUD's own post-boot state than a real device would (see Run 371i's own timing notes).
-	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.textContent?.includes('Serbest'), null, { timeout: 45000 });
+	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.textContent?.includes('Serbest'), null, { timeout: 15000 });
 	const baseline = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, role: el.getAttribute('role'), live: el.getAttribute('aria-live'), state: el.dataset.state ?? '', range: el.dataset.range ?? '' }));
 	need(baseline.role === 'status' && baseline.live === 'polite', `combat HUD accessibility contract missing: ${JSON.stringify(baseline)}`);
 
