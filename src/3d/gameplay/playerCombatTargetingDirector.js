@@ -1,33 +1,19 @@
 /**
- * Deterministic lock-on targeting projection over caller-owned actor observations.
- * Existing ActorRegistry/NPC AI/player state remain authoritative for discovery and mutation.
- * @module gameplay/playerCombatTargetingDirector
+ * Deterministic, DOM-free target selection for the existing player combat stack.
+ *
+ * This module only ranks caller-provided actors. It does not spawn actors, own AI,
+ * mutate scene state, or create a second combat framework.
  */
 
-const MAX_TARGETS = 32;
-const MAX_DISTANCE_METERS = 40;
-const DEFAULT_FOV_COSINE = 0.15;
-const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const normalizeId = (value, fallback) => { const id = String(value ?? fallback).trim(); return id.length > 0 ? id.slice(0, 96) : fallback; };
-const normalizeVector = (vector = {}) => { const x = finite(vector.x), y = finite(vector.y), z = finite(vector.z); const length = Math.hypot(x, y, z); return length > 0.0001 ? { x: x / length, y: y / length, z: z / length } : { x: 0, y: 0, z: 1 }; };
-const stableStringify = (value) => { if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`; if (value && typeof value === 'object') return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`; return JSON.stringify(value); };
-function rankTarget(player = {}, target = {}, index = 0) {
-  const px = finite(player.position?.x), pz = finite(player.position?.z), tx = finite(target.position?.x), tz = finite(target.position?.z);
-  const dx = tx - px, dz = tz - pz, distance = Math.hypot(dx, dz);
-  const direction = distance > 0.0001 ? { x: dx / distance, z: dz / distance } : { x: 0, z: 1 };
-  const forward = normalizeVector(player.forward);
-  const facingCosine = clamp(direction.x * forward.x + direction.z * forward.z, -1, 1);
-  const fovCosine = clamp(finite(player.fovCosine, DEFAULT_FOV_COSINE), -1, 1);
-  const hostile = target.hostile !== false && target.isAlive !== false && target.visible !== false;
-  const selectable = hostile && distance <= MAX_DISTANCE_METERS && facingCosine >= fovCosine;
-  const score = selectable ? distance + (1 - ((facingCosine + 1) * 0.5)) * 8 : Number.POSITIVE_INFINITY;
-  return { id: normalizeId(target.id, `target-${index}`), distanceMeters: Number(distance.toFixed(4)), facingCosine: Number(facingCosine.toFixed(4)), selectable, score: Number.isFinite(score) ? Number(score.toFixed(4)) : null, reason: selectable ? 'eligible' : (!hostile ? 'not-hostile-or-alive' : distance > MAX_DISTANCE_METERS ? 'out-of-range' : 'outside-fov') };
+const DEFAULTS = Object.freeze({ maxDistanceMeters: 18, maxAngleRadians: Math.PI * 0.75, preferLockedTarget: true });
+const finite = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
+const normalizeVector = (v) => { const x = finite(v?.x), y = finite(v?.y), z = finite(v?.z), length = Math.hypot(x, z); return length > 1e-9 ? { x: x / length, y, z: z / length } : { x: 0, y, z: 1 }; };
+const distanceXZ = (a, b) => Math.hypot(finite(a?.x) - finite(b?.x), finite(a?.z) - finite(b?.z));
+const scoreTarget = ({ actor, distance, angle, locked, maxDistanceMeters }) => { const priority = finite(actor.priority), health = finite(actor.health, 1), lockBonus = locked ? 1000 : 0, distanceRatio = maxDistanceMeters > 0 ? distance / maxDistanceMeters : 1; return lockBonus + priority * 10 + (1 - Math.min(1, distanceRatio)) * 4 + (1 - Math.min(1, angle / Math.PI)) * 2 + Math.min(1, health); };
+export function selectPlayerCombatTarget({ playerPosition = { x: 0, z: 0 }, forward = { x: 0, z: 1 }, actors = [], lockedTargetId = null, maxDistanceMeters = DEFAULTS.maxDistanceMeters, maxAngleRadians = DEFAULTS.maxAngleRadians, preferLockedTarget = DEFAULTS.preferLockedTarget } = {}) {
+  const facing = normalizeVector(forward), maxDistance = Math.max(0, finite(maxDistanceMeters, DEFAULTS.maxDistanceMeters)), maxAngle = Math.max(0, finite(maxAngleRadians, DEFAULTS.maxAngleRadians)), candidates = [];
+  for (const actor of Array.isArray(actors) ? actors : []) { if (!actor || typeof actor !== 'object' || actor.isTargetable === false) continue; const distance = distanceXZ(playerPosition, actor.position); if (!Number.isFinite(distance) || distance > maxDistance) continue; const toTarget = { x: finite(actor.position?.x) - finite(playerPosition?.x), z: finite(actor.position?.z) - finite(playerPosition?.z) }, length = Math.hypot(toTarget.x, toTarget.z); if (length <= 1e-9) continue; const dot = Math.max(-1, Math.min(1, (toTarget.x * facing.x + toTarget.z * facing.z) / length)), angle = Math.acos(dot); if (angle > maxAngle) continue; const id = typeof actor.id === 'string' && actor.id.trim() ? actor.id.trim() : `actor-${candidates.length}`, locked = preferLockedTarget && lockedTargetId && id === lockedTargetId; candidates.push({ actor, id, distance, angle, locked, score: scoreTarget({ actor, distance, angle, locked, maxDistanceMeters: maxDistance }) }); }
+  candidates.sort((a, b) => b.score - a.score || a.distance - b.distance || a.angle - b.angle || a.id.localeCompare(b.id)); const winner = candidates[0] || null;
+  return Object.freeze({ target: winner?.actor || null, targetId: winner?.id || null, distanceMeters: winner?.distance ?? null, angleRadians: winner?.angle ?? null, candidateCount: candidates.length, candidates: Object.freeze(candidates.map(({ actor, id, distance, angle, locked }) => Object.freeze({ actor, id, distance, angle, locked }))) });
 }
-export function createPlayerCombatTargetingDirector(options = {}) {
-  const maxTargets = clamp(Math.floor(finite(options.maxTargets, MAX_TARGETS)), 1, MAX_TARGETS); let disposed = false;
-  let snapshot = Object.freeze({ selectedTargetId: null, targets: Object.freeze([]), lockOn: false, digest: stableStringify({ selectedTargetId: null, targets: [], lockOn: false }) });
-  const update = (observation = {}) => { if (disposed) return snapshot; const player = observation.player ?? {}; const candidates = Array.isArray(observation.targets) ? observation.targets.slice(0, maxTargets) : []; const ranked = candidates.map((target, index) => rankTarget(player, target, index)).sort((a, b) => (a.selectable !== b.selectable ? (a.selectable ? -1 : 1) : (a.score ?? Infinity) - (b.score ?? Infinity) || a.id.localeCompare(b.id))); const selected = observation.lockOn === false ? null : ranked.find((target) => target.selectable)?.id ?? null; const result = { selectedTargetId: selected, lockOn: selected !== null, targets: ranked }; const frozen = Object.freeze({ ...result, targets: Object.freeze(ranked.map((target) => Object.freeze(target))), digest: stableStringify(result) }); snapshot = frozen; return snapshot; };
-  return Object.freeze({ update, read: () => snapshot, dispose: () => { disposed = true; snapshot = Object.freeze({ selectedTargetId: null, targets: Object.freeze([]), lockOn: false, digest: stableStringify({ selectedTargetId: null, targets: [], lockOn: false }) }); } });
-}
-export function validatePlayerCombatTargetingSnapshot(snapshot = {}) { return Boolean(snapshot && typeof snapshot === 'object' && (snapshot.selectedTargetId === null || typeof snapshot.selectedTargetId === 'string') && Array.isArray(snapshot.targets) && typeof snapshot.digest === 'string' && Object.isFrozen(snapshot)); }
+export { DEFAULTS as PLAYER_COMBAT_TARGETING_DEFAULTS };
