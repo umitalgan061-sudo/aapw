@@ -5,7 +5,7 @@ const input = {
   atmosphere: { backgroundLuminance: 0.34 },
   samples: [
     { x: 0, z: 0, canonicalY: 10, renderedY: 10.04, colliderY: 10.02, tileEdgeDistance: 8, cameraDistance: 18, confidence: 0.96, surface: { biome: 'temperate', slope: 0.18, elevation: 0.32, moisture: 0.62, snow: 0.04, waterDepth: 0, waterDistance: 40, waterClass: 'land', roadDistance: 8, settlementDistance: 8 } },
-    { x: 4, z: 2, canonicalY: 4, renderedY: 4.02, colliderY: 4.01, tileEdgeDistance: 5, cameraDistance: 80, confidence: 0.93, surface: { biome: 'coast', slope: 0.22, elevation: 0.14, moisture: 0.86, snow: 0, waterDepth: 0.5, waterDistance: 2, waterClass: 'sea', roadDistance: 8, settlementDistance: 8 } },
+    { x: 4, z: 2, canonicalY: 4, renderedY: 4.02, colliderY: 4.01, tileEdgeDistance: 5, cameraDistance: 80, confidence: 0.93, surface: { biome: 'coast', slope: 0.22, elevation: 0.14, moisture: 0.86, snow: 0, waterDepth: 0.5, waterDistance: 0.5, waterClass: 'sea', roadDistance: 8, settlementDistance: 8 } },
     { x: 8, z: 6, canonicalY: 34, renderedY: 34.8, colliderY: 34.7, tileEdgeDistance: 1, cameraDistance: 220, confidence: 0.55, surface: { biome: 'alpine', slope: 0.86, elevation: 0.95, moisture: 0.35, snow: 0.96, waterDepth: 0, waterDistance: 60, waterClass: 'land', roadDistance: 0.5, settlementDistance: 20 } },
   ],
 };
