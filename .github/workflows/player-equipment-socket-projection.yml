@@ -1,0 +1,35 @@
+name: player-equipment-socket-projection
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentSocketProjection.js'
+      - 'scripts/checkPlayerEquipmentSocketProjection.mjs'
+      - '.github/workflows/player-equipment-socket-projection.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerEquipmentSocketProjection.js && node --check scripts/checkPlayerEquipmentSocketProjection.mjs
+      - name: Regression
+        run: node scripts/checkPlayerEquipmentSocketProjection.mjs
+      - name: Determinism
+        run: |
+          node scripts/checkPlayerEquipmentSocketProjection.mjs > /tmp/equipment-a.txt
+          node scripts/checkPlayerEquipmentSocketProjection.mjs > /tmp/equipment-b.txt
+          cmp /tmp/equipment-a.txt /tmp/equipment-b.txt
+      - name: Runtime/editor boundary
+        run: |
+          ! grep -nE "EditorMaterialStudio|from ['\"]three['\"]|document\.|window\." src/3d/gameplay/playerEquipmentSocketProjection.js
+      - name: Diff budget
+        run: |
+          changed=$(git diff --numstat "origin/main...HEAD" -- src/3d/gameplay/playerEquipmentSocketProjection.js scripts/checkPlayerEquipmentSocketProjection.mjs .github/workflows/player-equipment-socket-projection.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
