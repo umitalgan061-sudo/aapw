@@ -25,13 +25,13 @@ const assets=[];
 const manifests=[];
 const placements=[];
 for(const serviceId of SETTLEMENT_WORLD_COVERAGE_ACCEPTANCE_SERVICES){
+  const manifestId=`manifest-${serviceId}`;
   for(let index=0;index<serviceAsset[serviceId].length;index+=1){
     const assetId=serviceAsset[serviceId][index];
     const family=serviceFamily[serviceId][index];
-    assets.push({family,assetId,status:'loaded',hydrated:true,materialSlots:3,textured:true,grounded:true,path:`assets/models/${family}/${assetId}.glb`});
+    assets.push({family,assetId,status:'loaded',hydrated:true,placementManifestId:manifestId,materialSlots:3,textured:true,grounded:true,path:`assets/models/${family}/${assetId}.glb`});
   }
   const assetId=serviceAsset[serviceId][0];
-  const manifestId=`manifest-${serviceId}`;
   const materialManifestId=`materials-${serviceId}`;
   manifests.push({id:manifestId,assetId,serviceId,materialManifestId,status:'validated',surfaceRoles:materialRoles,materialIds:materials.map((material)=>material.id),placeholderCount:0,missingMaterialCount:0,singleSurfaceRisk:false,groundAligned:true,sceneAttached:true,sourceAsset:`assets/models/${serviceFamily[serviceId][0]}/${assetId}.glb`});
   placements.push({id:`placement-${serviceId}`,assetId,serviceId,status:'attached',manifestId,materialManifestId,position:{x:serviceId.length,y:0,z:serviceId.charCodeAt(0)%7},groundPosition:{x:serviceId.length,y:0,z:serviceId.charCodeAt(0)%7},expectedGroundY:0,slope:Math.min(12,serviceId.length),scale:{x:1,y:1,z:1},visible:true,collisionReady:true,materialValidated:true,grounded:true,overlapRisk:false});
