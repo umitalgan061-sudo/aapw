@@ -9,6 +9,7 @@ const POLICY = Object.freeze({
   maxEvents: 64,
   wantedThreshold: 25,
   hostileReputation: -50,
+  minActionConfidence: 0.55,
 });
 
 const finite = (v, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;
@@ -31,7 +32,8 @@ function relationFor(actor, target, services) {
   const relation = asId(services?.diplomacy?.getRelation?.(actorFaction, targetFaction), 'neutral').toLowerCase();
   const reputation = clamp(services?.reputation?.getReputation?.(actor, target), 0);
   const wanted = Math.max(0, finite(services?.law?.getWantedLevel?.(target), 0));
-  return { actorFaction, targetFaction, relation, reputation, wanted };
+  const canArrest = services?.law?.canArrest?.(actor, target) !== false;
+  return { actorFaction, targetFaction, relation, reputation, wanted, canArrest };
 }
 
 function classify(relation) {
@@ -41,9 +43,10 @@ function classify(relation) {
   return 'unknown';
 }
 
-function actionFor(classification, actor, target) {
+function actionFor(classification, actor, target, relation, confidence) {
+  if (confidence < POLICY.minActionConfidence) return 'observe';
   if (classification === 'hostile') {
-    if (target?.surrendered) return 'arrest';
+    if (target?.surrendered && relation.canArrest) return 'arrest';
     if (target?.fleeing) return 'pursue';
     return actor?.canAttack === false ? 'alert' : 'engage';
   }
@@ -63,11 +66,12 @@ export function planFactionResponseTick({ tick = 0, actors = [], observations = 
     const target = actorRows.find((row) => row.id === asId(observation?.targetId)) || observation?.target;
     if (!actor || !target) continue;
     const relation = relationFor(actor, target, services);
+    const confidence = Math.max(0, Math.min(1, finite(observation?.confidence, 1)));
     const classification = classify(relation);
-    const action = actionFor(classification, actor, target);
-    const decision = freeze({ actorId: actor.id, targetId: asId(target?.id, observation?.targetId), classification, action, faction: relation.actorFaction, targetFaction: relation.targetFaction, relation: relation.relation, reputation: relation.reputation, wanted: relation.wanted, confidence: Math.max(0, Math.min(1, finite(observation?.confidence, 1))), tick: Math.max(0, finite(tick, 0)) });
+    const action = actionFor(classification, actor, target, relation, confidence);
+    const decision = freeze({ actorId: actor.id, targetId: asId(target?.id, observation?.targetId), classification, action, faction: relation.actorFaction, targetFaction: relation.targetFaction, relation: relation.relation, reputation: relation.reputation, wanted: relation.wanted, confidence, tick: Math.max(0, finite(tick, 0)) });
     decisions.push(decision);
-    if (events.length < boundedEventBudget && (action === 'engage' || action === 'arrest' || action === 'pursue')) events.push(freeze({ type: 'living-world:faction-response', actorId: actor.id, targetId: decision.targetId, action, severity: classification === 'hostile' ? 'high' : 'medium', tick: decision.tick }));
+    if (events.length < boundedEventBudget && confidence >= POLICY.minActionConfidence && (action === 'engage' || action === 'arrest' || action === 'pursue')) events.push(freeze({ type: 'living-world:faction-response', actorId: actor.id, targetId: decision.targetId, action, severity: classification === 'hostile' ? 'high' : 'medium', confidence, tick: decision.tick }));
   }
   const result = { policy: POLICY.id, deterministic: true, decisions: freeze(decisions), events: freeze(events), counts: freeze({ observations: sorted.length, decisions: decisions.length, events: events.length }), fingerprint: '' };
   result.fingerprint = fingerprintFor(result);
