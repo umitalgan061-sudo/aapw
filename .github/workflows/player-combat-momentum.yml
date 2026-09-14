@@ -14,6 +14,9 @@ on:
 permissions:
   contents: read
 
+env:
+  EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
   contract:
     runs-on: ubuntu-latest
@@ -21,9 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Verify exact checkout
-        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+        run: test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
       - name: Syntax checks
         run: |
           node --check src/3d/gameplay/playerCombatMomentumDirector.js
