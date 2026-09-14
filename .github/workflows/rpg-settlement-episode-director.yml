@@ -1,0 +1,63 @@
+name: RPG Settlement Episode Director
+on:
+  push:
+    branches: ['main']
+    paths:
+      - 'src/3d/gameplay/settlementEpisode*.js'
+      - 'scripts/checkSettlementEpisode*.mjs'
+      - '.github/workflows/rpg-settlement-episode-director.yml'
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementEpisode*.js'
+      - 'scripts/checkSettlementEpisode*.mjs'
+      - '.github/workflows/rpg-settlement-episode-director.yml'
+  workflow_dispatch:
+jobs:
+  settlement-episode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Freshness and scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --prune
+          CURRENT_MAIN=$(git rev-parse origin/main)
+          MERGE_BASE=$(git merge-base HEAD origin/main)
+          test "$MERGE_BASE" = "$CURRENT_MAIN"
+          mapfile -t FILES < <(git diff --name-only "$CURRENT_MAIN"...HEAD)
+          printf '%s\n' "${FILES[@]}"
+          allowed='^(src/3d/gameplay/settlementEpisode(Content|Director|Checkpoint|PresentationModel|RuntimeBridge)\.js|scripts/checkSettlementEpisode(Content|Catalog|Director|Checkpoint|PresentationModel|RuntimeBridge)\.mjs|\.github/workflows/rpg-settlement-episode-director\.yml)$'
+          for file in "${FILES[@]}"; do [[ "$file" =~ $allowed ]] || { echo "out-of-scope: $file"; exit 1; }; done
+          read -r ADD DEL TOTAL <<< "$(git diff --numstat "$CURRENT_MAIN"...HEAD | awk '{a+=$1;d+=$2} END{print a,d,a+d}')"
+          echo "additions=$ADD deletions=$DEL total=$TOTAL"
+          test "${TOTAL:-999999}" -le 3000
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/settlementEpisodeContent.js
+          node --check src/3d/gameplay/settlementEpisodeDirector.js
+          node --check src/3d/gameplay/settlementEpisodeCheckpoint.js
+          node --check src/3d/gameplay/settlementEpisodePresentationModel.js
+          node --check src/3d/gameplay/settlementEpisodeRuntimeBridge.js
+      - name: Content regression
+        run: node scripts/checkSettlementEpisodeContent.mjs
+      - name: Catalog regression
+        run: node scripts/checkSettlementEpisodeCatalog.mjs
+      - name: Director regression
+        run: node scripts/checkSettlementEpisodeDirector.mjs
+      - name: Checkpoint regression
+        run: node scripts/checkSettlementEpisodeCheckpoint.mjs
+      - name: Presentation regression
+        run: node scripts/checkSettlementEpisodePresentationModel.mjs
+      - name: Runtime bridge regression
+        run: node scripts/checkSettlementEpisodeRuntimeBridge.mjs
+      - name: Diff hygiene
+        run: git diff --check
+      - name: Run283 final-head governance
+        run: node scripts/checkRun283FinalHeadGovernance.js
