@@ -1,0 +1,38 @@
+name: safak-kartali-fauna-signal-router
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaSignalRouter.js'
+      - 'scripts/checkLivingWorldFaunaSignalRouter.mjs'
+  push:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaSignalRouter.js'
+      - 'scripts/checkLivingWorldFaunaSignalRouter.mjs'
+permissions:
+  contents: read
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Syntax and regression
+        run: |
+          node --check src/3d/gameplay/livingWorldFaunaSignalRouter.js
+          node --check scripts/checkLivingWorldFaunaSignalRouter.mjs
+          node scripts/checkLivingWorldFaunaSignalRouter.mjs
+      - name: Deterministic replay
+        run: |
+          node scripts/checkLivingWorldFaunaSignalRouter.mjs > /tmp/a.txt
+          node scripts/checkLivingWorldFaunaSignalRouter.mjs > /tmp/b.txt
+          cmp /tmp/a.txt /tmp/b.txt
+      - name: Runtime boundary
+        run: |
+          ! grep -nE "EditorMaterialStudio|from ['\"]three['\"]|EventBus|ActorRegistry" src/3d/gameplay/livingWorldFaunaSignalRouter.js
+      - name: Exact ancestry and budget
+        run: |
+          git merge-base --is-ancestor "${{ github.event.pull_request.base.sha || github.event.before }}" HEAD
+          changed=$(git diff --numstat "${{ github.event.pull_request.base.sha || github.event.before }}"...HEAD | awk '{a+=$1; d+=$2} END{print a+d+0}')
+          test "$changed" -le 3000
