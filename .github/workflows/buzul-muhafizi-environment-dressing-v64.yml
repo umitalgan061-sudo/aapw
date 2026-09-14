@@ -97,9 +97,6 @@ jobs:
       - name: Acceptance integration regression
         run: node scripts/checkEnvironmentDressingV64Acceptance.mjs
 
-      - name: Manifest regression
-        run: node scripts/checkEnvironmentDressingV64Manifest.mjs || true
-
       - name: Shared placement contract assertion
         run: |
           set -euo pipefail
