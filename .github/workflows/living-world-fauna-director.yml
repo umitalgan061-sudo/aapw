@@ -1,0 +1,30 @@
+name: living-world-fauna-director
+
+on:
+  push:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaDirector.js'
+      - 'scripts/checkLivingWorldFaunaDirector.mjs'
+      - '.github/workflows/living-world-fauna-director.yml'
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaDirector.js'
+      - 'scripts/checkLivingWorldFaunaDirector.mjs'
+      - '.github/workflows/living-world-fauna-director.yml'
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: node --check src/3d/gameplay/livingWorldFaunaDirector.js && node --check scripts/checkLivingWorldFaunaDirector.mjs
+      - name: Determinism and budget acceptance
+        run: node scripts/checkLivingWorldFaunaDirector.mjs
+      - name: Contract guard
+        run: |
+          ! grep -nE "EditorMaterialStudio|from ['\"]three['\"]|EventBus|ActorRegistry" src/3d/gameplay/livingWorldFaunaDirector.js
+          test "$(git diff --stat -- . ':!3D_GAME_PROGRESS.md' | awk '{a+=$1; d+=$3} END{print a+d+0}')" -le 3000
