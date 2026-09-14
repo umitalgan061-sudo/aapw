@@ -81,6 +81,16 @@ jobs:
         run: node scripts/checkEnvironmentRuntimeV65Visual.mjs
       - name: Performance and determinism matrix
         run: node scripts/checkEnvironmentRuntimeV65Performance.mjs
+      - name: Adversarial regression matrix
+        run: node scripts/checkEnvironmentRuntimeV65Adversarial.mjs
+      - name: Biome ecotone regression matrix
+        run: node scripts/checkEnvironmentRuntimeV65Biome.mjs
+      - name: Scenario acceptance matrix
+        run: node scripts/checkEnvironmentRuntimeV65Scenarios.mjs
+      - name: Spatial stress matrix
+        run: node scripts/checkEnvironmentRuntimeV65Stress.mjs
+      - name: Guardrail regression matrix
+        run: node scripts/checkEnvironmentRuntimeV65Guard.mjs
       - name: Manifest feature audit
         shell: bash
         run: |
