@@ -14,6 +14,27 @@ const actionFor = (entry) => {
   return 'unknown';
 };
 
+const phaseFor = (entry) => entry?.phase ?? ({
+  engage: 'attack',
+  pursue: 'chase',
+  investigate: 'investigate',
+  return: 'return',
+  flee: 'flee',
+  observe: 'patrol',
+}[actionFor(entry)] ?? 'unknown');
+
+const chainTransitions = (entries) => {
+  const byActor = new Map();
+  for (const entry of entries) {
+    const actorId = String(entry?.actorId ?? entry?.id ?? 'unknown');
+    const current = phaseFor(entry);
+    const previous = byActor.get(actorId);
+    if (previous) previous.push(current);
+    else byActor.set(actorId, [current]);
+  }
+  return [...byActor.values()].map((phases) => phases.join('>'));
+};
+
 export function summarizeFactionResponseProof(plan, { frameBudgetMs = 2.5, expectedTick = null } = {}) {
   const decisions = toEntries(plan?.decisions ?? plan?.results);
   const events = toEntries(plan?.events);
@@ -31,6 +52,8 @@ export function summarizeFactionResponseProof(plan, { frameBudgetMs = 2.5, expec
   const policy = plan?.policy ?? null;
   const maxDecisions = finite(policy?.maxDecisions, 128);
   const maxEvents = finite(policy?.maxEvents, finite(policy?.maxEventsPerTick, 6));
+  const chains = chainTransitions(decisions);
+  const hasRuntimeChain = chains.some((chain) => /patrol>.*(investigate|chase|attack|flee)/.test(chain) || /detect>.*(investigate|chase|attack|flee)/.test(chain));
   const accepted = decisions.length <= maxDecisions && events.length <= maxEvents && tickConsistent;
   return freeze({
     accepted,
@@ -46,8 +69,10 @@ export function summarizeFactionResponseProof(plan, { frameBudgetMs = 2.5, expec
     frameBudgetWithinTarget: frameValue <= 2.5,
     eventBudgetWithinPolicy: events.length <= maxEvents,
     decisionBudgetWithinPolicy: decisions.length <= maxDecisions,
+    runtimeChains: freeze(chains),
+    hasRuntimeChain,
     fingerprint: typeof plan?.fingerprint === 'string' ? plan.fingerprint : null,
   });
 }
 
-export const FACTION_RESPONSE_PROOF_VERSION = '2026-09-15-v3';
+export const FACTION_RESPONSE_PROOF_VERSION = '2026-09-15-v4';
