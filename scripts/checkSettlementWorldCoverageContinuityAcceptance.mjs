@@ -49,7 +49,7 @@ assert.ok(proof.fingerprint);
 
 const badAsset={...full,assets:full.assets.map((asset,index)=>index===0?{...asset,status:'missing'}:asset)};
 const badAssetAcceptance=createSettlementWorldCoverageAcceptance(badAsset);
-assert.equal(badAssetAcceptance.status,'green');
+assert.equal(badAssetAcceptance.status,'warning');
 assert.equal(badAssetAcceptance.flags.noMissingAssets,false);
 
 const placeholder={...full,manifests:full.manifests.map((manifest,index)=>index===0?{...manifest,placeholderCount:2}:manifest)};
