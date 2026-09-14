@@ -14,7 +14,7 @@ export const GEOGRAPHIC_ASSET_DISTRIBUTION_TELEMETRY_POLICY = Object.freeze({
   deterministic: true,
   pure: true,
   canonicalInputsOnly: true,
-  minSamplesForNearestNeighbor: 3,
+  minSamplesForNearestNeighbor: 6,
   nearestNeighborOutlierRatioMax: 0.42,
   familyEntropyFloor: 0.12,
   occupancyFloor: 0.08,
@@ -299,17 +299,20 @@ export function qualifyOrganicDistribution(measurement, {
 } = {}) {
   if (!measurement?.ok) return Object.freeze({ ok: false, errors: ['missing-measurement'] });
   const errors = [];
+  const qualitySampleCount = Math.max(minimumSamples, GEOGRAPHIC_ASSET_DISTRIBUTION_TELEMETRY_POLICY.minSamplesForNearestNeighbor);
   if (measurement.sampleCount < minimumSamples) errors.push('insufficient-samples');
-  if (measurement.nearestNeighbor.outlierRatio > outlierRatioMax) errors.push('nearest-neighbor-outlier-ratio');
-  if (measurement.family.uniqueFamilies > 1 && measurement.family.entropy < entropyFloor) errors.push('family-entropy-too-low');
+  if (measurement.sampleCount >= qualitySampleCount && measurement.nearestNeighbor.outlierRatio > outlierRatioMax) errors.push('nearest-neighbor-outlier-ratio');
+  if (measurement.sampleCount >= qualitySampleCount && measurement.family.uniqueFamilies > 1 && measurement.family.entropy < entropyFloor) errors.push('family-entropy-too-low');
   if (measurement.sampleCount >= minimumSamples && measurement.occupancy.occupancy < occupancyFloor) errors.push('occupancy-too-low');
-  if (measurement.occupancy.occupancy > occupancyCeiling) errors.push('occupancy-too-high');
-  if (measurement.shape.radialCircularity > circularityCeiling && measurement.shape.directionalBias < 0.18) errors.push('radial-regularity-risk');
+  if (measurement.sampleCount >= qualitySampleCount && measurement.occupancy.occupancy > occupancyCeiling) errors.push('occupancy-too-high');
+  if (measurement.sampleCount >= qualitySampleCount && measurement.shape.radialCircularity > circularityCeiling && measurement.shape.directionalBias < 0.18) errors.push('radial-regularity-risk');
   if (!measurement.capacity.withinCap) errors.push('capacity-exceeded');
   return Object.freeze({
     ok: errors.length === 0,
     errors,
     organic: errors.length === 0,
+    qualitySampleCount,
+    diagnosticsDeferred: measurement.sampleCount < qualitySampleCount,
     score: clamp01(
       1 - (
         (errors.includes('nearest-neighbor-outlier-ratio') ? 0.22 : 0) +
