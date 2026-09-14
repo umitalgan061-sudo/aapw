@@ -64,7 +64,10 @@ jobs:
             scripts/checkSettlementWorldCoverageContinuity.mjs \
             scripts/checkSettlementWorldCoverageContinuityCatalog.mjs \
             scripts/checkSettlementWorldCoverageContinuityPlanner.mjs \
-            scripts/checkSettlementWorldCoverageContinuityIntegration.mjs; do
+            scripts/checkSettlementWorldCoverageContinuityIntegration.mjs \
+            scripts/checkSettlementWorldCoverageContinuityBoundaries.mjs \
+            scripts/checkSettlementWorldCoverageContinuityAcceptance.mjs \
+            scripts/checkSettlementWorldCoverageContinuityApi.mjs; do
             node --check "$file"
           done
       - name: Run continuity regression matrix
@@ -75,6 +78,12 @@ jobs:
         run: node scripts/checkSettlementWorldCoverageContinuityPlanner.mjs
       - name: Run integration matrix
         run: node scripts/checkSettlementWorldCoverageContinuityIntegration.mjs
+      - name: Run geographic boundary probes
+        run: node scripts/checkSettlementWorldCoverageContinuityBoundaries.mjs
+      - name: Run acceptance failure matrix
+        run: node scripts/checkSettlementWorldCoverageContinuityAcceptance.mjs
+      - name: Run API surface matrix
+        run: node scripts/checkSettlementWorldCoverageContinuityApi.mjs
       - name: Verify exact-head ownership boundaries
         shell: bash
         run: |
@@ -103,7 +112,7 @@ jobs:
           set -euo pipefail
           git diff --name-only origin/main...HEAD | while IFS= read -r file; do
             case "$file" in
-              src/3d/gameplay/settlementWorldCoverageContinuity*.js|scripts/checkSettlementWorldCoverageContinuity*.mjs|.github/workflows/settlement-world-coverage-continuity.yml) ;;
+              src/3d/gameplay/settlementWorldCoverageContinuity*.js|scripts/checkSettlementWorldCoverageContinuity*.mjs|.github/workflows/settlement-world-coverage-continuity.yml|docs/settlement-world-coverage-continuity.md) ;;
               *) echo "unexpected file: $file"; exit 1 ;;
             esac
           done
