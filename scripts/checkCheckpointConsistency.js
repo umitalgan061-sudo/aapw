@@ -46,13 +46,18 @@ function readAtRevision(relativePath, revision) {
 	}
 }
 
-function fileUnchangedSinceBase(relativePath, baseSha) {
+function blobAtRevision(relativePath, revision) {
 	try {
-		execFileSync('git', ['diff', '--quiet', baseSha, 'HEAD', '--', relativePath], { stdio: 'ignore' });
-		return true;
+		return execFileSync('git', ['rev-parse', `${revision}:${relativePath}`], { encoding: 'utf8' }).trim();
 	} catch {
-		return false;
+		return null;
 	}
+}
+
+function fileUnchangedSinceBase(relativePath, baseSha) {
+	const baseBlob = blobAtRevision(relativePath, baseSha);
+	const headBlob = blobAtRevision(relativePath, 'HEAD');
+	return Boolean(baseBlob && headBlob && baseBlob === headBlob);
 }
 
 function inheritedMismatchIsProven(values) {
