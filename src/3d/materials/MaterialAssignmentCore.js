@@ -8,6 +8,7 @@ import { hashString } from './textureCore.js';
 import { applyWorldMaterialSurfaceFabric } from './worldMaterialSurfaceFabric.js';
 import { applyWorldAssetSurfaceReality } from './worldAssetSurfaceReality.js';
 import { enrichMaterialWithHydrologyReality } from '../world/hydrologySurfaceReality.js';
+import { enrichMaterialWithHydrometeoricReality } from './worldMaterialHydrometeoricResponse.js';
 
 /**
  * Shared, DOM-free material pipeline used by both editor tooling and autonomous world builders.
@@ -127,9 +128,25 @@ export function applyMaterialRecipe(object, recipe, { metadata = {} } = {}) {
       riverPoints: metadata.canonicalRiverPoints || [],
       waterfalls: metadata.canonicalWaterfalls || [],
     });
+    const hydrometeoricSurfaceReality = enrichMaterialWithHydrometeoricReality(
+      object.userData?.worldAssetSurfaceResponse || {},
+      {
+        profileId: surfaceReality?.reality?.profileId || result.paletteId || 'generic',
+        wetEdge: hydrologySurfaceReality?.response?.response?.wet,
+        spray: hydrologySurfaceReality?.response?.response?.spray,
+        salt: hydrologySurfaceReality?.response?.response?.salt,
+        sediment: hydrologySurfaceReality?.response?.response?.sediment,
+        frost: hydrologySurfaceReality?.response?.response?.cold,
+        exposure: surfaceReality?.reality?.context?.exposure,
+        shelter: surfaceReality?.reality?.context?.shelter,
+        slope: surfaceReality?.reality?.context?.slope,
+      },
+    );
+    object.userData.worldAssetSurfaceResponse = hydrometeoricSurfaceReality;
     result.worldMaterialSurfaceFabric = fabric;
     result.worldAssetSurfaceReality = surfaceReality;
     result.hydrologySurfaceReality = hydrologySurfaceReality;
+    result.hydrometeoricSurfaceReality = hydrometeoricSurfaceReality;
   }
   return result;
 }
