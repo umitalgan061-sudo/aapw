@@ -1,0 +1,102 @@
+name: Buzul Muhafizi - Environment Dressing V64
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/environmentDressing*.js'
+      - 'src/3d/world/environmentSurfaceMaterialResponseV64.js'
+      - 'src/3d/world/environmentRenderBudgetV64.js'
+      - 'scripts/checkEnvironmentDressingV64*.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-dressing-v64.yml'
+  push:
+    branches:
+      - buzul-muhafizi/exact-main-environment-dressing-v64-20260914
+    paths:
+      - 'src/3d/world/environmentDressing*.js'
+      - 'src/3d/world/environmentSurfaceMaterialResponseV64.js'
+      - 'src/3d/world/environmentRenderBudgetV64.js'
+      - 'scripts/checkEnvironmentDressingV64*.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-dressing-v64.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  v64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify exact head and main ancestry
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+          test -n "$(git rev-parse HEAD)"
+
+      - name: Check changed-line budget
+        run: |
+          set -euo pipefail
+          stats=$(git diff --numstat "origin/main...HEAD")
+          additions=$(printf '%s\n' "$stats" | awk '{a+=$1} END {print a+0}')
+          deletions=$(printf '%s\n' "$stats" | awk '{d+=$2} END {print d+0}')
+          changed=$((additions + deletions))
+          test "$changed" -ge 2850
+          test "$changed" -le 3000
+          echo "changed=${changed} additions=${additions} deletions=${deletions}"
+
+      - name: Check scope and prohibited runtime boundaries
+        run: |
+          set -euo pipefail
+          git diff --name-only "origin/main...HEAD" | while read -r path; do
+            case "$path" in
+              src/3d/world/environmentDressing*.js|src/3d/world/environmentSurfaceMaterialResponseV64.js|src/3d/world/environmentRenderBudgetV64.js|scripts/checkEnvironmentDressingV64*.mjs|scripts/checkEnvironmentDressingV64Acceptance.mjs|.github/workflows/buzul-muhafizi-environment-dressing-v64.yml) ;;
+              *) echo "unexpected path: $path"; exit 1 ;;
+            esac
+          done
+          if git diff "origin/main...HEAD" -- '*.js' '*.mjs' | grep -nE 'EditorMaterialStudio|createBoxGeometry|createSphereGeometry|createConeGeometry|createCylinderGeometry'; then
+            echo 'forbidden editor/primitive geometry marker found'
+            exit 1
+          fi
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          git diff --name-only "origin/main...HEAD" | grep -E '\.(js|mjs)$' | xargs -r -n1 node --check
+
+      - name: Core V64 regression
+        run: node scripts/checkEnvironmentDressingV64.mjs
+
+      - name: Extended V64 regression
+        run: node scripts/checkEnvironmentDressingV64Extended.mjs
+
+      - name: Render budget and parity regression
+        run: node scripts/checkEnvironmentDressingV64RenderBudget.mjs
+
+      - name: Acceptance integration regression
+        run: node scripts/checkEnvironmentDressingV64Acceptance.mjs
+
+      - name: Shared placement contract assertion
+        run: |
+          set -euo pipefail
+          grep -q 'src/3d/materials/MaterialAssignmentCore.js' src/3d/world/environmentDressingRuntimeV64.js
+          grep -q 'src/3d/world/WorldAssetPlacementPipeline.js' src/3d/world/environmentDressingRuntimeV64.js
+          grep -q 'mergedSuccessor: 590' src/3d/world/environmentDressingRuntimeV64.js
+          grep -q 'validateMaterialAssignment' src/3d/world/environmentDressingAssetHandoffV64.js
+          grep -q 'scene-attach' src/3d/world/environmentDressingAssetHandoffV64.js
+
+      - name: Diff hygiene
+        run: git diff --check "origin/main...HEAD"
