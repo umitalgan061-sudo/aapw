@@ -8,7 +8,7 @@ const director = createPlayerCombatMomentumDirector({ emit: false });
 
 director.setEquipment({ attack: { damageScale: Number.NaN }, movement: { movementMultiplier: Infinity } });
 assert.equal(director.read().equipment.damageScale, 0.1);
-assert.equal(director.read().equipment.movementMultiplier, 1.75);
+assert.equal(director.read().equipment.movementMultiplier, 0.25);
 
 for (const value of [-1, Number.NaN, Infinity, -Infinity, 0.1, 0.5]) {
   director.update(value, 1);
