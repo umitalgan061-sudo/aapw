@@ -33,5 +33,13 @@ assert.equal(proof.cooldownThrottled, 0);
 assert.equal(proof.tickConsistent, true);
 assert.equal(proof.frameBudgetWithinTarget, true);
 assert.equal(proof.eventBudgetWithinPolicy, true);
+assert.equal(proof.decisionBudgetWithinPolicy, true);
 assert.equal(typeof proof.fingerprint, 'string');
-console.log(JSON.stringify({ marker: 'FACTION_RESPONSE_PROOF_OK', proof }));
+
+const malformed = summarizeFactionResponseProof({ decisions: [{ action: null, cooldownRemaining: 'not-a-number' }], events: [] }, { expectedTick: 12 });
+assert.equal(malformed.accepted, false);
+assert.equal(malformed.tickConsistent, false);
+assert.equal(malformed.actionCounts.unknown, 1);
+assert.equal(malformed.decisionBudgetWithinPolicy, true);
+
+console.log(JSON.stringify({ marker: 'FACTION_RESPONSE_PROOF_OK', proof, malformed }));
