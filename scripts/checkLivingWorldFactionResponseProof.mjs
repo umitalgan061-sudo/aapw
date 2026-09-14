@@ -37,6 +37,8 @@ assert.equal(proof.tickConsistent, true);
 assert.equal(proof.frameBudgetWithinTarget, true);
 assert.equal(proof.eventBudgetWithinPolicy, true);
 assert.equal(proof.decisionBudgetWithinPolicy, true);
+assert.equal(proof.hasRuntimeChain, true);
+assert.ok(proof.runtimeChains.some((chain) => chain.includes('patrol>')));
 assert.equal(typeof proof.fingerprint, 'string');
 assert.ok((proof.actionCounts.observe ?? 0) + (proof.actionCounts.pursue ?? 0) + (proof.actionCounts.engage ?? 0) >= 1);
 
@@ -48,5 +50,6 @@ const malformed = summarizeFactionResponseProof({ results: [{ phase: null, tick:
 assert.equal(malformed.accepted, false);
 assert.equal(malformed.tickConsistent, false);
 assert.equal(malformed.actionCounts.unknown, 1);
+assert.equal(malformed.hasRuntimeChain, false);
 
 console.log(JSON.stringify({ marker: 'FACTION_RESPONSE_PROOF_OK', proof, malformed }));
