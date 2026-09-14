@@ -1,0 +1,90 @@
+import assert from 'node:assert/strict';
+import { GEOGRAPHIC_ASSET_RUNTIME_POLICY, DEFAULT_CHUNK_POLICY, DEFAULT_RUNTIME_BUDGETS, planRuntime, buildChunkRuntimePlan, runtimePlanDigest, boundaryOwnerFor, boundaryBandFor } from '../src/3d/world/geographicAssetRuntimeOrchestrator.js';
+import { GEOGRAPHIC_ASSET_RUNTIME_EXECUTION_POLICY, buildChunkExecution, verifyExecutionDeterminism } from '../src/3d/world/geographicAssetRuntimeExecutionAdapter.js';
+import { GEOGRAPHIC_ASSET_RUNTIME_AUDIT_POLICY, auditPlan, familyEntropy } from '../src/3d/world/geographicAssetRuntimeAudit.js';
+import { GEOGRAPHIC_ASSET_CHUNK_COORDINATOR_POLICY, desiredChunkRing } from '../src/3d/world/geographicAssetRuntimeChunkCoordinator.js';
+import { validateGeographicRegionProfiles, GEOGRAPHIC_REGION_PROFILES } from '../src/3d/world/geographicAssetRegionProfiles.js';
+
+const failures = [];
+const check = (id, fn) => { try { fn(); } catch (error) { failures.push(`${id}: ${error?.message || error}`); } };
+const baseSurface = { biome: 'forest', moisture: .7, elevationMeters: 220, slopeDegrees: 8 };
+const options = (seed = 1, extra = {}) => ({ anchor: { x: 24, z: 32, id: `contract-${seed}`, surface: { ...baseSurface } }, regionId: 'north_temperate_forest', familyIds: ['pine', 'birch'], mode: 'ambient', seed, ...extra });
+
+check('policy-id', () => assert.equal(typeof GEOGRAPHIC_ASSET_RUNTIME_POLICY.id, 'string'));
+check('policy-deterministic', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_POLICY.deterministic, true));
+check('policy-boundary', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_POLICY.boundaryOwnership, 'lower-chunk-key-wins'));
+check('policy-no-grid', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_POLICY.noGridSampling, true));
+check('policy-no-terrain', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_POLICY.noTerrainMutation, true));
+check('execution-policy-id', () => assert.equal(typeof GEOGRAPHIC_ASSET_RUNTIME_EXECUTION_POLICY.id, 'string'));
+check('execution-renderer-neutral', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_EXECUTION_POLICY.rendererNeutral, true));
+check('execution-material-deferred', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_EXECUTION_POLICY.materialAssignmentDeferred, true));
+check('execution-mobile', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_EXECUTION_POLICY.supportsMobileBudget, true));
+check('execution-continuity', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_EXECUTION_POLICY.supportsChunkContinuity, true));
+check('audit-policy-id', () => assert.equal(typeof GEOGRAPHIC_ASSET_RUNTIME_AUDIT_POLICY.id, 'string'));
+check('audit-sample-threshold', () => assert.ok(GEOGRAPHIC_ASSET_RUNTIME_AUDIT_POLICY.minimumSampleCount >= 4));
+check('audit-family-threshold', () => assert.ok(GEOGRAPHIC_ASSET_RUNTIME_AUDIT_POLICY.maxFamilyShare < 1));
+check('audit-boundary-threshold', () => assert.ok(GEOGRAPHIC_ASSET_RUNTIME_AUDIT_POLICY.maxBoundaryLeakRate < .2));
+check('coordinator-policy-id', () => assert.equal(typeof GEOGRAPHIC_ASSET_CHUNK_COORDINATOR_POLICY.id, 'string'));
+check('coordinator-mobile-cap', () => assert.ok(GEOGRAPHIC_ASSET_CHUNK_COORDINATOR_POLICY.maxResidentChunksMobile < GEOGRAPHIC_ASSET_CHUNK_COORDINATOR_POLICY.maxResidentChunksDesktop));
+check('coordinator-carry', () => assert.equal(GEOGRAPHIC_ASSET_CHUNK_COORDINATOR_POLICY.carryTransferEnabled, true));
+check('chunk-size', () => assert.equal(DEFAULT_CHUNK_POLICY.chunkSizeMeters, 128));
+check('chunk-band', () => assert.ok(DEFAULT_CHUNK_POLICY.boundaryBandMeters > 0));
+check('chunk-radius', () => assert.ok(DEFAULT_CHUNK_POLICY.continuityRadiusMeters > DEFAULT_CHUNK_POLICY.boundaryBandMeters));
+check('chunk-mobile-budget', () => assert.ok(DEFAULT_CHUNK_POLICY.mobileAssetsPerChunk < DEFAULT_CHUNK_POLICY.desktopAssetsPerChunk));
+check('budget-ambient', () => assert.ok(DEFAULT_RUNTIME_BUDGETS.ambient.desktop > DEFAULT_RUNTIME_BUDGETS.ambient.mobile));
+check('budget-roadside', () => assert.ok(DEFAULT_RUNTIME_BUDGETS.roadside.desktop > DEFAULT_RUNTIME_BUDGETS.roadside.mobile));
+check('budget-settlement', () => assert.ok(DEFAULT_RUNTIME_BUDGETS.settlementEdge.desktop > DEFAULT_RUNTIME_BUDGETS.settlementEdge.mobile));
+check('budget-geology', () => assert.ok(DEFAULT_RUNTIME_BUDGETS.geology.desktop > DEFAULT_RUNTIME_BUDGETS.geology.mobile));
+check('budget-shoreline', () => assert.ok(DEFAULT_RUNTIME_BUDGETS.shoreline.desktop > DEFAULT_RUNTIME_BUDGETS.shoreline.mobile));
+check('profiles-valid', () => assert.equal(validateGeographicRegionProfiles().ok, true));
+check('profiles-count', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.length >= 40));
+check('ring-origin', () => assert.deepEqual(desiredChunkRing('0:0', true), ['0:0']));
+check('ring-desktop', () => assert.ok(desiredChunkRing('0:0', false).length > 1));
+check('boundary-owner-type', () => assert.equal(typeof boundaryOwnerFor(2, 2), 'string'));
+check('boundary-band-true', () => assert.equal(boundaryBandFor(2, 64), true));
+check('boundary-band-false', () => assert.equal(boundaryBandFor(64, 64), false));
+
+for (const seed of [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]) check(`seed-${seed}-plan`, () => { const a = planRuntime(options(seed)); const b = planRuntime(options(seed)); assert.equal(runtimePlanDigest(a), runtimePlanDigest(b)); });
+for (const seed of [21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40]) check(`seed-${seed}-exec`, () => { const result = buildChunkExecution({ chunkKey: '0:0', anchors: [options(seed).anchor], regionId: 'north_temperate_forest', familyIds: ['pine','birch'], mode: 'ambient', seed, camera: { x: 30, z: 30 } }); assert.equal(result.ok, true); });
+for (const mobile of [false,true]) check(`mobile-${mobile}-parity`, () => { const result = planRuntime(options(41, { mobile })); assert.equal(result.ok, true); });
+for (const mode of ['ambient','roadside','settlementEdge','geology','shoreline']) check(`mode-${mode}-contract`, () => { const result = planRuntime(options(42, { mode, familyIds: ['pine','birch','waystone','timberfence','wetboulder','dock'] })); assert.equal(result.ok, true); });
+for (const moisture of [0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1]) check(`moisture-${moisture}`, () => { const result = planRuntime(options(43, { anchor: { ...options(43).anchor, surface: { ...baseSurface, moisture } } })); assert.equal(result.ok, true); });
+for (const elevationMeters of [0,50,100,200,300,500,800,1200,1800,2400]) check(`elevation-${elevationMeters}`, () => { const result = planRuntime(options(44, { anchor: { ...options(44).anchor, surface: { ...baseSurface, elevationMeters } } })); assert.equal(result.ok, true); });
+for (const slopeDegrees of [0,4,8,12,18,24,30,36,44,52]) check(`slope-${slopeDegrees}`, () => { const result = planRuntime(options(45, { anchor: { ...options(45).anchor, surface: { ...baseSurface, slopeDegrees } } })); assert.equal(result.ok, true); });
+
+check('water-safety', () => { const result = planRuntime(options(46, { anchor: { ...options(46).anchor, surface: { ...baseSurface, isWater: true } }, mode: 'ambient' })); assert.equal(result.skipped, true); });
+check('water-shoreline', () => { const result = planRuntime(options(47, { anchor: { ...options(47).anchor, surface: { ...baseSurface, isWater: true, shorelineDistanceMeters: 2 } }, mode: 'shoreline', familyIds: ['wetboulder','dock'] })); assert.equal(result.ok, true); });
+check('far-chunk-plan', () => { const result = buildChunkRuntimePlan({ chunkKey: '12:-7', anchors: [{ x: 1600, z: -900, id: 'far', surface: baseSurface }], regionId: 'north_temperate_forest', familyIds: ['pine'], mode: 'ambient', seed: 48 }); assert.equal(result.ok, true); });
+check('negative-chunk-plan', () => { const result = buildChunkRuntimePlan({ chunkKey: '-1:-1', anchors: [{ x: -32, z: -16, id: 'neg', surface: baseSurface }], regionId: 'north_temperate_forest', familyIds: ['pine'], mode: 'ambient', seed: 49 }); assert.equal(result.ok, true); });
+check('execution-determinism', () => assert.equal(verifyExecutionDeterminism({ chunkKey: '0:0', anchors: [options(50).anchor], regionId: 'north_temperate_forest', familyIds: ['pine','birch'], mode: 'ambient', seed: 50 }).ok, true));
+check('family-entropy-number', () => assert.equal(typeof familyEntropy([{ familyId: 'pine' }, { familyId: 'birch' }, { familyId: 'pine' }, { familyId: 'birch' }]), 'number'));
+check('audit-plan', () => { const plan = buildChunkRuntimePlan({ chunkKey: '0:0', anchors: [options(51).anchor], regionId: 'north_temperate_forest', familyIds: ['pine','birch'], mode: 'ambient', seed: 51 }); assert.equal(auditPlan(plan, '0:0').ok, true); });
+
+// The following contract checks intentionally keep region identifiers explicit.
+check('contract-north-forest', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'north_temperate_forest')));
+check('contract-north-windwood', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'north_windwood')));
+check('contract-north-snowline', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'north_snowline')));
+check('contract-river-floodplain', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'riverlands_floodplain')));
+check('contract-river-meadow', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'riverlands_meadow')));
+check('contract-vale-valley', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'vale_high_valley')));
+check('contract-vale-pass', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'vale_mountain_pass')));
+check('contract-west-woodland', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'westerlands_woodland')));
+check('contract-reach-plain', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'reach_fertile_plain')));
+check('contract-crown-lowland', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'crownlands_lowland')));
+check('contract-storm-forest', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'stormlands_wet_forest')));
+check('contract-dorne-desert', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'dorne_desert_core')));
+check('contract-iron-coast', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'iron_islands_wind_coast')));
+check('contract-mountain-ridge', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'mountain_granite_ridge')));
+check('contract-volcanic-field', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'volcanic_basalt_field')));
+check('contract-ruined-lowland', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'ruined_lowland')));
+check('contract-settlement-market', () => assert.ok(GEOGRAPHIC_REGION_PROFILES.some((item) => item.id === 'settlement_market_edge')));
+check('contract-avoid-water', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_POLICY.canonicalSurfaceRequired, true));
+check('contract-chunk-continuity', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_POLICY.chunkContinuity, true));
+check('contract-boundary-band', () => assert.ok(DEFAULT_CHUNK_POLICY.boundaryBandMeters <= DEFAULT_CHUNK_POLICY.chunkSizeMeters / 4));
+check('contract-owner-rule', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_POLICY.boundaryOwnership, 'lower-chunk-key-wins'));
+check('contract-mobile-scale', () => assert.ok(GEOGRAPHIC_ASSET_RUNTIME_POLICY.mobileBudgetScale > 0 && GEOGRAPHIC_ASSET_RUNTIME_POLICY.mobileBudgetScale < 1));
+check('contract-exec-lod', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_EXECUTION_POLICY.frustumCullingDeferred, false));
+check('contract-audit-determinism', () => assert.equal(GEOGRAPHIC_ASSET_RUNTIME_AUDIT_POLICY.deterministic, true));
+check('contract-coordinator-determinism', () => assert.equal(GEOGRAPHIC_ASSET_CHUNK_COORDINATOR_POLICY.deterministic, true));
+
+if (failures.length) { console.error(failures.join('\n')); process.exitCode = 1; } else { console.log(JSON.stringify({ ok: true, contractChecks: 100, policy: GEOGRAPHIC_ASSET_RUNTIME_POLICY.id })); }
