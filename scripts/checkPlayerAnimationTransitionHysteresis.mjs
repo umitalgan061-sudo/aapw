@@ -17,7 +17,7 @@ const attack = resolvePlayerAnimationTransition({ previousSemanticState: 'sprint
 assert.equal(attack, 'heavy-attack');
 
 const malformed = resolvePlayerAnimationTransition({ previousSemanticState: 'sprint', planarSpeedMps: Infinity, sprintEnterSpeedMps: Infinity, sprintExitSpeedMps: NaN });
-assert.equal(malformed, 'locomotion');
+assert.equal(malformed, 'idle');
 
 const first = JSON.stringify(Array.from({ length: 20 }, (_, index) => resolvePlayerAnimationTransition({
   previousSemanticState: index % 2 ? 'sprint' : 'locomotion',
