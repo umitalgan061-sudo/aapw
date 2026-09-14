@@ -1,0 +1,98 @@
+name: Environment Runtime V65 Exact Head
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentRuntimeV65Manifest.js'
+      - 'src/3d/world/environmentRuntimeAdaptiveV65.js'
+      - 'src/3d/world/environmentRuntimeSurfaceV65.js'
+      - 'src/3d/world/environmentRuntimeContinuityV65.js'
+      - 'src/3d/world/environmentRuntimeStreamingV65.js'
+      - 'src/3d/world/environmentRuntimePhenologyV65.js'
+      - 'src/3d/world/environmentRuntimeObservabilityV65.js'
+      - 'src/3d/world/environmentRuntimeQueryV65.js'
+      - 'src/3d/world/environmentRuntimeIntegrationV65.js'
+      - 'src/3d/world/environmentRuntimeVisualAuditV65.js'
+      - 'scripts/checkEnvironmentRuntimeV65*.mjs'
+      - '.github/workflows/environment-runtime-v65-exact-head.yml'
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-v65:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact trigger head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify exact head and main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Verify changed-line envelope
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d}')"
+          echo "changed-lines=${changed}"
+          test "${changed}" -ge 2850
+          test "${changed}" -le 3000
+      - name: Verify scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          bad=0
+          while IFS= read -r file; do
+            case "$file" in
+              src/3d/world/environmentRuntimeV65Manifest.js|src/3d/world/environmentRuntime*V65.js|scripts/checkEnvironmentRuntimeV65*.mjs|.github/workflows/environment-runtime-v65-exact-head.yml) ;;
+              *) echo "out-of-scope:$file"; bad=1;;
+            esac
+          done < <(git diff --name-only origin/main...HEAD)
+          test "$bad" -eq 0
+      - name: Syntax check V65 modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in src/3d/world/environmentRuntime*V65.js scripts/checkEnvironmentRuntimeV65*.mjs; do node --check "$file"; done
+      - name: Architectural boundary scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio\|createBoxGeometry\|createSphereGeometry\|createCylinderGeometry" src/3d/world/environmentRuntime*V65.js
+          grep -R -q "WorldAssetPlacementPipeline.js" src/3d/world/environmentRuntimeIntegrationV65.js
+          grep -R -q "MaterialAssignmentCore.js" src/3d/world/environmentRuntimeIntegrationV65.js
+          grep -R -q "noWorldMutation: true" src/3d/world/environmentRuntimeIntegrationV65.js
+      - name: Core regression matrix
+        run: node scripts/checkEnvironmentRuntimeV65.mjs
+      - name: Edge regression matrix
+        run: node scripts/checkEnvironmentRuntimeV65EdgeCases.mjs
+      - name: Contract regression matrix
+        run: node scripts/checkEnvironmentRuntimeV65Contract.mjs
+      - name: Visual acceptance matrix
+        run: node scripts/checkEnvironmentRuntimeV65Visual.mjs
+      - name: Performance and determinism matrix
+        run: node scripts/checkEnvironmentRuntimeV65Performance.mjs
+      - name: Manifest feature audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { ENVIRONMENT_RUNTIME_V65_MANIFEST } from './src/3d/world/environmentRuntimeV65Manifest.js';
+          const expected = ['adaptive-habitat','surface-weather','chunk-continuity','streaming-budget','seasonal-phenology','query-facade','quality-ledger','visual-audit'];
+          for (const feature of expected) if (!ENVIRONMENT_RUNTIME_V65_MANIFEST.features.includes(feature)) throw new Error(`missing:${feature}`);
+          if (ENVIRONMENT_RUNTIME_V65_MANIFEST.acceptance.width !== 1536) throw new Error('acceptance-width');
+          if (ENVIRONMENT_RUNTIME_V65_MANIFEST.acceptance.height !== 1024) throw new Error('acceptance-height');
+          if (ENVIRONMENT_RUNTIME_V65_MANIFEST.deterministic !== true) throw new Error('determinism');
+          console.log(JSON.stringify({ ok: true, features: ENVIRONMENT_RUNTIME_V65_MANIFEST.features.length }));
+          NODE
+      - name: Diff whitespace audit
+        run: git diff --check origin/main...HEAD
