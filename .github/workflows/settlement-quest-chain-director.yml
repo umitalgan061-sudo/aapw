@@ -1,0 +1,25 @@
+name: Settlement Quest Chain Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementQuestChainDirector.js'
+      - 'scripts/checkSettlementQuestChainDirector.mjs'
+      - '.github/workflows/settlement-quest-chain-director.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: node --check src/3d/gameplay/settlementQuestChainDirector.js
+      - name: Executable regression
+        run: node scripts/checkSettlementQuestChainDirector.mjs
+      - name: Runtime/editor boundary
+        run: |
+          ! grep -n "EditorMaterialStudio\|document\.\|window\." src/3d/gameplay/settlementQuestChainDirector.js
+      - name: Focused diff budget
+        run: |
+          changed=$(git diff --numstat "${{ github.event.pull_request.base.sha }}" HEAD -- src/3d/gameplay/settlementQuestChainDirector.js scripts/checkSettlementQuestChainDirector.mjs .github/workflows/settlement-quest-chain-director.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
