@@ -2,12 +2,15 @@
  * Settlement episode runtime bridge.
  * Composes the existing EventBus, Episode Director, Presentation Model and
  * checkpoint codec without taking ownership of gameplay state.
+ * Player-facing action payloads pass through the existing content registries
+ * before the authoritative SettlementCampaignRuntime handler is invoked.
  */
 import { SETTLEMENT_CAMPAIGN_EVENT_NAMES } from './settlementCampaignEventBridge.js';
 import { createSettlementEpisodeDirector } from './settlementEpisodeDirector.js';
 import { createSettlementEpisodePresentationProjector } from './settlementEpisodePresentationModel.js';
 import { createSettlementEpisodeCheckpointAdapter } from './settlementEpisodeCheckpoint.js';
 import { listSettlementEpisodes, getSettlementEpisode } from './settlementEpisodeContent.js';
+import { normalizeSettlementEpisodeInput, buildSettlementEpisodeInputPreview } from './settlementEpisodeInputNormalizer.js';
 
 export const SETTLEMENT_EPISODE_RUNTIME_BRIDGE_VERSION = 1;
 export const SETTLEMENT_EPISODE_RUNTIME_BRIDGE_LIMITS = Object.freeze({
@@ -20,7 +23,7 @@ const freeze=(value)=>{if(!value||typeof value!=='object'||Object.isFrozen(value
 function stable(value){if(value===null||typeof value!=='object')return JSON.stringify(value);if(Array.isArray(value))return`[${value.map(stable).join(',')}]`;return`{${Object.keys(value).sort().map((key)=>`${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;}
 function digest(value){let hash=2166136261;const source=stable(value);for(let i=0;i<source.length;i+=1){hash^=source.charCodeAt(i);hash=Math.imul(hash,16777619);}return(hash>>>0).toString(16).padStart(8,'0');}
 function normalizeRequest(raw){const source=raw&&typeof raw==='object'?raw:{};return{version:integer(source.version,1,9,1),requestId:text(source.requestId),type:text(source.type),episodeId:text(source.episodeId),action:text(source.action),stepId:text(source.stepId),input:clone(source.input??{})};}
-const REQUEST_TYPES=Object.freeze(['episode-open','episode-select','episode-next','episode-previous','episode-step','episode-service-open','episode-service-close','episode-prepare','episode-execute','episode-state','episode-reset','episode-checkpoint-export','episode-checkpoint-restore','episode-manifest']);
+const REQUEST_TYPES=Object.freeze(['episode-open','episode-select','episode-next','episode-previous','episode-step','episode-service-open','episode-service-close','episode-prepare','episode-input-preview','episode-execute','episode-state','episode-reset','episode-checkpoint-export','episode-checkpoint-restore','episode-manifest']);
 
 export function createSettlementEpisodeRuntimeBridge(options={}){
   const bus=options.bus; const runtime=options.runtime;
@@ -35,6 +38,8 @@ export function createSettlementEpisodeRuntimeBridge(options={}){
   const rememberEvent=(event)=>{eventHistory=[...eventHistory,{sequence:++sequence,at:now(),...clone(event)}].slice(-96);};
   const emit=(name,payload={})=>{const event={version:SETTLEMENT_EPISODE_RUNTIME_BRIDGE_VERSION,name,at:now(),...clone(payload)};rememberEvent(event);try{bus.emit(name,event);}catch{/* telemetry is non-authoritative */}return event;};
   const envelope=(request,result)=>({version:SETTLEMENT_EPISODE_RUNTIME_BRIDGE_VERSION,requestId:request.requestId,type:request.type,ok:result?.ok===true,reason:text(result?.reason,result?.ok===false?'request-rejected':''),result:clone(result)});
+  const currentStepId=()=>text(director.snapshot()?.beat?.stepId);
+  const normalizeActionInput=(request)=>{const stepId=text(request.stepId,currentStepId());return normalizeSettlementEpisodeInput(stepId,request.input);};
   const handle=async(raw)=>{
     if(disposed)return{ok:false,reason:'disposed'}; const request=normalizeRequest(raw);
     if(request.version!==1)return{ok:false,reason:'unsupported-version',requestId:request.requestId};
@@ -50,8 +55,11 @@ export function createSettlementEpisodeRuntimeBridge(options={}){
       else if(request.type==='episode-service-open')result=director.openCurrentService();
       else if(request.type==='episode-service-close')result=director.closeService();
       else if(request.type==='episode-prepare')result=director.prepareCurrent(request.input);
-      else if(request.type==='episode-execute')result=await director.executeCurrent(request.input);
-      else if(request.type==='episode-state')result={ok:true,view:director.snapshot()};
+      else if(request.type==='episode-input-preview')result=normalizeActionInput(request);
+      else if(request.type==='episode-execute'){
+        const normalized=normalizeActionInput(request);
+        result=normalized.ok?await director.executeCurrent(normalized.input):normalized;
+      } else if(request.type==='episode-state')result={ok:true,view:director.snapshot()};
       else if(request.type==='episode-reset')result=director.reset();
       else if(request.type==='episode-checkpoint-export')result=checkpoint.exportCheckpoint();
       else if(request.type==='episode-checkpoint-restore')result=await checkpoint.restoreRuntime(request.input?.checkpoint);
@@ -70,8 +78,9 @@ export function createSettlementEpisodeRuntimeBridge(options={}){
   const listener=(payload)=>{void handle(payload);}; const unsubscribe=bus.on('aapw:settlement-episode:request',listener);
   const snapshot=()=>freeze({version:SETTLEMENT_EPISODE_RUNTIME_BRIDGE_VERSION,disposed,sequence,supportedRequests:[...REQUEST_TYPES],episodes:listSettlementEpisodes().map((id)=>({id,title:getSettlementEpisode(id)?.title??id})),director:director.snapshot(),eventHistory:clone(eventHistory),requestCount:requestOrder.length,digest:digest({director:director.snapshot(),eventHistory})});
   const project=()=>projector.project(director.snapshot()); const exportCheckpoint=()=>checkpoint.exportCheckpoint(); const restoreCheckpoint=(value)=>checkpoint.restoreRuntime(value); const manifest=()=>director.manifest();
+  const previewInput=(stepId,input={})=>buildSettlementEpisodeInputPreview(stepId??currentStepId(),input);
   const dispose=()=>{if(disposed)return{ok:true};disposed=true;try{unsubscribe?.();}catch{}try{projector.dispose?.();}catch{}try{checkpoint.dispose?.();}catch{}try{director.dispose?.();}catch{}try{bus.emit('aapw:settlement-episode:disposed',{version:1,at:now()});}catch{}return{ok:true};};
-  return Object.freeze({version:SETTLEMENT_EPISODE_RUNTIME_BRIDGE_VERSION,runtime,director,projector,checkpoint,handle,project,snapshot,exportCheckpoint,restoreCheckpoint,manifest,dispose});
+  return Object.freeze({version:SETTLEMENT_EPISODE_RUNTIME_BRIDGE_VERSION,runtime,director,projector,checkpoint,handle,project,snapshot,exportCheckpoint,restoreCheckpoint,manifest,previewInput,dispose});
 }
 
 export function createSettlementEpisodeRequest(type,input={}){const source=input&&typeof input==='object'?input:{};return freeze({version:1,requestId:text(source.requestId,`episode-request-${Date.now()}`),type:text(type),episodeId:text(source.episodeId),action:text(source.action),stepId:text(source.stepId),input:clone(source.input??{})});}
