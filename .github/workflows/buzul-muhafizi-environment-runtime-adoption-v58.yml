@@ -1,0 +1,43 @@
+name: Buzul Muhafizi Environment Runtime Adoption V58
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentRuntimeAdoptionV58.js'
+      - 'scripts/checkEnvironmentRuntimeAdoptionV58.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-runtime-adoption-v58.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  environment-runtime-adoption-v58:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact-main ancestry and focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git merge-base --is-ancestor origin/main HEAD
+          files=$(git diff --name-only origin/main...HEAD)
+          test "$(printf '%s\n' "$files" | wc -l | tr -d ' ')" -eq 3
+          printf '%s\n' "$files" | grep -Fx 'src/3d/world/environmentRuntimeAdoptionV58.js'
+          printf '%s\n' "$files" | grep -Fx 'scripts/checkEnvironmentRuntimeAdoptionV58.mjs'
+          printf '%s\n' "$files" | grep -Fx '.github/workflows/buzul-muhafizi-environment-runtime-adoption-v58.yml'
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+      - name: Block geometry, editor and local placement duplication
+        run: |
+          ! grep -RInE 'EditorMaterialStudio|new[[:space:]]+(Mesh|Geometry|BoxGeometry|SphereGeometry|ConeGeometry)|three|hydrateAsset|loadAsset|scene\.add' src/3d/world/environmentRuntimeAdoptionV58.js
+          grep -q 'MaterialAssignmentCore.js' src/3d/world/environmentRuntimeAdoptionV58.js
+          grep -q 'WorldAssetPlacementPipeline.js' src/3d/world/environmentRuntimeAdoptionV58.js
+      - name: Execute runtime regression
+        run: node scripts/checkEnvironmentRuntimeAdoptionV58.mjs
