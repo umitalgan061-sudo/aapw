@@ -86,7 +86,7 @@ for (const texture of [standalone.normalMap, standalone.roughnessMap]) {
 close(standalone.normalScale.x, TERRAIN_MICRO_SURFACE_POLICY.normalStrength, 'normal strength x');
 close(standalone.normalScale.y, TERRAIN_MICRO_SURFACE_POLICY.normalStrength, 'normal strength y');
 assert.equal(standalone.userData.terrainMicroSurface.renderOnly, true);
-assert.equal(standalone.userData.terrainMicroSurface.macroWorldSpaceColorBreakup, true);
+assert.equal(standalone.userData.terrainMicroSurface.macroColorBreakup, true);
 assert.equal(standalone.userData.terrainMicroSurface.photorealDesaturation, true);
 assert.equal(standalone.userData.terrainMicroSurface.naturalAlbedoRemap, true);
 assert.equal(standalone.userData.terrainMicroSurface.regionalMoistureVariation, true);
@@ -106,7 +106,10 @@ assert.equal(standalone.userData.terrainMicroSurface.coastalSaltSprayWeathering,
 assert.equal(standalone.userData.terrainMicroSurface.coastalRoughnessResponse, true);
 assert.equal(standalone.userData.terrainMicroSurface.aspectWeathering, true);
 assert.equal(standalone.userData.terrainMicroSurface.roughnessResponse, true);
-assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v7-coastal-weathering');
+assert(
+  standalone.customProgramCacheKey().includes('|terrain-photoreal-world-surface-v7-coastal-weathering-facies-v1'),
+  'terrain shader cache key must retain the facies-v1 production suffix',
+);
 const shaderHookSource = standalone.onBeforeCompile.toString();
 for (const marker of [
   'terrainPhotoFbm',
@@ -170,7 +173,7 @@ assert.equal(west.material.roughnessMap, east.material.roughnessMap, 'all chunks
 assert.equal(west.material.normalMap.channel, 1);
 assert.equal(west.material.roughnessMap.channel, 1);
 assert.equal(west.userData.currentTerrainMicroSurface.policyId, TERRAIN_MICRO_SURFACE_POLICY.id);
-assert.equal(west.userData.currentTerrainMicroSurface.macroWorldSpaceColorBreakup, true);
+assert.equal(west.userData.currentTerrainMicroSurface.macroColorBreakup, true);
 
 for (const chunk of [west, east]) {
   const positions = chunk.geometry.getAttribute('position');
