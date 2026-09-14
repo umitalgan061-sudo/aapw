@@ -33,7 +33,7 @@ jobs:
           test "$MERGE_BASE" = "$CURRENT_MAIN"
           mapfile -t FILES < <(git diff --name-only "$CURRENT_MAIN"...HEAD)
           printf '%s\n' "${FILES[@]}"
-          allowed='^(src/3d/gameplay/settlementEpisode(Content|Director|Checkpoint|PresentationModel|RuntimeBridge|DialogueContent|DialoguePresenter|HandoffContract|Progression|Journey|UXNavigator)\.js|scripts/checkSettlementEpisode(Content|Catalog|Director|Checkpoint|PresentationModel|RuntimeBridge|Dialogue|FullMatrix|SaveRoundtrip|ActionSemantics|OwnershipBoundary|Determinism|HandoffContract|Progression|UXNavigator)\.mjs|\.github/workflows/rpg-settlement-episode-director\.yml)$'
+          allowed='^(src/3d/gameplay/settlementEpisode(Content|Director|Checkpoint|PresentationModel|RuntimeBridge|DialogueContent|DialoguePresenter|HandoffContract|Progression|Journey|UXNavigator|SavePolicy|RuntimeSnapshot|VerticalSliceAcceptance|InputNormalizer)\.js|scripts/checkSettlementEpisode(Content|Catalog|Director|Checkpoint|PresentationModel|RuntimeBridge|Dialogue|FullMatrix|SaveRoundtrip|ActionSemantics|OwnershipBoundary|Determinism|HandoffContract|Progression|UXNavigator|SavePolicy|RuntimeSnapshot|VerticalSliceAcceptance|EndToEnd|InputBoundary)\.mjs|\.github/workflows/rpg-settlement-episode-director\.yml)$'
           for file in "${FILES[@]}"; do [[ "$file" =~ $allowed ]] || { echo "out-of-scope: $file"; exit 1; }; done
           read -r ADD DEL TOTAL <<< "$(git diff --numstat "$CURRENT_MAIN"...HEAD | awk '{a+=$1;d+=$2} END{print a,d,a+d}')"
           echo "additions=$ADD deletions=$DEL total=$TOTAL"
@@ -51,6 +51,10 @@ jobs:
           node --check src/3d/gameplay/settlementEpisodeProgression.js
           node --check src/3d/gameplay/settlementEpisodeJourney.js
           node --check src/3d/gameplay/settlementEpisodeUXNavigator.js
+          node --check src/3d/gameplay/settlementEpisodeSavePolicy.js
+          node --check src/3d/gameplay/settlementEpisodeRuntimeSnapshot.js
+          node --check src/3d/gameplay/settlementEpisodeVerticalSliceAcceptance.js
+          node --check src/3d/gameplay/settlementEpisodeInputNormalizer.js
       - name: Content regression
         run: node scripts/checkSettlementEpisodeContent.mjs
       - name: Catalog regression
@@ -69,8 +73,16 @@ jobs:
         run: node scripts/checkSettlementEpisodeHandoffContract.mjs
       - name: Progression regression
         run: node scripts/checkSettlementEpisodeProgression.mjs
-      - name: UX navigator regression
+      - name: Journey and UX regression
         run: node scripts/checkSettlementEpisodeUXNavigator.mjs
+      - name: Save policy regression
+        run: node scripts/checkSettlementEpisodeSavePolicy.mjs
+      - name: Runtime snapshot regression
+        run: node scripts/checkSettlementEpisodeRuntimeSnapshot.mjs
+      - name: Vertical slice acceptance
+        run: node scripts/checkSettlementEpisodeVerticalSliceAcceptance.mjs
+      - name: Input boundary regression
+        run: node scripts/checkSettlementEpisodeInputBoundary.mjs
       - name: Save round trip
         run: node scripts/checkSettlementEpisodeSaveRoundtrip.mjs
       - name: Determinism regression
@@ -81,6 +93,8 @@ jobs:
         run: node scripts/checkSettlementEpisodeFullMatrix.mjs
       - name: Action semantics regression
         run: node scripts/checkSettlementEpisodeActionSemantics.mjs
+      - name: End-to-end regression
+        run: node scripts/checkSettlementEpisodeEndToEnd.mjs
       - name: Diff hygiene
         run: git diff --check
       - name: Run283 final-head governance
