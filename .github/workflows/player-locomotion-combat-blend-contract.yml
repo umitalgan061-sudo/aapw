@@ -1,0 +1,29 @@
+name: Player Locomotion Combat Blend Contract
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerLocomotionCombatBlendContract.js'
+      - 'scripts/checkPlayerLocomotionCombatBlendContract.mjs'
+      - '.github/workflows/player-locomotion-combat-blend-contract.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact main ancestry
+        run: git merge-base --is-ancestor origin/main HEAD
+      - name: Verify runtime/editor boundary
+        run: '! grep -R "EditorMaterialStudio\\|from .three.\\|from .three.js." src/3d/gameplay/playerLocomotionCombatBlendContract.js'
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerLocomotionCombatBlendContract.js && node --check scripts/checkPlayerLocomotionCombatBlendContract.mjs
+      - name: Regression
+        run: node scripts/checkPlayerLocomotionCombatBlendContract.mjs
+      - name: Determinism
+        run: node scripts/checkPlayerLocomotionCombatBlendContract.mjs > /tmp/blend-a && node scripts/checkPlayerLocomotionCombatBlendContract.mjs > /tmp/blend-b && cmp /tmp/blend-a /tmp/blend-b
+      - name: Diff budget
+        run: test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
