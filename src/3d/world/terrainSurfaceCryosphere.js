@@ -85,11 +85,9 @@ function rotate(x, z, radians) {
 
 function resolveMeltBand(heightMeters) {
 	const [low, mid, high] = TERRAIN_CRYOSPHERE_POLICY.meltBandMeters;
-	return Math.max(
-		smoothstep(low, mid, heightMeters),
-		smoothstep(high, mid, heightMeters),
-		1 - smoothstep(mid, high + 120, heightMeters),
-	);
+	const lowerTransition = smoothstep(low, low + 70, heightMeters) * (1 - smoothstep(mid - 45, mid + 55, heightMeters));
+	const upperTransition = smoothstep(high - 55, high + 55, heightMeters) * (1 - smoothstep(high + 90, high + 170, heightMeters));
+	return clamp01(Math.max(lowerTransition, upperTransition));
 }
 
 export function resolveTerrainCryosphere({
@@ -159,7 +157,7 @@ float terrainCryoHash(vec2 p){vec3 q=fract(vec3(p.xyx)*vec3(.1031,.1030,.0973));
 float terrainCryoNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);float a=terrainCryoHash(i),b=terrainCryoHash(i+vec2(1,0)),c=terrainCryoHash(i+vec2(0,1)),d=terrainCryoHash(i+vec2(1,1));return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}
 float terrainCryoFbm(vec2 p){float v=0.,w=0.,a=.54;for(int i=0;i<4;i++){v+=terrainCryoNoise(p)*a;w+=a;p=p*2.03+vec2(11.2,-7.9);a*=.48;}return v/w;}
 vec2 terrainCryoRotate(vec2 p,float a){float c=cos(a),s=sin(a);return vec2(p.x*c-p.y*s,p.x*s+p.y*c);}
-float terrainCryoMeltBand(float h){float a=smoothstep(140.,300.,h);float b=smoothstep(470.,300.,h);float c=1.-smoothstep(300.,590.,h);return clamp(max(max(a,b),c),0.,1.);}
+float terrainCryoMeltBand(float h){float lower=smoothstep(140.,210.,h)*(1.-smoothstep(255.,355.,h));float upper=smoothstep(415.,525.,h)*(1.-smoothstep(560.,640.,h));return clamp(max(lower,upper),0.,1.);}
 float terrainCryoMeltFilm(vec3 position,vec3 worldNormal){vec2 p=position.xz;float h=position.y;vec3 n=normalize(worldNormal);float broad=terrainCryoFbm(p/820.+vec2(4.7,-3.1));float noise=terrainCryoFbm(p/54.+vec2(-8.4,13.6));float refreeze=terrainCryoNoise(p/11.+vec2(16.2,-5.7));float luma=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));float chroma=max(diffuseColor.r,max(diffuseColor.g,diffuseColor.b))-min(diffuseColor.r,min(diffuseColor.g,diffuseColor.b));float snow=smoothstep(.58,.88,luma)*(1.-smoothstep(.08,.24,chroma));float warmAspect=clamp(.50-n.z*.20,0.,1.);float slope=1.-clamp(abs(n.y),0.,1.);float band=terrainCryoMeltBand(h);float film=snow*band*warmAspect*(.32+noise*.48)*(1.-smoothstep(.56,.82,slope));return clamp(film*.86+refreeze*.035+broad*.04,0.,1.);}
 vec3 terrainCryoState(vec3 position,vec3 worldNormal,vec3 base){vec2 p=position.xz;float h=position.y;float slope=1.-clamp(abs(normalize(worldNormal).y),0.,1.);vec2 wind=terrainCryoRotate(p,-.58);float broad=terrainCryoFbm(p/820.+vec2(4.7,-3.1));float sastrugi=terrainCryoFbm(wind/34.+vec2(7.1,2.8));float crust=terrainCryoNoise(p/11.+vec2(-12.4,6.9));float grain=terrainCryoNoise(p/2.6+vec2(37.4,-12.8));float luma=dot(base,vec3(.2126,.7152,.0722));float chroma=max(base.r,max(base.g,base.b))-min(base.r,min(base.g,base.b));float snow=smoothstep(.58,.88,luma)*(1.-smoothstep(.08,.24,chroma));float elevationSnow=smoothstep(150.,580.,h);snow=max(snow,elevationSnow*(.58+broad*.24+.18));float scour=snow*smoothstep(.20,.49,slope)*smoothstep(.42,.82,sastrugi);float deposition=snow*(1.-smoothstep(.035,.18,slope))*(.34+(1.-broad)*.66);float crustMask=snow*(.46+crust*.34+sastrugi*.20);float granular=snow*(.48+grain*.52);return vec3(clamp(scour,0.,1.),clamp(deposition,0.,1.),clamp(crustMask+granular*.22,0.,1.));}
 void terrainCryoApplyColor(){vec2 p=vTerrainCryoWorldPosition.xz;vec3 n=normalize(vTerrainCryoWorldNormal);vec3 base=diffuseColor.rgb;float luma=dot(base,vec3(.2126,.7152,.0722));float chroma=max(base.r,max(base.g,base.b))-min(base.r,min(base.g,base.b));float snow=smoothstep(.58,.88,luma)*(1.-smoothstep(.08,.24,chroma));vec3 state=terrainCryoState(vTerrainCryoWorldPosition,vTerrainCryoWorldNormal,base);float broad=terrainCryoFbm(p/820.+vec2(4.7,-3.1));float grain=terrainCryoNoise(p/2.6+vec2(37.4,-12.8));vec3 cold=vec3(.64,.69,.72);vec3 sun=vec3(.79,.80,.80);vec3 tone=mix(cold,sun,broad*.62+grain*.38);float snowTone=snow*clamp(.32+state.z*.44+state.y*.24,0.,1.);diffuseColor.rgb=mix(diffuseColor.rgb,tone,snowTone*.18);float melt=terrainCryoMeltFilm(vTerrainCryoWorldPosition,vTerrainCryoWorldNormal);vec3 meltTone=vec3(.40,.48,.53);float refreeze=terrainCryoNoise(p/11.+vec2(16.2,-5.7));diffuseColor.rgb=mix(diffuseColor.rgb,meltTone,melt*.075);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.72,.76,.78),melt*refreeze*.035);float exposed=state.x*(1.-snow);diffuseColor.rgb=mix(diffuseColor.rgb,base,exposed*.35);}
