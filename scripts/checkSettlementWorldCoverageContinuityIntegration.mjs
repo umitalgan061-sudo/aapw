@@ -70,7 +70,7 @@ assert.ok(stateAfter.history.length>=1);
 runtime.dispose();
 assert.equal(runtime.isDisposed(),true);
 const afterDispose=await runtime.execute('talk',{requestId:'post-dispose'});
-assert.equal(afterDispose.ok,false);
+assert.equal(afterDispose.status,'error');
 assert.equal(afterDispose.code,'disposed');
 
 console.log('Settlement World Coverage Continuity Integration: PASS');
