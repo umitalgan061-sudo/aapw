@@ -6,6 +6,8 @@ import { kitForPalette, resolveKit } from './figureKits.js';
 import { createLayeredMaterial, meshHeightRange, MAX_BANDS } from './layeredMaterial.js';
 import { hashString } from './textureCore.js';
 import { applyWorldMaterialSurfaceFabric } from './worldMaterialSurfaceFabric.js';
+import { applyWorldAssetSurfaceReality } from './worldAssetSurfaceReality.js';
+import { enrichMaterialWithHydrologyReality } from '../world/hydrologySurfaceReality.js';
 
 /**
  * Shared, DOM-free material pipeline used by both editor tooling and autonomous world builders.
@@ -113,7 +115,21 @@ export function applyMaterialRecipe(object, recipe, { metadata = {} } = {}) {
       subject,
       variant,
     });
+    const surfaceReality = applyWorldAssetSurfaceReality(object, {
+      metadata,
+      subject,
+      paletteId: recipe.basePaletteId || result.paletteId || '',
+      variant,
+    });
+    const hydrologySurfaceReality = enrichMaterialWithHydrologyReality(object, {
+      surface: object.userData?.worldPlacementSurface || metadata.canonicalSurface || null,
+      materialProfile: surfaceReality?.reality?.profileId || result.paletteId || 'generic',
+      riverPoints: metadata.canonicalRiverPoints || [],
+      waterfalls: metadata.canonicalWaterfalls || [],
+    });
     result.worldMaterialSurfaceFabric = fabric;
+    result.worldAssetSurfaceReality = surfaceReality;
+    result.hydrologySurfaceReality = hydrologySurfaceReality;
   }
   return result;
 }
