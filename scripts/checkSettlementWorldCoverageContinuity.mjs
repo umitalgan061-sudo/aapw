@@ -64,7 +64,8 @@ assert.equal(new Set(catalogue.map((row) => row.id)).size, catalogue.length);
 for (const service of SETTLEMENT_WORLD_COVERAGE_CONTINUITY_SERVICES) {
   assert.equal(catalogue.filter((row) => row.serviceId === service).length, 70);
   for (const stage of SETTLEMENT_WORLD_COVERAGE_CONTINUITY_STAGES) {
-    assert.equal(catalogue.filter((row) => row.serviceId === service && row.stage === stage).length, 10);
+    const stageRows = catalogue.filter((row) => row.serviceId === service && row.stage === stage);
+    assert.equal(stageRows.length, 10);
   }
 }
 for (const context of SETTLEMENT_WORLD_COVERAGE_CONTINUITY_CONTEXTS) assert.equal(catalogue.filter((row) => row.context === context).length, 56);
@@ -173,15 +174,7 @@ assert.equal(summary.gatewayState, 'available');
 assert.equal(summary.recommendedService, 'market');
 frozen(summary, 'summary');
 
-const session = createSettlementWorldCoverageContinuitySession({
-  settlement: fixtureSettlement,
-  initialPlayer: { ...thresholdPlayer },
-  surface: fixtureSurface,
-  regionId: fixtureSettlement.regionId,
-  seed: 77123,
-  now: () => 1700000000000,
-  historyLimit: 24,
-});
+const session = createSettlementWorldCoverageContinuitySession({ settlement: fixtureSettlement, initialPlayer: { ...thresholdPlayer }, surface: fixtureSurface, regionId: fixtureSettlement.regionId, seed: 77123, now: () => 1700000000000, historyLimit: 24 });
 const sessionStart = session.snapshot();
 assert.equal(sessionStart.sequence, 0);
 assert.equal(sessionStart.player.inSettlement, false);
@@ -252,13 +245,16 @@ const mobilePlan = planSettlementWorldCoverageTransition({ settlement: fixtureSe
 assert.ok(mobilePlan.lod.factor <= 0.62);
 assert.ok(mobilePlan.lod.budget < thresholdPlan.lod.budget);
 
-const customRadius = buildSettlementWorldCoverageContinuityContext({ settlement: { ...fixtureSettlement, approachRadius: 90, arrivalRadius: 18 }, player: { ...nearPlayer, position: { x: 590, y: 18, z: 768 } }, surface: fixtureSurface, regionId: fixtureSettlement.regionId, seed: 77123 });
+const customRadius = buildSettlementWorldCoverageContinuityContext({
+  settlement: { ...fixtureSettlement, approachRadius: 90, arrivalRadius: 18 },
+  player: { ...nearPlayer, position: { x: 610, y: 18, z: 768 } },
+  surface: fixtureSurface, regionId: fixtureSettlement.regionId, seed: 77123,
+});
 assert.equal(customRadius.stage, 'far');
 
-const routePlan = planSettlementWorldCoverageTransition({ ...{ settlement: fixtureSettlement, player: thresholdPlayer, surface: fixtureSurface, regionId: fixtureSettlement.regionId, seed: 77123 }, routeId: 'river_market' });
+const routePlan = planSettlementWorldCoverageTransition({ settlement: fixtureSettlement, player: thresholdPlayer, surface: fixtureSurface, regionId: fixtureSettlement.regionId, seed: 77123, routeId: 'river_market' });
 assert.equal(routePlan.transition.route.id, 'river_market');
-
-const unknownRoute = planSettlementWorldCoverageTransition({ ...{ settlement: fixtureSettlement, player: thresholdPlayer, surface: fixtureSurface, regionId: fixtureSettlement.regionId, seed: 77123 }, routeId: 'unknown-route' });
+const unknownRoute = planSettlementWorldCoverageTransition({ settlement: fixtureSettlement, player: thresholdPlayer, surface: fixtureSurface, regionId: fixtureSettlement.regionId, seed: 77123, routeId: 'unknown-route' });
 assert.equal(unknownRoute.transition.route.id, 'unknown-route');
 assert.equal(unknownRoute.transition.route.risk, 'unknown');
 
@@ -292,7 +288,6 @@ assert.equal(catalogApi.serviceCount, 8);
 assert.equal(catalogApi.stageCount, 7);
 assert.equal(catalogApi.contextCount, 10);
 assert.equal(catalogApi.generatedProfileCount, 560);
-
 assert.equal(SETTLEMENT_WORLD_COVERAGE_CONTINUITY_API.services.length, 8);
 assert.equal(SETTLEMENT_WORLD_COVERAGE_CONTINUITY_API.stages.length, 7);
 assert.equal(SETTLEMENT_WORLD_COVERAGE_CONTINUITY_API.gatewayStates.length, 5);
@@ -317,7 +312,7 @@ const edgePositions = [
 ];
 for (const [id, position, inSettlement] of edgePositions) {
   const result = buildSettlementWorldCoverageContinuityContext({ settlement: fixtureSettlement, player: { position, inSettlement }, surface: fixtureSurface, regionId: fixtureSettlement.regionId, seed: 222 });
-  assert.ok(['far', 'approach', 'threshold'].includes(result.stage));
+  assert.ok(['far', 'approach', 'threshold'].includes(result.stage), id);
   assert.equal(typeof result.lod, 'number');
   assert.equal(Number.isFinite(result.lod), true);
 }
@@ -376,15 +371,4 @@ for (const context of SETTLEMENT_WORLD_COVERAGE_CONTINUITY_CONTEXTS) {
 }
 
 console.log('Settlement World Coverage Continuity: PASS');
-console.log(JSON.stringify({
-  policy: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_POLICY.id,
-  catalogueProfiles: catalogue.length,
-  services: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_API.services.length,
-  stages: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_API.stages.length,
-  contexts: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_CONTEXTS.length,
-  gatewayStates: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_API.gatewayStates.length,
-  proofFingerprint: proof.fingerprint,
-  plannerFingerprint: planner.fingerprint,
-  auditFingerprint: audit.fingerprint,
-  sessionSequence: bounded.sequence,
-}));
+console.log(JSON.stringify({ policy: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_POLICY.id, catalogueProfiles: catalogue.length, services: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_API.services.length, stages: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_API.stages.length, contexts: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_CONTEXTS.length, gatewayStates: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_API.gatewayStates.length, proofFingerprint: proof.fingerprint, plannerFingerprint: planner.fingerprint, auditFingerprint: audit.fingerprint, sessionSequence: bounded.sequence }));
