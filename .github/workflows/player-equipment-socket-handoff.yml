@@ -1,0 +1,30 @@
+name: Kızıl Ufuk Player Equipment Socket Handoff
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/playerEquipmentSocketHandoffContract.js'
+      - 'scripts/checkPlayerEquipmentSocketHandoffContract.mjs'
+      - '.github/workflows/player-equipment-socket-handoff.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: |
+          node --check src/3d/gameplay/playerEquipmentSocketHandoffContract.js
+          node --check scripts/checkPlayerEquipmentSocketHandoffContract.mjs
+          ! grep -n "EditorMaterialStudio" src/3d/gameplay/playerEquipmentSocketHandoffContract.js
+          node scripts/checkPlayerEquipmentSocketHandoffContract.mjs > /tmp/a
+          node scripts/checkPlayerEquipmentSocketHandoffContract.mjs > /tmp/b
+          cmp /tmp/a /tmp/b
