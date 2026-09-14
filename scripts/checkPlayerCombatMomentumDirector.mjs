@@ -52,6 +52,7 @@ assert.ok(afterTick.finisherWindowRemaining >= 0);
 const failure = createPlayerCombatMomentumDirector({ target: new Target(), emit: false });
 const neutral = createPlayerCombatMomentumDirector({ target: new Target(), emit: false });
 failure.applyOutcome('heavy-hit', {}, 1);
+failure.applyOutcome('heavy-hit', {}, 1.4);
 neutral.applyOutcome('heavy-hit', {}, 1);
 failure.applyOutcome('hit-stagger', {}, 1.5);
 const failureBefore = failure.read().score;
