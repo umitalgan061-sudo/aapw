@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { resolvePlayerAnimationTransition } from '../src/3d/gameplay/playerAnimationDirector.js';
+import { resolvePlayerAnimationTransition } from '../src/3d/gameplay/playerAnimationTransitionPolicy.js';
 
 const rising = resolvePlayerAnimationTransition({ previousSemanticState: 'locomotion', planarSpeedMps: 5.55 });
 assert.equal(rising, 'locomotion');
