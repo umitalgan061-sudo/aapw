@@ -1,0 +1,64 @@
+name: Settlement World Coverage Governance
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementWorldCoverage*.js'
+      - 'scripts/checkSettlementWorldCoverage*.mjs'
+      - '.github/workflows/settlement-world-coverage*.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementWorldCoverage*.js'
+      - 'scripts/checkSettlementWorldCoverage*.mjs'
+      - '.github/workflows/settlement-world-coverage*.yml'
+
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Execute stable coverage regressions
+        run: |
+          node scripts/checkSettlementWorldCoverageContract.mjs
+          node scripts/checkSettlementWorldCoverageDeterminism.mjs
+          node scripts/checkSettlementWorldCoverageManifest.mjs
+          node scripts/checkSettlementWorldCoverageBrowserBoundary.mjs
+          node scripts/checkSettlementWorldCoverageApiSurface.mjs
+          node scripts/checkSettlementWorldCoverageReadiness.mjs
+      - name: Syntax-check session and adapter fixtures
+        run: |
+          node --check scripts/checkSettlementWorldCoverageSlice.mjs
+          node --check scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs
+      - name: Execute freshness guard
+        run: node scripts/checkSettlementWorldCoverageFreshness.mjs
+      - name: Validate every coverage runtime module
+        run: |
+          for file in src/3d/gameplay/settlementWorldCoverageSlice.js src/3d/gameplay/settlementWorldCoverageAcceptance.js src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js src/3d/gameplay/settlementWorldCoverageReadiness.js; do
+            node --check "$file"
+          done
+      - name: Confirm no coverage module owns editor or placement runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE 'EditorMaterialStudio\.js|MaterialAssignmentCore\.js|WorldAssetPlacementPipeline\.js|BoxGeometry|MeshBasicMaterial|MeshStandardMaterial' src/3d/gameplay/settlementWorldCoverage*.js; then
+            echo 'World Coverage modules must consume shared contracts, not own them.'
+            exit 1
+          fi
+      - name: Confirm only scoped files changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          base="$(git rev-parse origin/main)"
+          while IFS= read -r file; do
+            case "$file" in
+              src/3d/gameplay/settlementWorldCoverage*.js|scripts/checkSettlementWorldCoverage*.mjs|.github/workflows/settlement-world-coverage*.yml|docs/settlement-world-coverage.md) ;;
+              *) echo "Unexpected World Coverage file: $file"; exit 1 ;;
+            esac
+          done < <(git diff --name-only "$base...HEAD")
