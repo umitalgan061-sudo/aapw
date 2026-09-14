@@ -3,11 +3,14 @@
  *
  * Render-only. The canonical terrain mesh supplies the actual lowland relief; this layer only makes
  * that relief legible through subtle depositional ribbons, wet swales, dry benches, soil aggregates,
- * mineral lag and directional micro-normal response. The field is deliberately anisotropic and
- * domain-warped rather than a circular repeating noise stamp.
+ * mineral lag and directional micro-normal response. The vegetation-edge hook is chained here because
+ * this material is applied to all terrain chunks; its own masks naturally become negligible outside
+ * the lowland regime without touching vegetation placement data.
  *
  * @module world/terrainSurfaceLowlandFabric
  */
+
+import { TERRAIN_VEGETATION_EDGE_POLICY, installTerrainVegetationEdge } from './terrainSurfaceVegetationEdge.js';
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -37,6 +40,7 @@ export const TERRAIN_LOWINLAND_FABRIC_POLICY = Object.freeze({
 	drynessGain: 0.14,
 	aggregateNormalEnergy: 0.075,
 	aggregateRoughnessEnergy: 0.12,
+	vegetationEdgePolicyId: TERRAIN_VEGETATION_EDGE_POLICY.id,
 });
 
 function hash2D(ix, iz, seed) {
@@ -115,21 +119,7 @@ export function resolveTerrainLowlandFabric({ worldX, worldZ, heightMeters = 0, 
 	const soilAggregate = lowland * (0.34 + domain.aggregate * 0.66) * (0.55 + dryBench * 0.45);
 	const mineralLag = lowland * domain.lag * (0.30 + domain.macro * 0.42 + (1 - moistureField) * 0.28);
 	const ecologicalBreak = clamp01(domain.meso * 0.56 + domain.fine * 0.28 + domain.broad * 0.16);
-	return Object.freeze({
-		lowland,
-		moistureField,
-		wetSwale,
-		dryBench,
-		alluvialRibbon,
-		soilAggregate,
-		mineralLag,
-		ecologicalBreak,
-		regional: domain.regional,
-		broad: domain.broad,
-		macro: domain.macro,
-		meso: domain.meso,
-		fine: domain.fine,
-	});
+	return Object.freeze({ lowland, moistureField, wetSwale, dryBench, alluvialRibbon, soilAggregate, mineralLag, ecologicalBreak, regional: domain.regional, broad: domain.broad, macro: domain.macro, meso: domain.meso, fine: domain.fine });
 }
 
 export function resolveTerrainLowlandMaterialResponse({ fabric, baseColor }) {
@@ -189,7 +179,9 @@ export function installTerrainLowlandFabric(material) {
 			mineralLagBreakup: true,
 			lowlandMicroNormals: true,
 			worldSpaceRoughnessVariation: true,
+			vegetationEdgePolicyId: TERRAIN_VEGETATION_EDGE_POLICY.id,
 		}),
 	};
+	installTerrainVegetationEdge(material);
 	return material;
 }

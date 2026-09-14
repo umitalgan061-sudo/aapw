@@ -8,7 +8,13 @@ on:
       - 'src/3d/world/terrainMicroSurface.js'
       - 'src/3d/world/terrainSurfaceFacies.js'
       - 'src/3d/world/terrainSurfaceTransitionField.js'
+      - 'src/3d/world/terrainSurfaceRockFabric.js'
+      - 'src/3d/world/terrainSurfaceLowlandFabric.js'
+      - 'src/3d/world/terrainSurfaceCryosphere.js'
+      - 'src/3d/world/terrainSurfaceErosionField.js'
+      - 'src/3d/world/terrainSurfaceVegetationEdge.js'
       - 'scripts/checkTerrainSurfaceFacies.mjs'
+      - 'scripts/checkTerrainVegetationEdge.mjs'
       - 'scripts/captureFullWorld3DTopdown.mjs'
       - 'scripts/fullWorld3DTopdownHarness.html'
       - '.github/workflows/terrain-facies-exact-head.yml'
@@ -43,15 +49,27 @@ jobs:
           set -euo pipefail
           node --check src/3d/world/terrainSurfaceFacies.js
           node --check src/3d/world/terrainSurfaceTransitionField.js
+          node --check src/3d/world/terrainSurfaceRockFabric.js
+          node --check src/3d/world/terrainSurfaceLowlandFabric.js
+          node --check src/3d/world/terrainSurfaceCryosphere.js
+          node --check src/3d/world/terrainSurfaceErosionField.js
+          node --check src/3d/world/terrainSurfaceVegetationEdge.js
           node --check src/3d/world/terrainMicroSurface.js
           node --check scripts/checkTerrainSurfaceFacies.mjs
+          node --check scripts/checkTerrainVegetationEdge.mjs
           node --check scripts/captureFullWorld3DTopdown.mjs
 
-      - name: Deterministic production contract test
+      - name: Deterministic terrain material contract
         shell: bash
         run: |
           set -euo pipefail
           node scripts/checkTerrainSurfaceFacies.mjs
+
+      - name: Deterministic vegetation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkTerrainVegetationEdge.mjs
 
       - name: Install isolated browser dependency
         shell: bash
