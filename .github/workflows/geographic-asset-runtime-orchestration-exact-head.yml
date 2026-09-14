@@ -1,0 +1,162 @@
+name: Geographic Asset Runtime Orchestration Exact Head
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/geographicAssetRegionProfiles.js'
+      - 'src/3d/world/geographicAssetRuntimeOrchestrator.js'
+      - 'src/3d/world/geographicAssetRuntimeExecutionAdapter.js'
+      - 'src/3d/world/geographicAssetRuntimeAudit.js'
+      - 'src/3d/world/geographicAssetRuntimeChunkCoordinator.js'
+      - 'scripts/checkGeographicAssetRuntimeOrchestrator.mjs'
+      - 'scripts/checkGeographicAssetRuntimeEdgeCases.mjs'
+      - '.github/workflows/geographic-asset-runtime-orchestration-exact-head.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/3d/world/geographicAssetRegionProfiles.js'
+      - 'src/3d/world/geographicAssetRuntimeOrchestrator.js'
+      - 'src/3d/world/geographicAssetRuntimeExecutionAdapter.js'
+      - 'src/3d/world/geographicAssetRuntimeAudit.js'
+      - 'src/3d/world/geographicAssetRuntimeChunkCoordinator.js'
+      - 'scripts/checkGeographicAssetRuntimeOrchestrator.mjs'
+      - 'scripts/checkGeographicAssetRuntimeEdgeCases.mjs'
+      - '.github/workflows/geographic-asset-runtime-orchestration-exact-head.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact trigger head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Assert exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          echo "exact-head=$(git rev-parse HEAD)"
+
+      - name: Verify expected modules exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            src/3d/world/geographicAssetRegionProfiles.js
+            src/3d/world/geographicAssetRuntimeOrchestrator.js
+            src/3d/world/geographicAssetRuntimeExecutionAdapter.js
+            src/3d/world/geographicAssetRuntimeAudit.js
+            src/3d/world/geographicAssetRuntimeChunkCoordinator.js
+            scripts/checkGeographicAssetRuntimeOrchestrator.mjs
+            scripts/checkGeographicAssetRuntimeEdgeCases.mjs
+          )
+          for file in "${files[@]}"; do test -f "$file"; done
+
+      - name: Syntax check runtime modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/geographicAssetRegionProfiles.js
+          node --check src/3d/world/geographicAssetRuntimeOrchestrator.js
+          node --check src/3d/world/geographicAssetRuntimeExecutionAdapter.js
+          node --check src/3d/world/geographicAssetRuntimeAudit.js
+          node --check src/3d/world/geographicAssetRuntimeChunkCoordinator.js
+          node --check scripts/checkGeographicAssetRuntimeOrchestrator.mjs
+          node --check scripts/checkGeographicAssetRuntimeEdgeCases.mjs
+
+      - name: Execute orchestration matrix
+        shell: bash
+        run: node scripts/checkGeographicAssetRuntimeOrchestrator.mjs
+
+      - name: Execute edge-case matrix
+        shell: bash
+        run: node scripts/checkGeographicAssetRuntimeEdgeCases.mjs
+
+      - name: Architectural boundary audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "three" src/3d/world/geographicAssetRuntimeOrchestrator.js
+          ! grep -R "THREE" src/3d/world/geographicAssetRuntimeOrchestrator.js
+          ! grep -R "createMesh\|add(.*scene\|scene.add" src/3d/world/geographicAssetRuntimeOrchestrator.js
+          ! grep -R "terrain.*set\|hydrology.*set\|road.*set\|settlement.*set" src/3d/world/geographicAssetRuntimeOrchestrator.js
+          grep -q "deterministic: true" src/3d/world/geographicAssetRuntimeOrchestrator.js
+          grep -q "chunkContinuity: true" src/3d/world/geographicAssetRuntimeOrchestrator.js
+          grep -q "noTerrainMutation: true" src/3d/world/geographicAssetRuntimeExecutionAdapter.js
+
+      - name: Profile catalogue audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { validateGeographicRegionProfiles, GEOGRAPHIC_REGION_PROFILES } from './src/3d/world/geographicAssetRegionProfiles.js';
+          const result = validateGeographicRegionProfiles();
+          if (!result.ok) throw new Error(result.errors.join(','));
+          if (result.count !== GEOGRAPHIC_REGION_PROFILES.length) throw new Error('profile-count-mismatch');
+          if (result.count < 40) throw new Error('profile-catalogue-too-small');
+          console.log(JSON.stringify({ ok: true, profileCount: result.count }));
+          NODE
+
+      - name: Runtime export audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import * as runtime from './src/3d/world/geographicAssetRuntimeOrchestrator.js';
+          import * as execution from './src/3d/world/geographicAssetRuntimeExecutionAdapter.js';
+          import * as audit from './src/3d/world/geographicAssetRuntimeAudit.js';
+          import * as coordinator from './src/3d/world/geographicAssetRuntimeChunkCoordinator.js';
+          const required = [
+            [runtime,'planRuntime'], [runtime,'buildChunkRuntimePlan'], [runtime,'verifyRuntimePlanDeterminism'],
+            [execution,'buildChunkExecution'], [execution,'verifyExecutionDeterminism'],
+            [audit,'auditPlan'], [audit,'qualifyOrganicDistribution'],
+            [coordinator,'planAndCoordinate'], [coordinator,'buildCoordinatorState'],
+          ];
+          for (const [module, name] of required) if (typeof module[name] !== 'function') throw new Error(`missing:${name}`);
+          console.log(JSON.stringify({ ok: true, exportCount: required.length }));
+          NODE
+
+      - name: Deterministic replay spot check
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { planRuntime, runtimePlanDigest } from './src/3d/world/geographicAssetRuntimeOrchestrator.js';
+          const options = {
+            anchor: { x: 12, z: 24, id: 'ci', surface: { biome: 'forest', moisture: .72, elevationMeters: 240, slopeDegrees: 8 } },
+            regionId: 'north_temperate_forest',
+            familyIds: ['pine','birch'],
+            mode: 'ambient',
+            seed: 424242,
+          };
+          const a = planRuntime(options);
+          const b = planRuntime(options);
+          if (runtimePlanDigest(a) !== runtimePlanDigest(b)) throw new Error('runtime-not-deterministic');
+          console.log(JSON.stringify({ ok: true, digest: runtimePlanDigest(a), accepted: a.acceptedCount }));
+          NODE
+
+      - name: Emit exact-head proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/geographic-asset-runtime
+          printf '%s\n' "head_sha=${GITHUB_SHA}" > artifacts/geographic-asset-runtime/exact-head.txt
+          printf '%s\n' "workflow=Geographic Asset Runtime Orchestration Exact Head" >> artifacts/geographic-asset-runtime/exact-head.txt
+          printf '%s\n' "runtime_policy=geographic-asset-runtime-orchestrator-2026-09-14-v1" >> artifacts/geographic-asset-runtime/exact-head.txt
+          printf '%s\n' "execution_policy=geographic-asset-runtime-execution-adapter-2026-09-14-v1" >> artifacts/geographic-asset-runtime/exact-head.txt
+          printf '%s\n' "audit_policy=geographic-asset-runtime-audit-2026-09-14-v1" >> artifacts/geographic-asset-runtime/exact-head.txt
+          git diff --stat "$(git rev-list --max-parents=0 HEAD)" -- . ':(exclude)3D_GAME_PROGRESS.md' | tee artifacts/geographic-asset-runtime/diff-stat.txt
+
+      - name: Upload exact-head proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: geographic-asset-runtime-exact-head-${{ github.sha }}
+          path: artifacts/geographic-asset-runtime
+          if-no-files-found: error
