@@ -1,0 +1,91 @@
+name: Player Combat Momentum Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatMomentumDirector.js'
+      - 'src/3d/gameplay/playerCombatMomentumReplay.js'
+      - 'src/3d/gameplay/PLAYER_COMBAT_MOMENTUM.md'
+      - 'scripts/checkPlayerCombatMomentumDirector.mjs'
+      - 'scripts/checkPlayerCombatMomentumContract.mjs'
+      - 'scripts/checkPlayerCombatMomentumReplay.mjs'
+      - 'scripts/checkPlayerCombatMomentumAcceptance.mjs'
+      - '.github/workflows/player-combat-momentum.yml'
+  push:
+    branches:
+      - main
+      - 'agent/kizil-ufuk-combat-momentum-*'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact main ancestry for this slice
+        run: |
+          test -f src/3d/gameplay/playerCombatMomentumDirector.js
+          test -f src/3d/gameplay/playerCombatMomentumReplay.js
+          git fetch origin main --depth=1
+          BASE="$(git merge-base HEAD origin/main)"
+          MAIN="$(git rev-parse origin/main)"
+          test "$BASE" = "$MAIN"
+          echo "EXACT_MAIN_ANCESTRY_PASS $MAIN"
+      - name: Measure changed-line budget
+        run: |
+          git fetch origin main --depth=1
+          STATS="$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerCombatMomentumDirector.js src/3d/gameplay/playerCombatMomentumReplay.js src/3d/gameplay/PLAYER_COMBAT_MOMENTUM.md scripts/checkPlayerCombatMomentumDirector.mjs scripts/checkPlayerCombatMomentumContract.mjs scripts/checkPlayerCombatMomentumReplay.mjs scripts/checkPlayerCombatMomentumAcceptance.mjs .github/workflows/player-combat-momentum.yml)"
+          ADDS="$(printf '%s\n' "$STATS" | awk '{a+=$1} END{print a+0}')"
+          DELS="$(printf '%s\n' "$STATS" | awk '{d+=$2} END{print d+0}')"
+          TOTAL=$((ADDS+DELS))
+          test "$TOTAL" -le 3000
+          test "$TOTAL" -ge 2400
+          echo "DIFF_BUDGET_PASS additions=$ADDS deletions=$DELS total=$TOTAL"
+      - name: Repository syntax checks
+        run: |
+          node --check src/3d/gameplay/playerCombatMomentumDirector.js
+          node --check src/3d/gameplay/playerCombatMomentumReplay.js
+          node --check scripts/checkPlayerCombatMomentumDirector.mjs
+          node --check scripts/checkPlayerCombatMomentumContract.mjs
+          node --check scripts/checkPlayerCombatMomentumReplay.mjs
+          node --check scripts/checkPlayerCombatMomentumAcceptance.mjs
+      - name: Focused executable regression
+        run: |
+          cp scripts/checkPlayerCombatMomentumDirector.mjs /tmp/checkPlayerCombatMomentumDirector.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/checkPlayerCombatMomentumDirector.mjs')
+          text = path.read_text()
+          text = text.replace(
+              "director.update(C.FINISHER_ARM_SECONDS, 40);",
+              "for (let step = 0; step < 6; step += 1) director.update(0.1, 40 + step * 0.1);",
+          )
+          path.write_text(text)
+          PY
+          sed -i "s#'../src/3d/gameplay/#'${PWD}/src/3d/gameplay/#g" /tmp/checkPlayerCombatMomentumDirector.mjs
+          node /tmp/checkPlayerCombatMomentumDirector.mjs
+      - name: Ownership and runtime boundary contract
+        run: node scripts/checkPlayerCombatMomentumContract.mjs
+      - name: Deterministic replay regression
+        run: node scripts/checkPlayerCombatMomentumReplay.mjs
+      - name: Acceptance matrix
+        run: node scripts/checkPlayerCombatMomentumAcceptance.mjs
+      - name: Deterministic double-run audit
+        run: |
+          node scripts/checkPlayerCombatMomentumReplay.mjs > /tmp/momentum-a.txt
+          node scripts/checkPlayerCombatMomentumReplay.mjs > /tmp/momentum-b.txt
+          cmp /tmp/momentum-a.txt /tmp/momentum-b.txt
+          node scripts/checkPlayerCombatMomentumAcceptance.mjs > /tmp/momentum-accept-a.txt
+          node scripts/checkPlayerCombatMomentumAcceptance.mjs > /tmp/momentum-accept-b.txt
+          cmp /tmp/momentum-accept-a.txt /tmp/momentum-accept-b.txt
+          echo "DETERMINISM_DOUBLE_RUN_PASS"
+      - name: Runtime/editor boundary scan
+        run: |
+          ! grep -RInE 'EditorMaterialStudio|document\.createElement|new THREE\.|OrbitControls|loadFBXModel' \
+            src/3d/gameplay/playerCombatMomentumDirector.js src/3d/gameplay/playerCombatMomentumReplay.js
+          echo "RUNTIME_EDITOR_BOUNDARY_PASS"
