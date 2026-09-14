@@ -1,0 +1,127 @@
+name: Buzul Muhafızı — Environment Grounded Visual Runtime v63
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  v63:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require exact main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          BASE_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          MERGE_BASE="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          test "$MERGE_BASE" = "$BASE_SHA"
+          echo "exact-main base=$BASE_SHA head=$HEAD_SHA"
+
+      - name: Check focused changed-file scope and diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          mapfile -t FILES < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sort)
+          test "${#FILES[@]}" -le 10
+          for file in "${FILES[@]}"; do
+            case "$file" in
+              src/3d/world/environmentGroundedVisualRuntimeV63.js|\
+              src/3d/world/environmentGroundedVisualEvidenceV63.js|\
+              src/3d/world/environmentGroundedWorldQueriesV63.js|\
+              src/3d/world/environmentGroundedVisualRuntimeV63Diagnostics.js|\
+              src/3d/world/environmentGroundedSceneProofV63.js|\
+              scripts/checkEnvironmentGroundedVisualV63Core.mjs|\
+              scripts/checkEnvironmentGroundedVisualV63P0P5.mjs|\
+              scripts/checkEnvironmentGroundedVisualV63PerfDeterminism.mjs|\
+              scripts/checkEnvironmentGroundedVisualV63WorldQueries.mjs|\
+              scripts/checkEnvironmentGroundedSceneProofV63.mjs|\
+              .github/workflows/buzul-muhafizi-environment-grounded-visual-runtime-v63.yml) : ;;
+              *) echo "out-of-scope file: $file"; exit 1 ;;
+            esac
+          done
+          CHANGED="$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$CHANGED" -le 3000
+          test "$CHANGED" -ge 2850
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          echo "changed-lines=$CHANGED"
+
+      - name: Reject editor runtime and geometry creation
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          DIFF="$(git diff --unified=0 "$BASE_SHA" "$HEAD_SHA")"
+          ! grep -E '^[+].*EditorMaterialStudio\.js' <<<"$DIFF"
+          ! grep -E '^[+].*MaterialAssignmentCore\.js' <<<"$DIFF" | grep -E 'import|from' || true
+          ! grep -E '^[+].*(BoxGeometry|SphereGeometry|ConeGeometry|CylinderGeometry|PlaneGeometry)' <<<"$DIFF"
+          ! grep -E '^[+].*(new THREE\.|new Mesh\(|new InstancedMesh\()' <<<"$DIFF"
+
+      - name: Syntax-check V63 JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            src/3d/world/environmentGroundedVisualRuntimeV63.js \
+            src/3d/world/environmentGroundedVisualEvidenceV63.js \
+            src/3d/world/environmentGroundedWorldQueriesV63.js \
+            src/3d/world/environmentGroundedVisualRuntimeV63Diagnostics.js \
+            src/3d/world/environmentGroundedSceneProofV63.js \
+            scripts/checkEnvironmentGroundedVisualV63Core.mjs \
+            scripts/checkEnvironmentGroundedVisualV63P0P5.mjs \
+            scripts/checkEnvironmentGroundedVisualV63PerfDeterminism.mjs \
+            scripts/checkEnvironmentGroundedVisualV63WorldQueries.mjs \
+            scripts/checkEnvironmentGroundedSceneProofV63.mjs; do
+            node --check "$file"
+          done
+
+      - name: Run core V63 regression
+        run: node scripts/checkEnvironmentGroundedVisualV63Core.mjs
+
+      - name: Run P0-P5 visual matrix
+        run: node scripts/checkEnvironmentGroundedVisualV63P0P5.mjs
+
+      - name: Run performance and determinism matrix
+        run: node scripts/checkEnvironmentGroundedVisualV63PerfDeterminism.mjs
+
+      - name: Run world-query suite
+        run: node scripts/checkEnvironmentGroundedVisualV63WorldQueries.mjs
+
+      - name: Run shipped-scene proof suite
+        run: node scripts/checkEnvironmentGroundedSceneProofV63.mjs
+
+      - name: Verify shared Material / Placement contract reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F "MaterialAssignmentCore.js" src/3d/world/environmentGroundedVisualRuntimeV63.js
+          grep -F "WorldAssetPlacementPipeline.js" src/3d/world/environmentGroundedVisualRuntimeV63.js
+          grep -F "mergedSuccessor: 590" src/3d/world/environmentGroundedVisualRuntimeV63.js
+          ! grep -R "EditorMaterialStudio" src/3d/world/environmentGrounded*V63.js
+
+      - name: Verify canonical ownership boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          for path in src/3d/terrain/terrain.js src/3d/water/water.js src/3d/sceneManager.js src/3d/world/naturalGeology.js src/3d/world/rivers.js src/3d/world/roads.js; do
+            if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Fx "$path"; then
+              echo "contested production path changed: $path"
+              exit 1
+            fi
+          done
