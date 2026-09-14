@@ -35,4 +35,9 @@ assert.ok(Number.isFinite(malformed.samples[0].surface.grass));
 assert.equal(malformed.atmosphere.blackSkyRisk, true);
 assert.equal(malformed.samples[0].water.class, 'river');
 
+const unknownWater = createEnvironmentShorelineAdoptionPlan({ samples: [{ waterClass: 'canal', waterDistance: 0, waterDepth: 0, assetReady: true, confidence: 1 }] });
+assert.equal(unknownWater.samples[0].water.class, 'unknown');
+assert.equal(unknownWater.samples[0].placement.eligible, false);
+assert.equal(unknownWater.riskCounts.unknownWaterClass, 1);
+
 console.log(JSON.stringify({ ok: true, digest: first.digest, riskCounts: first.riskCounts }));
