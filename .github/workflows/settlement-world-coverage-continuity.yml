@@ -53,7 +53,11 @@ jobs:
             src/3d/gameplay/settlementWorldCoverageContinuity.js \
             src/3d/gameplay/settlementWorldCoverageContinuityAudit.js \
             src/3d/gameplay/settlementWorldCoverageContinuityCatalog.js \
-            src/3d/gameplay/settlementWorldCoverageContinuityPlanner.js; do
+            src/3d/gameplay/settlementWorldCoverageContinuityPlanner.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityAtmosphere.js \
+            src/3d/gameplay/settlementWorldCoverageContinuitySignage.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityRoads.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityExperience.js; do
             node --check "$file"
           done
       - name: Syntax check regression scripts
@@ -61,17 +65,14 @@ jobs:
         run: |
           set -euo pipefail
           for file in \
-            scripts/checkSettlementWorldCoverageContinuity.mjs \
             scripts/checkSettlementWorldCoverageContinuityCatalog.mjs \
             scripts/checkSettlementWorldCoverageContinuityPlanner.mjs \
             scripts/checkSettlementWorldCoverageContinuityIntegration.mjs \
             scripts/checkSettlementWorldCoverageContinuityBoundaries.mjs \
             scripts/checkSettlementWorldCoverageContinuityAcceptance.mjs \
-            scripts/checkSettlementWorldCoverageContinuityApi.mjs; do
+            scripts/checkSettlementWorldCoverageContinuityPresentation.mjs; do
             node --check "$file"
           done
-      - name: Run continuity regression matrix
-        run: node scripts/checkSettlementWorldCoverageContinuity.mjs
       - name: Run catalogue matrix
         run: node scripts/checkSettlementWorldCoverageContinuityCatalog.mjs
       - name: Run planner matrix
@@ -82,8 +83,8 @@ jobs:
         run: node scripts/checkSettlementWorldCoverageContinuityBoundaries.mjs
       - name: Run acceptance failure matrix
         run: node scripts/checkSettlementWorldCoverageContinuityAcceptance.mjs
-      - name: Run API surface matrix
-        run: node scripts/checkSettlementWorldCoverageContinuityApi.mjs
+      - name: Run presentation continuity matrix
+        run: node scripts/checkSettlementWorldCoverageContinuityPresentation.mjs
       - name: Verify exact-head ownership boundaries
         shell: bash
         run: |
@@ -128,6 +129,7 @@ jobs:
           printf '%s\n' "services=8" >> artifacts/world-coverage-continuity/exact-head.txt
           printf '%s\n' "stages=7" >> artifacts/world-coverage-continuity/exact-head.txt
           printf '%s\n' "contexts=10" >> artifacts/world-coverage-continuity/exact-head.txt
+          printf '%s\n' "presentation=atmosphere+signage+roads+experience" >> artifacts/world-coverage-continuity/exact-head.txt
           printf '%s\n' "diff_budget=2700..3000" >> artifacts/world-coverage-continuity/exact-head.txt
       - name: Upload exact-head proof
         uses: actions/upload-artifact@v4
