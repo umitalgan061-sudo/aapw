@@ -5,9 +5,11 @@ on:
     paths:
       - 'src/3d/gameplay/playerCombatMomentumDirector.js'
       - 'src/3d/gameplay/playerCombatMomentumReplay.js'
+      - 'src/3d/gameplay/PLAYER_COMBAT_MOMENTUM.md'
       - 'scripts/checkPlayerCombatMomentumDirector.mjs'
       - 'scripts/checkPlayerCombatMomentumContract.mjs'
       - 'scripts/checkPlayerCombatMomentumReplay.mjs'
+      - 'scripts/checkPlayerCombatMomentumAcceptance.mjs'
       - '.github/workflows/player-combat-momentum.yml'
   push:
     branches:
@@ -37,12 +39,12 @@ jobs:
       - name: Measure changed-line budget
         run: |
           git fetch origin main --depth=1
-          STATS="$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerCombatMomentumDirector.js src/3d/gameplay/playerCombatMomentumReplay.js scripts/checkPlayerCombatMomentumDirector.mjs scripts/checkPlayerCombatMomentumContract.mjs scripts/checkPlayerCombatMomentumReplay.mjs .github/workflows/player-combat-momentum.yml)"
+          STATS="$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerCombatMomentumDirector.js src/3d/gameplay/playerCombatMomentumReplay.js src/3d/gameplay/PLAYER_COMBAT_MOMENTUM.md scripts/checkPlayerCombatMomentumDirector.mjs scripts/checkPlayerCombatMomentumContract.mjs scripts/checkPlayerCombatMomentumReplay.mjs scripts/checkPlayerCombatMomentumAcceptance.mjs .github/workflows/player-combat-momentum.yml)"
           ADDS="$(printf '%s\n' "$STATS" | awk '{a+=$1} END{print a+0}')"
           DELS="$(printf '%s\n' "$STATS" | awk '{d+=$2} END{print d+0}')"
           TOTAL=$((ADDS+DELS))
           test "$TOTAL" -le 3000
-          test "$TOTAL" -ge 2200
+          test "$TOTAL" -ge 2400
           echo "DIFF_BUDGET_PASS additions=$ADDS deletions=$DELS total=$TOTAL"
       - name: Repository syntax checks
         run: |
@@ -51,17 +53,23 @@ jobs:
           node --check scripts/checkPlayerCombatMomentumDirector.mjs
           node --check scripts/checkPlayerCombatMomentumContract.mjs
           node --check scripts/checkPlayerCombatMomentumReplay.mjs
+          node --check scripts/checkPlayerCombatMomentumAcceptance.mjs
       - name: Focused executable regression
         run: node scripts/checkPlayerCombatMomentumDirector.mjs
       - name: Ownership and runtime boundary contract
         run: node scripts/checkPlayerCombatMomentumContract.mjs
       - name: Deterministic replay regression
         run: node scripts/checkPlayerCombatMomentumReplay.mjs
+      - name: Acceptance matrix
+        run: node scripts/checkPlayerCombatMomentumAcceptance.mjs
       - name: Deterministic double-run audit
         run: |
           node scripts/checkPlayerCombatMomentumReplay.mjs > /tmp/momentum-a.txt
           node scripts/checkPlayerCombatMomentumReplay.mjs > /tmp/momentum-b.txt
           cmp /tmp/momentum-a.txt /tmp/momentum-b.txt
+          node scripts/checkPlayerCombatMomentumAcceptance.mjs > /tmp/momentum-accept-a.txt
+          node scripts/checkPlayerCombatMomentumAcceptance.mjs > /tmp/momentum-accept-b.txt
+          cmp /tmp/momentum-accept-a.txt /tmp/momentum-accept-b.txt
           echo "DETERMINISM_DOUBLE_RUN_PASS"
       - name: Runtime/editor boundary scan
         run: |
