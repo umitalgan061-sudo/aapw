@@ -1,0 +1,28 @@
+import { strict as assert } from 'node:assert';
+import { listSettlementEpisodes,getSettlementEpisode,getSettlementEpisodeBeat,buildSettlementEpisodeManifest,createSettlementEpisodeContentResolver } from '../src/3d/gameplay/settlementEpisodeContent.js';
+import { buildSettlementEpisodeDialogueManifest,getSettlementEpisodeDialogueScene,resolveSettlementEpisodeDialogueChoice } from '../src/3d/gameplay/settlementEpisodeDialogueContent.js';
+import { createSettlementEpisodeDirector } from '../src/3d/gameplay/settlementEpisodeDirector.js';
+import { buildSettlementEpisodePresentation } from '../src/3d/gameplay/settlementEpisodePresentationModel.js';
+import { buildSettlementEpisodeCheckpoint,validateSettlementEpisodeCheckpoint } from '../src/3d/gameplay/settlementEpisodeCheckpoint.js';
+
+let checks=0;const ok=(v,m)=>{assert.ok(v,m);checks+=1;};const eq=(a,b,m)=>{assert.equal(a,b,m);checks+=1;};
+function stable(value){if(value===null||typeof value!=='object')return JSON.stringify(value);if(Array.isArray(value))return`[${value.map(stable).join(',')}]`;return`{${Object.keys(value).sort().map((key)=>`${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;}
+function digest(value){let hash=2166136261;const source=stable(value);for(let i=0;i<source.length;i+=1){hash^=source.charCodeAt(i);hash=Math.imul(hash,16777619);}return(hash>>>0).toString(16).padStart(8,'0');}
+function runtime(){let state={activeService:null,panel:'overview',route:[],history:[],feedback:null,lastAction:null,revision:0};return{open(service,panel){state={...state,activeService:service,panel,route:[...state.route,service]};return{ok:true,view:{...state}};},async execute(action,input){state={...state,lastAction:{action,nodeId:input.nodeId,episodeId:input.episodeId,episodeStepId:input.episodeStepId},history:[...state.history,{type:'action',action,stepId:input.episodeStepId}]};return{ok:true,action,nodeId:input.nodeId,view:{...state}};},close(){state={...state,activeService:null,panel:'overview'};return{ok:true};},view(){return{...state};},exportState(){return{version:1,runtimeVersion:1,contentVersion:2,...state,requestIds:[]};},importState(next){state={...state,...next};return{ok:true};}};}
+
+const contentResolver=createSettlementEpisodeContentResolver();ok(contentResolver.valid,'content-resolver-valid');
+const contentA=contentResolver.manifest();const contentB=contentResolver.manifest();eq(stable(contentA),stable(contentB),'content-manifest-stable');eq(digest(contentA),digest(contentB),'content-digest-stable');
+const dialogueA=buildSettlementEpisodeDialogueManifest();const dialogueB=buildSettlementEpisodeDialogueManifest();eq(stable(dialogueA),stable(dialogueB),'dialogue-manifest-stable');eq(dialogueA.sceneCount,48,'dialogue-48');
+for(const episodeId of listSettlementEpisodes()){
+ const first=getSettlementEpisode(episodeId);const second=getSettlementEpisode(episodeId);eq(stable(first),stable(second),`episode-stable:${episodeId}`);
+ const director=createSettlementEpisodeDirector({runtime:runtime(),now:()=>123});const opened=director.openEpisode(episodeId);ok(opened.ok,`open:${episodeId}`);
+ const snapshotA=director.snapshot();const snapshotB=director.snapshot();eq(stable(snapshotA),stable(snapshotB),`snapshot-stable:${episodeId}`);
+ const modelA=buildSettlementEpisodePresentation(snapshotA);const modelB=buildSettlementEpisodePresentation(snapshotB);eq(stable(modelA),stable(modelB),`presentation-stable:${episodeId}`);
+ const checkpointA=buildSettlementEpisodeCheckpoint(snapshotA,director.runtime?.exportState?.()??runtime().exportState());const checkpointB=buildSettlementEpisodeCheckpoint(snapshotA,director.runtime?.exportState?.()??runtime().exportState());eq(checkpointA.checksum,checkpointB.checksum,`checkpoint-stable:${episodeId}`);ok(validateSettlementEpisodeCheckpoint(checkpointA).ok,`checkpoint-valid:${episodeId}`);
+ for(const beat of first.beats){const a=getSettlementEpisodeBeat(episodeId,beat.stepId);const b=getSettlementEpisodeBeat(episodeId,beat.stepId);eq(stable(a),stable(b),`beat-stable:${beat.stepId}`);const sceneA=getSettlementEpisodeDialogueScene(episodeId,beat.stepId);const sceneB=getSettlementEpisodeDialogueScene(episodeId,beat.stepId);eq(stable(sceneA),stable(sceneB),`scene-stable:${beat.stepId}`);const choice=sceneA?.choices?.[0];if(choice){const one=resolveSettlementEpisodeDialogueChoice(episodeId,beat.stepId,choice.id);const two=resolveSettlementEpisodeDialogueChoice(episodeId,beat.stepId,choice.id);eq(stable(one),stable(two),`choice-stable:${beat.stepId}`);}}
+}
+const replay=async(episodeId,seed)=>{const rt=runtime();const d=createSettlementEpisodeDirector({runtime:rt,now:()=>seed});d.openEpisode(episodeId);const trace=[];for(let i=0;i<8;i+=1){d.setCursor(i);trace.push({i,view:d.snapshot(),model:buildSettlementEpisodePresentation(d.snapshot())});}return stable(trace);};
+for(const id of listSettlementEpisodes())eq(await replay(id,99),await replay(id,99),`replay-deterministic:${id}`);
+const resolverA=createSettlementEpisodeContentResolver();const resolverB=createSettlementEpisodeContentResolver();eq(stable(resolverA.validation),stable(resolverB.validation),'resolver-validation-stable');eq(JSON.stringify(resolverA.list()),JSON.stringify(resolverB.list()),'resolver-list-stable');
+const empty=buildSettlementEpisodePresentation({phase:'idle',episode:null,beat:null,cursor:0,runtime:{},history:[],feedback:null});eq(digest(empty),digest(buildSettlementEpisodePresentation({phase:'idle',episode:null,beat:null,cursor:0,runtime:{},history:[],feedback:null})),'empty-presentation-stable');
+console.log(`SETTLEMENT_EPISODE_DETERMINISM_OK checks=${checks} episodes=${listSettlementEpisodes().length}`);
