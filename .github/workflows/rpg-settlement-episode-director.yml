@@ -33,7 +33,7 @@ jobs:
           test "$MERGE_BASE" = "$CURRENT_MAIN"
           mapfile -t FILES < <(git diff --name-only "$CURRENT_MAIN"...HEAD)
           printf '%s\n' "${FILES[@]}"
-          allowed='^(src/3d/gameplay/settlementEpisode(Content|Director|Checkpoint|PresentationModel|RuntimeBridge)\.js|scripts/checkSettlementEpisode(Content|Catalog|Director|Checkpoint|PresentationModel|RuntimeBridge)\.mjs|\.github/workflows/rpg-settlement-episode-director\.yml)$'
+          allowed='^(src/3d/gameplay/settlementEpisode(Content|Director|Checkpoint|PresentationModel|RuntimeBridge|DialogueContent|DialoguePresenter|HandoffContract|Progression|Journey|UXNavigator)\.js|scripts/checkSettlementEpisode(Content|Catalog|Director|Checkpoint|PresentationModel|RuntimeBridge|Dialogue|FullMatrix|SaveRoundtrip|ActionSemantics|OwnershipBoundary|Determinism|HandoffContract|Progression|UXNavigator)\.mjs|\.github/workflows/rpg-settlement-episode-director\.yml)$'
           for file in "${FILES[@]}"; do [[ "$file" =~ $allowed ]] || { echo "out-of-scope: $file"; exit 1; }; done
           read -r ADD DEL TOTAL <<< "$(git diff --numstat "$CURRENT_MAIN"...HEAD | awk '{a+=$1;d+=$2} END{print a,d,a+d}')"
           echo "additions=$ADD deletions=$DEL total=$TOTAL"
@@ -45,6 +45,12 @@ jobs:
           node --check src/3d/gameplay/settlementEpisodeCheckpoint.js
           node --check src/3d/gameplay/settlementEpisodePresentationModel.js
           node --check src/3d/gameplay/settlementEpisodeRuntimeBridge.js
+          node --check src/3d/gameplay/settlementEpisodeDialogueContent.js
+          node --check src/3d/gameplay/settlementEpisodeDialoguePresenter.js
+          node --check src/3d/gameplay/settlementEpisodeHandoffContract.js
+          node --check src/3d/gameplay/settlementEpisodeProgression.js
+          node --check src/3d/gameplay/settlementEpisodeJourney.js
+          node --check src/3d/gameplay/settlementEpisodeUXNavigator.js
       - name: Content regression
         run: node scripts/checkSettlementEpisodeContent.mjs
       - name: Catalog regression
@@ -57,6 +63,24 @@ jobs:
         run: node scripts/checkSettlementEpisodePresentationModel.mjs
       - name: Runtime bridge regression
         run: node scripts/checkSettlementEpisodeRuntimeBridge.mjs
+      - name: Dialogue regression
+        run: node scripts/checkSettlementEpisodeDialogue.mjs
+      - name: Handoff contract regression
+        run: node scripts/checkSettlementEpisodeHandoffContract.mjs
+      - name: Progression regression
+        run: node scripts/checkSettlementEpisodeProgression.mjs
+      - name: UX navigator regression
+        run: node scripts/checkSettlementEpisodeUXNavigator.mjs
+      - name: Save round trip
+        run: node scripts/checkSettlementEpisodeSaveRoundtrip.mjs
+      - name: Determinism regression
+        run: node scripts/checkSettlementEpisodeDeterminism.mjs
+      - name: Ownership boundary regression
+        run: node scripts/checkSettlementEpisodeOwnershipBoundary.mjs
+      - name: Full vertical-slice matrix
+        run: node scripts/checkSettlementEpisodeFullMatrix.mjs
+      - name: Action semantics regression
+        run: node scripts/checkSettlementEpisodeActionSemantics.mjs
       - name: Diff hygiene
         run: git diff --check
       - name: Run283 final-head governance
