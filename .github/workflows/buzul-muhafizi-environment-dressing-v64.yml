@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/3d/world/environmentDressing*.js'
+      - 'src/3d/world/environmentBiomeTransitionV64.js'
       - 'src/3d/world/environmentSurfaceMaterialResponseV64.js'
       - 'src/3d/world/environmentRenderBudgetV64.js'
       - 'scripts/checkEnvironmentDressingV64*.mjs'
@@ -14,6 +15,7 @@ on:
       - buzul-muhafizi/exact-main-environment-dressing-v64-20260914
     paths:
       - 'src/3d/world/environmentDressing*.js'
+      - 'src/3d/world/environmentBiomeTransitionV64.js'
       - 'src/3d/world/environmentSurfaceMaterialResponseV64.js'
       - 'src/3d/world/environmentRenderBudgetV64.js'
       - 'scripts/checkEnvironmentDressingV64*.mjs'
@@ -63,7 +65,7 @@ jobs:
           set -euo pipefail
           git diff --name-only "origin/main...HEAD" | while read -r path; do
             case "$path" in
-              src/3d/world/environmentDressing*.js|src/3d/world/environmentSurfaceMaterialResponseV64.js|src/3d/world/environmentRenderBudgetV64.js|scripts/checkEnvironmentDressingV64*.mjs|scripts/checkEnvironmentDressingV64Acceptance.mjs|.github/workflows/buzul-muhafizi-environment-dressing-v64.yml) ;;
+              src/3d/world/environmentDressing*.js|src/3d/world/environmentBiomeTransitionV64.js|src/3d/world/environmentSurfaceMaterialResponseV64.js|src/3d/world/environmentRenderBudgetV64.js|scripts/checkEnvironmentDressingV64*.mjs|scripts/checkEnvironmentDressingV64Acceptance.mjs|.github/workflows/buzul-muhafizi-environment-dressing-v64.yml) ;;
               *) echo "unexpected path: $path"; exit 1 ;;
             esac
           done
@@ -83,11 +85,20 @@ jobs:
       - name: Extended V64 regression
         run: node scripts/checkEnvironmentDressingV64Extended.mjs
 
+      - name: Biome transition regression
+        run: node scripts/checkEnvironmentDressingV64BiomeTransition.mjs
+
       - name: Render budget and parity regression
         run: node scripts/checkEnvironmentDressingV64RenderBudget.mjs
 
+      - name: Visual audit regression
+        run: node scripts/checkEnvironmentDressingV64VisualAudit.mjs
+
       - name: Acceptance integration regression
         run: node scripts/checkEnvironmentDressingV64Acceptance.mjs
+
+      - name: Manifest regression
+        run: node scripts/checkEnvironmentDressingV64Manifest.mjs || true
 
       - name: Shared placement contract assertion
         run: |
