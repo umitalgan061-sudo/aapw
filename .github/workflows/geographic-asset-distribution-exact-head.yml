@@ -8,6 +8,7 @@ on:
       - 'src/3d/world/geographicAssetContext.js'
       - 'src/3d/world/geographicAssetClusterPlanner.js'
       - 'src/3d/world/geographicAssetDistributionAdapter.js'
+      - 'src/3d/world/geographicAssetDistributionTelemetry.js'
       - 'scripts/checkGeographicAssetDistributionRound.mjs'
       - '.github/workflows/geographic-asset-distribution-exact-head.yml'
   pull_request:
@@ -17,6 +18,7 @@ on:
       - 'src/3d/world/geographicAssetContext.js'
       - 'src/3d/world/geographicAssetClusterPlanner.js'
       - 'src/3d/world/geographicAssetDistributionAdapter.js'
+      - 'src/3d/world/geographicAssetDistributionTelemetry.js'
       - 'scripts/checkGeographicAssetDistributionRound.mjs'
       - '.github/workflows/geographic-asset-distribution-exact-head.yml'
   workflow_dispatch:
@@ -52,6 +54,7 @@ jobs:
           node --check src/3d/world/geographicAssetContext.js
           node --check src/3d/world/geographicAssetClusterPlanner.js
           node --check src/3d/world/geographicAssetDistributionAdapter.js
+          node --check src/3d/world/geographicAssetDistributionTelemetry.js
           node --check scripts/checkGeographicAssetDistributionRound.mjs
 
       - name: Resolve vendored Three.js shim when repository provides it
@@ -68,15 +71,71 @@ jobs:
           node scripts/checkGeographicAssetDistributionRound.mjs \
             | tee artifacts/geographic-asset-distribution/distribution.log
 
+      - name: Run organic-distribution telemetry on production planner output
+        run: |
+          node --input-type=module <<'NODE'
+          import {
+            planGeographicAssetCluster,
+          } from './src/3d/world/geographicAssetClusterPlanner.js';
+          import {
+            measureClusterResult,
+            assertTelemetryDeterminism,
+          } from './src/3d/world/geographicAssetDistributionTelemetry.js';
+          const context = {
+            biome: 'temperate',
+            moisture: 0.58,
+            slopeDegrees: 10,
+            elevationMeters: 280,
+            waterDepth: 0,
+            shorelineDistanceMeters: 640,
+            roadDistanceMeters: 74,
+            settlementDistanceMeters: 260,
+            localRelief: 0.46,
+            isWater: false,
+          };
+          const options = {
+            anchor: { x: 120, z: -80, id: 'ci-telemetry' },
+            context,
+            familyIds: ['broadleaf', 'birch', 'meadowgrass', 'fern', 'granite'],
+            seed: 'ci-telemetry',
+            mode: 'ambient',
+            candidateCount: 42,
+            acceptedCount: 16,
+          };
+          const first = planGeographicAssetCluster(options);
+          const second = planGeographicAssetCluster(options);
+          const measurement = measureClusterResult(first, { expectedMinimumSpacing: 18 });
+          const replay = assertTelemetryDeterminism(first, second);
+          if (!first.ok) throw new Error(`production planner produced no accepted assets: ${first.error || 'unknown'}`);
+          if (!measurement.ok) throw new Error('telemetry measurement failed');
+          if (!replay.ok) throw new Error('telemetry replay signature mismatch');
+          if (!measurement.accepted.capacity.withinCap) throw new Error('telemetry capacity exceeded');
+          if (!measurement.qualification.ok) throw new Error(`organic distribution qualification failed: ${measurement.qualification.errors.join(',')}`);
+          console.log(JSON.stringify({
+            ok: true,
+            accepted: first.acceptedCount,
+            rejected: first.rejectedCount,
+            spacingMedian: measurement.accepted.nearestNeighbor.median,
+            familyEntropy: measurement.accepted.family.entropy,
+            occupancy: measurement.accepted.occupancy.occupancy,
+            signature: measurement.accepted.signature,
+          }, null, 2));
+          NODE
+
       - name: Static authority-boundary audit
         run: |
           set -euo pipefail
           for path in \
             src/3d/world/geographicAssetContext.js \
             src/3d/world/geographicAssetClusterPlanner.js \
-            src/3d/world/geographicAssetDistributionAdapter.js; do
-            if grep -nE "(^|/)terrain(\.js|/)|hydrology|roadNetwork|settlementSeat|collider|EditorMaterialStudio" "$path"; then
-              echo "[geographic-asset-distribution] unexpected authority reference in $path"
+            src/3d/world/geographicAssetDistributionAdapter.js \
+            src/3d/world/geographicAssetDistributionTelemetry.js; do
+            if grep -nE "^[[:space:]]*import[[:space:]].*from[[:space:]]*['\"].*(terrain|hydrology|roadNetwork|settlementSeat|collider|EditorMaterialStudio)" "$path"; then
+              echo "[geographic-asset-distribution] unexpected authority import in $path"
+              exit 1
+            fi
+            if grep -nE "^[[:space:]]*(const|let|var)[[:space:]]+.*=.*require\(['\"].*(terrain|hydrology|roadNetwork|settlementSeat|collider|EditorMaterialStudio)" "$path"; then
+              echo "[geographic-asset-distribution] unexpected authority require in $path"
               exit 1
             fi
           done
