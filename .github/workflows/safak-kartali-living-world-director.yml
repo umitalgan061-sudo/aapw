@@ -1,0 +1,33 @@
+name: Şafak Kartalı Living World Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldDirector.js'
+      - 'scripts/checkLivingWorldDirector.mjs'
+      - '.github/workflows/safak-kartali-living-world-director.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  living-world-director:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check src/3d/gameplay/livingWorldDirector.js
+      - run: node --check scripts/checkLivingWorldDirector.mjs
+      - run: node scripts/checkLivingWorldDirector.mjs
+      - name: diff budget
+        run: |
+          lines=$(git diff --numstat "${{ github.event.pull_request.base.sha }}" HEAD -- src/3d/gameplay/livingWorldDirector.js scripts/checkLivingWorldDirector.mjs .github/workflows/safak-kartali-living-world-director.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$lines" -le 3000
+      - name: runtime boundary
+        run: |
+          ! grep -R "EditorMaterialStudio" -n src/3d/gameplay/livingWorldDirector.js
+          grep -q "WorldAssetPlacementPipeline" src/3d/gameplay/livingWorldDirector.js
