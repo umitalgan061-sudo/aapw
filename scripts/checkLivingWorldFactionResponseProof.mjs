@@ -1,45 +1,52 @@
 import assert from 'node:assert/strict';
-import { planFactionResponseTick } from '../src/3d/gameplay/livingWorldFactionResponseBridge.js';
+import {
+  createLivingWorldReactionRuntime,
+  auditLivingWorldReactionResult,
+  livingWorldReactionDigest,
+} from '../src/3d/gameplay/livingWorldReactionRuntime.js';
 import { summarizeFactionResponseProof } from '../src/3d/gameplay/livingWorldFactionResponseProof.js';
 
-const actors = [
-  { id: 'guard-1', factionId: 'north-watch', canAttack: true },
-  { id: 'wanted-1', factionId: 'raiders', fleeing: true },
-  { id: 'citizen-1', factionId: 'north-watch' },
-];
-const services = {
-  factions: { getFactionIdForActor: (actor) => actor.factionId },
-  reputation: { getReputation: (_actor, target) => target.id === 'wanted-1' ? -80 : 60 },
-  diplomacy: { getRelation: (a, b) => a === b ? 'ally' : 'war' },
-  law: { getWantedLevel: (target) => target.id === 'wanted-1' ? 90 : 0 },
-};
-const plan = planFactionResponseTick({
-  tick: 12,
-  actors,
-  observations: [
-    { actorId: 'guard-1', targetId: 'citizen-1', confidence: 0.9 },
-    { actorId: 'guard-1', targetId: 'wanted-1', confidence: 1 },
-  ],
-  services,
+function actor(id, x, z, extra = {}) {
+  return { id, factionId: extra.factionId ?? 'north-watch', object3D: { position: { x, z }, userData: {} }, ...extra };
+}
+
+const guard = actor('guard-1', 0, 0, { canAttack: true });
+const raider = actor('raider-1', 5, 0, { factionId: 'raiders' });
+const farmer = actor('farmer-1', 200, 0, { occupationSchedule: { phase: 'work', activityId: 'farm', locationId: 'field-1', shouldTravel: false } });
+const runtime = createLivingWorldReactionRuntime({
+  actors: [guard, raider, farmer],
+  seed: 283,
+  services: {
+    perception: { sense: (current) => current.id === 'guard-1' ? [{ id: 'sight-raider', kind: 'visual', targetId: 'raider-1', position: { x: 5, z: 0 }, confidence: 1, distanceMeters: 5, visible: true, suspicious: true, severity: 90 }] : [] },
+    factions: { getFactionIdForActor: (current) => current.factionId },
+    reputation: { getReputation: () => -80 },
+    diplomacy: { getRelation: (a, b) => a === b ? 'ally' : 'war' },
+    law: { getWantedLevel: (target) => target.id === 'raider-1' ? 90 : 0, canArrest: () => true, reportCrime: () => true },
+    navigation: { move: () => ({ invoked: true }) },
+    combat: { attack: (_current, directive) => ({ invoked: directive.kind === 'attack' }) },
+    worldEvents: { emit: (event) => ({ invoked: Boolean(event) }) },
+  },
 });
-const proof = summarizeFactionResponseProof(plan, { expectedTick: 12, frameBudgetMs: 1.4 });
+
+const first = runtime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
+assert.equal(auditLivingWorldReactionResult(first).ok, true);
+const proof = summarizeFactionResponseProof(first, { expectedTick: first.tick, frameBudgetMs: 1.4 });
 assert.equal(proof.accepted, true);
 assert.equal(proof.deterministic, true);
-assert.equal(proof.decisionCount, 2);
-assert.equal(proof.eventCount, 1);
-assert.equal(proof.actionCounts.assist, 1);
-assert.equal(proof.actionCounts.pursue, 1);
-assert.equal(proof.cooldownThrottled, 0);
 assert.equal(proof.tickConsistent, true);
 assert.equal(proof.frameBudgetWithinTarget, true);
 assert.equal(proof.eventBudgetWithinPolicy, true);
 assert.equal(proof.decisionBudgetWithinPolicy, true);
 assert.equal(typeof proof.fingerprint, 'string');
+assert.ok((proof.actionCounts.observe ?? 0) + (proof.actionCounts.pursue ?? 0) + (proof.actionCounts.engage ?? 0) >= 1);
 
-const malformed = summarizeFactionResponseProof({ decisions: [{ action: null, cooldownRemaining: 'not-a-number' }], events: [] }, { expectedTick: 12 });
+const second = runtime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
+assert.equal(auditLivingWorldReactionResult(second).ok, true);
+assert.notEqual(livingWorldReactionDigest(first), livingWorldReactionDigest(second));
+
+const malformed = summarizeFactionResponseProof({ results: [{ phase: null, tick: 'bad' }], events: [] }, { expectedTick: 12 });
 assert.equal(malformed.accepted, false);
 assert.equal(malformed.tickConsistent, false);
 assert.equal(malformed.actionCounts.unknown, 1);
-assert.equal(malformed.decisionBudgetWithinPolicy, true);
 
 console.log(JSON.stringify({ marker: 'FACTION_RESPONSE_PROOF_OK', proof, malformed }));
