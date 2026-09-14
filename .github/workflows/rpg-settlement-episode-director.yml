@@ -33,7 +33,7 @@ jobs:
           test "$MERGE_BASE" = "$CURRENT_MAIN"
           mapfile -t FILES < <(git diff --name-only "$CURRENT_MAIN"...HEAD)
           printf '%s\n' "${FILES[@]}"
-          allowed='^(src/3d/gameplay/settlementEpisode(Content|Director|Checkpoint|PresentationModel|RuntimeBridge|DialogueContent|DialoguePresenter|HandoffContract|Progression|Journey|UXNavigator|SavePolicy|RuntimeSnapshot|VerticalSliceAcceptance|InputNormalizer)\.js|scripts/checkSettlementEpisode(Content|Catalog|Director|Checkpoint|PresentationModel|RuntimeBridge|Dialogue|FullMatrix|SaveRoundtrip|ActionSemantics|OwnershipBoundary|Determinism|HandoffContract|Progression|UXNavigator|SavePolicy|RuntimeSnapshot|VerticalSliceAcceptance|EndToEnd|InputBoundary)\.mjs|\.github/workflows/rpg-settlement-episode-director\.yml)$'
+          allowed='^(src/3d/gameplay/settlementEpisode(Content|Director|Checkpoint|PresentationModel|RuntimeBridge|DialogueContent|DialoguePresenter|HandoffContract|Progression|Journey|UXNavigator|SavePolicy|RuntimeSnapshot|VerticalSliceAcceptance|InputNormalizer)\.js|scripts/checkSettlementEpisode(Content|Catalog|Director|Checkpoint|PresentationModel|RuntimeBridge|Dialogue|FullMatrix|SaveRoundtrip|ActionSemantics|OwnershipBoundary|Determinism|HandoffContract|Progression|UXNavigator|SavePolicy|RuntimeSnapshot|VerticalSliceAcceptance|EndToEnd|InputBoundary|MaterialContract)\.mjs|\.github/workflows/rpg-settlement-episode-director\.yml)$'
           for file in "${FILES[@]}"; do [[ "$file" =~ $allowed ]] || { echo "out-of-scope: $file"; exit 1; }; done
           read -r ADD DEL TOTAL <<< "$(git diff --numstat "$CURRENT_MAIN"...HEAD | awk '{a+=$1;d+=$2} END{print a,d,a+d}')"
           echo "additions=$ADD deletions=$DEL total=$TOTAL"
@@ -95,6 +95,8 @@ jobs:
         run: node scripts/checkSettlementEpisodeActionSemantics.mjs
       - name: End-to-end regression
         run: node scripts/checkSettlementEpisodeEndToEnd.mjs
+      - name: Material placement contract regression
+        run: node scripts/checkSettlementEpisodeMaterialContract.mjs
       - name: Diff hygiene
         run: git diff --check
       - name: Run283 final-head governance
