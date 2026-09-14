@@ -10,6 +10,7 @@ on:
       - 'src/3d/world/geographicAssetRuntimeChunkCoordinator.js'
       - 'scripts/checkGeographicAssetRuntimeOrchestrator.mjs'
       - 'scripts/checkGeographicAssetRuntimeEdgeCases.mjs'
+      - 'scripts/checkGeographicAssetRuntimeContract.mjs'
       - '.github/workflows/geographic-asset-runtime-orchestration-exact-head.yml'
   push:
     branches: [ main ]
@@ -21,6 +22,7 @@ on:
       - 'src/3d/world/geographicAssetRuntimeChunkCoordinator.js'
       - 'scripts/checkGeographicAssetRuntimeOrchestrator.mjs'
       - 'scripts/checkGeographicAssetRuntimeEdgeCases.mjs'
+      - 'scripts/checkGeographicAssetRuntimeContract.mjs'
       - '.github/workflows/geographic-asset-runtime-orchestration-exact-head.yml'
 
 permissions:
@@ -56,6 +58,7 @@ jobs:
             src/3d/world/geographicAssetRuntimeChunkCoordinator.js
             scripts/checkGeographicAssetRuntimeOrchestrator.mjs
             scripts/checkGeographicAssetRuntimeEdgeCases.mjs
+            scripts/checkGeographicAssetRuntimeContract.mjs
           )
           for file in "${files[@]}"; do test -f "$file"; done
 
@@ -70,6 +73,7 @@ jobs:
           node --check src/3d/world/geographicAssetRuntimeChunkCoordinator.js
           node --check scripts/checkGeographicAssetRuntimeOrchestrator.mjs
           node --check scripts/checkGeographicAssetRuntimeEdgeCases.mjs
+          node --check scripts/checkGeographicAssetRuntimeContract.mjs
 
       - name: Execute orchestration matrix
         shell: bash
@@ -78,6 +82,10 @@ jobs:
       - name: Execute edge-case matrix
         shell: bash
         run: node scripts/checkGeographicAssetRuntimeEdgeCases.mjs
+
+      - name: Execute contract matrix
+        shell: bash
+        run: node scripts/checkGeographicAssetRuntimeContract.mjs
 
       - name: Architectural boundary audit
         shell: bash
@@ -90,6 +98,7 @@ jobs:
           grep -q "deterministic: true" src/3d/world/geographicAssetRuntimeOrchestrator.js
           grep -q "chunkContinuity: true" src/3d/world/geographicAssetRuntimeOrchestrator.js
           grep -q "noTerrainMutation: true" src/3d/world/geographicAssetRuntimeExecutionAdapter.js
+          grep -q "carryTransferEnabled: true" src/3d/world/geographicAssetRuntimeChunkCoordinator.js
 
       - name: Profile catalogue audit
         shell: bash
@@ -152,6 +161,7 @@ jobs:
           printf '%s\n' "runtime_policy=geographic-asset-runtime-orchestrator-2026-09-14-v1" >> artifacts/geographic-asset-runtime/exact-head.txt
           printf '%s\n' "execution_policy=geographic-asset-runtime-execution-adapter-2026-09-14-v1" >> artifacts/geographic-asset-runtime/exact-head.txt
           printf '%s\n' "audit_policy=geographic-asset-runtime-audit-2026-09-14-v1" >> artifacts/geographic-asset-runtime/exact-head.txt
+          printf '%s\n' "coordinator_policy=geographic-asset-runtime-chunk-coordinator-2026-09-14-v1" >> artifacts/geographic-asset-runtime/exact-head.txt
           git diff --stat "$(git rev-list --max-parents=0 HEAD)" -- . ':(exclude)3D_GAME_PROGRESS.md' | tee artifacts/geographic-asset-runtime/diff-stat.txt
 
       - name: Upload exact-head proof
