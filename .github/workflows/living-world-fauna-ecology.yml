@@ -5,17 +5,21 @@ on:
     paths:
       - 'src/3d/gameplay/livingWorldFaunaDirector.js'
       - 'src/3d/gameplay/livingWorldFaunaEcologyRuntime.js'
+      - 'src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js'
       - 'scripts/checkLivingWorldFaunaDirector.mjs'
       - 'scripts/checkLivingWorldFaunaEcologyRuntime.mjs'
       - 'scripts/checkLivingWorldFaunaDirectorBridge.mjs'
+      - 'scripts/checkLivingWorldFaunaPerceptionAdapter.mjs'
       - '.github/workflows/living-world-fauna-ecology.yml'
   push:
     paths:
       - 'src/3d/gameplay/livingWorldFaunaDirector.js'
       - 'src/3d/gameplay/livingWorldFaunaEcologyRuntime.js'
+      - 'src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js'
       - 'scripts/checkLivingWorldFaunaDirector.mjs'
       - 'scripts/checkLivingWorldFaunaEcologyRuntime.mjs'
       - 'scripts/checkLivingWorldFaunaDirectorBridge.mjs'
+      - 'scripts/checkLivingWorldFaunaPerceptionAdapter.mjs'
       - '.github/workflows/living-world-fauna-ecology.yml'
 
 jobs:
@@ -44,24 +48,30 @@ jobs:
         run: |
           node --check src/3d/gameplay/livingWorldFaunaDirector.js
           node --check src/3d/gameplay/livingWorldFaunaEcologyRuntime.js
+          node --check src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js
           node --check scripts/checkLivingWorldFaunaDirector.mjs
           node --check scripts/checkLivingWorldFaunaEcologyRuntime.mjs
           node --check scripts/checkLivingWorldFaunaDirectorBridge.mjs
+          node --check scripts/checkLivingWorldFaunaPerceptionAdapter.mjs
       - name: Focused regression
         run: |
           node scripts/checkLivingWorldFaunaDirector.mjs
           node scripts/checkLivingWorldFaunaEcologyRuntime.mjs
           node scripts/checkLivingWorldFaunaDirectorBridge.mjs
+          node scripts/checkLivingWorldFaunaPerceptionAdapter.mjs
       - name: Deterministic double run
         run: |
           node scripts/checkLivingWorldFaunaEcologyRuntime.mjs > /tmp/fauna-ecology-a.txt
           node scripts/checkLivingWorldFaunaEcologyRuntime.mjs > /tmp/fauna-ecology-b.txt
           cmp /tmp/fauna-ecology-a.txt /tmp/fauna-ecology-b.txt
+          node scripts/checkLivingWorldFaunaPerceptionAdapter.mjs > /tmp/fauna-perception-a.txt
+          node scripts/checkLivingWorldFaunaPerceptionAdapter.mjs > /tmp/fauna-perception-b.txt
+          cmp /tmp/fauna-perception-a.txt /tmp/fauna-perception-b.txt
       - name: Ownership and shared placement contract
         run: |
-          ! grep -nE "EditorMaterialStudio|from ['\"]three['\"]|from ['\"].*ActorRegistry|from ['\"].*EventBus" src/3d/gameplay/livingWorldFaunaDirector.js src/3d/gameplay/livingWorldFaunaEcologyRuntime.js
-          grep -n "MaterialAssignmentCore" src/3d/gameplay/livingWorldFaunaEcologyRuntime.js
-          grep -n "WorldAssetPlacementPipeline" src/3d/gameplay/livingWorldFaunaEcologyRuntime.js
+          ! grep -nE "EditorMaterialStudio|from ['\"]three['\"]|from ['\"].*ActorRegistry|from ['\"].*EventBus" src/3d/gameplay/livingWorldFaunaDirector.js src/3d/gameplay/livingWorldFaunaEcologyRuntime.js src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js
+          grep -n "MaterialAssignmentCore" src/3d/gameplay/livingWorldFaunaEcologyRuntime.js src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js
+          grep -n "WorldAssetPlacementPipeline" src/3d/gameplay/livingWorldFaunaEcologyRuntime.js src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js
           grep -n "existing-actor-registry" src/3d/gameplay/livingWorldFaunaEcologyRuntime.js
           grep -n "existing-world-event-system" src/3d/gameplay/livingWorldFaunaEcologyRuntime.js
       - name: Exact-main ancestry and budget
