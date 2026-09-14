@@ -9,6 +9,7 @@ const input = {
     { id: 'cliff', biome: 'cliff', score: 1, occupancy: 0, position: { x: 2, z: 2 } },
   ],
   fauna: [
+    { id: 'deer-seed', species: 'deer', habitatId: 'other-forest', position: { x: 40, z: 50 }, distanceMeters: 25, health: 1 },
     { id: 'wolf-1', species: 'wolf', habitatId: 'forest', groupId: 'pack-1', position: { x: 10, z: 20 }, distanceMeters: 25, health: 1 },
     { id: 'horse-1', species: 'horse', habitatId: 'forest', position: { x: 10, z: 20 }, distanceMeters: 120, health: 1 },
   ],
@@ -19,6 +20,7 @@ const a = planFaunaRuntimeTick(input);
 const b = planFaunaRuntimeTick(input);
 assert.deepEqual(a, b);
 assert.equal(a.deterministic, true);
+assert.ok(a.spawn.length > 0);
 assert.equal(a.spawn[0].placementContract, 'WorldAssetPlacementPipeline');
 assert.equal(a.spawn[0].materialContract, 'MaterialAssignmentCore');
 assert.ok(a.spawn.every((spawn) => spawn.assetFirst));
