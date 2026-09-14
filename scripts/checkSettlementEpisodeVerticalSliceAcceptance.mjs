@@ -1,0 +1,23 @@
+import { strict as assert } from 'node:assert';
+import { listSettlementEpisodes,getSettlementEpisode } from '../src/3d/gameplay/settlementEpisodeContent.js';
+import { getSettlementEpisodeDialogueScene } from '../src/3d/gameplay/settlementEpisodeDialogueContent.js';
+import { getSettlementEpisodeHandoffCase } from '../src/3d/gameplay/settlementEpisodeHandoffContract.js';
+import { getSettlementEpisodeJourney } from '../src/3d/gameplay/settlementEpisodeJourney.js';
+import { createSettlementEpisodeSavePolicy } from '../src/3d/gameplay/settlementEpisodeSavePolicy.js';
+import { buildSettlementEpisodeProgression } from '../src/3d/gameplay/settlementEpisodeProgression.js';
+import { listSettlementEpisodeAcceptanceRequirements,getSettlementEpisodeAcceptance,validateSettlementEpisodeAcceptance,buildSettlementEpisodeAcceptanceManifest,buildSettlementEpisodeAcceptanceSummary,resolveSettlementEpisodeAcceptanceRequirement } from '../src/3d/gameplay/settlementEpisodeVerticalSliceAcceptance.js';
+let checks=0;const ok=(v,m)=>{assert.ok(v,m);checks+=1;};const eq=(a,b,m)=>{assert.equal(a,b,m);checks+=1;};
+const validation=validateSettlementEpisodeAcceptance();ok(validation.ok,'acceptance-valid');eq(validation.errors.length,0,'acceptance-errors-zero');eq(validation.episodeCount,6,'acceptance-episodes');eq(validation.requirementCount,10,'acceptance-requirements');eq(listSettlementEpisodeAcceptanceRequirements().length,10,'requirements-list');
+const manifest=buildSettlementEpisodeAcceptanceManifest();eq(manifest.episodes.length,6,'manifest-episodes');eq(manifest.requirements.length,10,'manifest-requirements');eq(JSON.stringify(manifest),JSON.stringify(buildSettlementEpisodeAcceptanceManifest()),'manifest-deterministic');
+const summary=buildSettlementEpisodeAcceptanceSummary();eq(summary.episodes.length,6,'summary-episodes');eq(summary.total,60,'summary-total');eq(summary.passed,60,'summary-passed');eq(summary.percent,100,'summary-percent');
+for(const episodeId of listSettlementEpisodes()){
+ const acceptance=getSettlementEpisodeAcceptance(episodeId);ok(acceptance,`acceptance:${episodeId}`);
+ const episode=getSettlementEpisode(episodeId);eq(acceptance.enter,episode.service,`entry-service:${episodeId}`);ok(acceptance.dialogue,'dialogue-required:'+episodeId);ok(acceptance.objective,'objective-required:'+episodeId);ok(acceptance.reward,'reward-required:'+episodeId);
+ const dialogue=getSettlementEpisodeDialogueScene(episodeId,acceptance.dialogue);ok(dialogue,`dialogue-link:${episodeId}`);const handoff=getSettlementEpisodeHandoffCase(acceptance.dialogue);ok(handoff,`handoff-link:${episodeId}`);eq(handoff.episodeId,episodeId,`handoff-episode:${episodeId}`);
+ const journey=getSettlementEpisodeJourney(episodeId);ok(journey,`journey:${episodeId}`);eq(journey.stages.length,5,`journey-stages:${episodeId}`);eq(journey.stages.map((stage)=>stage.stage).join('|'),'entry|npc|service|world|exit',`journey-order:${episodeId}`);
+ for(const requirement of listSettlementEpisodeAcceptanceRequirements()){const result=resolveSettlementEpisodeAcceptanceRequirement(episodeId,requirement);if(['trade','craft','travel'].includes(requirement)&&acceptance[requirement]===null){eq(result.ok,false,`optional-coverage:${episodeId}:${requirement}`);eq(result.reason,'coverage-missing',`optional-reason:${episodeId}:${requirement}`);}else{ok(result.ok,`coverage:${episodeId}:${requirement}`);}}
+}
+const policy=createSettlementEpisodeSavePolicy();ok(policy.valid,'save-policy-valid');const baseSnapshot={phase:'ready',episodeId:'iron_and_oath',beat:{stepId:'iron-08',action:'talk',service:'blacksmith'}};ok(policy.shouldSuggest(baseSnapshot,'manual-request').suggest,'save-policy-connected');
+const firstDone={quests:{iron_and_oath:{state:'completed'}}};const progression=buildSettlementEpisodeProgression(firstDone);eq(progression.nextEpisodeId,'market_routes','progression-connected');eq(progression.completedCount,1,'progression-completed');
+const unknown=resolveSettlementEpisodeAcceptanceRequirement('missing','trade');eq(unknown.ok,false,'unknown-acceptance');eq(unknown.reason,'unknown-episode','unknown-acceptance-reason');const badRequirement=resolveSettlementEpisodeAcceptanceRequirement('iron_and_oath','unknown');eq(badRequirement.ok,false,'unknown-requirement');eq(badRequirement.reason,'unknown-requirement','unknown-requirement-reason');
+console.log(`SETTLEMENT_EPISODE_VERTICAL_SLICE_ACCEPTANCE_OK checks=${checks} episodes=6 requirements=10`);
