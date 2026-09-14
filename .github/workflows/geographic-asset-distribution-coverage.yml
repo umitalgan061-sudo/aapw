@@ -1,0 +1,48 @@
+name: Geographic Asset Distribution Coverage
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/geographicAssetDistributionContract.js'
+      - 'scripts/checkGeographicAssetDistributionCoverage.mjs'
+      - '.github/workflows/geographic-asset-distribution-coverage.yml'
+      - 'src/3d/world/worldReferenceMap.js'
+  push:
+    branches:
+      - 'agent/safak-kartali-geographic-ambient-assets-**'
+    paths:
+      - 'src/3d/world/geographicAssetDistributionContract.js'
+      - 'scripts/checkGeographicAssetDistributionCoverage.mjs'
+      - '.github/workflows/geographic-asset-distribution-coverage.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - name: Exact-main ancestry and scope
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          BASE_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          git diff --check "$BASE_SHA...$HEAD_SHA"
+          while IFS= read -r file; do
+            case "$file" in
+              src/3d/world/geographicAssetDistributionContract.js|scripts/checkGeographicAssetDistributionCoverage.mjs|.github/workflows/geographic-asset-distribution-coverage.yml) ;;
+              *) echo "Unexpected scope path: $file"; exit 1 ;;
+            esac
+          done < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          TOTAL="$(git diff --numstat "$BASE_SHA...$HEAD_SHA" | awk '{a+=$1;d+=$2} END{print a+d+0}')"
+          echo "Exact-main changed lines: $TOTAL"
+          test "$TOTAL" -le 3000
+      - name: Execute geographic coverage contract
+        run: node scripts/checkGeographicAssetDistributionCoverage.mjs

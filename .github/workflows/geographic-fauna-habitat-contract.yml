@@ -1,0 +1,87 @@
+name: Geographic Fauna Habitat Contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/geographicAssetDistributionContract.js'
+      - 'src/3d/world/geographicFaunaHabitatContract.js'
+      - 'scripts/checkGeographicAssetDistributionContract.mjs'
+      - 'scripts/checkGeographicFaunaHabitatContract.mjs'
+      - 'scripts/checkGeographicAmbientCharacterMaterialSurfaces.mjs'
+      - 'scripts/checkGeographicAmbientPerformance.mjs'
+      - 'scripts/checkGeographicAssetTextureProvenance.mjs'
+      - 'assets_manifest.json'
+      - '.github/workflows/geographic-fauna-habitat-contract.yml'
+  push:
+    branches:
+      - main
+      - 'agent/safak-kartali-geographic-ambient-assets-**'
+    paths:
+      - 'src/3d/world/geographicAssetDistributionContract.js'
+      - 'src/3d/world/geographicFaunaHabitatContract.js'
+      - 'scripts/checkGeographicAssetDistributionContract.mjs'
+      - 'scripts/checkGeographicFaunaHabitatContract.mjs'
+      - 'scripts/checkGeographicAmbientCharacterMaterialSurfaces.mjs'
+      - 'scripts/checkGeographicAssetTextureProvenance.mjs'
+      - '.github/workflows/geographic-fauna-habitat-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  geographic-fauna-habitat-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact ref
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Exact main ancestry
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          BASE_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          echo "Exact base: $BASE_SHA"
+          echo "Exact head: $HEAD_SHA"
+
+      - name: Static scope and syntax
+        run: |
+          set -euo pipefail
+          git diff --check origin/main...HEAD
+          for file in \
+            src/3d/world/geographicAssetDistributionContract.js \
+            src/3d/world/geographicFaunaHabitatContract.js \
+            scripts/checkGeographicAssetDistributionContract.mjs \
+            scripts/checkGeographicFaunaHabitatContract.mjs \
+            scripts/checkGeographicAmbientCharacterMaterialSurfaces.mjs \
+            scripts/checkGeographicAssetTextureProvenance.mjs; do
+            test -f "$file"
+          done
+          node --check scripts/checkGeographicAssetDistributionContract.mjs
+          node --check scripts/checkGeographicFaunaHabitatContract.mjs
+          node --check scripts/checkGeographicAmbientCharacterMaterialSurfaces.mjs
+          node --check scripts/checkGeographicAssetTextureProvenance.mjs
+
+      - name: Install Three.js for contract tests
+        run: npm install --no-save --no-package-lock three
+
+      - name: Run geographic asset distribution contract
+        run: node scripts/checkGeographicAssetDistributionContract.mjs
+
+      - name: Run fauna habitat contract
+        run: node scripts/checkGeographicFaunaHabitatContract.mjs
+
+      - name: Run shared layered material contract
+        run: node scripts/checkGeographicAmbientCharacterMaterialSurfaces.mjs
+
+      - name: Run real asset provenance audit
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="assets/models/animals/white_horse_bEdE4rmZy9.glb,assets/models/animals/wolf/Wolf-Blender-2.82a.glb,assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx,assets/models/creatures/dragon/textures/**" --exclude=""
+          node scripts/checkGeographicAssetTextureProvenance.mjs
