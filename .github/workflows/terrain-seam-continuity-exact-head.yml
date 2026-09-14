@@ -1,0 +1,41 @@
+name: Terrain Seam Continuity Exact Head QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainSurfaceFacies.js'
+      - 'src/3d/world/terrainSurfaceSeamContinuity.js'
+      - 'scripts/checkTerrainSeamContinuity.mjs'
+      - 'scripts/checkCheckpointConsistency.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terrain-seam-continuity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Syntax gate
+        run: |
+          node --check src/3d/world/terrainSurfaceSeamContinuity.js
+          node --check scripts/checkTerrainSeamContinuity.mjs
+          node --check scripts/checkCheckpointConsistency.js
+      - name: Checkpoint continuity guard
+        run: node scripts/checkCheckpointConsistency.js
+      - name: Terrain seam continuity contract
+        run: node scripts/checkTerrainSeamContinuity.mjs
