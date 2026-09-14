@@ -18,6 +18,7 @@ const input = { tick: 4, actors, observations: [
   { actorId: 'guard-1', targetId: 'citizen-1', confidence: 0.8 },
   { actorId: 'guard-1', targetId: 'surrendered-1', confidence: 1 },
   { actorId: 'guard-1', targetId: 'wanted-1', confidence: 0.2 },
+  { actorId: 'guard-1', targetId: 'wanted-1', confidence: 0.9 },
 ], services };
 const a = planFactionResponseTick(input);
 const b = planFactionResponseTick({ ...input, observations: [...input.observations].reverse() });
@@ -26,6 +27,7 @@ assert.equal(a.decisions[0].action, 'assist');
 assert.equal(a.decisions[1].action, 'engage');
 assert.equal(a.decisions[2].action, 'pursue');
 assert.equal(a.decisions[3].action, 'observe');
+assert.equal(a.decisions[4].action, 'pursue');
 assert.equal(a.events.length, 2);
 assert.deepEqual(a.events.map((event) => event.action), ['engage', 'pursue']);
 assert.equal(auditFactionResponsePlan(a).ok, true);
@@ -34,9 +36,9 @@ assert.equal(auditFactionResponsePlan(tampered).ok, false);
 const calls = [];
 const applied = applyFactionResponseTick(a, { onDecision: (d) => calls.push(`decision:${d.action}`), emitWorldEvent: (e) => calls.push(`event:${e.action}`) });
 assert.equal(applied.accepted, true);
-assert.equal(applied.delegated, 4);
+assert.equal(applied.delegated, 5);
 assert.equal(applied.emitted, 2);
-assert.deepEqual(calls, ['decision:assist', 'decision:engage', 'decision:pursue', 'decision:observe', 'event:engage', 'event:pursue']);
+assert.deepEqual(calls, ['decision:assist', 'decision:engage', 'decision:pursue', 'decision:observe', 'decision:pursue', 'event:engage', 'event:pursue']);
 const passive = applyFactionResponseTick(a);
 assert.deepEqual(passive, { accepted: true, delegated: 0, emitted: 0, fingerprint: a.fingerprint });
 console.log('FACTION_RESPONSE_BRIDGE_OK');
