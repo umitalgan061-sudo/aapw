@@ -13,6 +13,8 @@ import * as THREE from 'three';
 import { TERRAIN_FACIES_POLICY, TERRAIN_FACIES_NAMES, installTerrainSurfaceFacies } from './terrainSurfaceFacies.js';
 import { TERRAIN_TRANSITION_POLICY, installTerrainTransitionField } from './terrainSurfaceTransitionField.js';
 import { TERRAIN_ROCK_FABRIC_POLICY, installTerrainRockFabric } from './terrainSurfaceRockFabric.js';
+import { TERRAIN_LOWINLAND_FABRIC_POLICY, installTerrainLowlandFabric } from './terrainSurfaceLowlandFabric.js';
+import { TERRAIN_CRYOSPHERE_POLICY, installTerrainCryosphere } from './terrainSurfaceCryosphere.js';
 import { WORLD_DEFAULTS } from '../config.js';
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
@@ -63,6 +65,8 @@ export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
 	roughnessResponse: true,	terrainSurfaceFaciesPolicyId: TERRAIN_FACIES_POLICY.id,
 	terrainTransitionPolicyId: TERRAIN_TRANSITION_POLICY.id,
 	terrainRockFabricPolicyId: TERRAIN_ROCK_FABRIC_POLICY.id,
+	terrainLowlandFabricPolicyId: TERRAIN_LOWINLAND_FABRIC_POLICY.id,
+	terrainCryospherePolicyId: TERRAIN_CRYOSPHERE_POLICY.id,
 	renderOnly: true,
 	canonicalHeightUnchanged: true,
 	canonicalHydrologyUnchanged: true,
@@ -240,6 +244,8 @@ export function applyTerrainMicroSurface(material) {
 	installTerrainSurfaceFacies(material);
 	installTerrainTransitionField(material);
 	installTerrainRockFabric(material);
+	installTerrainLowlandFabric(material);
+	installTerrainCryosphere(material);
 	material.userData.terrainMicroSurface = Object.freeze({
 		policyId: TERRAIN_MICRO_SURFACE_POLICY.id,
 		detailRepeatMeters: TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters,
@@ -252,7 +258,8 @@ export function applyTerrainMicroSurface(material) {
 		fractureNormals: true,
 		ecologicalMosaic: true,
 		drainageBreakup: true,
-		nonPeriodicRockWeathering: true,		aerialLowlandLithologyContrast: true,
+		nonPeriodicRockWeathering: true,
+		aerialLowlandLithologyContrast: true,
 		aerialDepositionalDomains: true,
 		lowlandMesoNormalRecovery: true,
 		lowlandGeomorphicRoughness: true,
@@ -274,6 +281,11 @@ export function applyTerrainMicroSurface(material) {
 		terrainSurfaceFaciesNames: TERRAIN_FACIES_NAMES,
 		terrainSurfaceTransitionPolicyId: TERRAIN_TRANSITION_POLICY.id,
 		terrainRockFabricPolicyId: TERRAIN_ROCK_FABRIC_POLICY.id,
+		terrainLowlandFabricPolicyId: TERRAIN_LOWINLAND_FABRIC_POLICY.id,
+		terrainCryospherePolicyId: TERRAIN_CRYOSPHERE_POLICY.id,
+		terrainCryosphereWindPackedSnow: true,
+		terrainCryosphereSastrugi: true,
+		terrainCryosphereScourVsDeposition: true,
 		canonicalHeightUnchanged: true,
 		canonicalHydrologyUnchanged: true,
 		canonicalColliderUnchanged: true,

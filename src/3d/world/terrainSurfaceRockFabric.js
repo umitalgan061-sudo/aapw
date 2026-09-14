@@ -4,9 +4,13 @@
  * Render-only material detail. No vertex position, owner-map height, hydrology, coastline, route or
  * collider is modified. The field follows the already-rendered surface normal and elevation, then
  * overlays sparse bedding, fracture, mineral-lag and runoff stains at several physical scales.
+ * The production hook also chains the deterministic erosion field so runoff/rill response participates
+ * in the final material rather than existing only as an isolated diagnostic module.
  *
  * @module world/terrainSurfaceRockFabric
  */
+
+import { TERRAIN_EROSION_FIELD_POLICY, installTerrainErosionField } from './terrainSurfaceErosionField.js';
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -36,7 +40,8 @@ export const TERRAIN_ROCK_FABRIC_POLICY = Object.freeze({
 	weatheringHeightMeters: 180,
 	albedoVariation: 0.17,
 	normalEnergy: 0.115,
-	roughnessEnergy: 0.095,
+	troughnessEnergy: 0.095,
+	erosionalRunoffPolicyId: TERRAIN_EROSION_FIELD_POLICY.id,
 });
 
 function hash2D(ix, iy, seed) {
@@ -212,7 +217,10 @@ export function installTerrainRockFabric(material) {
 			worldSpaceAlbedo: true,
 			worldSpaceNormal: true,
 			worldSpaceRoughness: true,
+			erosionalRunoffPolicyId: TERRAIN_EROSION_FIELD_POLICY.id,
+			erosionalRunoffWired: true,
 		}),
 	};
+	installTerrainErosionField(material);
 	return material;
 }
