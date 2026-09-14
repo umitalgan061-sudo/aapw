@@ -4,21 +4,9 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'src/3d/gameplay/livingWorldDirector.js'
-      - 'src/3d/gameplay/livingWorldThreatMemory.js'
-      - 'src/3d/gameplay/livingWorldPopulationBudget.js'
-      - 'src/3d/gameplay/livingWorldCrimeReputationPolicy.js'
-      - 'src/3d/gameplay/livingWorldAssetPlacementContract.js'
-      - 'src/3d/gameplay/livingWorldSettlementAffinity.js'
-      - 'src/3d/gameplay/livingWorldReplay.js'
-      - 'src/3d/gameplay/livingWorldFaunaNeedsPolicy.js'
-      - 'src/3d/gameplay/livingWorldGroupTacticsPolicy.js'
-      - 'src/3d/gameplay/livingWorldAmbientEventPolicy.js'
-      - 'src/3d/gameplay/livingWorldNavigationSafetyPolicy.js'
-      - 'src/3d/gameplay/livingWorldSpawnAdmission.js'
-      - 'src/3d/gameplay/livingWorldPerformanceEvidence.js'
+      - 'src/3d/gameplay/**'
       - 'scripts/checkLivingWorldDirector.mjs'
-      - 'scripts/checkLivingWorldScenarioMatrix.mjs'
+      - 'scripts/checkLivingWorldExtended.mjs'
       - '.github/workflows/safak-kartali-living-world-director.yml'
   workflow_dispatch:
 
@@ -38,44 +26,23 @@ jobs:
         with:
           node-version: 22
       - name: Verify main freshness against event base
-        shell: bash
         run: |
           set -euo pipefail
           git fetch origin main --depth=1
           test "$(git rev-parse origin/main)" = "${{ github.event.pull_request.base.sha }}"
-      - name: Verify no accidental merge base drift
-        shell: bash
+      - name: Verify merge-base freshness
+        run: test "$(git merge-base HEAD origin/main)" = "${{ github.event.pull_request.base.sha }}"
+      - name: Syntax gate
         run: |
           set -euo pipefail
-          test "$(git merge-base HEAD origin/main)" = "${{ github.event.pull_request.base.sha }}"
-      - name: Node syntax for every new runtime policy
-        shell: bash
-        run: |
-          set -euo pipefail
-          for file in \
-            src/3d/gameplay/livingWorldDirector.js \
-            src/3d/gameplay/livingWorldThreatMemory.js \
-            src/3d/gameplay/livingWorldPopulationBudget.js \
-            src/3d/gameplay/livingWorldCrimeReputationPolicy.js \
-            src/3d/gameplay/livingWorldAssetPlacementContract.js \
-            src/3d/gameplay/livingWorldSettlementAffinity.js \
-            src/3d/gameplay/livingWorldReplay.js \
-            src/3d/gameplay/livingWorldFaunaNeedsPolicy.js \
-            src/3d/gameplay/livingWorldGroupTacticsPolicy.js \
-            src/3d/gameplay/livingWorldAmbientEventPolicy.js \
-            src/3d/gameplay/livingWorldNavigationSafetyPolicy.js \
-            src/3d/gameplay/livingWorldSpawnAdmission.js \
-            src/3d/gameplay/livingWorldPerformanceEvidence.js \
-            scripts/checkLivingWorldDirector.mjs \
-            scripts/checkLivingWorldScenarioMatrix.mjs; do
-            node --check "$file"
-          done
-      - name: Living world director vertical slice
+          for file in src/3d/gameplay/livingWorldDirector.js src/3d/gameplay/livingWorldThreatMemory.js src/3d/gameplay/livingWorldPopulationBudget.js src/3d/gameplay/livingWorldCrimeReputationPolicy.js src/3d/gameplay/livingWorldAssetPlacementContract.js src/3d/gameplay/livingWorldSettlementAffinity.js src/3d/gameplay/livingWorldReplay.js src/3d/gameplay/livingWorldFaunaNeedsPolicy.js src/3d/gameplay/livingWorldGroupTacticsPolicy.js src/3d/gameplay/livingWorldAmbientEventPolicy.js src/3d/gameplay/livingWorldNavigationSafetyPolicy.js src/3d/gameplay/livingWorldSpawnAdmission.js src/3d/gameplay/livingWorldPerformanceEvidence.js src/3d/gameplay/livingWorldCompanionPolicy.js src/3d/gameplay/livingWorldFactionDiplomacyPolicy.js scripts/checkLivingWorldDirector.mjs scripts/checkLivingWorldScenarioMatrix.mjs scripts/checkLivingWorldExtended.mjs; do node --check "$file"; done
+      - name: Director vertical slice
         run: node scripts/checkLivingWorldDirector.mjs
-      - name: Living world scenario matrix
+      - name: Scenario matrix
         run: node scripts/checkLivingWorldScenarioMatrix.mjs
-      - name: Existing reaction runtime regressions
-        shell: bash
+      - name: Companion and faction extension
+        run: node scripts/checkLivingWorldExtended.mjs
+      - name: Existing reaction owner regressions
         run: |
           set -euo pipefail
           node scripts/checkLivingWorldReactionRuntime.mjs
@@ -88,20 +55,18 @@ jobs:
       - name: Run 283 Final Head Governance Gate
         run: node scripts/checkRun283FinalHeadGovernance.js
       - name: Runtime ownership boundary
-        shell: bash
         run: |
           set -euo pipefail
-          ! grep -R "EditorMaterialStudio" -n src/3d/gameplay/livingWorldDirector.js src/3d/gameplay/livingWorldThreatMemory.js src/3d/gameplay/livingWorldPopulationBudget.js src/3d/gameplay/livingWorldCrimeReputationPolicy.js src/3d/gameplay/livingWorldAssetPlacementContract.js src/3d/gameplay/livingWorldSettlementAffinity.js src/3d/gameplay/livingWorldReplay.js src/3d/gameplay/livingWorldFaunaNeedsPolicy.js src/3d/gameplay/livingWorldGroupTacticsPolicy.js src/3d/gameplay/livingWorldAmbientEventPolicy.js src/3d/gameplay/livingWorldNavigationSafetyPolicy.js src/3d/gameplay/livingWorldSpawnAdmission.js src/3d/gameplay/livingWorldPerformanceEvidence.js
-          grep -q "MaterialAssignmentCore.js" src/3d/gameplay/livingWorldDirector.js
-          grep -q "WorldAssetPlacementPipeline.js" src/3d/gameplay/livingWorldDirector.js
-      - name: Diff budget and formatting
-        shell: bash
+          ! grep -R "EditorMaterialStudio" -n src/3d/gameplay/livingWorld*.js
+          grep -R -q "MaterialAssignmentCore.js" src/3d/gameplay/livingWorldAssetPlacementContract.js
+          grep -R -q "WorldAssetPlacementPipeline.js" src/3d/gameplay/livingWorldAssetPlacementContract.js
+      - name: Diff budget
         run: |
           set -euo pipefail
-          lines=$(git diff --numstat "${{ github.event.pull_request.base.sha }}" HEAD -- src/3d/gameplay scripts/checkLivingWorldDirector.mjs scripts/checkLivingWorldScenarioMatrix.mjs .github/workflows/safak-kartali-living-world-director.yml | awk '{a+=$1;d+=$2} END {print a+d+0}')
+          lines=$(git diff --numstat "${{ github.event.pull_request.base.sha }}" HEAD -- src/3d/gameplay scripts/checkLivingWorldDirector.mjs scripts/checkLivingWorldScenarioMatrix.mjs scripts/checkLivingWorldExtended.mjs .github/workflows/safak-kartali-living-world-director.yml | awk '{a+=$1;d+=$2} END {print a+d+0}')
           echo "changed-lines=$lines"
           test "$lines" -le 3000
           test "$lines" -ge 2700
           git diff --check
       - name: Determinism replay smoke
-        run: node scripts/checkLivingWorldScenarioMatrix.mjs
+        run: node scripts/checkLivingWorldExtended.mjs
