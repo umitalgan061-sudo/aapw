@@ -10,6 +10,7 @@ const POLICY = Object.freeze({
   wantedThreshold: 25,
   hostileReputation: -50,
   minActionConfidence: 0.55,
+  investigateConfidence: 0.72,
 });
 
 const finite = (v, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;
@@ -18,9 +19,7 @@ const asId = (v, fallback = '') => String(v ?? fallback).trim() || fallback;
 const freeze = (v) => Object.freeze(v);
 const stable = (value) => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
-  }
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
   return JSON.stringify(value);
 };
 const digest = (value) => { let h = 2166136261; for (const c of stable(value)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return (h >>> 0).toString(16).padStart(8, '0'); };
@@ -51,8 +50,11 @@ function actionFor(classification, actor, target, relation, confidence) {
     return actor?.canAttack === false ? 'alert' : 'engage';
   }
   if (classification === 'ally') return 'assist';
-  if (classification === 'cautious') return target?.trespassing ? 'warn' : 'observe';
-  return 'observe';
+  if (classification === 'cautious') {
+    if (target?.trespassing || target?.unidentified || target?.suspicious) return confidence >= POLICY.investigateConfidence ? 'investigate' : 'observe';
+    return 'observe';
+  }
+  return confidence >= POLICY.investigateConfidence ? 'investigate' : 'observe';
 }
 
 function strongestObservations(observations) {
@@ -88,7 +90,7 @@ export function planFactionResponseTick({ tick = 0, actors = [], observations = 
     const decision = freeze({ actorId: actor.id, targetId: asId(target?.id, observation.targetId), classification, action, faction: relation.actorFaction, targetFaction: relation.targetFaction, relation: relation.relation, reputation: relation.reputation, wanted: relation.wanted, confidence, tick: Math.max(0, finite(tick, 0)) });
     decisions.push(decision);
     const eventKey = `${actor.id}|${decision.targetId}|${action}`;
-    if (events.length < boundedEventBudget && !eventKeys.has(eventKey) && confidence >= POLICY.minActionConfidence && (action === 'engage' || action === 'arrest' || action === 'pursue')) {
+    if (events.length < boundedEventBudget && !eventKeys.has(eventKey) && confidence >= POLICY.minActionConfidence && (action === 'engage' || action === 'arrest' || action === 'pursue' || action === 'investigate')) {
       eventKeys.add(eventKey);
       events.push(freeze({ type: 'living-world:faction-response', actorId: actor.id, targetId: decision.targetId, action, severity: classification === 'hostile' ? 'high' : 'medium', confidence, tick: decision.tick }));
     }
