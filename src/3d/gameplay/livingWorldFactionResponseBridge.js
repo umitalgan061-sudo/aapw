@@ -15,8 +15,15 @@ const finite = (v, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fal
 const clamp = (v, min = -100, max = 100) => Math.max(min, Math.min(max, finite(v, 0)));
 const asId = (v, fallback = '') => String(v ?? fallback).trim() || fallback;
 const freeze = (v) => Object.freeze(v);
-const stable = (v) => JSON.stringify(v, Object.keys(v).sort());
-const digest = (v) => { let h = 2166136261; for (const c of stable(v)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return (h >>> 0).toString(16).padStart(8, '0'); };
+const stable = (value) => {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+};
+const digest = (value) => { let h = 2166136261; for (const c of stable(value)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return (h >>> 0).toString(16).padStart(8, '0'); };
+const fingerprintFor = (result) => digest({ ...result, fingerprint: '' });
 
 function relationFor(actor, target, services) {
   const actorFaction = asId(services?.factions?.getFactionIdForActor?.(actor), actor?.factionId);
@@ -50,35 +57,36 @@ export function planFactionResponseTick({ tick = 0, actors = [], observations = 
   const sorted = [...observations].slice(0, POLICY.maxEvents).sort((a, b) => asId(a?.actorId).localeCompare(asId(b?.actorId)) || asId(a?.targetId).localeCompare(asId(b?.targetId)));
   const decisions = [];
   const events = [];
+  const boundedEventBudget = Math.max(0, Math.min(POLICY.maxEvents, Math.floor(finite(eventBudget, POLICY.maxEvents))));
   for (const observation of sorted) {
     const actor = actorRows.find((row) => row.id === asId(observation?.actorId));
-    const target = actorRows.find((row) => row.id === asId(observation?.targetId)) || observation?.target || {};
+    const target = actorRows.find((row) => row.id === asId(observation?.targetId)) || observation?.target;
     if (!actor || !target) continue;
     const relation = relationFor(actor, target, services);
     const classification = classify(relation);
     const action = actionFor(classification, actor, target);
     const decision = freeze({ actorId: actor.id, targetId: asId(target?.id, observation?.targetId), classification, action, faction: relation.actorFaction, targetFaction: relation.targetFaction, relation: relation.relation, reputation: relation.reputation, wanted: relation.wanted, confidence: Math.max(0, Math.min(1, finite(observation?.confidence, 1))), tick: Math.max(0, finite(tick, 0)) });
     decisions.push(decision);
-    if (action === 'engage' || action === 'arrest' || action === 'pursue') events.push(freeze({ type: 'living-world:faction-response', actorId: actor.id, targetId: decision.targetId, action, severity: classification === 'hostile' ? 'high' : 'medium', tick: decision.tick }));
-    if (events.length >= eventBudget) break;
+    if (events.length < boundedEventBudget && (action === 'engage' || action === 'arrest' || action === 'pursue')) events.push(freeze({ type: 'living-world:faction-response', actorId: actor.id, targetId: decision.targetId, action, severity: classification === 'hostile' ? 'high' : 'medium', tick: decision.tick }));
   }
   const result = { policy: POLICY.id, deterministic: true, decisions: freeze(decisions), events: freeze(events), counts: freeze({ observations: sorted.length, decisions: decisions.length, events: events.length }), fingerprint: '' };
-  result.fingerprint = digest(result);
+  result.fingerprint = fingerprintFor(result);
   return freeze(result);
 }
 
 export function applyFactionResponseTick(plan, { onDecision, emitWorldEvent } = {}) {
-  if (!plan || plan.policy !== POLICY.id) return freeze({ accepted: false, delegated: 0, emitted: 0 });
+  if (!plan || plan.policy !== POLICY.id || auditFactionResponsePlan(plan).ok !== true) return freeze({ accepted: false, delegated: 0, emitted: 0 });
   let delegated = 0;
-  for (const decision of plan.decisions) { onDecision?.(decision); delegated += 1; }
+  for (const decision of plan.decisions) { if (typeof onDecision === 'function') { onDecision(decision); delegated += 1; } }
   let emitted = 0;
-  for (const event of plan.events) { emitWorldEvent?.(event); emitted += 1; }
+  for (const event of plan.events) { if (typeof emitWorldEvent === 'function') { emitWorldEvent(event); emitted += 1; } }
   return freeze({ accepted: true, delegated, emitted, fingerprint: plan.fingerprint });
 }
 
 export function auditFactionResponsePlan(plan) {
-  const valid = Boolean(plan?.deterministic && plan?.policy === POLICY.id && plan?.fingerprint && plan?.decisions?.every((d) => d.actorId && d.targetId && d.action));
-  return freeze({ ok: valid, policy: plan?.policy || null, decisionCount: plan?.decisions?.length || 0, eventCount: plan?.events?.length || 0, fingerprint: plan?.fingerprint || null });
+  const structural = Boolean(plan?.deterministic && plan?.policy === POLICY.id && Array.isArray(plan?.decisions) && Array.isArray(plan?.events) && plan?.decisions?.every((d) => d.actorId && d.targetId && d.action));
+  const expected = structural ? fingerprintFor(plan) : null;
+  return freeze({ ok: structural && plan.fingerprint === expected, policy: plan?.policy || null, decisionCount: plan?.decisions?.length || 0, eventCount: plan?.events?.length || 0, fingerprint: plan?.fingerprint || null });
 }
 
 export const FACTION_RESPONSE_POLICY = POLICY;
