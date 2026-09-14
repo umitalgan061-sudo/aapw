@@ -55,22 +55,37 @@ function actionFor(classification, actor, target, relation, confidence) {
   return 'observe';
 }
 
+function strongestObservations(observations) {
+  const strongest = new Map();
+  for (const observation of observations) {
+    const actorId = asId(observation?.actorId);
+    const targetId = asId(observation?.targetId);
+    if (!actorId || !targetId) continue;
+    const candidate = { ...observation, actorId, targetId, confidence: Math.max(0, Math.min(1, finite(observation?.confidence, 1))) };
+    const key = `${actorId}|${targetId}`;
+    const previous = strongest.get(key);
+    if (!previous || candidate.confidence > previous.confidence || (candidate.confidence === previous.confidence && stable(candidate) < stable(previous))) strongest.set(key, candidate);
+  }
+  return [...strongest.values()].sort((a, b) => a.actorId.localeCompare(b.actorId) || a.targetId.localeCompare(b.targetId) || a.confidence - b.confidence);
+}
+
 export function planFactionResponseTick({ tick = 0, actors = [], observations = [], services = {}, eventBudget = POLICY.maxEvents } = {}) {
   const actorRows = actors.slice(0, POLICY.maxActors).map((actor, index) => ({ ...actor, id: asId(actor?.id, `actor-${index}`) }));
-  const sorted = [...observations].slice(0, POLICY.maxEvents).sort((a, b) => asId(a?.actorId).localeCompare(asId(b?.actorId)) || asId(a?.targetId).localeCompare(asId(b?.targetId)) || finite(a?.confidence, 1) - finite(b?.confidence, 1));
+  const actorById = new Map(actorRows.map((actor) => [actor.id, actor]));
+  const normalizedObservations = strongestObservations(observations).slice(0, POLICY.maxEvents);
   const decisions = [];
   const events = [];
   const eventKeys = new Set();
   const boundedEventBudget = Math.max(0, Math.min(POLICY.maxEvents, Math.floor(finite(eventBudget, POLICY.maxEvents))));
-  for (const observation of sorted) {
-    const actor = actorRows.find((row) => row.id === asId(observation?.actorId));
-    const target = actorRows.find((row) => row.id === asId(observation?.targetId)) || observation?.target;
+  for (const observation of normalizedObservations) {
+    const actor = actorById.get(observation.actorId);
+    const target = actorById.get(observation.targetId) || observation?.target;
     if (!actor || !target) continue;
     const relation = relationFor(actor, target, services);
-    const confidence = Math.max(0, Math.min(1, finite(observation?.confidence, 1)));
+    const confidence = observation.confidence;
     const classification = classify(relation);
     const action = actionFor(classification, actor, target, relation, confidence);
-    const decision = freeze({ actorId: actor.id, targetId: asId(target?.id, observation?.targetId), classification, action, faction: relation.actorFaction, targetFaction: relation.targetFaction, relation: relation.relation, reputation: relation.reputation, wanted: relation.wanted, confidence, tick: Math.max(0, finite(tick, 0)) });
+    const decision = freeze({ actorId: actor.id, targetId: asId(target?.id, observation.targetId), classification, action, faction: relation.actorFaction, targetFaction: relation.targetFaction, relation: relation.relation, reputation: relation.reputation, wanted: relation.wanted, confidence, tick: Math.max(0, finite(tick, 0)) });
     decisions.push(decision);
     const eventKey = `${actor.id}|${decision.targetId}|${action}`;
     if (events.length < boundedEventBudget && !eventKeys.has(eventKey) && confidence >= POLICY.minActionConfidence && (action === 'engage' || action === 'arrest' || action === 'pursue')) {
@@ -78,7 +93,7 @@ export function planFactionResponseTick({ tick = 0, actors = [], observations = 
       events.push(freeze({ type: 'living-world:faction-response', actorId: actor.id, targetId: decision.targetId, action, severity: classification === 'hostile' ? 'high' : 'medium', confidence, tick: decision.tick }));
     }
   }
-  const result = { policy: POLICY.id, deterministic: true, decisions: freeze(decisions), events: freeze(events), counts: freeze({ observations: sorted.length, decisions: decisions.length, events: events.length }), fingerprint: '' };
+  const result = { policy: POLICY.id, deterministic: true, decisions: freeze(decisions), events: freeze(events), counts: freeze({ observations: normalizedObservations.length, decisions: decisions.length, events: events.length }), fingerprint: '' };
   result.fingerprint = fingerprintFor(result);
   return freeze(result);
 }
