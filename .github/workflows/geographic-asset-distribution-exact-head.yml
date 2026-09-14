@@ -1,0 +1,194 @@
+name: Geographic Asset Distribution Exact Head
+
+on:
+  push:
+    branches:
+      - codex/geographic-asset-distribution-round-20260914
+    paths:
+      - 'src/3d/world/geographicAssetContext.js'
+      - 'src/3d/world/geographicAssetClusterPlanner.js'
+      - 'src/3d/world/geographicAssetDistributionAdapter.js'
+      - 'src/3d/world/geographicAssetDistributionTelemetry.js'
+      - 'scripts/checkGeographicAssetDistributionRound.mjs'
+      - '.github/workflows/geographic-asset-distribution-exact-head.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/3d/world/geographicAssetContext.js'
+      - 'src/3d/world/geographicAssetClusterPlanner.js'
+      - 'src/3d/world/geographicAssetDistributionAdapter.js'
+      - 'src/3d/world/geographicAssetDistributionTelemetry.js'
+      - 'scripts/checkGeographicAssetDistributionRound.mjs'
+      - '.github/workflows/geographic-asset-distribution-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify exact commit identity
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git status --short
+
+      - name: Syntax gate
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/geographicAssetContext.js
+          node --check src/3d/world/geographicAssetClusterPlanner.js
+          node --check src/3d/world/geographicAssetDistributionAdapter.js
+          node --check src/3d/world/geographicAssetDistributionTelemetry.js
+          node --check scripts/checkGeographicAssetDistributionRound.mjs
+
+      - name: Resolve vendored Three.js shim when repository provides it
+        run: |
+          if test -f scripts/setupNodeThreeShim.mjs; then
+            node scripts/setupNodeThreeShim.mjs
+          else
+            echo '[geographic-asset-distribution] no Three.js shim required'
+          fi
+
+      - name: Run deterministic geography and asset-distribution contract
+        run: |
+          mkdir -p artifacts/geographic-asset-distribution
+          node scripts/checkGeographicAssetDistributionRound.mjs \
+            | tee artifacts/geographic-asset-distribution/distribution.log
+
+      - name: Run organic-distribution telemetry on production planner output
+        run: |
+          node --input-type=module <<'NODE'
+          import {
+            planGeographicAssetCluster,
+          } from './src/3d/world/geographicAssetClusterPlanner.js';
+          import {
+            measureClusterResult,
+            assertTelemetryDeterminism,
+          } from './src/3d/world/geographicAssetDistributionTelemetry.js';
+          const context = {
+            biome: 'temperate',
+            moisture: 0.58,
+            slopeDegrees: 10,
+            elevationMeters: 280,
+            waterDepth: 0,
+            shorelineDistanceMeters: 640,
+            roadDistanceMeters: 74,
+            settlementDistanceMeters: 260,
+            localRelief: 0.46,
+            isWater: false,
+          };
+          const options = {
+            anchor: { x: 120, z: -80, id: 'ci-telemetry' },
+            context,
+            familyIds: ['broadleaf', 'birch', 'meadowgrass', 'fern', 'granite'],
+            seed: 'ci-telemetry',
+            mode: 'ambient',
+            candidateCount: 42,
+            acceptedCount: 16,
+          };
+          const first = planGeographicAssetCluster(options);
+          const second = planGeographicAssetCluster(options);
+          const measurement = measureClusterResult(first, { expectedMinimumSpacing: 18 });
+          const replay = assertTelemetryDeterminism(first, second);
+          if (!first.ok) throw new Error(`production planner produced no accepted assets: ${first.error || 'unknown'}`);
+          if (!measurement.ok) throw new Error('telemetry measurement failed');
+          if (!replay.ok) throw new Error('telemetry replay signature mismatch');
+          if (!measurement.accepted.capacity.withinCap) throw new Error('telemetry capacity exceeded');
+          if (!measurement.qualification.ok) throw new Error(`organic distribution qualification failed: ${measurement.qualification.errors.join(',')}`);
+          console.log(JSON.stringify({
+            ok: true,
+            accepted: first.acceptedCount,
+            rejected: first.rejectedCount,
+            spacingMedian: measurement.accepted.nearestNeighbor.median,
+            familyEntropy: measurement.accepted.family.entropy,
+            occupancy: measurement.accepted.occupancy.occupancy,
+            signature: measurement.accepted.signature,
+          }, null, 2));
+          NODE
+
+      - name: Static authority-boundary audit
+        run: |
+          set -euo pipefail
+          for path in \
+            src/3d/world/geographicAssetContext.js \
+            src/3d/world/geographicAssetClusterPlanner.js \
+            src/3d/world/geographicAssetDistributionAdapter.js \
+            src/3d/world/geographicAssetDistributionTelemetry.js; do
+            if grep -nE "^[[:space:]]*import[[:space:]].*from[[:space:]]*['\"].*(terrain|hydrology|roadNetwork|settlementSeat|collider|EditorMaterialStudio)" "$path"; then
+              echo "[geographic-asset-distribution] unexpected authority import in $path"
+              exit 1
+            fi
+            if grep -nE "^[[:space:]]*(const|let|var)[[:space:]]+.*=.*require\(['\"].*(terrain|hydrology|roadNetwork|settlementSeat|collider|EditorMaterialStudio)" "$path"; then
+              echo "[geographic-asset-distribution] unexpected authority require in $path"
+              exit 1
+            fi
+          done
+          echo '[geographic-asset-distribution] authority-boundary PASS'
+
+      - name: Require deterministic no-grid implementation markers
+        run: |
+          set -euo pipefail
+          grep -q "regularGridDistribution: false" src/3d/world/geographicAssetClusterPlanner.js
+          grep -q "minimumSpacingMeters" src/3d/world/geographicAssetClusterPlanner.js
+          grep -q "rejectedCandidateAccounting: true" src/3d/world/geographicAssetClusterPlanner.js
+          grep -q "canonicalInputsOnly: true" src/3d/world/geographicAssetContext.js
+          grep -q "noTerrainMutation: true" src/3d/world/geographicAssetDistributionAdapter.js
+          echo '[geographic-asset-distribution] architecture markers PASS'
+
+      - name: Bounded family/profile audit
+        run: |
+          node --input-type=module <<'NODE'
+          import {
+            GEOGRAPHIC_ASSET_FAMILY_PROFILES,
+            GEOGRAPHIC_ASSET_CONTEXT_POLICY,
+          } from './src/3d/world/geographicAssetContext.js';
+          const profiles = Object.values(GEOGRAPHIC_ASSET_FAMILY_PROFILES);
+          if (profiles.length < 20) throw new Error('expected broad geographic family matrix');
+          for (const profile of profiles) {
+            for (const key of ['density', 'cluster', 'scaleMean', 'scaleVariance', 'minMoisture', 'maxMoisture']) {
+              const value = Number(profile[key]);
+              if (!Number.isFinite(value)) throw new Error(`${profile.id}: ${key} is non-finite`);
+            }
+            if (profile.minMoisture < 0 || profile.maxMoisture > 1 || profile.minMoisture > profile.maxMoisture) {
+              throw new Error(`${profile.id}: invalid moisture envelope`);
+            }
+            if (!Array.isArray(profile.preferredBiomes) || !Array.isArray(profile.forbiddenBiomes)) {
+              throw new Error(`${profile.id}: biome vocabulary missing`);
+            }
+          }
+          if (GEOGRAPHIC_ASSET_CONTEXT_POLICY.bounds.scaleMin <= 0) throw new Error('scale lower bound invalid');
+          if (GEOGRAPHIC_ASSET_CONTEXT_POLICY.bounds.scaleMax <= GEOGRAPHIC_ASSET_CONTEXT_POLICY.bounds.scaleMin) throw new Error('scale bounds inverted');
+          console.log(JSON.stringify({ ok: true, familyCount: profiles.length, policy: GEOGRAPHIC_ASSET_CONTEXT_POLICY.id }));
+          NODE
+
+      - name: Save exact-head identity
+        if: always()
+        run: |
+          mkdir -p artifacts/geographic-asset-distribution
+          printf '%s\n' "$GITHUB_SHA" > artifacts/geographic-asset-distribution/head-sha.txt
+          git diff --check
+
+      - name: Upload exact-head proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geographic-asset-distribution-exact-head-${{ github.sha }}
+          path: artifacts/geographic-asset-distribution/
+          if-no-files-found: error
+          retention-days: 14
