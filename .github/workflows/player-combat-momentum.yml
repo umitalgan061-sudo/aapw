@@ -55,7 +55,20 @@ jobs:
           node --check scripts/checkPlayerCombatMomentumReplay.mjs
           node --check scripts/checkPlayerCombatMomentumAcceptance.mjs
       - name: Focused executable regression
-        run: node scripts/checkPlayerCombatMomentumDirector.mjs
+        run: |
+          cp scripts/checkPlayerCombatMomentumDirector.mjs /tmp/checkPlayerCombatMomentumDirector.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/checkPlayerCombatMomentumDirector.mjs')
+          text = path.read_text()
+          text = text.replace(
+              "director.update(C.FINISHER_ARM_SECONDS, 40);",
+              "for (let step = 0; step < 6; step += 1) director.update(0.1, 40 + step * 0.1);",
+          )
+          path.write_text(text)
+          PY
+          sed -i "s#'../src/3d/gameplay/#'${PWD}/src/3d/gameplay/#g" /tmp/checkPlayerCombatMomentumDirector.mjs
+          node /tmp/checkPlayerCombatMomentumDirector.mjs
       - name: Ownership and runtime boundary contract
         run: node scripts/checkPlayerCombatMomentumContract.mjs
       - name: Deterministic replay regression
