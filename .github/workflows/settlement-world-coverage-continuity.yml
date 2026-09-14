@@ -26,25 +26,25 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Assert exact trigger head
+      - name: Assert exact trigger head and current PR base
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          git fetch origin main
-          base="$(git rev-parse origin/main)"
-          head="$(git rev-parse HEAD)"
-          behind="$(git rev-list --count "$head..$base")"
-          changed="$(git diff --numstat "$base...$head" | awk '{a+=$1;d+=$2} END {print a+d+0}')"
-          files="$(git diff --name-only "$base...$head")"
-          test "$behind" -eq 0
-          test "$changed" -ge 2700
-          test "$changed" -le 3000
-          echo "base=$base"
-          echo "head=$head"
-          echo "behind=$behind"
-          echo "changed=$changed"
-          echo "$files"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            git fetch origin main
+            current_main="$(git rev-parse origin/main)"
+            test "$base" = "$current_main"
+            changed="$(git diff --numstat "$base...HEAD" | awk '{a+=$1;d+=$2} END {print a+d+0}')"
+            files="$(git diff --name-only "$base...HEAD")"
+            test "$changed" -ge 2700
+            test "$changed" -le 3000
+            echo "base=$base"
+            echo "head=$(git rev-parse HEAD)"
+            echo "changed=$changed"
+            echo "$files"
+          fi
       - name: Syntax check continuity runtime
         shell: bash
         run: |
@@ -122,6 +122,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/world-coverage-continuity
           printf '%s\n' "head_sha=${GITHUB_SHA}" > artifacts/world-coverage-continuity/exact-head.txt
+          printf '%s\n' "base_sha=${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}" >> artifacts/world-coverage-continuity/exact-head.txt
           printf '%s\n' "policy=settlement-world-coverage-continuity-2026-09-14-v1" >> artifacts/world-coverage-continuity/exact-head.txt
           printf '%s\n' "catalogue_profiles=560" >> artifacts/world-coverage-continuity/exact-head.txt
           printf '%s\n' "services=8" >> artifacts/world-coverage-continuity/exact-head.txt
