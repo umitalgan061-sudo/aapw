@@ -1,0 +1,47 @@
+name: Settlement Decision V69 Exact Head
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/settlement-decision-v69-*'
+      - 'scripts/generateSettlementDecisionRuntimeV69.mjs'
+      - 'scripts/checkSettlementDecisionRuntimeV69.mjs'
+      - 'src/3d/world/SettlementDecisionRuntimeV69.js'
+      - 'src/3d/world/settlementDecisionRuntimeV69Generated.js'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate:
+    if: startsWith(github.head_ref, 'buzul-muhafizi/next-settlement-decision-v69-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enforce fresh main base
+        run: |
+          test "$(git rev-parse origin/main)" = "f6e3cd53f5b22a616929209c266fcc3be66b273a"
+      - name: Enforce 4000+ additions
+        run: |
+          added="$(git diff --numstat f6e3cd53f5b22a616929209c266fcc3be66b273a...HEAD | awk '{sum += $1} END {print sum+0}')"
+          test "$added" -ge 4001
+      - name: Check changed-file scope
+        run: |
+          git diff --name-only f6e3cd53f5b22a616929209c266fcc3be66b273a...HEAD | grep -Ev '^(\.github/workflows/settlement-decision-v69-(generator|exact-head)\.yml|scripts/(generateSettlementDecisionRuntimeV69|checkSettlementDecisionRuntimeV69)\.mjs|src/3d/world/(SettlementDecisionRuntimeV69|settlementDecisionRuntimeV69Generated)\.js)$' && exit 1 || true
+      - name: Syntax validation
+        run: |
+          node --check scripts/generateSettlementDecisionRuntimeV69.mjs
+          node --check scripts/checkSettlementDecisionRuntimeV69.mjs
+          node --check src/3d/world/SettlementDecisionRuntimeV69.js
+          node --check src/3d/world/settlementDecisionRuntimeV69Generated.js
+      - name: Runtime validation
+        run: node scripts/checkSettlementDecisionRuntimeV69.mjs
+      - name: Diff hygiene
+        run: git diff --check f6e3cd53f5b22a616929209c266fcc3be66b273a...HEAD
