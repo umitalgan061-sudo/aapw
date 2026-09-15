@@ -38,6 +38,30 @@ export function rankSettlementDecisionsV69(domain, context = {}) {
     .sort((a, b) => b.score - a.score || a.decision.slot - b.decision.slot);
 }
 
+export function explainSettlementDecisionV69(domain, slot, context = {}) {
+  const result = resolveSettlementDecisionV69(domain, slot, context);
+  if (!result.ok) return result;
+  const { decision } = result;
+  const trigger = Math.max(
+    Math.max(0, Math.min(1, finite(context.signal, 0))),
+    Math.max(0, Math.min(1, finite(context.pressure, 0))),
+    Math.max(0, Math.min(1, finite(context.risk, 0))),
+  );
+  return {
+    ...result,
+    explanation: {
+      trigger,
+      threshold: decision.threshold,
+      margin: Number((trigger - decision.threshold).toFixed(4)),
+      priorityContribution: Number((decision.priority * trigger).toFixed(4)),
+      responseContribution: Number((1 + decision.response / 4).toFixed(4)),
+      capacity: decision.capacity,
+      persistence: decision.persistence,
+      status: result.active ? 'eligible' : 'below-threshold',
+    },
+  };
+}
+
 export function summarizeSettlementDecisionV69() {
   const counts = Object.fromEntries(V69_DOMAINS.map((domain) => [domain, byDomain.get(domain).length]));
   return { ...V69_POLICY, domains: [...V69_DOMAINS], count: V69_CATALOG.length, counts };
