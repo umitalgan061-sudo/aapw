@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { applyShippedEnvironmentAdoptionV38 } from '../src/3d/world/shippedEnvironmentAdoptionV38.js';
+const material = { name: 'snow_rock_material', roughness: 0.2, metalness: 0.8, opacity: 0.2, transparent: false, normalScale: { set(x, y) { this.x = x; this.y = y; } }, userData: {} };
+const root = { traverse(visitor) { visitor({ material }); } };
+const background = { isColor: true, r: 0, g: 0, b: 0, setRGB(r, g, b) { this.r = r; this.g = g; this.b = b; } };
+const scene = { fog: { near: 0, far: 0 } };
+const first = applyShippedEnvironmentAdoptionV38({ scene, camera: { position: { x: 0, z: 1200 } }, roots: [root], background });
+const second = applyShippedEnvironmentAdoptionV38({ scene, camera: { position: { x: 0, z: 1200 } }, roots: [root], background });
+assert.deepEqual(first, second);
+assert.equal(first.version, 'v38');
+assert.equal(first.materialCount, 1);
+assert.ok(material.roughness >= 0.08 && material.roughness <= 0.98);
+assert.ok(material.opacity >= 0.62 && material.opacity <= 0.94);
+assert.equal(scene.fog.near, 1);
+assert.equal(scene.fog.far, 2);
+assert.ok(background.r > 0 && background.g > 0 && background.b > 0);
+console.log('checkShippedEnvironmentAdoptionV38: PASS');
