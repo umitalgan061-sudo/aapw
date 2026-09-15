@@ -1,0 +1,55 @@
+name: Player traversal presentation
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerTraversalPresentation*'
+      - 'src/3d/gameplay/playerMotionPresentation*'
+      - 'src/3d/gameplay/fixtures/playerTraversalPresentation*'
+      - 'src/3d/gameplay/fixtures/playerMotionPresentation*'
+      - 'scripts/checkPlayerTraversalPresentation*'
+      - 'scripts/checkPlayerMotionPresentation*'
+      - '.github/workflows/player-traversal-presentation.yml'
+  push:
+    branches: [main]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          for f in src/3d/gameplay/playerTraversalPresentation*.js src/3d/gameplay/playerMotionPresentation*.js scripts/checkPlayerTraversalPresentation*.mjs scripts/checkPlayerMotionPresentation*.mjs; do node --check "$f"; done
+      - name: Acceptance
+        run: |
+          set -euo pipefail
+          node scripts/checkPlayerTraversalPresentation.mjs
+          node scripts/checkPlayerTraversalPresentationRuntime.mjs
+          node scripts/checkPlayerTraversalPresentationAdversarial.mjs
+          node scripts/checkPlayerTraversalPresentationIntegration.mjs
+          node scripts/checkPlayerTraversalPresentationSchema.mjs
+          node scripts/checkPlayerTraversalPresentationSelectors.mjs
+          node scripts/checkPlayerTraversalPresentationGuards.mjs
+          node scripts/checkPlayerMotionPresentationState.mjs
+          node scripts/checkPlayerMotionPresentationDiagnostics.mjs
+          node scripts/checkPlayerMotionPresentationCases.mjs
+      - name: Meaningful additions gate
+        run: |
+          set -euo pipefail
+          base="$(git merge-base origin/main HEAD)"
+          additions="$(git diff --numstat "$base"...HEAD | awk '{sum += $1} END {print sum + 0}')"
+          echo "Meaningful additions=${additions}"
+          test "$additions" -gt 4000
+      - name: Determinism
+        run: |
+          set -euo pipefail
+          a="$(node scripts/checkPlayerMotionPresentationState.mjs)"
+          b="$(node scripts/checkPlayerMotionPresentationState.mjs)"
+          test "$a" = "$b"
+      - name: Ownership scan
+        run: |
+          set -euo pipefail
+          ! grep -R "Math\.random\|Date\.now\|\.position\.\|\.velocity\." src/3d/gameplay/playerTraversalPresentation*.js src/3d/gameplay/playerMotionPresentation*.js
