@@ -1,0 +1,62 @@
+name: Terrain Groundwater Regression
+
+on:
+  push:
+    paths:
+      - 'src/3d/world/terrainGroundwater*.js'
+      - 'scripts/checkTerrainGroundwater*.mjs'
+      - 'docs/terrain-groundwater-*.md'
+      - '.github/workflows/terrain-groundwater-regression.yml'
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainGroundwater*.js'
+      - 'scripts/checkTerrainGroundwater*.mjs'
+      - 'docs/terrain-groundwater-*.md'
+      - '.github/workflows/terrain-groundwater-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  groundwater-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify current-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+      - name: Node syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in src/3d/world/terrainGroundwater*.js scripts/checkTerrainGroundwater*.mjs; do
+            node --check "$file"
+          done
+      - name: Execute focused regression suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            scripts/checkTerrainGroundwaterBoundaries.mjs \
+            scripts/checkTerrainGroundwaterRegime.mjs \
+            scripts/checkTerrainGroundwaterSeasonality.mjs \
+            scripts/checkTerrainGroundwaterMaterials.mjs \
+            scripts/checkTerrainGroundwaterIntegration.mjs \
+            scripts/checkTerrainGroundwaterMetamorphic.mjs \
+            scripts/checkTerrainGroundwaterQualityGuards.mjs \
+            scripts/checkTerrainGroundwaterPresets.mjs \
+            scripts/checkTerrainGroundwaterFixtureCoverage.mjs \
+            scripts/checkTerrainGroundwaterRenderCache.mjs \
+            scripts/checkTerrainGroundwaterInvariants.mjs \
+            scripts/checkTerrainGroundwaterAcceptance.mjs; do
+            echo "=== $file ==="
+            node "$file"
+          done
