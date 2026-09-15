@@ -7,7 +7,9 @@ on:
       - 'src/3d/gameplay/livingWorldDirectorScenarioContract.js'
       - 'scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs'
       - 'scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorR4RoleMatrix.mjs'
       - 'artifacts/safak-kartali-living-world-director-scenario-r4-cases.jsonl'
+      - 'artifacts/safak-kartali-living-world-director-r4-matrix/**'
       - '.github/workflows/safak-kartali-living-world-scenario-contract-r4.yml'
   pull_request:
     branches: [main]
@@ -15,7 +17,9 @@ on:
       - 'src/3d/gameplay/livingWorldDirectorScenarioContract.js'
       - 'scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs'
       - 'scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorR4RoleMatrix.mjs'
       - 'artifacts/safak-kartali-living-world-director-scenario-r4-cases.jsonl'
+      - 'artifacts/safak-kartali-living-world-director-r4-matrix/**'
       - '.github/workflows/safak-kartali-living-world-scenario-contract-r4.yml'
   workflow_dispatch:
 permissions:
@@ -39,10 +43,13 @@ jobs:
           node --check src/3d/gameplay/livingWorldDirectorScenarioContract.js
           node --check scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs
           node --check scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs
+          node --check scripts/checkSafakKartaliLivingWorldDirectorR4RoleMatrix.mjs
       - name: Generate 4,096 deterministic runtime cases
         run: node scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs
       - name: Validate runtime case matrix
         run: node scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs
+      - name: Validate role matrix shards
+        run: node scripts/checkSafakKartaliLivingWorldDirectorR4RoleMatrix.mjs
       - name: Materialize generated acceptance corpus
         if: github.event_name == 'pull_request' || github.event_name == 'push'
         run: |
