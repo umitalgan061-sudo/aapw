@@ -1,0 +1,15 @@
+import { clamp01, normalizeSampleV67 } from './environmentRuntimeV67.js';
+export const SHELTER_V67=Object.freeze({id:'shelter-v67',version:67,deterministic:true,noWorldMutation:true});
+export const exposureRiskV67=(sample={})=>{const s=normalizeSampleV67(sample);return clamp01(s.wind*.46+(1-s.canopy)*.22+(1-s.visibility)*.12+s.slope*.2);};
+export const rainShelterNeedV67=(sample={})=>{const s=normalizeSampleV67(sample);return clamp01(s.rain*.6+(1-s.canopy)*.25+s.wind*.15);};
+export const thermalShelterNeedV67=(sample={})=>{const s=normalizeSampleV67(sample);return clamp01(Math.abs(s.temperature-14)/28);};
+export const shelterScoreV67=(sample={})=>clamp01((1-exposureRiskV67(sample))*.3+(1-rainShelterNeedV67(sample))*.25+(1-thermalShelterNeedV67(sample))*.25+normalizeSampleV67(sample).canopy*.2);
+export const shelterTypeV67=(sample={})=>{const score=shelterScoreV67(sample);const rain=rainShelterNeedV67(sample);const thermal=thermalShelterNeedV67(sample);if(score<.3)return'none';if(rain>.7)return'covered-rock';if(thermal>.68)return'woodland';return'lee-slope';};
+export const buildShelterSampleV67=(sample={})=>{const s=normalizeSampleV67(sample);return{id:s.id,score:shelterScoreV67(s),type:shelterTypeV67(s),exposure:exposureRiskV67(s),rainNeed:rainShelterNeedV67(s),thermalNeed:thermalShelterNeedV67(s)};};
+export const buildShelterFieldV67=(samples=[])=>samples.map(buildShelterSampleV67);
+export const shelterSummaryV67=(field=[])=>({samples:field.length,mean:field.reduce((a,x)=>a+x.score,0)/Math.max(1,field.length),usable:field.filter(x=>x.score>.55).length,types:field.reduce((a,x)=>(a[x.type]=(a[x.type]??0)+1,a),{})});
+export const shelterDistancePenaltyV67=(distance=0)=>clamp01(Math.max(0,distance)/240);
+export const shelterRouteValueV67=(sample={},distance=0)=>clamp01(shelterScoreV67(sample)-shelterDistancePenaltyV67(distance)*.35);
+export const validateShelterV67=(field=[])=>{const errors=[];if(!Array.isArray(field))errors.push('field');if(field.some(x=>x.score<0||x.score>1))errors.push('score');if(field.some(x=>!['none','covered-rock','woodland','lee-slope'].includes(x.type)))errors.push('type');return{ok:errors.length===0,errors};};
+export const shelterTelemetryV67=(field=[])=>({policy:SHELTER_V67.id,valid:validateShelterV67(field).ok,summary:shelterSummaryV67(field)});
+export const emergencyShelterChoiceV67=(candidates=[])=>candidates.filter(x=>x.score>.4).sort((a,b)=>b.score-a.score)[0]??null;
