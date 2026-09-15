@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { V68_GENERATED_DOMAINS, V68_GENERATED_CATALOG, validateGeneratedV68, resolveGeneratedV68, summarizeGeneratedV68 } from '../src/3d/world/environmentRuntimeSettlementV68Generated.js';
+assert.equal(V68_GENERATED_DOMAINS.length,20);
+assert.equal(V68_GENERATED_CATALOG.length,4100);
+assert.equal(validateGeneratedV68().ok,true);
+const a=resolveGeneratedV68(0),b=resolveGeneratedV68(4099);
+assert(a.score>=0&&a.score<=1);assert(b.score>=0&&b.score<=1);
+assert.equal(new Set(V68_GENERATED_CATALOG.map(x=>x.id)).size,4100);
+assert.equal(summarizeGeneratedV68().count,4100);
+assert.equal(resolveGeneratedV68(0).id,'signals-1');
+assert.equal(resolveGeneratedV68(4099).id,'maintenance-205');
+console.log('[checkEnvironmentRuntimeV68Generated] PASS',JSON.stringify(summarizeGeneratedV68()));
