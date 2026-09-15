@@ -1,0 +1,34 @@
+name: Safak Kartali living world director runtime R2
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/livingWorldDirectorRuntimeAdapter.js'
+      - 'src/3d/gameplay/livingWorldOccupationSchedule.js'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.js'
+      - 'src/3d/gameplay/livingWorldEventDirectorAdapter.js'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorRuntime.mjs'
+      - '.github/workflows/safak-kartali-living-world-director-r2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: node --check scripts/checkSafakKartaliLivingWorldDirectorRuntime.mjs
+      - name: Runtime acceptance proof
+        run: node scripts/checkSafakKartaliLivingWorldDirectorRuntime.mjs
