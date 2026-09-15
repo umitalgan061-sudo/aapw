@@ -41,19 +41,19 @@ jobs:
         run: node scripts/generateSafakKartaliFaunaEncounterMatrixR1.mjs
       - name: Validate corpus and runtime replay
         run: node scripts/checkSafakKartaliFaunaEncounterDirectorR1.mjs
-      - name: Materialize corpus on branch
-        if: github.event_name == 'pull_request' || github.event_name == 'push'
+      - name: Materialize corpus on push
+        if: github.event_name == 'push'
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add artifacts/safak-kartali-fauna-encounter-matrix-r1.jsonl
+          git add -f artifacts/safak-kartali-fauna-encounter-matrix-r1.jsonl
           if git diff --cached --quiet; then
             echo 'corpus unchanged'
             exit 0
           fi
-          target_branch="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
-          test -n "$target_branch"
+          target_branch="$GITHUB_REF_NAME"
+          test "$target_branch" = 'agent/safak-kartali-fauna-encounter-director-20260915'
           git commit -m 'generated(fauna): materialize R1 encounter corpus'
           git push origin HEAD:"$target_branch"
       - name: Diff hygiene
