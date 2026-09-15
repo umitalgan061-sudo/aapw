@@ -50,6 +50,8 @@ jobs:
           node --check scripts/checkPlayerLocomotionStateReplay.mjs
           node --check scripts/checkPlayerLocomotionStateReplayContract.mjs
           node --check scripts/checkPlayerLocomotionStateIntegration.mjs
+          node --check scripts/checkPlayerLocomotionStateTurnGate.mjs
+          node --check scripts/checkPlayerLocomotionStateDeterminism.mjs
 
       - name: State synthesis acceptance
         run: node scripts/checkPlayerLocomotionStateSynthesisAcceptance.mjs
@@ -79,6 +81,12 @@ jobs:
 
       - name: Integration regression
         run: node scripts/checkPlayerLocomotionStateIntegration.mjs
+
+      - name: Turn gate regression
+        run: node scripts/checkPlayerLocomotionStateTurnGate.mjs
+
+      - name: End-to-end determinism
+        run: node scripts/checkPlayerLocomotionStateDeterminism.mjs
 
       - name: Deterministic double-run
         shell: bash
