@@ -1,0 +1,147 @@
+name: Settlement World Coverage Continuity
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementWorldCoverageContinuity*.js'
+      - 'scripts/checkSettlementWorldCoverageContinuity*.mjs'
+      - '.github/workflows/settlement-world-coverage-continuity.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementWorldCoverageContinuity*.js'
+      - 'scripts/checkSettlementWorldCoverageContinuity*.mjs'
+      - '.github/workflows/settlement-world-coverage-continuity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact trigger head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Assert exact trigger head and current PR base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            git fetch origin main
+            current_main="$(git rev-parse origin/main)"
+            test "$base" = "$current_main"
+            changed="$(git diff --numstat "$base...HEAD" | awk '{a+=$1;d+=$2} END {print a+d+0}')"
+            files="$(git diff --name-only "$base...HEAD")"
+            test "$changed" -ge 2700
+            test "$changed" -le 3000
+            echo "base=$base"
+            echo "head=$(git rev-parse HEAD)"
+            echo "changed=$changed"
+            echo "$files"
+          fi
+      - name: Syntax check continuity runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            src/3d/gameplay/settlementWorldCoverageContinuity.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityAudit.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityCatalog.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityPlanner.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityAtmosphere.js \
+            src/3d/gameplay/settlementWorldCoverageContinuitySignage.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityRoads.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityExperience.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityEncounterBudget.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityTelemetry.js; do
+            node --check "$file"
+          done
+      - name: Syntax check regression scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            scripts/checkSettlementWorldCoverageContinuityCatalog.mjs \
+            scripts/checkSettlementWorldCoverageContinuityPlanner.mjs \
+            scripts/checkSettlementWorldCoverageContinuityIntegration.mjs \
+            scripts/checkSettlementWorldCoverageContinuityBoundaries.mjs \
+            scripts/checkSettlementWorldCoverageContinuityAcceptance.mjs \
+            scripts/checkSettlementWorldCoverageContinuityPresentation.mjs \
+            scripts/checkSettlementWorldCoverageContinuityEncounterBudget.mjs \
+            scripts/checkSettlementWorldCoverageContinuityTelemetry.mjs; do
+            node --check "$file"
+          done
+      - name: Run catalogue matrix
+        run: node scripts/checkSettlementWorldCoverageContinuityCatalog.mjs
+      - name: Run planner matrix
+        run: node scripts/checkSettlementWorldCoverageContinuityPlanner.mjs
+      - name: Run integration matrix
+        run: node scripts/checkSettlementWorldCoverageContinuityIntegration.mjs
+      - name: Run geographic boundary probes
+        run: node scripts/checkSettlementWorldCoverageContinuityBoundaries.mjs
+      - name: Run acceptance failure matrix
+        run: node scripts/checkSettlementWorldCoverageContinuityAcceptance.mjs
+      - name: Run presentation continuity matrix
+        run: node scripts/checkSettlementWorldCoverageContinuityPresentation.mjs
+      - name: Run encounter budget matrix
+        run: node scripts/checkSettlementWorldCoverageContinuityEncounterBudget.mjs
+      - name: Run transition telemetry matrix
+        run: node scripts/checkSettlementWorldCoverageContinuityTelemetry.mjs
+      - name: Verify exact-head ownership boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -nE 'EditorMaterialStudio|EditorAutoTexture|BoxGeometry|MeshBasicMaterial|MeshStandardMaterial|scene\.add|terrain.*mutation|hydrology.*mutation|road.*mutation' \
+            src/3d/gameplay/settlementWorldCoverageContinuity*.js
+      - name: Verify geographic seam is read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'buildAnchorRuntimeContext' src/3d/gameplay/settlementWorldCoverageContinuity.js
+          grep -q 'chunkKeyFor' src/3d/gameplay/settlementWorldCoverageContinuity.js
+          grep -q 'continuitySeedFor' src/3d/gameplay/settlementWorldCoverageContinuity.js
+          grep -q 'noTerrainMutation: true' src/3d/gameplay/settlementWorldCoverageContinuity.js
+          grep -q 'noModelAttachment: true' src/3d/gameplay/settlementWorldCoverageContinuity.js
+      - name: Verify settlement seam is authoritative
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'getSettlementService' src/3d/gameplay/settlementWorldCoverageContinuity.js
+          grep -q 'getSettlementRoute' src/3d/gameplay/settlementWorldCoverageContinuity.js
+          grep -q 'validateSettlementContent' src/3d/gameplay/settlementWorldCoverageContinuity.js
+      - name: Re-check focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only origin/main...HEAD | while IFS= read -r file; do
+            case "$file" in
+              src/3d/gameplay/settlementWorldCoverageContinuity*.js|scripts/checkSettlementWorldCoverageContinuity*.mjs|.github/workflows/settlement-world-coverage-continuity.yml|docs/settlement-world-coverage-continuity.md) ;;
+              *) echo "unexpected file: $file"; exit 1 ;;
+            esac
+          done
+      - name: Emit exact-head proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/world-coverage-continuity
+          printf '%s\n' "head_sha=${GITHUB_SHA}" > artifacts/world-coverage-continuity/exact-head.txt
+          printf '%s\n' "base_sha=${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}" >> artifacts/world-coverage-continuity/exact-head.txt
+          printf '%s\n' "policy=settlement-world-coverage-continuity-2026-09-14-v1" >> artifacts/world-coverage-continuity/exact-head.txt
+          printf '%s\n' "catalogue_profiles=560" >> artifacts/world-coverage-continuity/exact-head.txt
+          printf '%s\n' "services=8" >> artifacts/world-coverage-continuity/exact-head.txt
+          printf '%s\n' "stages=7" >> artifacts/world-coverage-continuity/exact-head.txt
+          printf '%s\n' "contexts=10" >> artifacts/world-coverage-continuity/exact-head.txt
+          printf '%s\n' "presentation=atmosphere+signage+roads+experience" >> artifacts/world-coverage-continuity/exact-head.txt
+          printf '%s\n' "diff_budget=2700..3000" >> artifacts/world-coverage-continuity/exact-head.txt
+      - name: Upload exact-head proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: settlement-world-coverage-continuity-exact-head-${{ github.sha }}
+          path: artifacts/world-coverage-continuity
+          if-no-files-found: error
