@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import { PLAYER_LOCOMOTION_STATE_REPLAY_MODES, PLAYER_LOCOMOTION_STATE_REPLAY_VERSION, createPlayerLocomotionStateReplayState, validatePlayerLocomotionStateReplay, recordPlayerLocomotionStateReplayStep, branchPlayerLocomotionStateReplay } from '../src/3d/gameplay/playerLocomotionStateReplay.js';
+
+assert.equal(PLAYER_LOCOMOTION_STATE_REPLAY_VERSION,'2026-09-15-v1');
+assert.deepEqual(PLAYER_LOCOMOTION_STATE_REPLAY_MODES,['fresh','resume','branch','compare']);
+const initial=createPlayerLocomotionStateReplayState();
+assert.equal(validatePlayerLocomotionStateReplay(initial).ok,true);
+assert.equal(initial.frame,0);
+assert.equal(initial.intents.length,0);
+assert.equal(initial.timeline.length,0);
+assert.equal(initial.telemetry.length,0);
+assert.equal(initial.quality.length,0);
+let state=initial;
+for(let index=0;index<120;index+=1){
+  const result=recordPlayerLocomotionStateReplayStep(state,{velocity:{x:0,y:1},facing:{x:0,y:1},planarSpeedMps:(index%70)/10,turnRateDegreesPerSecond:(index%12)*45,slopeDegrees:(index%19)*4-36,deltaSeconds:1/60,surfaceConfidence:0.8,surfaceSlip:index%10===0?0.7:0.1,grounded:index%17!==0,airTimeSeconds:index%17===0?0.2:0,landingImpactMps:index%23===0?5:0,traversalWeight:index%11===0?0.8:0,traversalForwardDistance:index%11===0?3:1,traversalBlocked:index%29===0});
+  assert.ok(result.intent.validation.ok,`intent-${index}`);
+  assert.equal(validatePlayerLocomotionStateReplay(result.state).ok,true,`state-${index}`);
+  assert.equal(result.state.frame,index+1);
+  assert.equal(result.state.intents.length,index+1);
+  assert.equal(result.state.timeline.length,index+1);
+  assert.equal(result.state.telemetry.length,index+1);
+  assert.equal(result.state.quality.length,index+1);
+  state=result.state;
+}
+const branched=branchPlayerLocomotionStateReplay(state,48);
+assert.equal(branched.frame,48);
+assert.equal(branched.intents.length,48);
+assert.equal(branched.timeline.length,48);
+assert.equal(branched.telemetry.length,48);
+assert.equal(branched.quality.length,48);
+assert.equal(validatePlayerLocomotionStateReplay(branched).ok,true);
+const malformed=recordPlayerLocomotionStateReplayStep(initial,{planarSpeedMps:Infinity,turnRateDegreesPerSecond:Infinity,slopeDegrees:Infinity,surfaceConfidence:NaN,surfaceSlip:NaN,grounded:false,airTimeSeconds:Infinity,landingImpactMps:Infinity,traversalWeight:Infinity,traversalForwardDistance:Infinity,traversalHeight:Infinity});
+assert.equal(malformed.intent.validation.ok,true);
+assert.equal(validatePlayerLocomotionStateReplay(malformed.state).ok,true);
+const immutable=recordPlayerLocomotionStateReplayStep(initial,{planarSpeedMps:2});
+assert.equal(Object.isFrozen(immutable.state),true);
+assert.equal(Object.isFrozen(immutable.intent),true);
+assert.equal(Object.isFrozen(immutable.timeline),true);
+assert.equal(Object.isFrozen(immutable.quality),true);
+console.log('PLAYER_LOCOMOTION_STATE_REPLAY_CONTRACT_PASS');
