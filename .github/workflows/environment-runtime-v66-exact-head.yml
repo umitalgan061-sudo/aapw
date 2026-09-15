@@ -1,0 +1,90 @@
+name: Environment Runtime V66 Exact Head
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentRuntime*V66.js'
+      - 'src/3d/world/environmentRuntimeV66Audit.js'
+      - 'src/3d/world/environmentRuntimeV66Manifest.js'
+      - 'scripts/checkEnvironmentRuntimeV66*.mjs'
+      - '.github/workflows/environment-runtime-v66-exact-head.yml'
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-v66:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact trigger head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify exact head and ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Verify changed-line envelope
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --numstat origin/main...HEAD | awk '{a+=$1;d+=$2} END {print a+d}')"
+          echo "changed-lines=${changed}"
+          test "${changed}" -ge 2850
+          test "${changed}" -le 3000
+      - name: Verify V66-only scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          bad=0
+          while IFS= read -r file; do
+            case "$file" in
+              src/3d/world/environmentRuntime*V66.js|src/3d/world/environmentRuntimeV66Audit.js|src/3d/world/environmentRuntimeV66Manifest.js|scripts/checkEnvironmentRuntimeV66*.mjs|.github/workflows/environment-runtime-v66-exact-head.yml) ;;
+              *) echo "out-of-scope:${file}"; bad=1;;
+            esac
+          done < <(git diff --name-only origin/main...HEAD)
+          test "$bad" -eq 0
+      - name: Syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in src/3d/world/environmentRuntime*V66.js scripts/checkEnvironmentRuntimeV66*.mjs; do node --check "$file"; done
+      - name: Boundary scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio\|createBoxGeometry\|createSphereGeometry\|createCylinderGeometry" src/3d/world/environmentRuntime*V66.js
+          grep -R -q "WorldAssetPlacementPipeline.js" src/3d/world/environmentRuntimeIntegrationV66.js
+          grep -R -q "MaterialAssignmentCore.js" src/3d/world/environmentRuntimeIntegrationV66.js
+          grep -R -q "noWorldMutation: true" src/3d/world/environmentRuntimeIntegrationV66.js
+      - name: Core V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66.mjs
+      - name: Edge V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66EdgeCases.mjs
+      - name: Integration V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Integration.mjs
+      - name: Performance V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Performance.mjs
+      - name: Spatial stress V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Stress.mjs
+      - name: Manifest audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { ENVIRONMENT_RUNTIME_V66_MANIFEST as m } from './src/3d/world/environmentRuntimeV66Manifest.js';
+          const expected = 19;
+          if (m.version !== 66 || m.deterministic !== true || m.noWorldMutation !== true) throw new Error('manifest-contract');
+          if (m.features.length !== expected) throw new Error(`features:${m.features.length}`);
+          if (m.acceptance.width !== 1536 || m.acceptance.height !== 1024) throw new Error('acceptance');
+          console.log(JSON.stringify({ ok: true, features: m.features.length }));
+          NODE
+      - name: Diff whitespace audit
+        run: git diff --check origin/main...HEAD
