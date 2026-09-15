@@ -1,0 +1,91 @@
+name: Terrain Sediment Surface Exact Head QA
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainSurfaceSediment*.js'
+      - 'src/3d/world/terrainSurfaceBiogenic.js'
+      - 'src/3d/world/terrainSurfaceRunoffPaths.js'
+      - 'src/3d/world/terrainSurfaceSoilStructure.js'
+      - 'src/3d/world/terrainSurfaceSeasonality.js'
+      - 'src/3d/world/terrainSurfaceLowlandFabric.js'
+      - 'scripts/checkTerrainSurfaceSediment*.mjs'
+      - 'scripts/checkTerrainSurfaceBiogenic*.mjs'
+      - 'scripts/checkTerrainSurfaceStackIntegration.mjs'
+      - '.github/workflows/terrain-sediment-exact-head.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Assert exact head ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Syntax check production stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            src/3d/world/terrainSurfaceSedimentProfiles.js \
+            src/3d/world/terrainSurfaceSedimentCalibration.js \
+            src/3d/world/terrainSurfaceSediment.js \
+            src/3d/world/terrainSurfaceBiogenic.js \
+            src/3d/world/terrainSurfaceRunoffPaths.js \
+            src/3d/world/terrainSurfaceSoilStructure.js \
+            src/3d/world/terrainSurfaceSeasonality.js \
+            src/3d/world/terrainSurfaceLowlandFabric.js; do
+            node --check "$file"
+          done
+      - name: Syntax check regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            scripts/checkTerrainSurfaceSediment.mjs \
+            scripts/checkTerrainSurfaceSedimentPerformance.mjs \
+            scripts/checkTerrainSurfaceBiogenic.mjs \
+            scripts/checkTerrainSurfaceBiogenicPerformance.mjs \
+            scripts/checkTerrainSurfaceSedimentCoverageMatrix.mjs \
+            scripts/checkTerrainSurfaceSedimentCalibration.mjs \
+            scripts/checkTerrainSurfaceStackIntegration.mjs; do
+            node --check "$file"
+          done
+      - name: Install test dependency
+        run: npm install --no-save three
+      - name: Run sediment deterministic contract
+        run: node scripts/checkTerrainSurfaceSediment.mjs
+      - name: Run sediment performance contract
+        run: node scripts/checkTerrainSurfaceSedimentPerformance.mjs
+      - name: Run biogenic deterministic contract
+        run: node scripts/checkTerrainSurfaceBiogenic.mjs
+      - name: Run biogenic performance contract
+        run: node scripts/checkTerrainSurfaceBiogenicPerformance.mjs
+      - name: Run regional coverage matrix
+        run: node scripts/checkTerrainSurfaceSedimentCoverageMatrix.mjs
+      - name: Run calibration matrix
+        run: node scripts/checkTerrainSurfaceSedimentCalibration.mjs
+      - name: Run complete surface-stack integration
+        run: node scripts/checkTerrainSurfaceStackIntegration.mjs
+      - name: Verify render-only invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "canonicalHeightUnchanged" src/3d/world/terrainSurfaceSediment.js
+          grep -q "canonicalHydrologyUnchanged" src/3d/world/terrainSurfaceBiogenic.js
+          grep -q "canonicalColliderUnchanged" src/3d/world/terrainSurfaceRunoffPaths.js
+          grep -q "canonicalVegetationPlacementUnchanged" src/3d/world/terrainSurfaceSoilStructure.js
+          grep -q "newGeographyIntroduced" src/3d/world/terrainSurfaceSeasonality.js
+      - name: Verify fixture cardinality
+        run: |
+          node --input-type=module -e "import {TERRAIN_SEDIMENT_COVERAGE_NORTH as n} from './scripts/fixtures/terrainSedimentCoverageNorth.js'; import {TERRAIN_SEDIMENT_COVERAGE_SOUTH as s} from './scripts/fixtures/terrainSedimentCoverageSouth.js'; import {TERRAIN_SEDIMENT_COVERAGE_COASTAL as c} from './scripts/fixtures/terrainSedimentCoverageCoastal.js'; if(n.length!==256||s.length!==256||c.length!==256) process.exit(1); console.log('fixture cardinality=768')"
