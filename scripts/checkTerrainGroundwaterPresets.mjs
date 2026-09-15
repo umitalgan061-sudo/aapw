@@ -28,7 +28,7 @@ for (const day of [0, 29, 30, 59, 60, 89, 90, 119, 120, 149, 150, 179, 180, 209,
   check(`season boundary ${day}`, () => { const season = seasonForDay(day); const input = seasonInput(day); assert.equal(input.dayOfYear, day); assert.ok(day >= season.dayStart && day <= season.dayEnd); bounded(input.rainfall, 'season rainfall'); });
 }
 
-check('signature catalog size is stable', () => { const catalog = sampleAllPresetSignatures(180); assert.equal(catalog.length, 24); assert.equal(catalog, sampleAllPresetSignatures(180)); });
+check('signature catalog size is stable', () => { const catalog = sampleAllPresetSignatures(180); const repeat = sampleAllPresetSignatures(180); assert.equal(catalog.length, 24); assert.deepEqual(catalog, repeat); });
 check('preset matrix size at 30-day step', () => { const matrix = groundwaterPresetMatrix({ dayStep: 30, origins: [{ worldX: 0, worldZ: 0 }] }); assert.equal(matrix.length, 288); });
 check('preset matrix is deterministic', () => { const a = groundwaterPresetMatrix({ dayStep: 45, origins: [{ worldX: 0, worldZ: 0 }] }); const b = groundwaterPresetMatrix({ dayStep: 45, origins: [{ worldX: 0, worldZ: 0 }] }); assert.deepEqual(a, b); });
 check('ranking returns every preset', () => { const rows = rankGroundwaterPresets({ metric: 'surfaceFilm', dayOfYear: 150 }); assert.equal(rows.length, 24); assert.equal(new Set(rows.map((row) => row.id)).size, 24); });
