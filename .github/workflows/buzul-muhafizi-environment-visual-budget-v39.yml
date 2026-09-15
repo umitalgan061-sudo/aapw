@@ -1,0 +1,38 @@
+name: Buzul Muhafizi Environment Visual Budget v39
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  environment-visual-budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact-main ancestry
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Verify focused diff budget and boundaries
+        shell: bash
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          expected=$'src/3d/world/environmentVisualBudgetV39.js\nscripts/checkEnvironmentVisualBudgetV39.mjs\n.github/workflows/buzul-muhafizi-environment-visual-budget-v39.yml'
+          test "$files" = "$expected"
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+          ! grep -R "EditorMaterialStudio\|createGeometry\|new THREE\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" src/3d/world/environmentVisualBudgetV39.js
+      - name: Syntax check
+        run: node --check src/3d/world/environmentVisualBudgetV39.js
+      - name: Execute contract regression
+        run: node scripts/checkEnvironmentVisualBudgetV39.mjs
