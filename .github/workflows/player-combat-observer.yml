@@ -1,0 +1,29 @@
+name: Player Combat Observer
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatObserver.js'
+      - 'scripts/checkPlayerCombatObserver.mjs'
+      - '.github/workflows/player-combat-observer.yml'
+  push:
+    branches:
+      - codex/kizil-ufuk-combat-observer-20260910
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerCombatObserver.js
+      - name: Regression
+        run: node scripts/checkPlayerCombatObserver.mjs
+      - name: Boundary
+        run: |
+          ! grep -R "EditorMaterialStudio\|WorldAssetPlacementPipeline\|MaterialAssignmentCore" -n src/3d/gameplay/playerCombatObserver.js scripts/checkPlayerCombatObserver.mjs
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+          git diff --check origin/main...HEAD
