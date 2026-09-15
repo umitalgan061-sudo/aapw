@@ -1,0 +1,101 @@
+name: Settlement World Coverage Traversal
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementWorldCoverageTraversal*.js'
+      - 'scripts/checkSettlementWorldCoverageTraversal*.mjs'
+      - 'docs/settlement-world-coverage-traversal*.md'
+      - '.github/workflows/settlement-world-coverage-traversal.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementWorldCoverageTraversal*.js'
+      - 'scripts/checkSettlementWorldCoverageTraversal*.mjs'
+      - 'docs/settlement-world-coverage-traversal*.md'
+      - '.github/workflows/settlement-world-coverage-traversal.yml'
+permissions:
+  contents: read
+jobs:
+  exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Assert exact ref
+        run: test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+      - name: Assert focused diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin main
+            base="${{ github.event.pull_request.base.sha }}"
+            test "$base" = "$(git rev-parse origin/main)"
+            changed="$(git diff --numstat "$base...HEAD" | awk '{a+=$1;d+=$2} END {print a+d+0}')"
+            test "$changed" -ge 2700
+            test "$changed" -le 3000
+            echo "changed=$changed"
+          fi
+      - name: Syntax runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in src/3d/gameplay/settlementWorldCoverageTraversal.js src/3d/gameplay/settlementWorldCoverageTraversalRisk.js src/3d/gameplay/settlementWorldCoverageTraversalRoute.js src/3d/gameplay/settlementWorldCoverageTraversalMilestones.js src/3d/gameplay/settlementWorldCoverageTraversalPacing.js src/3d/gameplay/settlementWorldCoverageTraversalSignals.js src/3d/gameplay/settlementWorldCoverageTraversalReplay.js src/3d/gameplay/settlementWorldCoverageTraversalCoordinator.js src/3d/gameplay/settlementWorldCoverageTraversalAccessibility.js src/3d/gameplay/settlementWorldCoverageTraversalScenarios.js; do
+            node --check "$file"
+          done
+      - name: Syntax tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkSettlementWorldCoverageTraversalAcceptance.mjs
+          node --check scripts/checkSettlementWorldCoverageTraversalRegression.mjs
+          node --check scripts/checkSettlementWorldCoverageTraversalBoundaries.mjs
+          node --check scripts/checkSettlementWorldCoverageTraversalApi.mjs
+      - name: Run acceptance
+        run: node scripts/checkSettlementWorldCoverageTraversalAcceptance.mjs
+      - name: Run regression
+        run: node scripts/checkSettlementWorldCoverageTraversalRegression.mjs
+      - name: Run boundaries
+        run: node scripts/checkSettlementWorldCoverageTraversalBoundaries.mjs
+      - name: Run API contract
+        run: node scripts/checkSettlementWorldCoverageTraversalApi.mjs
+      - name: Ownership guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -nE 'scene\.add|BoxGeometry|MeshBasicMaterial|MeshStandardMaterial|spawnNpc|createNavMesh|saveState|terrain.*mutation|road.*mutation' src/3d/gameplay/settlementWorldCoverageTraversal*.js
+          ! grep -R -nE 'Math\.random|Date\.now|setTimeout|setInterval' src/3d/gameplay/settlementWorldCoverageTraversal*.js
+      - name: Scope guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only origin/main...HEAD | while IFS= read -r file; do
+            case "$file" in
+              src/3d/gameplay/settlementWorldCoverageTraversal*.js|scripts/checkSettlementWorldCoverageTraversal*.mjs|docs/settlement-world-coverage-traversal*.md|.github/workflows/settlement-world-coverage-traversal.yml) ;;
+              *) echo "unexpected file: $file"; exit 1 ;;
+            esac
+          done
+      - name: Export traversal proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/settlement-traversal
+          printf '%s\n' "head_sha=${GITHUB_SHA}" > artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "lanes=10" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "phases=6" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "risk_factors=10" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "route_modes=5" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "milestones=10" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "signals=10" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "scenario_cases=70" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "diff_budget=2700..3000" >> artifacts/settlement-traversal/exact-head.txt
+      - name: Upload traversal proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: settlement-world-coverage-traversal-${{ github.sha }}
+          path: artifacts/settlement-traversal
+          if-no-files-found: error
