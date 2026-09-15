@@ -1,0 +1,95 @@
+name: Player Directional Locomotion Synthesis
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerDirectionalLocomotionPolicy.js'
+      - 'src/3d/gameplay/playerDirectionalLocomotionTelemetry.js'
+      - 'src/3d/gameplay/playerDirectionalLocomotionReplay.js'
+      - 'src/3d/gameplay/PLAYER_DIRECTIONAL_LOCOMOTION.md'
+      - 'scripts/checkPlayerDirectionalLocomotionPolicy.mjs'
+      - 'scripts/checkPlayerDirectionalLocomotionAcceptance.mjs'
+      - '.github/workflows/player-directional-locomotion.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-directional-locomotion-20260915'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Exact head
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+      - name: Exact current-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          BASE="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerDirectionalLocomotionPolicy.js
+          node --check src/3d/gameplay/playerDirectionalLocomotionTelemetry.js
+          node --check src/3d/gameplay/playerDirectionalLocomotionReplay.js
+          node --check scripts/checkPlayerDirectionalLocomotionPolicy.mjs
+          node --check scripts/checkPlayerDirectionalLocomotionAcceptance.mjs
+      - name: Focused executable regression
+        run: node scripts/checkPlayerDirectionalLocomotionPolicy.mjs
+      - name: Acceptance matrix
+        run: node scripts/checkPlayerDirectionalLocomotionAcceptance.mjs
+      - name: Deterministic double run
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkPlayerDirectionalLocomotionPolicy.mjs > /tmp/a.log
+          node scripts/checkPlayerDirectionalLocomotionPolicy.mjs > /tmp/b.log
+          diff -u /tmp/a.log /tmp/b.log
+      - name: Runtime/editor boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -nE "from ['\"]three['\"]|EventBus|ActorRegistry|EditorMaterialStudio|WorldAssetPlacementPipeline|MaterialAssignmentCore" \
+            src/3d/gameplay/playerDirectionalLocomotionPolicy.js \
+            src/3d/gameplay/playerDirectionalLocomotionTelemetry.js \
+            src/3d/gameplay/playerDirectionalLocomotionReplay.js
+      - name: Diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          additions="$(git diff --numstat origin/main...HEAD -- \
+            src/3d/gameplay/playerDirectionalLocomotionPolicy.js \
+            src/3d/gameplay/playerDirectionalLocomotionTelemetry.js \
+            src/3d/gameplay/playerDirectionalLocomotionReplay.js \
+            src/3d/gameplay/PLAYER_DIRECTIONAL_LOCOMOTION.md \
+            scripts/checkPlayerDirectionalLocomotionPolicy.mjs \
+            scripts/checkPlayerDirectionalLocomotionAcceptance.mjs \
+            .github/workflows/player-directional-locomotion.yml | awk '{a += $1} END {print a + 0}')"
+          deletions="$(git diff --numstat origin/main...HEAD -- \
+            src/3d/gameplay/playerDirectionalLocomotionPolicy.js \
+            src/3d/gameplay/playerDirectionalLocomotionTelemetry.js \
+            src/3d/gameplay/playerDirectionalLocomotionReplay.js \
+            src/3d/gameplay/PLAYER_DIRECTIONAL_LOCOMOTION.md \
+            scripts/checkPlayerDirectionalLocomotionPolicy.mjs \
+            scripts/checkPlayerDirectionalLocomotionAcceptance.mjs \
+            .github/workflows/player-directional-locomotion.yml | awk '{d += $2} END {print d + 0}')"
+          total=$((additions + deletions))
+          echo "Directional locomotion diff: $total lines"
+          test "$total" -ge 2400
+          test "$total" -le 3000
