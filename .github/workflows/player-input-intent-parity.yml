@@ -1,0 +1,25 @@
+name: player-input-intent-parity
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerInputIntentParity.js'
+      - 'scripts/checkPlayerInputIntentParity.mjs'
+      - '.github/workflows/player-input-intent-parity.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node --check src/3d/gameplay/playerInputIntentParity.js
+      - run: node --check scripts/checkPlayerInputIntentParity.mjs
+      - run: node scripts/checkPlayerInputIntentParity.mjs
+      - name: Guard runtime/editor boundaries
+        run: |
+          ! grep -nE 'EditorMaterialStudio|WorldAssetPlacementPipeline|CapsuleGeometry|document\.|window\.' src/3d/gameplay/playerInputIntentParity.js
+      - name: Guard focused diff budget
+        run: |
+          test "$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerInputIntentParity.js scripts/checkPlayerInputIntentParity.mjs .github/workflows/player-input-intent-parity.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+          test "$(git diff --name-only origin/main...HEAD -- src/3d/gameplay/playerInputIntentParity.js scripts/checkPlayerInputIntentParity.mjs .github/workflows/player-input-intent-parity.yml | wc -l)" -eq 3
+          git diff --check origin/main...HEAD
