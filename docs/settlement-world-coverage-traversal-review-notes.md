@@ -230,3 +230,13 @@ R227: review complete for documentation.
 R228: review complete for test coverage.
 R229: review complete for merge readiness.
 R230: final review status is traversal-only.
+R231: exact-head workflow covers runtime syntax.
+R232: exact-head workflow covers acceptance tests.
+R233: exact-head workflow covers regression tests.
+R234: exact-head workflow covers boundary tests.
+R235: exact-head workflow covers API tests.
+R236: exact-head workflow checks deterministic guards.
+R237: exact-head workflow checks source scope.
+R238: exact-head workflow exports proof metadata.
+R239: exact-head workflow keeps permissions read-only.
+R240: merge target is the current main branch.
