@@ -4,8 +4,10 @@ on:
     paths:
       - 'src/3d/gameplay/playerTraversalPresentation*'
       - 'src/3d/gameplay/playerMotionPresentation*'
+      - 'src/3d/gameplay/playerPresentation*'
       - 'src/3d/gameplay/fixtures/playerTraversalPresentation*'
       - 'src/3d/gameplay/fixtures/playerMotionPresentation*'
+      - 'src/3d/gameplay/fixtures/playerPresentation*'
       - 'scripts/checkPlayerTraversalPresentation*'
       - 'scripts/checkPlayerMotionPresentation*'
       - '.github/workflows/player-traversal-presentation.yml'
@@ -22,7 +24,7 @@ jobs:
       - name: Syntax
         run: |
           set -euo pipefail
-          for f in src/3d/gameplay/playerTraversalPresentation*.js src/3d/gameplay/playerMotionPresentation*.js scripts/checkPlayerTraversalPresentation*.mjs scripts/checkPlayerMotionPresentation*.mjs; do node --check "$f"; done
+          for f in src/3d/gameplay/playerTraversalPresentation*.js src/3d/gameplay/playerMotionPresentation*.js src/3d/gameplay/playerPresentation*.js scripts/checkPlayerTraversalPresentation*.mjs scripts/checkPlayerMotionPresentation*.mjs scripts/checkPlayerPresentation*.mjs; do node --check "$f"; done
       - name: Acceptance
         run: |
           set -euo pipefail
@@ -33,9 +35,20 @@ jobs:
           node scripts/checkPlayerTraversalPresentationSchema.mjs
           node scripts/checkPlayerTraversalPresentationSelectors.mjs
           node scripts/checkPlayerTraversalPresentationGuards.mjs
+          node scripts/checkPlayerTraversalPresentationStress.mjs
+          node scripts/checkPlayerTraversalPresentationBatch.mjs
+          node scripts/checkPlayerTraversalPresentationExtended.mjs
+          node scripts/checkTraversalPresentationRecovery.mjs
+          node scripts/checkPlayerTraversalPresentationReplayController.mjs
+          node scripts/checkPlayerTraversalContactPresentation.mjs
+          node scripts/checkPlayerPresentationHealth.mjs
           node scripts/checkPlayerMotionPresentationState.mjs
           node scripts/checkPlayerMotionPresentationDiagnostics.mjs
           node scripts/checkPlayerMotionPresentationCases.mjs
+          node scripts/checkPlayerMotionPresentationReplay.mjs
+          node scripts/checkPlayerMotionPresentationIntegration.mjs
+          node scripts/checkPlayerMotionPresentationQuality.mjs
+          node scripts/checkPlayerPresentationFullPipeline.mjs
       - name: Meaningful additions gate
         run: |
           set -euo pipefail
@@ -49,7 +62,10 @@ jobs:
           a="$(node scripts/checkPlayerMotionPresentationState.mjs)"
           b="$(node scripts/checkPlayerMotionPresentationState.mjs)"
           test "$a" = "$b"
+          c="$(node scripts/checkPlayerMotionPresentationReplay.mjs)"
+          d="$(node scripts/checkPlayerMotionPresentationReplay.mjs)"
+          test "$c" = "$d"
       - name: Ownership scan
         run: |
           set -euo pipefail
-          ! grep -R "Math\.random\|Date\.now\|\.position\.\|\.velocity\." src/3d/gameplay/playerTraversalPresentation*.js src/3d/gameplay/playerMotionPresentation*.js
+          ! grep -R "Math\.random\|Date\.now\|\.position\.\|\.velocity\." src/3d/gameplay/playerTraversalPresentation*.js src/3d/gameplay/playerMotionPresentation*.js src/3d/gameplay/playerPresentation*.js
