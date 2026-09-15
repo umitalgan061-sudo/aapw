@@ -1,0 +1,76 @@
+name: Player Animation Temporal Policy
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerAnimationTemporalPolicy.js'
+      - 'scripts/checkPlayerAnimationTemporalPolicy.mjs'
+      - 'src/3d/gameplay/PLAYER_ANIMATION_TEMPORAL_POLICY.md'
+      - '.github/workflows/player-animation-temporal-policy.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-animation-transition-hysteresis-20260915'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        shell: bash
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+
+      - name: Establish direct current-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          BASE="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE"
+
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerAnimationTemporalPolicy.js
+          node --check scripts/checkPlayerAnimationTemporalPolicy.mjs
+
+      - name: Focused executable regression
+        run: node scripts/checkPlayerAnimationTemporalPolicy.mjs
+
+      - name: Deterministic double run
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkPlayerAnimationTemporalPolicy.mjs > /tmp/temporal-a.log
+          node scripts/checkPlayerAnimationTemporalPolicy.mjs > /tmp/temporal-b.log
+          diff -u /tmp/temporal-a.log /tmp/temporal-b.log
+
+      - name: Ownership boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -nE "from ['\"]three['\"]|EventBus|ActorRegistry|EditorMaterialStudio|WorldAssetPlacementPipeline|MaterialAssignmentCore" src/3d/gameplay/playerAnimationTemporalPolicy.js
+
+      - name: Diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          additions="$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerAnimationTemporalPolicy.js scripts/checkPlayerAnimationTemporalPolicy.mjs src/3d/gameplay/PLAYER_ANIMATION_TEMPORAL_POLICY.md .github/workflows/player-animation-temporal-policy.yml | awk '{a += $1} END {print a + 0}')"
+          deletions="$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerAnimationTemporalPolicy.js scripts/checkPlayerAnimationTemporalPolicy.mjs src/3d/gameplay/PLAYER_ANIMATION_TEMPORAL_POLICY.md .github/workflows/player-animation-temporal-policy.yml | awk '{d += $2} END {print d + 0}')"
+          total=$((additions + deletions))
+          echo "Temporal policy diff: $total lines"
+          test "$total" -ge 1800
+          test "$total" -le 3000
