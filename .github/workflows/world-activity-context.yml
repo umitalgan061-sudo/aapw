@@ -1,0 +1,109 @@
+name: World Activity Context
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/worldActivity*.js'
+      - 'src/3d/gameplay/worldJourneyActivity.js'
+      - 'scripts/checkWorldActivity*.mjs'
+      - 'docs/world-activity-*.md'
+      - '.github/workflows/world-activity-context.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/worldActivity*.js'
+      - 'src/3d/gameplay/worldJourneyActivity.js'
+      - 'scripts/checkWorldActivity*.mjs'
+      - 'docs/world-activity-*.md'
+      - '.github/workflows/world-activity-context.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Exact head
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+      - name: Current main freshness
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin main --no-tags
+          BASE="$(git rev-parse origin/main)"
+          test "${{ github.event.pull_request.base.sha }}" = "$BASE"
+          test "$(git merge-base HEAD origin/main)" = "$BASE"
+      - name: Diff budget
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --numstat origin/main...HEAD | awk '{a+=$1;d+=$2} END {print a+d+0}')"
+          echo "changed=$changed"
+          test "$changed" -ge 2700
+          test "$changed" -le 3000
+      - name: Runtime syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            src/3d/gameplay/worldActivityContext.js \
+            src/3d/gameplay/worldActivityCadence.js \
+            src/3d/gameplay/worldActivityScheduler.js \
+            src/3d/gameplay/worldShelterContext.js \
+            src/3d/gameplay/worldJourneyActivity.js \
+            src/3d/gameplay/worldActivityEvidence.js \
+            src/3d/gameplay/worldActivityAccessibility.js \
+            src/3d/gameplay/worldActivityDirector.js; do
+            node --check "$file"
+          done
+      - name: Regression syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in scripts/checkWorldActivityContext.mjs scripts/checkWorldActivitySystem.mjs; do
+            node --check "$file"
+          done
+      - name: Activity regression
+        run: node scripts/checkWorldActivityContext.mjs
+      - name: Full activity system
+        run: node scripts/checkWorldActivitySystem.mjs
+      - name: Ownership guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -nE 'scene\.add|BoxGeometry|MeshBasicMaterial|MeshStandardMaterial|spawnNpc|createNavMesh|saveState|Math\.random|Date\.now|setTimeout|setInterval' \
+            src/3d/gameplay/worldActivity*.js src/3d/gameplay/worldJourneyActivity.js
+      - name: Scope guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only origin/main...HEAD | while IFS= read -r file; do
+            case "$file" in
+              src/3d/gameplay/worldActivity*.js|src/3d/gameplay/worldJourneyActivity.js|scripts/checkWorldActivity*.mjs|docs/world-activity-*.md|.github/workflows/world-activity-context.yml) ;;
+              *) echo "unexpected file: $file"; exit 1 ;;
+            esac
+          done
+      - name: Emit proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/world-activity
+          printf '%s\n' "head_sha=${GITHUB_SHA}" > artifacts/world-activity/exact-head.txt
+          printf '%s\n' "activity_types=12" >> artifacts/world-activity/exact-head.txt
+          printf '%s\n' "weather_types=8" >> artifacts/world-activity/exact-head.txt
+          printf '%s\n' "activity_cap=12" >> artifacts/world-activity/exact-head.txt
+          printf '%s\n' "signal_cap=10" >> artifacts/world-activity/exact-head.txt
+          printf '%s\n' "ledger_cases=500" >> artifacts/world-activity/exact-head.txt
+          printf '%s\n' "diff_budget=2700..3000" >> artifacts/world-activity/exact-head.txt
+      - name: Upload proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-activity-${{ github.sha }}
+          path: artifacts/world-activity
+          if-no-files-found: error
