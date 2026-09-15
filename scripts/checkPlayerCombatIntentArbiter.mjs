@@ -9,6 +9,7 @@ const decision = arbitratePlayerCombatIntent({
   stamina: 20,
   parryWindow: 0.08,
   dodgeCooldown: 0,
+  maxChoices: 2,
   intents: [
     { action: 'lightAttack', serial: 1, pressedAt: 2 },
     { action: 'heavyAttack', serial: 2, pressedAt: 1, staminaCost: 24 },
@@ -19,7 +20,7 @@ const decision = arbitratePlayerCombatIntent({
 });
 assert.equal(decision.selected[0].action, 'parry');
 assert.equal(decision.selected[1].action, 'dodge');
-assert.equal(decision.selected.length, 1);
+assert.equal(decision.selected.length, 2);
 assert.equal(decision.reason, 'priority-and-gates');
 assert.equal(validatePlayerCombatIntentDecision(decision), true);
 
