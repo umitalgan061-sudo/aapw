@@ -63,12 +63,14 @@ export function evaluatePerception(observer, target, options = {}) {
 
 export function summarizePerception(observer, targets, options = {}) {
   const rows = [];
+  let invalidTargets = 0;
   for (const target of targets ?? []) {
     const result = evaluatePerception(observer, target, options);
+    if (result.invalidInput) invalidTargets += 1;
     if (!result.detected) continue;
     rows.push({ id: String(target?.id ?? ''), ...result });
   }
   rows.sort((left, right) => right.confidence - left.confidence || left.distanceMeters - right.distanceMeters || left.id.localeCompare(right.id));
   const maxDetections = Number.isFinite(options.maxDetections) ? Math.max(0, Math.floor(options.maxDetections)) : rows.length;
-  return Object.freeze({ detections: Object.freeze(rows.slice(0, maxDetections)), truncated: rows.length > maxDetections, invalidTargets: (targets ?? []).length - rows.length });
+  return Object.freeze({ detections: Object.freeze(rows.slice(0, maxDetections)), truncated: rows.length > maxDetections, invalidTargets });
 }
