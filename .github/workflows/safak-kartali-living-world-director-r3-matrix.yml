@@ -8,6 +8,8 @@ on:
       - 'src/3d/gameplay/livingWorldDirectorScenarioPolicy.js'
       - 'scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs'
       - 'scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorR3BoundaryCorpus.mjs'
+      - 'artifacts/living-world-director-r3-boundary-corpus-*.jsonl'
       - '.github/workflows/safak-kartali-living-world-director-r3-matrix.yml'
       - '!artifacts/safak-kartali-living-world-director-matrix-r3.jsonl'
   pull_request:
@@ -16,6 +18,8 @@ on:
       - 'src/3d/gameplay/livingWorldDirectorScenarioPolicy.js'
       - 'scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs'
       - 'scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorR3BoundaryCorpus.mjs'
+      - 'artifacts/living-world-director-r3-boundary-corpus-*.jsonl'
       - 'artifacts/safak-kartali-living-world-director-matrix-r3.jsonl'
       - '.github/workflows/safak-kartali-living-world-director-r3-matrix.yml'
   workflow_dispatch:
@@ -40,8 +44,12 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/livingWorldDirectorScenarioPolicy.js
+          node --check src/3d/gameplay/livingWorldDirectorScenarioBridge.js
+          node --check src/3d/gameplay/livingWorldDirectorScenarioArbitration.js
           node --check scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs
           node --check scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs
+          node --check scripts/checkSafakKartaliLivingWorldDirectorScenarioBridge.mjs
+          node --check scripts/checkSafakKartaliLivingWorldDirectorR3BoundaryCorpus.mjs
       - name: Generate deterministic full scenario matrix
         run: node scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs
       - name: Validate full matrix
@@ -49,6 +57,11 @@ jobs:
           set -euo pipefail
           test "$(wc -l < artifacts/safak-kartali-living-world-director-matrix-r3.jsonl)" -eq 65537
           node scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs
+      - name: Validate boundary regression corpus
+        run: |
+          set -euo pipefail
+          test "$(find artifacts -maxdepth 1 -name 'living-world-director-r3-boundary-corpus-*.jsonl' -print0 | xargs -0 cat | grep -c .)" -eq 3072
+          node scripts/checkSafakKartaliLivingWorldDirectorR3BoundaryCorpus.mjs
       - name: Diff hygiene
         run: git diff --check
       - name: Materialize generated evidence
