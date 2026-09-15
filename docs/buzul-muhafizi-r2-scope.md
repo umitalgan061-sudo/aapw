@@ -1,0 +1,1 @@
+R2 scope is limited to deterministic qualification of the existing render-only terrain snow surface fabric. No canonical terrain or simulation ownership changes are introduced.
