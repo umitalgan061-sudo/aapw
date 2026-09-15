@@ -6,7 +6,7 @@ on:
       - agent/safak-kartali-living-world-20260915-r3
     paths:
       - 'src/3d/gameplay/livingWorldDirectorScenarioPolicy.js'
-      - 'scripts/generateSafakKartaliLivingWorldDirectorMatrixR3b.mjs'
+      - 'scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs'
       - 'scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs'
       - '.github/workflows/safak-kartali-living-world-director-r3-matrix.yml'
       - '!artifacts/safak-kartali-living-world-director-matrix-r3.jsonl'
@@ -14,7 +14,7 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/livingWorldDirectorScenarioPolicy.js'
-      - 'scripts/generateSafakKartaliLivingWorldDirectorMatrixR3b.mjs'
+      - 'scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs'
       - 'scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs'
       - 'artifacts/safak-kartali-living-world-director-matrix-r3.jsonl'
       - '.github/workflows/safak-kartali-living-world-director-r3-matrix.yml'
@@ -40,14 +40,14 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/livingWorldDirectorScenarioPolicy.js
-          node --check scripts/generateSafakKartaliLivingWorldDirectorMatrixR3b.mjs
+          node --check scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs
           node --check scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs
-      - name: Generate deterministic 4096-case matrix
-        run: node scripts/generateSafakKartaliLivingWorldDirectorMatrixR3b.mjs
-      - name: Validate matrix
+      - name: Generate deterministic full scenario matrix
+        run: node scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs
+      - name: Validate full matrix
         run: |
           set -euo pipefail
-          test "$(wc -l < artifacts/safak-kartali-living-world-director-matrix-r3.jsonl)" -eq 4097
+          test "$(wc -l < artifacts/safak-kartali-living-world-director-matrix-r3.jsonl)" -eq 65537
           node scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs
       - name: Diff hygiene
         run: git diff --check
@@ -62,5 +62,5 @@ jobs:
             echo 'matrix unchanged'
             exit 0
           fi
-          git commit -m 'generated(living-world): materialize director matrix r3 evidence'
+          git commit -m 'generated(living-world): materialize full director matrix evidence'
           git push origin HEAD:${GITHUB_REF_NAME}
