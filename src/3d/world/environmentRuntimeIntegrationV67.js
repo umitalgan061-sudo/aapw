@@ -18,6 +18,10 @@ import { synthesizeEnvironmentEventsV67 } from './environmentRuntimeEventsV67.js
 import { buildGeologyFieldV67, geologyTelemetryV67 } from './environmentRuntimeGeologyV67.js';
 import { buildGroundFieldV67, groundTelemetryV67 } from './environmentRuntimeGroundResponseV67.js';
 import { buildExposureFieldV67, exposureTelemetryV67 } from './environmentRuntimeExposureV67.js';
+import { buildTransitionFieldV67, transitionTelemetryV67 } from './environmentRuntimeBiomeTransitionsV67.js';
+import { buildResourceFieldV67, resourceTelemetryV67 } from './environmentRuntimeResourcesV67.js';
+import { buildInteractionFieldV67, interactionTelemetryV67 } from './environmentRuntimeInteractionV67.js';
+import { buildObservabilityLedgerV67, observabilityTelemetryV67 } from './environmentRuntimeObservabilityV67.js';
 
 export const V67_INTEGRATION_POLICY = Object.freeze({
   id:'environment-runtime-integration-v67',
@@ -50,32 +54,20 @@ export const buildEnvironmentRuntimeV67 = ({ samples=[], clock=12, dayOfYear=180
   const geology=buildGeologyFieldV67(samples);
   const ground=buildGroundFieldV67(samples);
   const exposure=buildExposureFieldV67(samples,clock);
-  const result={policy:V67_INTEGRATION_POLICY.id,contract:V67_INTEGRATION_POLICY,runtime,hydrology,weatherField,forecast,surface,atmosphere,wildlife,hazards,navigation,vegetation,climate,acoustics,resonance,continuity,shelter,visibility,coupling,events,geology,ground,exposure};
-  return {...result,digest:hashV67(JSON.stringify(result)),telemetry:{
-    core:validateRuntimeFrameV67(runtime),
-    hydrology:hydrologyTelemetryV67(hydrology),
-    weather:weatherTelemetryV67(weatherField),
-    surface:surfaceTelemetryV67(surface),
-    atmosphere:atmosphereTelemetryV67(atmosphere),
-    wildlife:wildlifeTelemetryV67(wildlife),
-    hazards:hazardTelemetryV67(hazards),
-    navigation:navigationTelemetryV67(navigation),
-    vegetation:vegetationTelemetryV67(vegetation),
-    climate:climateTelemetryV67(climate),
-    acoustics:acousticsTelemetryV67(acoustics),
-    resonance:resonanceTelemetryV67(resonance),
-    continuity:continuityTelemetryV67(continuity),
-    shelter:shelterTelemetryV67(shelter),
-    visibility:visibilityTelemetryV67(visibility),
-    coupling:couplingTelemetryV67(coupling),
-    geology:geologyTelemetryV67(geology),
-    ground:groundTelemetryV67(ground),
-    exposure:exposureTelemetryV67(exposure),
-  }};
+  const transitions=buildTransitionFieldV67(samples);
+  const resources=buildResourceFieldV67(samples);
+  const interactions=buildInteractionFieldV67(samples);
+  const result={policy:V67_INTEGRATION_POLICY.id,contract:V67_INTEGRATION_POLICY,runtime,hydrology,weatherField,forecast,surface,atmosphere,wildlife,hazards,navigation,vegetation,climate,acoustics,resonance,continuity,shelter,visibility,coupling,events,geology,ground,exposure,transitions,resources,interactions};
+  const telemetry={
+    core:validateRuntimeFrameV67(runtime),hydrology:hydrologyTelemetryV67(hydrology),weather:weatherTelemetryV67(weatherField),surface:surfaceTelemetryV67(surface),atmosphere:atmosphereTelemetryV67(atmosphere),wildlife:wildlifeTelemetryV67(wildlife),hazards:hazardTelemetryV67(hazards),navigation:navigationTelemetryV67(navigation),vegetation:vegetationTelemetryV67(vegetation),climate:climateTelemetryV67(climate),acoustics:acousticsTelemetryV67(acoustics),resonance:resonanceTelemetryV67(resonance),continuity:continuityTelemetryV67(continuity),shelter:shelterTelemetryV67(shelter),visibility:visibilityTelemetryV67(visibility),coupling:couplingTelemetryV67(coupling),geology:geologyTelemetryV67(geology),ground:groundTelemetryV67(ground),exposure:exposureTelemetryV67(exposure),transitions:transitionTelemetryV67(transitions),resources:resourceTelemetryV67(resources),interactions:interactionTelemetryV67(interactions),
+  };
+  const enriched={...result,telemetry};
+  const observability=buildObservabilityLedgerV67(enriched,{});
+  return {...enriched,observability,telemetry:{...telemetry,observability:observabilityTelemetryV67({policy:'observability-v67',score:0,decision:'degraded',observability})},digest:hashV67(JSON.stringify({...enriched,observability}))};
 };
 
 export const validateEnvironmentRuntimeV67 = (runtime={}) => {
-  const required=['runtime','hydrology','weatherField','forecast','surface','atmosphere','wildlife','hazards','navigation','vegetation','climate','acoustics','resonance','continuity','shelter','visibility','coupling','events','geology','ground','exposure'];
+  const required=['runtime','hydrology','weatherField','forecast','surface','atmosphere','wildlife','hazards','navigation','vegetation','climate','acoustics','resonance','continuity','shelter','visibility','coupling','events','geology','ground','exposure','transitions','resources','interactions'];
   const errors=[];
   if(runtime.policy!==V67_INTEGRATION_POLICY.id)errors.push('policy');
   if(runtime.contract?.noWorldMutation!==true)errors.push('mutation');
@@ -97,36 +89,12 @@ export const runtimeQualityScoreV67 = (runtime={}) => {
   const visibility=tele.atmosphere?.summary?.meanVisibility??0;
   const ground=tele.ground?.summary?.wet!==undefined?1:0;
   const exposure=tele.exposure?.summary?.meanMargin??0;
-  return Math.max(0,Math.min(1,base*.35+risk*.15+continuity*.17+visibility*.13+ground*.05+exposure*.15));
+  const interactions=tele.interactions?.summary?.meanSafety??0;
+  const resources=tele.resources?.summary?.meanAbundance??0;
+  return Math.max(0,Math.min(1,base*.28+risk*.12+continuity*.14+visibility*.11+ground*.04+exposure*.1+interactions*.11+resources*.1));
 };
 
-export const runtimeSummaryEnvelopeV67 = (runtime={}) => ({
-  version:67,
-  digest:runtime.digest,
-  sampleCount:runtime.runtime?.sampleCount??0,
-  phase:runtime.runtime?.phase,
-  quality:runtimeQualityScoreV67(runtime),
-  core:runtimeSummaryV67(runtime.runtime),
-});
-
-export const acceptanceGateV67 = (runtime={}) => {
-  const summary=runtimeSummaryEnvelopeV67(runtime);
-  return {ok:validateEnvironmentRuntimeV67(runtime).ok&&summary.quality>=.58&&summary.sampleCount>0,summary};
-};
-
-export const compareEnvironmentRuntimeV67 = (before={},after={}) => ({
-  sameDigest:before.digest===after.digest,
-  before:runtimeSummaryEnvelopeV67(before),
-  after:runtimeSummaryEnvelopeV67(after),
-  qualityDelta:runtimeQualityScoreV67(after)-runtimeQualityScoreV67(before),
-});
-
-export const immutableContractSnapshotV67 = (runtime={}) => Object.freeze({
-  policy:V67_POLICY.id,
-  integration:V67_INTEGRATION_POLICY.id,
-  deterministic:true,
-  noWorldMutation:true,
-  placementAuthority:V67_POLICY.placementAuthority,
-  materialAuthority:V67_POLICY.materialAuthority,
-  digest:runtime.digest,
-});
+export const runtimeSummaryEnvelopeV67 = (runtime={}) => ({version:67,digest:runtime.digest,sampleCount:runtime.runtime?.sampleCount??0,phase:runtime.runtime?.phase,quality:runtimeQualityScoreV67(runtime),core:runtimeSummaryV67(runtime.runtime)});
+export const acceptanceGateV67 = (runtime={}) => {const summary=runtimeSummaryEnvelopeV67(runtime);return {ok:validateEnvironmentRuntimeV67(runtime).ok&&summary.quality>=.58&&summary.sampleCount>0,summary};};
+export const compareEnvironmentRuntimeV67 = (before={},after={}) => ({sameDigest:before.digest===after.digest,before:runtimeSummaryEnvelopeV67(before),after:runtimeSummaryEnvelopeV67(after),qualityDelta:runtimeQualityScoreV67(after)-runtimeQualityScoreV67(before)});
+export const immutableContractSnapshotV67 = (runtime={}) => Object.freeze({policy:V67_POLICY.id,integration:V67_INTEGRATION_POLICY.id,deterministic:true,noWorldMutation:true,placementAuthority:V67_POLICY.placementAuthority,materialAuthority:V67_POLICY.materialAuthority,digest:runtime.digest});
