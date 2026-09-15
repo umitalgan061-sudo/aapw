@@ -57,7 +57,7 @@ jobs:
               A) case "$path" in
                 src/3d/world/environmentRuntime*V67.js|scripts/checkEnvironmentRuntimeV67*.mjs|.github/workflows/environment-runtime-v67-exact-head.yml) ;;
                 *) echo "Unexpected V67 added path: $path"; exit 1 ;;
-              esac ;;
+              esac ;
               M|D|R*) ;;
               *) echo "Unexpected V67 status: $status $path"; exit 1 ;;
             esac
@@ -110,3 +110,5 @@ jobs:
       - name: Diff whitespace audit
         if: github.event_name == 'pull_request'
         run: git diff --check "${{ github.event.pull_request.base.sha }}...HEAD"
+
+# Trigger a fresh exact-head run after the PR base was synchronized with main.
