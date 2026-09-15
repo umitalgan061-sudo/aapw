@@ -56,13 +56,35 @@ export function summarizeSettlementWorldCoverageContinuityTelemetry(telemetry){
 export function measureSettlementWorldCoverageContinuityTelemetry(telemetry){
   const source=telemetry&&typeof telemetry==='object'?telemetry:{},events=Array.isArray(source.events)?source.events:[];
   const transitions=events.filter((event,index)=>index>0&&event.stage!==events[index-1].stage).length;
-  const forward=events.filter(event=>event.direction==='forward').length;
-  const backward=events.filter(event=>event.direction==='backward').length;
+  const forward=events.filter(event=>event.direction==='forward').length,backward=events.filter(event=>event.direction==='backward').length;
   const warningCount=events.filter(event=>event.type==='warning').length;
   const readiness=events.length?events.reduce((sum,event)=>sum+c(event.readiness),0)/events.length:0;
   return freeze({sampleCount:events.length,transitions,forward,backward,warningCount,averageReadiness:Math.round(readiness*1000)/1000,
     firstStage:events[0]?.stage??null,lastStage:events.at(-1)?.stage??null,settlementId:t(source.settlementId,'unknown'),fingerprint:digest({events,readiness})});
 }
+
+export function filterSettlementWorldCoverageContinuityTelemetry(telemetry,{type=null,stage=null,direction=null}={}){
+  const events=Array.isArray(telemetry?.events)?telemetry.events:[];
+  return freeze(events.filter(event=>(type==null||event.type===type)&&(stage==null||event.stage===stage)&&(direction==null||event.direction===direction)));
+}
+export function getSettlementWorldCoverageContinuityTelemetryWindow(telemetry,size=8){
+  const events=Array.isArray(telemetry?.events)?telemetry.events:[],limit=Math.max(1,Math.min(24,Math.trunc(n(size,8))));
+  return freeze(events.slice(-limit));
+}
+export function compareSettlementWorldCoverageContinuityTelemetry(a,b){
+  const left=a&&typeof a==='object'?a:{},right=b&&typeof b==='object'?b:{};
+  const leftEvents=Array.isArray(left.events)?left.events:[],rightEvents=Array.isArray(right.events)?right.events:[];
+  const stagesChanged=left.stage!==right.stage, gatewayChanged=left.gatewayState!==right.gatewayState;
+  const readinessDelta=Math.round((n(right.readiness,0)-n(left.readiness,0))*1000)/1000;
+  return freeze({sameFingerprint:left.fingerprint===right.fingerprint,stagesChanged,gatewayChanged,readinessDelta,
+    eventDelta:rightEvents.length-leftEvents.length,stageFrom:left.stage??null,stageTo:right.stage??null});
+}
+export function projectSettlementWorldCoverageContinuityTelemetry(telemetry,{includeMetadata=false,maxEvents=12}={}){
+  const events=getSettlementWorldCoverageContinuityTelemetryWindow(telemetry,maxEvents);
+  return freeze(events.map(event=>({sequence:event.sequence,type:event.type,stage:event.stage,direction:event.direction,
+    distanceMeters:event.distanceMeters,readiness:event.readiness,...(includeMetadata?{metadata:event.metadata}: {})})));
+}
 export const SETTLEMENT_WORLD_COVERAGE_CONTINUITY_TELEMETRY_API=Object.freeze({version:1,maxSamples:24,eventTypes:[...EVENT_TYPES],stages:[...STAGE_ORDER],
   create:'createSettlementWorldCoverageContinuityTelemetry',append:'appendSettlementWorldCoverageContinuityTelemetrySample',validate:'validateSettlementWorldCoverageContinuityTelemetry',
-  summary:'summarizeSettlementWorldCoverageContinuityTelemetry',measure:'measureSettlementWorldCoverageContinuityTelemetry'});
+  summary:'summarizeSettlementWorldCoverageContinuityTelemetry',measure:'measureSettlementWorldCoverageContinuityTelemetry',filter:'filterSettlementWorldCoverageContinuityTelemetry',
+  window:'getSettlementWorldCoverageContinuityTelemetryWindow',compare:'compareSettlementWorldCoverageContinuityTelemetry',project:'projectSettlementWorldCoverageContinuityTelemetry'});
