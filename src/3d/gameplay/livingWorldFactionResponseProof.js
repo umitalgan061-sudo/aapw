@@ -35,6 +35,8 @@ const chainTransitions = (entries) => {
   return [...byActor.values()].map((phases) => phases.join('>'));
 };
 
+const runtimeTickFor = (plan) => plan?.tick ?? plan?.tickCount ?? plan?.telemetry?.tick ?? null;
+
 export function summarizeFactionResponseProof(plan, { frameBudgetMs = 2.5, expectedTick = null } = {}) {
   const decisions = toEntries(plan?.decisions ?? plan?.results);
   const events = toEntries(plan?.events);
@@ -45,8 +47,10 @@ export function summarizeFactionResponseProof(plan, { frameBudgetMs = 2.5, expec
   }, {});
   const maxDecisionConfidence = decisions.reduce((max, entry) => Math.max(max, finite(entry?.confidence, finite(entry?.signal?.confidence, 0))), 0);
   const throttled = decisions.filter((entry) => boundedCount(entry?.cooldownRemaining) > 0 || entry?.throttled === true).length;
-  const tickValue = expectedTick === null ? null : finite(expectedTick, NaN);
-  const observedTicks = decisions.map((entry) => finite(entry?.tick, finite(plan?.tick, NaN)));
+  const observedTick = runtimeTickFor(plan);
+  const expected = expectedTick === null ? observedTick : expectedTick;
+  const tickValue = expected === null ? null : finite(expected, NaN);
+  const observedTicks = decisions.map((entry) => finite(entry?.tick, finite(observedTick, NaN)));
   const tickConsistent = tickValue === null || Number.isFinite(tickValue) && observedTicks.every((tick) => tick === tickValue);
   const frameValue = Math.max(0, finite(frameBudgetMs, 0));
   const policy = plan?.policy ?? null;
@@ -64,6 +68,7 @@ export function summarizeFactionResponseProof(plan, { frameBudgetMs = 2.5, expec
     actionCounts: freeze({ ...actionCounts }),
     maxDecisionConfidence,
     cooldownThrottled: throttled,
+    tick: observedTick,
     tickConsistent,
     frameBudgetMs: frameValue,
     frameBudgetWithinTarget: frameValue <= 2.5,
@@ -75,4 +80,4 @@ export function summarizeFactionResponseProof(plan, { frameBudgetMs = 2.5, expec
   });
 }
 
-export const FACTION_RESPONSE_PROOF_VERSION = '2026-09-15-v4';
+export const FACTION_RESPONSE_PROOF_VERSION = '2026-09-15-v5';
