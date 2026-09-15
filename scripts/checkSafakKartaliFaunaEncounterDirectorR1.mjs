@@ -13,18 +13,20 @@ const lines = fs.readFileSync(matrixPath, 'utf8').trim().split('\n').filter(Bool
 if (lines.length !== 4096) throw new Error(`matrix row count ${lines.length} !== 4096`);
 const ids = new Set();
 for (const [index, line] of lines.entries()) {
-  const row = JSON.parse(line);
-  if (row.case !== index) throw new Error(`case id mismatch at ${index}`);
-  if (ids.has(row.case)) throw new Error(`duplicate case ${row.case}`);
-  ids.add(row.case);
-  if (!FAUNA_ENCOUNTER_SPECIES.includes(row.species)) throw new Error(`unknown species ${row.species}`);
-  if (row.threat < 0 || row.threat > 7) throw new Error(`invalid threat ${row.threat}`);
-  if (row.distanceBand < 0 || row.distanceBand > 7) throw new Error(`invalid distance ${row.distanceBand}`);
-  const expected = classifyFaunaEncounterCase({
-    species: row.species, habitat: 'forest', behavior: row.behavior,
-    threat: row.threat, distance: row.distanceBand,
-  });
-  if (JSON.stringify(expected) !== JSON.stringify(row.expected)) throw new Error(`expected mismatch at case ${row.case}`);
+  const [rawCase, species, behavior, rawThreat, rawDistance, action, tier, rawUrgency] = line.split('|');
+  const rowCase = Number(rawCase);
+  const threat = Number(rawThreat);
+  const distance = Number(rawDistance);
+  if (rowCase !== index) throw new Error(`case id mismatch at ${index}`);
+  if (ids.has(rowCase)) throw new Error(`duplicate case ${rowCase}`);
+  ids.add(rowCase);
+  if (!FAUNA_ENCOUNTER_SPECIES.includes(species)) throw new Error(`unknown species ${species}`);
+  if (threat < 0 || threat > 7 || !Number.isInteger(threat)) throw new Error(`invalid threat ${threat}`);
+  if (distance < 0 || distance > 7 || !Number.isInteger(distance)) throw new Error(`invalid distance ${distance}`);
+  const expected = classifyFaunaEncounterCase({ species, habitat: 'forest', behavior, threat, distance });
+  if (expected.action !== action || expected.tier !== tier || expected.urgency.toFixed(6) !== rawUrgency) {
+    throw new Error(`expected mismatch at case ${rowCase}`);
+  }
 }
 if (ids.size !== 4096) throw new Error('matrix uniqueness failure');
 
