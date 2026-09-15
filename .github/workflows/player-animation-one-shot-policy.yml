@@ -1,0 +1,67 @@
+name: Player Animation One Shot Policy
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerAnimationOneShotPolicy.js'
+      - 'scripts/checkPlayerAnimationOneShotPolicy.mjs'
+      - '.github/workflows/player-animation-one-shot-policy.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-animation-transition-hysteresis-20260915'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Assert exact head
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+
+      - name: Establish current-main ancestry
+        run: |
+          git fetch origin main --no-tags
+          BASE="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$BASE"
+
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerAnimationOneShotPolicy.js
+          node --check scripts/checkPlayerAnimationOneShotPolicy.mjs
+
+      - name: Focused regression
+        run: node scripts/checkPlayerAnimationOneShotPolicy.mjs
+
+      - name: Deterministic repeat
+        run: |
+          node scripts/checkPlayerAnimationOneShotPolicy.mjs > /tmp/one-shot-a.log
+          node scripts/checkPlayerAnimationOneShotPolicy.mjs > /tmp/one-shot-b.log
+          diff -u /tmp/one-shot-a.log /tmp/one-shot-b.log
+
+      - name: Runtime ownership boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -nE "from ['\"]three['\"]|EventBus|ActorRegistry|EditorMaterialStudio|WorldAssetPlacementPipeline|MaterialAssignmentCore" src/3d/gameplay/playerAnimationOneShotPolicy.js
+
+      - name: Focused diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          additions="$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerAnimationOneShotPolicy.js scripts/checkPlayerAnimationOneShotPolicy.mjs .github/workflows/player-animation-one-shot-policy.yml | awk '{a += $1} END {print a + 0}')"
+          deletions="$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerAnimationOneShotPolicy.js scripts/checkPlayerAnimationOneShotPolicy.mjs .github/workflows/player-animation-one-shot-policy.yml | awk '{d += $2} END {print d + 0}')"
+          total=$((additions + deletions))
+          echo "One-shot policy diff: $total lines"
+          test "$total" -ge 500
+          test "$total" -le 1200

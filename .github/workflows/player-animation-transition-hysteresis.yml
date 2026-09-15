@@ -1,0 +1,43 @@
+name: Player Animation Transition Hysteresis
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerAnimationDirector.js'
+      - 'src/3d/gameplay/playerAnimationTransitionPolicy.js'
+      - 'scripts/checkPlayerAnimationTransitionHysteresis.mjs'
+      - '.github/workflows/player-animation-transition-hysteresis.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-animation-transition-hysteresis-20260915'
+
+jobs:
+  focused-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Exact head
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerAnimationDirector.js && node --check src/3d/gameplay/playerAnimationTransitionPolicy.js && node --check scripts/checkPlayerAnimationTransitionHysteresis.mjs
+      - name: Focused regression
+        run: node scripts/checkPlayerAnimationTransitionHysteresis.mjs
+      - name: Deterministic repeat
+        shell: bash
+        run: |
+          a="$(node scripts/checkPlayerAnimationTransitionHysteresis.mjs)"
+          b="$(node scripts/checkPlayerAnimationTransitionHysteresis.mjs)"
+          test "$a" = "$b"
+      - name: Diff budget
+        shell: bash
+        run: |
+          additions="$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerAnimationDirector.js src/3d/gameplay/playerAnimationTransitionPolicy.js scripts/checkPlayerAnimationTransitionHysteresis.mjs .github/workflows/player-animation-transition-hysteresis.yml | awk '{a += $1} END {print a + 0}')"
+          deletions="$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerAnimationDirector.js src/3d/gameplay/playerAnimationTransitionPolicy.js scripts/checkPlayerAnimationTransitionHysteresis.mjs .github/workflows/player-animation-transition-hysteresis.yml | awk '{d += $2} END {print d + 0}')"
+          test $((additions + deletions)) -le 3000

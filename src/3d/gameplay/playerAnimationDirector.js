@@ -176,3 +176,28 @@ export function auditPlayerAnimationDirector({
     loadPlan: getPlayerAnimationLoadPlan({ catalog }),
   });
 }
+
+/**
+ * Applies hysteresis to the existing semantic animation resolver so speed noise around the
+ * locomotion/sprint boundary cannot thrash AnimationMixer actions. Combat and movement ownership
+ * remain external; this only chooses the next semantic presentation state.
+ */
+export function resolvePlayerAnimationTransition({
+  previousSemanticState = 'idle',
+  planarSpeedMps = 0,
+  runIntent = false,
+  attackKind = 'none',
+  guarding = false,
+  dodgeRemaining = 0,
+  hitStaggerRemaining = 0,
+  sprintEnterSpeedMps = 5.6,
+  sprintExitSpeedMps = 5.1,
+} = {}) {
+  const enter = Math.max(0, finite(sprintEnterSpeedMps, 5.6));
+  const exit = clamp(finite(sprintExitSpeedMps, 5.1), 0, enter);
+  const speed = Math.max(0, finite(planarSpeedMps));
+  const forced = resolvePreferredSemantic({ planarSpeedMps: speed, runIntent, attackKind, guarding, dodgeRemaining, hitStaggerRemaining });
+  if (forced !== 'sprint' && forced !== 'locomotion') return forced;
+  if (previousSemanticState === 'sprint') return speed >= exit || runIntent ? 'sprint' : forced;
+  return speed >= enter || runIntent ? 'sprint' : forced;
+}

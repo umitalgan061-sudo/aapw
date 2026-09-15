@@ -1,0 +1,46 @@
+name: Player Combat Animation Blend
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatAnimationBlend.js'
+      - 'scripts/checkPlayerCombatAnimationBlend.mjs'
+      - '.github/workflows/player-combat-animation-blend.yml'
+  push:
+    paths:
+      - 'src/3d/gameplay/playerCombatAnimationBlend.js'
+      - 'scripts/checkPlayerCombatAnimationBlend.mjs'
+      - '.github/workflows/player-combat-animation-blend.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Assert exact head
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerCombatAnimationBlend.js
+          node --check scripts/checkPlayerCombatAnimationBlend.mjs
+      - name: Focused regression
+        run: node scripts/checkPlayerCombatAnimationBlend.mjs
+      - name: Deterministic repeat
+        run: |
+          node scripts/checkPlayerCombatAnimationBlend.mjs > /tmp/blend-a.log
+          node scripts/checkPlayerCombatAnimationBlend.mjs > /tmp/blend-b.log
+          diff -u /tmp/blend-a.log /tmp/blend-b.log
+      - name: Diff budget
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          additions=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" -- src/3d/gameplay/playerCombatAnimationBlend.js scripts/checkPlayerCombatAnimationBlend.mjs .github/workflows/player-combat-animation-blend.yml | awk '{a += $1} END {print a + 0}')
+          deletions=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" -- src/3d/gameplay/playerCombatAnimationBlend.js scripts/checkPlayerCombatAnimationBlend.mjs .github/workflows/player-combat-animation-blend.yml | awk '{d += $2} END {print d + 0}')
+          test "$((additions + deletions))" -le 3000
