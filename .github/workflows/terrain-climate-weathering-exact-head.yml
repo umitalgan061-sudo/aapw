@@ -1,0 +1,86 @@
+name: Terrain Climate Weathering Exact Head QA
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainSurfaceClimateExposure.js'
+      - 'src/3d/world/terrainSurfaceAeolianDust.js'
+      - 'src/3d/world/terrainSurfaceWeathering.js'
+      - 'src/3d/world/terrainSurfaceWindExposure.js'
+      - 'src/3d/world/terrainSurfaceThermalMicroclimate.js'
+      - 'src/3d/world/terrainSurfaceSediment.js'
+      - 'src/3d/world/terrainSurfaceClimateCalibration.js'
+      - 'scripts/checkTerrainSurfaceClimateExposure.mjs'
+      - 'scripts/checkTerrainSurfaceAeolianDust.mjs'
+      - 'scripts/checkTerrainSurfaceWeathering.mjs'
+      - 'scripts/checkTerrainSurfaceMicroclimateStack.mjs'
+      - 'scripts/checkTerrainSurfaceClimateWeatheringPerformance.mjs'
+      - 'scripts/fixtures/**'
+      - '.github/workflows/terrain-climate-weathering-exact-head.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Exact head and fresh main
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Syntax
+        run: |
+          node --check src/3d/world/terrainSurfaceClimateExposure.js
+          node --check src/3d/world/terrainSurfaceAeolianDust.js
+          node --check src/3d/world/terrainSurfaceWeathering.js
+          node --check src/3d/world/terrainSurfaceWindExposure.js
+          node --check src/3d/world/terrainSurfaceThermalMicroclimate.js
+          node --check src/3d/world/terrainSurfaceSediment.js
+          node --check src/3d/world/terrainSurfaceClimateCalibration.js
+          node --check scripts/checkTerrainSurfaceClimateExposure.mjs
+          node --check scripts/checkTerrainSurfaceAeolianDust.mjs
+          node --check scripts/checkTerrainSurfaceWeathering.mjs
+          node --check scripts/checkTerrainSurfaceMicroclimateStack.mjs
+          node --check scripts/checkTerrainSurfaceClimateWeatheringPerformance.mjs
+      - name: Focused deterministic regressions
+        run: |
+          node scripts/checkTerrainSurfaceClimateExposure.mjs
+          node scripts/checkTerrainSurfaceAeolianDust.mjs
+          node scripts/checkTerrainSurfaceWeathering.mjs
+          node scripts/checkTerrainSurfaceMicroclimateStack.mjs
+          node scripts/checkTerrainSurfaceClimateWeatheringPerformance.mjs
+      - name: Repeat determinism
+        shell: bash
+        run: |
+          node scripts/checkTerrainSurfaceClimateExposure.mjs >/tmp/a
+          node scripts/checkTerrainSurfaceClimateExposure.mjs >/tmp/b
+          diff -u /tmp/a /tmp/b
+          node scripts/checkTerrainSurfaceMicroclimateStack.mjs >/tmp/c
+          node scripts/checkTerrainSurfaceMicroclimateStack.mjs >/tmp/d
+          diff -u /tmp/c /tmp/d
+      - name: Ownership boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RInE "from ['\"]three['\"]|EventBus|ActorRegistry|WorldAssetPlacementPipeline|MaterialAssignmentCore" \
+            src/3d/world/terrainSurfaceClimateExposure.js \
+            src/3d/world/terrainSurfaceAeolianDust.js \
+            src/3d/world/terrainSurfaceWeathering.js \
+            src/3d/world/terrainSurfaceWindExposure.js \
+            src/3d/world/terrainSurfaceThermalMicroclimate.js
+      - name: Focused diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          additions=$(git diff --numstat origin/main...HEAD -- src/3d/world/terrainSurfaceClimateExposure.js src/3d/world/terrainSurfaceAeolianDust.js src/3d/world/terrainSurfaceWeathering.js src/3d/world/terrainSurfaceWindExposure.js src/3d/world/terrainSurfaceThermalMicroclimate.js src/3d/world/terrainSurfaceSediment.js | awk '{a += $1} END {print a + 0}')
+          deletions=$(git diff --numstat origin/main...HEAD -- src/3d/world/terrainSurfaceClimateExposure.js src/3d/world/terrainSurfaceAeolianDust.js src/3d/world/terrainSurfaceWeathering.js src/3d/world/terrainSurfaceWindExposure.js src/3d/world/terrainSurfaceThermalMicroclimate.js src/3d/world/terrainSurfaceSediment.js | awk '{d += $2} END {print d + 0}')
+          total=$((additions + deletions))
+          echo "Production terrain diff: $total lines"
+          test "$total" -ge 320
+          test "$total" -le 1800
