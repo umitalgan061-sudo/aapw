@@ -5,7 +5,7 @@ export const PLAYER_TRAVERSAL_EXTENDED_SCENARIOS=Object.freeze([
 {id:'vault-commit',steps:[{w:.7,d:2.7},{w:.75,d:2.1},{w:.85,d:1.9},{w:.95,d:1.2}],states:['prepare','prepare','vault','vault']},
 {id:'climb-commit',steps:[{w:.7,d:2.7,h:1},{w:.8,d:2.2,h:1},{w:.85,d:1.8,h:1.1,g:false}],states:['climb','climb','climb']},
 {id:'drop-commit',steps:[{w:.7,d:2.7,h:-.6},{w:.8,d:2.2,h:-.8},{w:.9,d:1.8,h:-1,g:false}],states:['drop','drop','drop']},
-{id:'blocked-after-prepare',steps:[{w:.6,d:3},{w:.7,d:2.4},{w:.8,d:2,trued:false},{w:.8,d:2,blocked:true}],states:['approach','prepare','prepare','blocked']},
+{id:'blocked-after-prepare',steps:[{w:.6,d:3},{w:.7,d:2.4},{w:.8,d:2,g:false},{w:.8,d:2,blocked:true}],states:['approach','prepare','prepare','blocked']},
 {id:'cancel-after-commit',steps:[{w:.7,d:2.5},{w:.9,d:1.4},{w:.9,d:1.4,c:true}],states:['prepare','vault','cancelled']},
 {id:'land-release',steps:[{w:.9,d:1.4},{w:.2,d:1.4,impact:2,e:.1},{w:.1,d:3,impact:0,e:.4},{w:0,d:4}],states:['vault','land','clear','clear']},
 {id:'hard-land-recover',steps:[{w:.9,d:1.4},{w:.2,impact:6,e:.1},{w:0,g:false},{w:0,g:true}],states:['vault','land','recover','clear']},
