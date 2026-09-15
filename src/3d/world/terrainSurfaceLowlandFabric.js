@@ -11,6 +11,7 @@
  */
 
 import { TERRAIN_VEGETATION_EDGE_POLICY, installTerrainVegetationEdge } from './terrainSurfaceVegetationEdge.js';
+import { TERRAIN_SEDIMENT_POLICY, installTerrainSediment } from './terrainSurfaceSediment.js';
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -41,6 +42,7 @@ export const TERRAIN_LOWINLAND_FABRIC_POLICY = Object.freeze({
 	aggregateNormalEnergy: 0.075,
 	aggregateRoughnessEnergy: 0.12,
 	vegetationEdgePolicyId: TERRAIN_VEGETATION_EDGE_POLICY.id,
+	sedimentPolicyId: TERRAIN_SEDIMENT_POLICY.id,
 });
 
 function hash2D(ix, iz, seed) {
@@ -143,7 +145,7 @@ float terrainLowNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);float a
 float terrainLowFbm(vec2 p){float v=0.,w=0.,a=.55;for(int i=0;i<5;i++){v+=terrainLowNoise(p)*a;w+=a;p=p*2.03+vec2(9.4,-6.8);a*=.48;}return v/w;}
 float terrainLowRidge(vec2 p){return 1.-abs(terrainLowFbm(p)*2.-1.);}
 vec2 terrainLowRotate(vec2 p,float a){float c=cos(a),s=sin(a);return vec2(p.x*c-p.y*s,p.x*s+p.y*c);}
-vec3 terrainLowState(vec3 position,vec3 worldNormal,vec3 base){vec2 p=position.xz;float h=position.y;float slope=1.-clamp(abs(normalize(worldNormal).y),0.,1.);vec2 wa=p+(vec2(terrainLowFbm(p/760.+vec2(4.1,-8.2)),terrainLowFbm(p/540.+vec2(-6.2,7.4)))-.5)*vec2(220.,180.);vec2 r=terrainLowRotate(wa,.62);float regional=terrainLowFbm(wa/2400.+vec2(7.2,-11.4));float broad=terrainLowFbm(wa/760.+vec2(-4.6,8.1));float macro=terrainLowFbm(wa/320.+vec2(12.2,4.7));float meso=terrainLowFbm(r/vec2(128.,390.)+vec2(8.7,-5.1));float bench=terrainLowFbm(r/vec2(410.,104.)+vec2(-12.3,19.4));float swale=terrainLowFbm(r/vec2(138.,520.)+vec2(6.9,-3.2));float aggregate=terrainLowRidge(r/vec2(18.,26.)+vec2(4.2,-11.7));float lag=terrainLowRidge(r/vec2(82.,246.)+vec2(21.6,-7.9));float fine=terrainLowNoise(r/18.+vec2(5.4,-18.2));float lowland=(1.-smoothstep(80.,170.,h))*(1.-smoothstep(.11,.28,slope));float moisture=clamp(.50+(.5-regional)*.18+(.5-broad)*.14+(.5-swale)*.06,0.,1.);float wetSwale=lowland*smoothstep(.48,.80,moisture)*smoothstep(.44,.82,swale);float dryBench=lowland*smoothstep(.48,.80,1.-moisture)*smoothstep(.46,.82,bench);float ribbon=lowland*(.35+macro*.65)*smoothstep(.46,.82,moisture)*smoothstep(.44,.80,swale);float soil=lowland*(.34+aggregate*.66)*(.55+dryBench*.45);float mineral=lowland*lag*(.30+macro*.42+(1.-moisture)*.28);float vegetation=smoothstep(.004,.085,base.g-max(base.r,base.b));float snow=smoothstep(.58,.88,dot(base,vec3(.2126,.7152,.0722)))*(1.-smoothstep(.08,.24,max(base.r,max(base.g,base.b))-min(base.r,min(base.g,base.b))));float mask=(1.-snow);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.065,.090,.052),wetSwale*.16*mask);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.31,.26,.16),dryBench*.16*mask);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.25,.23,.19),ribbon*.11*mask);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.33,.32,.29),mineral*.10*mask);diffuseColor.rgb*=.94+(regional-.5)*.08+(broad-.5)*.07+(macro-.5)*.05+(meso-.5)*.025+(fine-.5)*.018;}
+vec3 terrainLowState(vec3 position,vec3 worldNormal,vec3 base){vec2 p=position.xz;float h=position.y;float slope=1.-clamp(abs(normalize(worldNormal).y),0.,1.);vec2 wa=p+(vec2(terrainLowFbm(p/760.+vec2(4.1,-8.2)),terrainLowFbm(p/540.+vec2(-6.2,7.4)))-.5)*vec2(220.,180.);vec2 r=terrainLowRotate(wa,.62);float regional=terrainLowFbm(wa/2400.+vec2(7.2,-11.4));float broad=terrainLowFbm(wa/760.+vec2(-4.6,8.1));float macro=terrainLowFbm(wa/320.+vec2(12.2,4.7));float meso=terrainLowFbm(r/vec2(128.,390.)+vec2(8.7,-5.1));float bench=terrainLowFbm(r/vec2(410.,104.)+vec2(-12.3,19.4));float swale=terrainLowFbm(r/vec2(138.,520.)+vec2(6.9,-3.2));float aggregate=terrainLowRidge(r/vec2(18.,26.)+vec2(4.2,-11.7));float lag=terrainLowRidge(r/vec2(82.,246.)+vec2(21.6,-7.9));float fine=terrainLowNoise(r/18.+vec2(5.4,-18.2));float lowland=(1.-smoothstep(80.,170.,h))*(1.-smoothstep(.11,.28,slope));float moisture=clamp(.50+(.5-regional)*.18+(.5-broad)*.14+(.5-swale)*.06,0.,1.);float wetSwale=lowland*smoothstep(.48,.80,moisture)*smoothstep(.44,.82,swale);float dryBench=lowland*smoothstep(.48,.80,1.-moisture)*smoothstep(.46,.82,bench);float ribbon=lowland*(.35+macro*.65)*smoothstep(.46,.82,moisture)*smoothstep(.44,.80,swale);float mineral=lowland*lag*(.30+macro*.42+(1.-moisture)*.28);float snow=smoothstep(.58,.88,dot(base,vec3(.2126,.7152,.0722)))*(1.-smoothstep(.08,.24,max(base.r,max(base.g,base.b))-min(base.r,min(base.g,base.b))));float mask=(1.-snow);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.065,.090,.052),wetSwale*.16*mask);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.31,.26,.16),dryBench*.16*mask);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.25,.23,.19),ribbon*.11*mask);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.33,.32,.29),mineral*.10*mask);diffuseColor.rgb*=.94+(regional-.5)*.08+(broad-.5)*.07+(macro-.5)*.05+(meso-.5)*.025+(fine-.5)*.018;}
 void terrainLowRoughness(){vec2 p=vTerrainLowWorldPosition.xz;float h=vTerrainLowWorldPosition.y;vec3 n=normalize(vTerrainLowWorldNormal);float slope=1.-clamp(abs(n.y),0.,1.);float meso=terrainLowFbm(p/128.+vec2(8.7,-5.1));float aggregate=terrainLowRidge(p/vec2(18.,26.)+vec2(4.2,-11.7));float lag=terrainLowRidge(p/vec2(82.,246.)+vec2(21.6,-7.9));float lowland=(1.-smoothstep(80.,170.,h))*(1.-smoothstep(.11,.28,slope));float wet=(1.-smoothstep(.45,.76,meso))*lowland;float dry=meso*lowland;roughnessFactor=clamp(roughnessFactor+aggregate*.055+lag*.065+dry*.035-wet*.048,0.42,1.0);}
 void terrainLowNormal(){vec2 p=vTerrainLowWorldPosition.xz;float h=vTerrainLowWorldPosition.y;vec3 n=normalize(vTerrainLowWorldNormal);float slope=1.-clamp(abs(n.y),0.,1.);float lowland=(1.-smoothstep(80.,170.,h))*(1.-smoothstep(.11,.28,slope));float a=terrainLowNoise(p/9.+vec2(7.2,-4.6));float b=terrainLowNoise(p/9.+vec2(7.8,-4.1));float c=terrainLowRidge(p/38.+vec2(-12.7,8.4));vec2 g=vec2(b-a,c-.5);normal=normalize(normal+mat3(viewMatrix)*vec3(-g.x,0.,-g.y)*lowland*.075);}
 `;
@@ -180,8 +182,10 @@ export function installTerrainLowlandFabric(material) {
 			lowlandMicroNormals: true,
 			worldSpaceRoughnessVariation: true,
 			vegetationEdgePolicyId: TERRAIN_VEGETATION_EDGE_POLICY.id,
+			sedimentPolicyId: TERRAIN_SEDIMENT_POLICY.id,
 		}),
 	};
+	installTerrainSediment(material);
 	installTerrainVegetationEdge(material);
 	return material;
 }
