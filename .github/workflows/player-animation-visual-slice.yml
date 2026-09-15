@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: false
+          lfs: true
 
       - name: Establish exact-main ancestry and bounded scope
         shell: bash
@@ -67,7 +67,8 @@ jobs:
         run: |
           set -euo pipefail
           git lfs install
-          git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/*.fbx" --exclude="*"
+          git lfs fetch origin "$GITHUB_SHA" --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/*.fbx"
+          git lfs checkout assets/models/characters/peasant_girl.fbx assets/animations/peasant_girl/idle.fbx assets/animations/peasant_girl/walking.fbx assets/animations/peasant_girl/running.fbx
           for asset in \
             assets/models/characters/peasant_girl.fbx \
             assets/animations/peasant_girl/idle.fbx \
