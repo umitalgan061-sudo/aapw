@@ -1,0 +1,7 @@
+import assert from 'node:assert/strict';
+import { buildPlayerMotionPresentationState } from '../src/3d/gameplay/playerMotionPresentationState.js';
+import { isPlayerMotionPresentationDomainTransitionAllowed, resolvePlayerMotionPresentationTransition, summarizePlayerMotionTransitions } from '../src/3d/gameplay/playerMotionPresentationTransitionPolicy.js';
+const inputs=[{planarSpeedMps:0,traversalWeight:0,deltaSeconds:1/60,velocity:{x:0,y:1},facing:{x:0,y:1}},{planarSpeedMps:3,traversalWeight:.8,traversalForwardDistance:2.2,deltaSeconds:1/60,velocity:{x:0,y:1},facing:{x:0,y:1}},{planarSpeedMps:4,traversalWeight:.9,traversalForwardDistance:1.2,deltaSeconds:1/60,velocity:{x:0,y:1},facing:{x:0,y:1}},{planarSpeedMps:0,traversalWeight:0,deltaSeconds:1/60,velocity:{x:0,y:1},facing:{x:0,y:1}}];
+let previous=null;const states=[];for(const input of inputs){const state=buildPlayerMotionPresentationState(previous,input);if(previous){const transition=resolvePlayerMotionPresentationTransition(previous,state);assert.equal(transition.allowed,true);assert.equal(typeof transition.reason,'string');}states.push(state);previous=state;}
+assert.equal(isPlayerMotionPresentationDomainTransitionAllowed('locomotion','traversal'),true);assert.equal(isPlayerMotionPresentationDomainTransitionAllowed('traversal','locomotion'),true);assert.equal(summarizePlayerMotionTransitions(states).count,states.length);
+console.log('player motion presentation transition policy passed');
