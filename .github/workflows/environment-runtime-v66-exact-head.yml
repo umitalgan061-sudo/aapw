@@ -24,18 +24,25 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Verify exact head and ancestry
+      - name: Verify exact head and current PR base
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           git fetch origin main --depth=1
-          git merge-base --is-ancestor origin/main HEAD
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            current_main="$(git rev-parse origin/main)"
+            test "${base}" = "${current_main}"
+          fi
       - name: Verify changed-line envelope
         shell: bash
         run: |
           set -euo pipefail
-          changed="$(git diff --numstat origin/main...HEAD | awk '{a+=$1;d+=$2} END {print a+d}')"
+          base="origin/main"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then base="${{ github.event.pull_request.base.sha }}"; fi
+          changed="$(git diff --numstat "${base}...HEAD" | awk '{a+=$1;d+=$2} END {print a+d}')"
+          echo "base=${base}"
           echo "changed-lines=${changed}"
           test "${changed}" -ge 2850
           test "${changed}" -le 3000
@@ -43,13 +50,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          base="origin/main"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then base="${{ github.event.pull_request.base.sha }}"; fi
           bad=0
           while IFS= read -r file; do
             case "$file" in
               src/3d/world/environmentRuntime*V66.js|src/3d/world/environmentRuntimeV66Audit.js|src/3d/world/environmentRuntimeV66Manifest.js|scripts/checkEnvironmentRuntimeV66*.mjs|.github/workflows/environment-runtime-v66-exact-head.yml) ;;
               *) echo "out-of-scope:${file}"; bad=1;;
             esac
-          done < <(git diff --name-only origin/main...HEAD)
+          done < <(git diff --name-only "${base}...HEAD")
           test "$bad" -eq 0
       - name: Syntax check
         shell: bash
@@ -74,6 +83,38 @@ jobs:
         run: node scripts/checkEnvironmentRuntimeV66Performance.mjs
       - name: Spatial stress V66 regression
         run: node scripts/checkEnvironmentRuntimeV66Stress.mjs
+      - name: Acceptance V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Acceptance.mjs
+      - name: Release acceptance V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66ReleaseAcceptance.mjs
+      - name: Climate V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Climate.mjs
+      - name: Ground V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Ground.mjs
+      - name: Weather V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Weather.mjs
+      - name: Streaming V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Streaming.mjs
+      - name: Acoustics V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Acoustics.mjs
+      - name: Geology V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Geology.mjs
+      - name: Resonance V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Resonance.mjs
+      - name: Continuity V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Continuity.mjs
+      - name: Scenario ledger V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66ScenarioLedger.mjs
+      - name: Biome coverage V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66BiomeCoverage.mjs
+      - name: Stress ledger V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66StressLedger.mjs
+      - name: Architecture V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Architecture.mjs
+      - name: Quality guard V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66QualityGuard.mjs
+      - name: Final V66 regression
+        run: node scripts/checkEnvironmentRuntimeV66Final.mjs
       - name: Manifest audit
         shell: bash
         run: |
