@@ -1,162 +1,19 @@
 import assert from 'node:assert/strict';
-import {
-  PLAYER_LOCOMOTION_ANTICIPATION_MODES,
-  resolvePlayerLocomotionAnticipationProfile,
-  resolvePlayerLocomotionAnticipationMode,
-  validatePlayerLocomotionAnticipationProfile,
-  createPlayerLocomotionAnticipationState,
-  advancePlayerLocomotionAnticipationState,
-  validatePlayerLocomotionAnticipationState,
-} from '../src/3d/gameplay/playerLocomotionAnticipationPolicy.js';
-import {
-  createPlayerLocomotionAnticipationReplayTape,
-  replayPlayerLocomotionAnticipationTape,
-  replayPlayerLocomotionAnticipationSamples,
-  comparePlayerLocomotionAnticipationReplayRuns,
-  diffPlayerLocomotionAnticipationFrame,
-  buildPlayerLocomotionAnticipationReplayCorpus,
-  comparePlayerLocomotionAnticipationCorpora,
-  perturbPlayerLocomotionAnticipationSample,
-  createPlayerLocomotionAnticipationReplayDigest,
-} from '../src/3d/gameplay/playerLocomotionAnticipationReplay.js';
-import {
-  createPlayerLocomotionAnticipationTelemetryState,
-  advancePlayerLocomotionAnticipationTelemetry,
-  createPlayerLocomotionAnticipationTelemetryReadModel,
-  resolvePlayerLocomotionAnticipationTelemetryBudget,
-  resolvePlayerLocomotionAnticipationTelemetryBuckets,
-} from '../src/3d/gameplay/playerLocomotionAnticipationTelemetry.js';
+import { PLAYER_LOCOMOTION_ANTICIPATION_MODES, resolvePlayerLocomotionAnticipationProfile, resolvePlayerLocomotionAnticipationMode, validatePlayerLocomotionAnticipationProfile, createPlayerLocomotionAnticipationState, advancePlayerLocomotionAnticipationState, validatePlayerLocomotionAnticipationState } from '../src/3d/gameplay/playerLocomotionAnticipationPolicy.js';
+import { createPlayerLocomotionAnticipationReplayTape, replayPlayerLocomotionAnticipationTape, replayPlayerLocomotionAnticipationSamples, comparePlayerLocomotionAnticipationReplayRuns, diffPlayerLocomotionAnticipationFrame, buildPlayerLocomotionAnticipationReplayCorpus, comparePlayerLocomotionAnticipationCorpora, perturbPlayerLocomotionAnticipationSample, createPlayerLocomotionAnticipationReplayDigest } from '../src/3d/gameplay/playerLocomotionAnticipationReplay.js';
+import { createPlayerLocomotionAnticipationTelemetryState, advancePlayerLocomotionAnticipationTelemetry, createPlayerLocomotionAnticipationTelemetryReadModel, resolvePlayerLocomotionAnticipationTelemetryBudget, resolvePlayerLocomotionAnticipationTelemetryBuckets } from '../src/3d/gameplay/playerLocomotionAnticipationTelemetry.js';
 
-function finiteTree(value) {
-  if (typeof value === 'number') assert.equal(Number.isFinite(value), true);
-  if (value && typeof value === 'object') for (const child of Object.values(value)) finiteTree(child);
-}
-function sample(index = 0, overrides = {}) {
-  const angle = (index % 16) * Math.PI / 8;
-  return {
-    velocity: { x: Math.sin(angle), y: Math.cos(angle) },
-    facing: { x: 0, y: 1 },
-    planarSpeedMps: (index % 15) * 0.9,
-    slopeDegrees: (index * 7) % 56,
-    turnRateDegreesPerSecond: (index * 53) % 541,
-    deltaSeconds: 0.016 + (index % 5) * 0.011,
-    surfaceConfidence: (index * 0.17) % 1,
-    surfaceSlip: (index * 0.13) % 1,
-    ...overrides,
-  };
-}
+function finiteTree(value){if(typeof value==='number')assert.equal(Number.isFinite(value),true);if(value&&typeof value==='object')for(const child of Object.values(value))finiteTree(child);}
+function sample(index=0,overrides={}){const angle=(index%16)*Math.PI/8;return{velocity:{x:Math.sin(angle),y:Math.cos(angle)},facing:{x:0,y:1},planarSpeedMps:(index%15)*0.9,slopeDegrees:(index*7)%56,turnRateDegreesPerSecond:(index*53)%541,deltaSeconds:0.016+(index%5)*0.011,surfaceConfidence:(index*0.17)%1,surfaceSlip:(index*0.13)%1,...overrides};}
 
-const hostileInputs = [
-  sample(1, { planarSpeedMps: Infinity }),
-  sample(2, { planarSpeedMps: NaN }),
-  sample(3, { planarSpeedMps: -Infinity }),
-  sample(4, { slopeDegrees: Infinity }),
-  sample(5, { slopeDegrees: NaN }),
-  sample(6, { turnRateDegreesPerSecond: Infinity }),
-  sample(7, { turnRateDegreesPerSecond: NaN }),
-  sample(8, { deltaSeconds: Infinity }),
-  sample(9, { deltaSeconds: -100 }),
-  sample(10, { previousPhase: Infinity }),
-  sample(11, { surfaceConfidence: -Infinity }),
-  sample(12, { surfaceConfidence: NaN }),
-  sample(13, { surfaceSlip: Infinity }),
-  sample(14, { velocity: { x: Infinity, y: NaN }, facing: { x: NaN, y: Infinity } }),
-  sample(15, { attackKind: 'heavy', hitStaggerRemaining: 30, dodgeRemaining: 30, guarding: true }),
-];
-for (const input of hostileInputs) {
-  const profile = resolvePlayerLocomotionAnticipationProfile(input);
-  assert.equal(validatePlayerLocomotionAnticipationProfile(profile).ok, true);
-  finiteTree(profile);
-}
-
-for (let index = 0; index < 768; index += 1) {
-  const input = sample(index);
-  const profile = resolvePlayerLocomotionAnticipationProfile(input);
-  assert.ok(PLAYER_LOCOMOTION_ANTICIPATION_MODES.includes(profile.mode));
-  assert.equal(validatePlayerLocomotionAnticipationProfile(profile).ok, true);
-  const values = Object.values(profile.anticipatedBlendWeights);
-  assert.equal(values.length, 8);
-  assert.ok(values.every((value) => value >= 0 && value <= 1));
-  assert.ok(Math.abs(values.reduce((a, b) => a + b, 0) - 1) < 0.001);
-  assert.ok(profile.playbackRate >= 0.72 && profile.playbackRate <= 1.35);
-  assert.ok(profile.phase >= 0 && profile.phase < 1);
-  finiteTree(profile);
-}
-
-const precedence = [
-  sample(20, { planarSpeedMps: 7, hitStaggerRemaining: 0.1, dodgeRemaining: 0.1, attackKind: 'heavy', guarding: true }),
-  sample(21, { planarSpeedMps: 7, dodgeRemaining: 0.1, attackKind: 'heavy', guarding: true }),
-  sample(22, { planarSpeedMps: 7, attackKind: 'heavy', guarding: true }),
-  sample(23, { planarSpeedMps: 7, attackKind: 'light', guarding: true }),
-  sample(24, { planarSpeedMps: 7, guarding: true }),
-];
-assert.equal(resolvePlayerLocomotionAnticipationMode(precedence[0]), 'stagger-recover');
-assert.equal(resolvePlayerLocomotionAnticipationMode(precedence[1]), 'dodge-recover');
-assert.equal(resolvePlayerLocomotionAnticipationMode(precedence[2]), 'combat-advance');
-assert.equal(resolvePlayerLocomotionAnticipationMode(precedence[3]), 'combat-advance');
-assert.equal(resolvePlayerLocomotionAnticipationMode(precedence[4]), 'guard-walk');
-
-let state = createPlayerLocomotionAnticipationState();
-for (let index = 0; index < 700; index += 1) {
-  state = advancePlayerLocomotionAnticipationState(state, sample(index, {
-    planarSpeedMps: index % 60 < 10 ? 0 : index % 60 < 25 ? 2.8 : index % 60 < 42 ? 7 : 1.2,
-  }), null);
-  assert.equal(validatePlayerLocomotionAnticipationState(state).ok, true);
-  assert.equal(state.frameCount, index + 1);
-  assert.ok(state.history.length <= 24);
-  assert.ok(state.transitionCount <= state.frameCount);
-}
-assert.equal(state.history.length, 24);
-
-let telemetry = createPlayerLocomotionAnticipationTelemetryState();
-for (let index = 0; index < 500; index += 1) {
-  telemetry = advancePlayerLocomotionAnticipationTelemetry(telemetry, sample(index), index);
-  assert.ok(telemetry.history.length <= 48);
-  assert.ok(telemetry.events.length <= 96);
-  assert.ok(telemetry.warnings.length <= 24);
-}
-const model = createPlayerLocomotionAnticipationTelemetryReadModel(telemetry);
-assert.equal(model.counters.samples, 500);
-assert.ok(model.recentEvents.length <= 16);
-assert.ok(model.quality.score >= 0 && model.quality.score <= 1);
-assert.equal(resolvePlayerLocomotionAnticipationTelemetryBudget(240, 96).withinBudget, true);
-assert.equal(resolvePlayerLocomotionAnticipationTelemetryBudget(241, 96).withinBudget, false);
-assert.equal(resolvePlayerLocomotionAnticipationTelemetryBuckets([0,0.1,0.3,0.6,0.8,1]).['<0.25'] ?? resolvePlayerLocomotionAnticipationTelemetryBuckets([0]).['<0.25'], 2);
-
-const source = Array.from({ length: 180 }, (_, index) => sample(index));
-const tape = createPlayerLocomotionAnticipationReplayTape(source, { name: 'adversarial', seed: '17' });
-const replayA = replayPlayerLocomotionAnticipationTape(tape);
-const replayB = replayPlayerLocomotionAnticipationTape(tape);
-assert.equal(replayA.valid, true);
-assert.equal(replayA.profilesValid, true);
-assert.equal(replayA.fingerprint, replayB.fingerprint);
-assert.equal(comparePlayerLocomotionAnticipationReplayRuns(replayA, replayB).equal, true);
-assert.equal(createPlayerLocomotionAnticipationReplayDigest(replayA).sampleCount, 180);
-
-for (const [index, mutation] of [
-  { speedDelta: 0.5 },
-  { speedDelta: -1.2 },
-  { turnDelta: 100 },
-  { slopeDelta: 18 },
-  { confidenceDelta: -0.4 },
-  { slipDelta: 0.4 },
-].entries()) {
-  const mutated = source.slice();
-  mutated[70 + index] = perturbPlayerLocomotionAnticipationSample(mutated[70 + index], mutation);
-  const replayChanged = replayPlayerLocomotionAnticipationSamples(mutated, { name: 'adversarial', seed: '17' });
-  const comparison = comparePlayerLocomotionAnticipationReplayRuns(replayA, replayChanged);
-  assert.equal(comparison.equal, false, `mutation-${index}`);
-  assert.ok(comparison.differences.length >= 1);
-  assert.equal(diffPlayerLocomotionAnticipationFrame(replayA, replayChanged, 70 + index).equal, false);
-}
-
-const scenarios = Array.from({ length: 16 }, (_, scenarioIndex) => ({
-  metadata: { name: `scenario-${scenarioIndex}`, seed: String(scenarioIndex) },
-  samples: Array.from({ length: 30 }, (_, index) => sample(scenarioIndex * 30 + index)),
-}));
-const corpusA = buildPlayerLocomotionAnticipationReplayCorpus(scenarios);
-const corpusB = buildPlayerLocomotionAnticipationReplayCorpus(scenarios);
-assert.equal(corpusA.count, 16);
-assert.equal(comparePlayerLocomotionAnticipationCorpora(corpusA, corpusB).equal, true);
-
+const hostileInputs=[sample(1,{planarSpeedMps:Infinity}),sample(2,{planarSpeedMps:NaN}),sample(3,{planarSpeedMps:-Infinity}),sample(4,{slopeDegrees:Infinity}),sample(5,{slopeDegrees:NaN}),sample(6,{turnRateDegreesPerSecond:Infinity}),sample(7,{turnRateDegreesPerSecond:NaN}),sample(8,{deltaSeconds:Infinity}),sample(9,{deltaSeconds:-100}),sample(10,{previousPhase:Infinity}),sample(11,{surfaceConfidence:-Infinity}),sample(12,{surfaceConfidence:NaN}),sample(13,{surfaceSlip:Infinity}),sample(14,{velocity:{x:Infinity,y:NaN},facing:{x:NaN,y:Infinity}}),sample(15,{attackKind:'heavy',hitStaggerRemaining:30,dodgeRemaining:30,guarding:true})];
+for(const input of hostileInputs){const profile=resolvePlayerLocomotionAnticipationProfile(input);assert.equal(validatePlayerLocomotionAnticipationProfile(profile).ok,true);finiteTree(profile);}
+for(let index=0;index<768;index+=1){const profile=resolvePlayerLocomotionAnticipationProfile(sample(index));assert.ok(PLAYER_LOCOMOTION_ANTICIPATION_MODES.includes(profile.mode));assert.equal(validatePlayerLocomotionAnticipationProfile(profile).ok,true);const values=Object.values(profile.anticipatedBlendWeights);assert.equal(values.length,8);assert.ok(values.every((value)=>value>=0&&value<=1));assert.ok(Math.abs(values.reduce((a,b)=>a+b,0)-1)<0.001);assert.ok(profile.playbackRate>=0.72&&profile.playbackRate<=1.35);assert.ok(profile.phase>=0&&profile.phase<1);finiteTree(profile);}
+const precedence=[sample(20,{planarSpeedMps:7,hitStaggerRemaining:0.1,dodgeRemaining:0.1,attackKind:'heavy',guarding:true}),sample(21,{planarSpeedMps:7,dodgeRemaining:0.1,attackKind:'heavy',guarding:true}),sample(22,{planarSpeedMps:7,attackKind:'heavy',guarding:true}),sample(23,{planarSpeedMps:7,attackKind:'light',guarding:true}),sample(24,{planarSpeedMps:7,guarding:true})];
+assert.equal(resolvePlayerLocomotionAnticipationMode(precedence[0]),'stagger-recover');assert.equal(resolvePlayerLocomotionAnticipationMode(precedence[1]),'dodge-recover');assert.equal(resolvePlayerLocomotionAnticipationMode(precedence[2]),'combat-advance');assert.equal(resolvePlayerLocomotionAnticipationMode(precedence[3]),'combat-advance');assert.equal(resolvePlayerLocomotionAnticipationMode(precedence[4]),'guard-walk');
+let state=createPlayerLocomotionAnticipationState();for(let index=0;index<700;index+=1){state=advancePlayerLocomotionAnticipationState(state,sample(index,{planarSpeedMps:index%60<10?0:index%60<25?2.8:index%60<42?7:1.2}),null);assert.equal(validatePlayerLocomotionAnticipationState(state).ok,true);assert.equal(state.frameCount,index+1);assert.ok(state.history.length<=24);assert.ok(state.transitionCount<=state.frameCount);}assert.equal(state.history.length,24);
+let telemetry=createPlayerLocomotionAnticipationTelemetryState();for(let index=0;index<500;index+=1){telemetry=advancePlayerLocomotionAnticipationTelemetry(telemetry,sample(index),index);assert.ok(telemetry.history.length<=48);assert.ok(telemetry.events.length<=96);assert.ok(telemetry.warnings.length<=24);}const model=createPlayerLocomotionAnticipationTelemetryReadModel(telemetry);assert.equal(model.counters.samples,500);assert.ok(model.recentEvents.length<=16);assert.ok(model.quality.score>=0&&model.quality.score<=1);assert.equal(resolvePlayerLocomotionAnticipationTelemetryBudget(240,96).withinBudget,true);assert.equal(resolvePlayerLocomotionAnticipationTelemetryBudget(241,96).withinBudget,false);const buckets=resolvePlayerLocomotionAnticipationTelemetryBuckets([0,0.1,0.3,0.6,0.8,1]);assert.equal(buckets['<0.25'],2);
+const source=Array.from({length:180},(_,index)=>sample(index));const tape=createPlayerLocomotionAnticipationReplayTape(source,{name:'adversarial',seed:'17'});const replayA=replayPlayerLocomotionAnticipationTape(tape);const replayB=replayPlayerLocomotionAnticipationTape(tape);assert.equal(replayA.valid,true);assert.equal(replayA.profilesValid,true);assert.equal(replayA.fingerprint,replayB.fingerprint);assert.equal(comparePlayerLocomotionAnticipationReplayRuns(replayA,replayB).equal,true);assert.equal(createPlayerLocomotionAnticipationReplayDigest(replayA).sampleCount,180);
+for(const [index,mutation] of [{speedDelta:0.5},{speedDelta:-1.2},{turnDelta:100},{slopeDelta:18},{confidenceDelta:-0.4},{slipDelta:0.4}].entries()){const mutated=source.slice();mutated[70+index]=perturbPlayerLocomotionAnticipationSample(mutated[70+index],mutation);const replayChanged=replayPlayerLocomotionAnticipationSamples(mutated,{name:'adversarial',seed:'17'});const comparison=comparePlayerLocomotionAnticipationReplayRuns(replayA,replayChanged);assert.equal(comparison.equal,false,`mutation-${index}`);assert.ok(comparison.differences.length>=1);assert.equal(diffPlayerLocomotionAnticipationFrame(replayA,replayChanged,70+index).equal,false);}
+const scenarios=Array.from({length:16},(_,scenarioIndex)=>({metadata:{name:`scenario-${scenarioIndex}`,seed:String(scenarioIndex)},samples:Array.from({length:30},(_,index)=>sample(scenarioIndex*30+index))}));const corpusA=buildPlayerLocomotionAnticipationReplayCorpus(scenarios);const corpusB=buildPlayerLocomotionAnticipationReplayCorpus(scenarios);assert.equal(corpusA.count,16);assert.equal(comparePlayerLocomotionAnticipationCorpora(corpusA,corpusB).equal,true);
 console.log('PLAYER_LOCOMOTION_ANTICIPATION_ADVERSARIAL_PASS');
