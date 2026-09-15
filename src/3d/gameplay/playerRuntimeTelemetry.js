@@ -100,17 +100,25 @@ export function buildRuntimeFrameWindow(state = {}, size = 12) {
   });
 }
 
+function resolveTelemetryLike(value = {}) {
+  if (value && value.summary && Number.isInteger(value.summary.count) && typeof value.classification === 'string') {
+    return value;
+  }
+  return deriveRuntimeTelemetry(value);
+}
+
 export function detectCadenceTransition(state = {}, previousSummary = {}) {
-  const next = deriveRuntimeTelemetry(state);
+  const next = resolveTelemetryLike(state);
   const priorFps = Math.max(0, finite(previousSummary.fps, next.summary.fps));
-  const nextFps = next.summary.fps;
+  const nextFps = Math.max(0, finite(next.summary.fps, 0));
   const drop = Math.max(0, priorFps - nextFps);
   const rise = Math.max(0, nextFps - priorFps);
-  const transitionedToConstrained = previousSummary.classification === 'normal' && next.classification !== 'normal';
-  const recoveredToNormal = previousSummary.classification !== 'normal' && next.classification === 'normal';
+  const previousClassification = previousSummary.classification ?? null;
+  const transitionedToConstrained = previousClassification === 'normal' && next.classification !== 'normal';
+  const recoveredToNormal = previousClassification !== 'normal' && next.classification === 'normal';
   return freeze({
     classification: next.classification,
-    previousClassification: previousSummary.classification ?? null,
+    previousClassification,
     fpsBefore: round(priorFps, 3),
     fpsAfter: round(nextFps, 3),
     fpsDrop: round(drop, 3),
