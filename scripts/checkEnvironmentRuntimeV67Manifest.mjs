@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { V67_MANIFEST, V67_MANIFEST_CHECKS, manifestHasDomainV67, manifestAcceptanceProfileV67 } from '../src/3d/world/environmentRuntimeV67Manifest.js';
+assert.equal(V67_MANIFEST.version,67);
+assert.equal(V67_MANIFEST.deterministic,true);
+assert.equal(V67_MANIFEST.noWorldMutation,true);
+assert.equal(manifestHasDomainV67('resources'),true);
+assert.equal(manifestHasDomainV67('interaction'),true);
+assert.equal(manifestHasDomainV67('observability'),true);
+assert.equal(manifestHasDomainV67('audit'),true);
+assert.equal(manifestAcceptanceProfileV67().version,67);
+assert.equal(V67_MANIFEST_CHECKS.releaseEnvelopeExplicit,true);
+assert.equal(V67_MANIFEST_CHECKS.runtimeContractsExplicit,true);
+console.log('V67 manifest regression PASS');
