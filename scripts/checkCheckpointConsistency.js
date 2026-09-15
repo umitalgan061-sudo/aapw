@@ -14,21 +14,15 @@
  * required validation as not run). Those sections are audit history, not completed checkpoints, and
  * must not advance the continuity watermark.
  *
- * PR runs may inherit an older checkpoint mismatch from the target branch. In that case, this guard
- * remains strict unless BASE_SHA proves all three checkpoint files are unchanged in the PR and the
- * exact same mismatch already exists at the base revision.
- *
  * Usage: node scripts/checkCheckpointConsistency.js
  * Exit 0 = latest completed run is represented by progress + performance + stable tag.
- * Exit 1 = records are missing, disagree unexpectedly, or the inherited baseline cannot be proven.
+ * Exit 1 = records are missing or disagree.
  */
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const CHECKPOINT_FILES = Object.freeze(['3D_GAME_PROGRESS.md', 'STABLE_TAGS.md', 'perf_log.csv']);
 
 function read(relativePath) {
 	const fullPath = path.join(ROOT, relativePath);
@@ -36,50 +30,6 @@ function read(relativePath) {
 		throw new Error(`required file missing: ${relativePath}`);
 	}
 	return fs.readFileSync(fullPath, 'utf8');
-}
-
-function readAtRevision(relativePath, revision) {
-	try {
-		return execFileSync('git', ['show', `${revision}:${relativePath}`], { encoding: 'utf8' });
-	} catch {
-		return null;
-	}
-}
-
-function blobAtRevision(relativePath, revision) {
-	try {
-		return execFileSync('git', ['rev-parse', `${revision}:${relativePath}`], { encoding: 'utf8' }).trim();
-	} catch {
-		return null;
-	}
-}
-
-function fileUnchangedSinceBase(relativePath, baseSha) {
-	const baseBlob = blobAtRevision(relativePath, baseSha);
-	const headBlob = blobAtRevision(relativePath, 'HEAD');
-	return Boolean(baseBlob && headBlob && baseBlob === headBlob);
-}
-
-function inheritedMismatchIsProven(values) {
-	const baseSha = process.env.BASE_SHA?.trim();
-	if (!/^[0-9a-f]{40}$/i.test(baseSha ?? '')) return false;
-	if (!CHECKPOINT_FILES.every((file) => fileUnchangedSinceBase(file, baseSha))) return false;
-
-	const progressText = readAtRevision(CHECKPOINT_FILES[0], baseSha);
-	const stableText = readAtRevision(CHECKPOINT_FILES[1], baseSha);
-	const perfText = readAtRevision(CHECKPOINT_FILES[2], baseSha);
-	if (progressText == null || stableText == null || perfText == null) return false;
-
-	const baseline = {
-		progressRun: maxRunFromProgress(progressText),
-		stableRun: maxRunFromStableTags(stableText),
-		perfRun: maxRunFromPerfCsv(perfText),
-	};
-	return Object.values(baseline).every(Number.isInteger)
-		&& baseline.progressRun === values.progressRun
-		&& baseline.stableRun === values.stableRun
-		&& baseline.perfRun === values.perfRun
-		&& (baseline.stableRun !== baseline.progressRun || baseline.perfRun !== baseline.progressRun);
 }
 
 function progressSectionIsExplicitlyNonCheckpoint(sectionBody) {
@@ -145,13 +95,6 @@ function main() {
 	}
 
 	if (stableRun !== progressRun || perfRun !== progressRun) {
-		if (inheritedMismatchIsProven(values)) {
-			console.log(
-				`[checkpoint-consistency] PASS: inherited baseline drift is proven unchanged from BASE_SHA: ` +
-				`progress=run${progressRun}, stable=run${stableRun}, perf=run${perfRun}.`,
-			);
-			return;
-		}
 		console.error(
 			`[checkpoint-consistency] FAIL: latest completed-run records disagree: ` +
 				`progress=run${progressRun}, stable=run${stableRun}, perf=run${perfRun}.`,
