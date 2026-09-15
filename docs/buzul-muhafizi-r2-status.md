@@ -1,0 +1,1 @@
+R2 implementation note: generator, validator, and CI gate are prepared on the current-main branch. The generated acceptance corpus is intentionally produced from production resolver outputs rather than hand-authored expected values.
