@@ -1,0 +1,64 @@
+name: Buzul Muhafızı Snow Relief R1 Qualification Matrix
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainWindSnowSurfaceFabric.js'
+      - 'scripts/checkBuzulMuhafiziSnowReliefR1Matrix.mjs'
+      - 'artifacts/buzul-muhafizi-snow-relief-r1-matrix-*.txt'
+      - '.github/workflows/buzul-muhafizi-snow-relief-r1-matrix.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainWindSnowSurfaceFabric.js'
+      - 'scripts/checkBuzulMuhafiziSnowReliefR1Matrix.mjs'
+      - 'artifacts/buzul-muhafizi-snow-relief-r1-matrix-*.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$LIVE_MAIN_SHA")" = "$LIVE_MAIN_SHA"
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA"
+      - name: Static syntax checks
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/terrainWindSnowSurfaceFabric.js
+          node --check scripts/checkBuzulMuhafiziSnowReliefR1Matrix.mjs
+      - name: Qualification matrix
+        run: node scripts/checkBuzulMuhafiziSnowReliefR1Matrix.mjs
+      - name: Diff hygiene
+        run: git diff --check
+      - name: Report changed-line envelope
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADD="$(git diff --numstat origin/main...HEAD | awk '{a+=$1} END {print a+0}')"
+          DEL="$(git diff --numstat origin/main...HEAD | awk '{d+=$2} END {print d+0}')"
+          TOTAL=$((ADD + DEL))
+          echo "ADDITIONS=$ADD DELETIONS=$DEL TOTAL=$TOTAL"
+          test "$TOTAL" -ge 4000
