@@ -44,7 +44,7 @@ jobs:
       - name: Validate runtime case matrix
         run: node scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs
       - name: Materialize generated acceptance corpus
-        if: github.event_name == 'push'
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
@@ -54,7 +54,9 @@ jobs:
             echo 'corpus unchanged'
             exit 0
           fi
+          target_branch="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          test -n "$target_branch"
           git commit -m 'generated(living-world): materialize R4 runtime scenario corpus'
-          git push origin HEAD:${GITHUB_REF_NAME}
+          git push origin HEAD:"$target_branch"
       - name: Diff hygiene
         run: git diff --check
