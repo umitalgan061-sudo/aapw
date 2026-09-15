@@ -16,6 +16,8 @@ import { buildVisibilityFieldV67, visibilityTelemetryV67 } from './environmentRu
 import { buildCouplingFieldV67, couplingTelemetryV67 } from './environmentRuntimeWeatherCouplingV67.js';
 import { synthesizeEnvironmentEventsV67 } from './environmentRuntimeEventsV67.js';
 import { buildGeologyFieldV67, geologyTelemetryV67 } from './environmentRuntimeGeologyV67.js';
+import { buildGroundFieldV67, groundTelemetryV67 } from './environmentRuntimeGroundResponseV67.js';
+import { buildExposureFieldV67, exposureTelemetryV67 } from './environmentRuntimeExposureV67.js';
 
 export const V67_INTEGRATION_POLICY = Object.freeze({
   id:'environment-runtime-integration-v67',
@@ -46,7 +48,9 @@ export const buildEnvironmentRuntimeV67 = ({ samples=[], clock=12, dayOfYear=180
   const coupling=buildCouplingFieldV67(samples,weather);
   const events=synthesizeEnvironmentEventsV67(samples,{dayOfYear,seed});
   const geology=buildGeologyFieldV67(samples);
-  const result={policy:V67_INTEGRATION_POLICY.id,contract:V67_INTEGRATION_POLICY,runtime,hydrology,weatherField,forecast,surface,atmosphere,wildlife,hazards,navigation,vegetation,climate,acoustics,resonance,continuity,shelter,visibility,coupling,events,geology};
+  const ground=buildGroundFieldV67(samples);
+  const exposure=buildExposureFieldV67(samples,clock);
+  const result={policy:V67_INTEGRATION_POLICY.id,contract:V67_INTEGRATION_POLICY,runtime,hydrology,weatherField,forecast,surface,atmosphere,wildlife,hazards,navigation,vegetation,climate,acoustics,resonance,continuity,shelter,visibility,coupling,events,geology,ground,exposure};
   return {...result,digest:hashV67(JSON.stringify(result)),telemetry:{
     core:validateRuntimeFrameV67(runtime),
     hydrology:hydrologyTelemetryV67(hydrology),
@@ -65,11 +69,13 @@ export const buildEnvironmentRuntimeV67 = ({ samples=[], clock=12, dayOfYear=180
     visibility:visibilityTelemetryV67(visibility),
     coupling:couplingTelemetryV67(coupling),
     geology:geologyTelemetryV67(geology),
+    ground:groundTelemetryV67(ground),
+    exposure:exposureTelemetryV67(exposure),
   }};
 };
 
 export const validateEnvironmentRuntimeV67 = (runtime={}) => {
-  const required=['runtime','hydrology','weatherField','forecast','surface','atmosphere','wildlife','hazards','navigation','vegetation','climate','acoustics','resonance','continuity','shelter','visibility','coupling','events','geology'];
+  const required=['runtime','hydrology','weatherField','forecast','surface','atmosphere','wildlife','hazards','navigation','vegetation','climate','acoustics','resonance','continuity','shelter','visibility','coupling','events','geology','ground','exposure'];
   const errors=[];
   if(runtime.policy!==V67_INTEGRATION_POLICY.id)errors.push('policy');
   if(runtime.contract?.noWorldMutation!==true)errors.push('mutation');
@@ -89,7 +95,9 @@ export const runtimeQualityScoreV67 = (runtime={}) => {
   const risk=Math.max(0,1-(tele.hazards?.summary?.mean??0));
   const continuity=tele.continuity?.summary?.meanHealed??0;
   const visibility=tele.atmosphere?.summary?.meanVisibility??0;
-  return Math.max(0,Math.min(1,base*.45+risk*.18+continuity*.2+visibility*.17));
+  const ground=tele.ground?.summary?.wet!==undefined?1:0;
+  const exposure=tele.exposure?.summary?.meanMargin??0;
+  return Math.max(0,Math.min(1,base*.35+risk*.15+continuity*.17+visibility*.13+ground*.05+exposure*.15));
 };
 
 export const runtimeSummaryEnvelopeV67 = (runtime={}) => ({
