@@ -1,0 +1,30 @@
+name: player-equipment-pose-director
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerEquipmentPoseDirector.js && node --check scripts/checkPlayerEquipmentPoseDirector.mjs
+      - name: Executable regression
+        run: node scripts/checkPlayerEquipmentPoseDirector.mjs
+      - name: Focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(git diff --name-only origin/main...HEAD)
+          test "$(printf '%s\n' "$files" | sed '/^$/d' | wc -l)" -eq 3
+          ! printf '%s\n' "$files" | grep -E '(^|/)(EditorMaterialStudio|assets/|src/3d/world/|terrain\.js|water\.js|sceneManager\.js|roads\.js|rivers\.js|naturalGeology\.js)'
+          additions=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$additions" -le 3000
+      - name: Diff hygiene
+        run: git diff --check origin/main...HEAD
