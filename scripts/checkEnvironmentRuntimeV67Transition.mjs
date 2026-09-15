@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { buildScenarioTransitionV67, validateScenarioTransitionV67, scenarioShockV67, scenarioContinuityScoreV67 } from '../src/3d/world/environmentRuntimeScenarioBlendV67.js';
+
+const from={id:'clear',clock:12,dayOfYear:180,temperature:14,wind:.2,precipitation:.1,visibility:.9};
+const to={id:'storm',clock:16,dayOfYear:190,temperature:8,wind:.75,precipitation:.84,visibility:.4};
+const transition=buildScenarioTransitionV67(from,to,8);
+assert.equal(transition.steps,8);
+assert.ok(transition.sequence.length===8);
+assert.equal(typeof transition.seed,'string');
+assert.equal(transition.seed.length,8);
+assert.equal(validateScenarioTransitionV67(transition).ok,true);
+assert.ok(scenarioShockV67(from,to)>0);
+assert.ok(scenarioShockV67(from,to)<=1);
+assert.ok(scenarioContinuityScoreV67(transition.sequence)>=0);
+assert.ok(scenarioContinuityScoreV67(transition.sequence)<=1);
+assert.equal(transition.sequence[0].temperature,from.temperature);
+assert.equal(transition.sequence[transition.sequence.length-1].temperature,to.temperature);
+const replay=buildScenarioTransitionV67(from,to,8);
+assert.deepEqual(replay,transition);
+console.log('V67 transition regression PASS');
