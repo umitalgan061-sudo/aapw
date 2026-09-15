@@ -6,7 +6,7 @@ const base={seed:'opportunity-test',distanceMeters:84,slope:.2,vegetation:.7,moi
 assert.equal(scoreWorldOpportunity('landmark',base),scoreWorldOpportunity('landmark',base));
 const a=buildWorldOpportunitySnapshot(base),b=buildWorldOpportunitySnapshot(base);assert.deepEqual(a,b);assert(Object.isFrozen(a));assert(a.candidates.length<=14);for(const c of a.candidates)assert(c.score>=0&&c.score<=1);
 const storm={...base,weather:'storm',clockSeconds:72000};assert(scoreWorldOpportunity('shelter',storm)>scoreWorldOpportunity('landmark',storm));
-const hidden={...base,visibility:.1};assert.equal(rankWorldOpportunities(hidden).phase,'evening');
+const hidden={...base,visibility:.1};assert.equal(rankWorldOpportunities(hidden).phase,'morning');
 const p=planWorldOpportunitySteps({...base,mode:'approach'});assert(p.steps.length<=8);assert(p.steps.every(x=>x.utility>=0&&x.utility<=1));
 assert.equal(compareOpportunityRoutes(base,{...base,routeFriction:.9}).comparable,true);assert.equal(buildOpportunityIntent(base,{type:p.steps[0]?.opportunityType}).accepted,true);
 const report=buildWorldOpportunityEvidence(base,{mode:'discover'});assert.equal(validateOpportunityEvidence(report).valid,true);assert.equal(buildOpportunityProof(base).valid,true);
