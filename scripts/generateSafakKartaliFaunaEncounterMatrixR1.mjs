@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import { classifyFaunaEncounterCase, FAUNA_ENCOUNTER_SPECIES } from '../src/3d/gameplay/livingWorldFaunaEncounterDirector.js';
 
-const out = 'artifacts/safak-kartali-fauna-encounter-matrix-r1.jsonl';
 const behaviors = ['calm', 'graze', 'roam', 'herd', 'flee', 'investigate', 'return', 'alert'];
 const rows = [];
 let caseId = 0;
@@ -17,6 +16,11 @@ for (const species of FAUNA_ENCOUNTER_SPECIES) {
   }
 }
 if (rows.length !== 4096) throw new Error(`expected 4096 rows, got ${rows.length}`);
-fs.mkdirSync('artifacts', { recursive: true });
-fs.writeFileSync(out, `${rows.join('\n')}\n`);
-console.log(`wrote ${rows.length} deterministic compact cases to ${out}`);
+fs.mkdirSync('artifacts/safak-kartali-fauna-encounter-r1', { recursive: true });
+for (let shard = 0; shard < 8; shard += 1) {
+  const start = shard * 512;
+  const slice = rows.slice(start, start + 512);
+  const path = `artifacts/safak-kartali-fauna-encounter-r1/part-${String(shard + 1).padStart(2, '0')}.matrix`;
+  fs.writeFileSync(path, `${slice.join('\n')}\n`);
+}
+console.log(`wrote ${rows.length} deterministic cases across 8 matrix shards`);
