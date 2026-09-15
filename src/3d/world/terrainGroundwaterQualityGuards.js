@@ -31,10 +31,11 @@ export function sanitizeChannelSet(channels = {}) {
   const changes = {};
   for (const key of GUARDED_CHANNELS) {
     const raw = channels[key];
+    const absent = raw === undefined;
     const numeric = Number(raw);
-    const sanitized = clamp01(numeric);
+    const sanitized = absent ? 0 : clamp01(numeric);
     output[key] = sanitized;
-    if (!Number.isFinite(numeric) || Math.abs(sanitized - numeric) > 1e-12) changes[key] = sanitized;
+    if (!absent && (!Number.isFinite(numeric) || Math.abs(sanitized - numeric) > 1e-12)) changes[key] = sanitized;
   }
   return freeze({ channels: freeze(output), changes: freeze(changes), changed: Object.keys(changes).length > 0 });
 }
