@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { buildContinuityFieldV66, buildContinuityLinkV66, healContinuityV66, validateContinuityRuntimeV66 } from '../src/3d/world/environmentRuntimeContinuityV66.js';
+const nodes=[{id:'a',x:0,z:0,elevation:300,biome:'forest',material:'grass',confidence:.94},{id:'b',x:40,z:0,elevation:308,biome:'forest',material:'grass',confidence:.9},{id:'c',x:82,z:4,elevation:312,biome:'grassland',material:'soil',confidence:.86},{id:'d',x:250,z:0,elevation:400,biome:'alpine',material:'rock',confidence:.7}];
+const link=buildContinuityLinkV66(nodes[0],nodes[1]);assert.equal(link.valid,true);assert.ok(link.continuity>.5);assert.equal(buildContinuityLinkV66(nodes[0],nodes[3]).valid,false);
+const field=buildContinuityFieldV66({nodes,seed:66});assert.equal(field.length,4);assert.ok(field.every(item=>item.meanContinuity>=0&&item.meanContinuity<=1));
+const healed=healContinuityV66(field);assert.equal(healed.length,4);assert.ok(healed.every(item=>item.blendStrength>=.22&&item.blendStrength<=.8));
+assert.equal(validateContinuityRuntimeV66({policy:'environment-runtime-continuity-v66-2026-09-15',deterministic:true,field:healed}).ok,true);
+assert.deepEqual(field,buildContinuityFieldV66({nodes,seed:66}));
+const far=buildContinuityFieldV66({nodes:[nodes[0],{...nodes[0],id:'far',x:1000}],seed:9});assert.ok(far[0].meanContinuity>=0);
+console.log(JSON.stringify({ok:true,suite:'v66-continuity',nodes:field.length}));
