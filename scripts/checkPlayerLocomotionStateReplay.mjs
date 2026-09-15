@@ -84,6 +84,8 @@ for(let index=0;index<180;index+=1){
   assert.equal(a.intent.direction.selected,b.intent.direction.selected,`direction-${index}`);
   assert.equal(a.quality.grade,b.quality.grade,`quality-grade-${index}`);
 }
-assert.equal(diffPlayerLocomotionStateReplayResults(controllerA.snapshot().intents.map((intent,index)=>({intent,quality:controllerA.snapshot().quality[index],timeline:controllerA.snapshot().timeline[index]}),controllerB.snapshot().intents.map((intent,index)=>({intent,quality:controllerB.snapshot().quality[index],timeline:controllerB.snapshot().timeline[index]})).deterministic,true);
+const comparisonA=controllerA.snapshot().intents.map((intent,index)=>({intent,quality:controllerA.snapshot().quality[index],timeline:controllerA.snapshot().timeline[index]}));
+const comparisonB=controllerB.snapshot().intents.map((intent,index)=>({intent,quality:controllerB.snapshot().quality[index],timeline:controllerB.snapshot().timeline[index]}));
+assert.equal(diffPlayerLocomotionStateReplayResults(comparisonA,comparisonB).deterministic,true);
 
 console.log('PLAYER_LOCOMOTION_STATE_REPLAY_PASS');
