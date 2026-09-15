@@ -2,7 +2,7 @@ name: Environment Runtime V68 Generator
 on:
   push:
     branches:
-      - main
+      - buzul-muhafizi/next-settlement-environment-v68-20260915
     paths-ignore:
       - 'src/3d/world/environmentRuntimeSettlementV68Generated.js'
 permissions:
