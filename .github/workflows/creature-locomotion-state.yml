@@ -1,0 +1,65 @@
+name: Creature locomotion state
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/creatureLocomotion*'
+      - 'src/3d/gameplay/fixtures/creatureLocomotionState*'
+      - 'scripts/checkCreatureLocomotion*'
+      - '.github/workflows/creature-locomotion-state.yml'
+  push:
+    branches: [main]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in src/3d/gameplay/creatureLocomotion*.js scripts/checkCreatureLocomotion*.mjs; do
+            node --check "$file"
+          done
+      - name: State synthesis checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkCreatureLocomotionStateSynthesis.mjs
+          node scripts/checkCreatureLocomotionTimeline.mjs
+          node scripts/checkCreatureLocomotionRuntime.mjs
+          node scripts/checkCreatureLocomotionReplay.mjs
+          node scripts/checkCreatureLocomotionQuality.mjs
+          node scripts/checkCreatureLocomotionPriorityAdversarial.mjs
+          node scripts/checkCreatureLocomotionPresentationBridge.mjs
+          node scripts/checkCreatureLocomotionContactPolicy.mjs
+          node scripts/checkCreatureLocomotionTelemetry.mjs
+          node scripts/checkCreatureLocomotionIntegration.mjs
+          node scripts/checkCreatureLocomotionSelectors.mjs
+          node scripts/checkCreatureLocomotionStateE2E.mjs
+          node scripts/checkCreatureLocomotionStateDeterminism.mjs
+          node scripts/checkCreatureLocomotionStateOwnership.mjs
+      - name: Repeat-run determinism
+        shell: bash
+        run: |
+          set -euo pipefail
+          first="$(node scripts/checkCreatureLocomotionStateDeterminism.mjs)"
+          second="$(node scripts/checkCreatureLocomotionStateDeterminism.mjs)"
+          test "$first" = "$second"
+      - name: Four-thousand meaningful line gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(git merge-base origin/main HEAD)"
+          additions="$(git diff --numstat "$base"...HEAD | awk '{sum += $1} END {print sum + 0}')"
+          echo "Creature locomotion meaningful additions=${additions}"
+          test "$additions" -gt 4000
+      - name: Ownership scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "\.position\.\|\.velocity\.\|Math\.random" src/3d/gameplay/creatureLocomotion*.js
