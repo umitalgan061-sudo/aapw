@@ -11,6 +11,7 @@ on:
       - 'scripts/checkPlayerDirectionalLocomotionAcceptance.mjs'
       - 'scripts/checkPlayerDirectionalLocomotionAdversarial.mjs'
       - 'scripts/checkPlayerDirectionalLocomotionInvariantMatrix.mjs'
+      - 'scripts/checkPlayerDirectionalLocomotionReplayContract.mjs'
       - '.github/workflows/player-directional-locomotion.yml'
   push:
     branches:
@@ -53,6 +54,7 @@ jobs:
           node --check scripts/checkPlayerDirectionalLocomotionAcceptance.mjs
           node --check scripts/checkPlayerDirectionalLocomotionAdversarial.mjs
           node --check scripts/checkPlayerDirectionalLocomotionInvariantMatrix.mjs
+          node --check scripts/checkPlayerDirectionalLocomotionReplayContract.mjs
       - name: Focused executable regression
         run: node scripts/checkPlayerDirectionalLocomotionPolicy.mjs
       - name: Acceptance matrix
@@ -61,6 +63,8 @@ jobs:
         run: node scripts/checkPlayerDirectionalLocomotionAdversarial.mjs
       - name: Invariant matrix
         run: node scripts/checkPlayerDirectionalLocomotionInvariantMatrix.mjs
+      - name: Replay contract
+        run: node scripts/checkPlayerDirectionalLocomotionReplayContract.mjs
       - name: Deterministic double run
         shell: bash
         run: |
@@ -90,6 +94,7 @@ jobs:
             scripts/checkPlayerDirectionalLocomotionAcceptance.mjs \
             scripts/checkPlayerDirectionalLocomotionAdversarial.mjs \
             scripts/checkPlayerDirectionalLocomotionInvariantMatrix.mjs \
+            scripts/checkPlayerDirectionalLocomotionReplayContract.mjs \
             .github/workflows/player-directional-locomotion.yml | awk '{a += $1} END {print a + 0}')"
           deletions="$(git diff --numstat origin/main...HEAD -- \
             src/3d/gameplay/playerDirectionalLocomotionPolicy.js \
@@ -100,6 +105,7 @@ jobs:
             scripts/checkPlayerDirectionalLocomotionAcceptance.mjs \
             scripts/checkPlayerDirectionalLocomotionAdversarial.mjs \
             scripts/checkPlayerDirectionalLocomotionInvariantMatrix.mjs \
+            scripts/checkPlayerDirectionalLocomotionReplayContract.mjs \
             .github/workflows/player-directional-locomotion.yml | awk '{d += $2} END {print d + 0}')"
           total=$((additions + deletions))
           echo "Directional locomotion diff: $total lines"
