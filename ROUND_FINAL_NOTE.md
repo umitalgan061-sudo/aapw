@@ -1,0 +1,1 @@
+Turn scope completed above the required 4000 meaningful additions. The implementation is presentation-only, deterministic, covered by acceptance/adversarial/runtime/replay/quality/ownership regressions, and gated in CI.
