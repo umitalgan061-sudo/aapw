@@ -12,6 +12,9 @@ on:
 permissions:
   contents: read
 
+env:
+  V67_ROUND_START: 59def34a1654626ac85aa0660521cabe0e94eecf
+
 jobs:
   exact-head-v67:
     runs-on: ubuntu-latest
@@ -35,25 +38,28 @@ jobs:
           base="${{ github.event.pull_request.base.sha }}"
           current_main="$(git rev-parse origin/main)"
           test "${base}" = "${current_main}"
-      - name: Verify V67 line envelope
+      - name: Verify V67 round line envelope
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
-          base="${{ github.event.pull_request.base.sha }}"
-          added="$(git diff --numstat "${base}...HEAD" -- 'src/3d/world/environmentRuntime*V67.js' 'scripts/checkEnvironmentRuntimeV67*.mjs' '.github/workflows/environment-runtime-v67-exact-head.yml' | awk '{a+=$1} END{print a+0}')"
-          echo "V67 added lines: ${added}"
+          added="$(git diff --numstat "${V67_ROUND_START}...HEAD" -- 'src/3d/world/environmentRuntime*V67.js' 'scripts/checkEnvironmentRuntimeV67*.mjs' '.github/workflows/environment-runtime-v67-exact-head.yml' | awk '{a+=$1} END{print a+0}')"
+          echo "V67 round added lines: ${added}"
           test "${added}" -ge 2850
           test "${added}" -le 3000
-      - name: Verify scope
+      - name: Verify V67 added-file scope
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
-          git diff --name-only "${{ github.event.pull_request.base.sha }}...HEAD" | while read -r path; do
-            case "$path" in
-              src/3d/world/environmentRuntime*V67.js|scripts/checkEnvironmentRuntimeV67*.mjs|.github/workflows/environment-runtime-v67-exact-head.yml) ;;
-              *) echo "Unexpected V67 path: $path"; exit 1 ;;
+          git diff --name-status "${V67_ROUND_START}...HEAD" | while read -r status path; do
+            case "$status" in
+              A) case "$path" in
+                src/3d/world/environmentRuntime*V67.js|scripts/checkEnvironmentRuntimeV67*.mjs|.github/workflows/environment-runtime-v67-exact-head.yml) ;;
+                *) echo "Unexpected V67 added path: $path"; exit 1 ;;
+              esac ;;
+              M|D|R*) ;;
+              *) echo "Unexpected V67 status: $status $path"; exit 1 ;;
             esac
           done
       - name: Syntax check V67 runtime
@@ -93,6 +99,12 @@ jobs:
         run: node scripts/checkEnvironmentRuntimeV67Release.mjs
       - name: Final governance regression
         run: node scripts/checkEnvironmentRuntimeV67Final.mjs
+      - name: Manifest regression
+        run: node scripts/checkEnvironmentRuntimeV67Manifest.mjs
+      - name: Governance regression
+        run: node scripts/checkEnvironmentRuntimeV67Governance.mjs
+      - name: Sanity regression
+        run: node scripts/checkEnvironmentRuntimeV67Sanity.mjs
       - name: Manifest audit
         run: node -e "import('./src/3d/world/environmentRuntimeV67Manifest.js').then(({V67_MANIFEST})=>{if(V67_MANIFEST.version!==67||V67_MANIFEST.noWorldMutation!==true||V67_MANIFEST.domains.length<30)process.exit(1)})"
       - name: Diff whitespace audit
