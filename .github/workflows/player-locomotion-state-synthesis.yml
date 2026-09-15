@@ -39,6 +39,7 @@ jobs:
           node --check src/3d/gameplay/playerLocomotionStateTelemetry.js
           node --check src/3d/gameplay/playerLocomotionStateRuntime.js
           node --check src/3d/gameplay/playerLocomotionStateQuality.js
+          node --check src/3d/gameplay/playerLocomotionStateReplay.js
           node --check scripts/checkPlayerLocomotionStateSynthesisAcceptance.mjs
           node --check scripts/checkPlayerLocomotionStateSynthesisAdversarial.mjs
           node --check scripts/checkPlayerLocomotionStateSynthesisScenarioMatrix.mjs
@@ -46,6 +47,9 @@ jobs:
           node --check scripts/checkPlayerLocomotionStateFixtures.mjs
           node --check scripts/checkPlayerLocomotionStateQuality.mjs
           node --check scripts/checkPlayerLocomotionStateOwnership.mjs
+          node --check scripts/checkPlayerLocomotionStateReplay.mjs
+          node --check scripts/checkPlayerLocomotionStateReplayContract.mjs
+          node --check scripts/checkPlayerLocomotionStateIntegration.mjs
 
       - name: State synthesis acceptance
         run: node scripts/checkPlayerLocomotionStateSynthesisAcceptance.mjs
@@ -67,6 +71,14 @@ jobs:
 
       - name: Ownership boundary
         run: node scripts/checkPlayerLocomotionStateOwnership.mjs
+
+      - name: Replay regression
+        run: |
+          node scripts/checkPlayerLocomotionStateReplay.mjs
+          node scripts/checkPlayerLocomotionStateReplayContract.mjs
+
+      - name: Integration regression
+        run: node scripts/checkPlayerLocomotionStateIntegration.mjs
 
       - name: Deterministic double-run
         shell: bash
