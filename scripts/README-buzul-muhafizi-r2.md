@@ -1,0 +1,1 @@
+R2 qualification is generated from the canonical terrain snow-surface resolver. The JSONL artifact is CI-materialized so every recorded expected digest is derived from the exact production code under test.

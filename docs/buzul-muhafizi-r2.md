@@ -1,0 +1,1 @@
+R2: current-main fold-aware snow relief qualification with generated deterministic evidence and production resolver replay.

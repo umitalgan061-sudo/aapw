@@ -1,0 +1,1 @@
+Current-main R2 metadata is tracked in the PR description and automated qualification workflow.

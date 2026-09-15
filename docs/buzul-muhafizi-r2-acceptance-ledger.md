@@ -1,0 +1,1 @@
+R2 acceptance ledger: 4,096 terrain snow presentation vectors are generated from the canonical resolver and checked for deterministic digest identity, continuity, windward/lee response, bounded outputs, and invalid-input safety.

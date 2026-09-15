@@ -1,0 +1,1 @@
+Coverage dimensions are intentionally finite and deterministic: slope, fold gradient, aspect alignment, and lee retention. The generator records all 4,096 combinations and expected resolver outputs.
