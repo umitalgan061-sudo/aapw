@@ -40,6 +40,7 @@ const runtime = createLivingWorldReactionRuntime({
       },
     },
     encounters: {
+      shouldChase: () => true,
       requestAttack: (actor, targetId, directive) => {
         if (directive.kind === 'attack') attacks.push({ actorId: actor.id, targetId });
         return { invoked: directive.kind === 'attack' };
