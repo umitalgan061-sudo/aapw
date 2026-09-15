@@ -1,0 +1,25 @@
+name: Safak Kartali perception service
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldPerceptionService.js'
+      - 'scripts/checkLivingWorldPerceptionService.mjs'
+      - '.github/workflows/safak-kartali-perception-service.yml'
+  workflow_dispatch:
+
+jobs:
+  perception:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check syntax
+        run: node --check src/3d/gameplay/livingWorldPerceptionService.js && node --check scripts/checkLivingWorldPerceptionService.mjs
+      - name: Run deterministic perception regression
+        run: node scripts/checkLivingWorldPerceptionService.mjs
