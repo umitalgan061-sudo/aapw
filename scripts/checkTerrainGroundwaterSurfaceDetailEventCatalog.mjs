@@ -1,0 +1,47 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { TERRAIN_GROUNDWATER_DETAIL_EVENT_CATALOG, detailEventById, detailEventProfile, detailEventSequence, detailEventFamily, detailEventAudit } from '../src/3d/world/terrainGroundwaterSurfaceDetailEventCatalog.js';
+import { normalizeGroundwaterEventType, clampEventIntensity, eventIsWetting, eventIsDrying, eventIsThermal, eventFamily, eventPriority, TERRAIN_GROUNDWATER_DETAIL_EVENT_HELPER_POLICY } from '../src/3d/world/terrainGroundwaterSurfaceDetailEventHelpers.js';
+let passed=0;
+const check=(name,fn)=>{fn();passed+=1;console.log(`[groundwater-detail-events] PASS: ${name}`)};
+check('catalog is non-empty',()=>assert.ok(TERRAIN_GROUNDWATER_DETAIL_EVENT_CATALOG.length>=10));
+check('catalog ids are unique',()=>assert.equal(new Set(TERRAIN_GROUNDWATER_DETAIL_EVENT_CATALOG.map(e=>e.id)).size,TERRAIN_GROUNDWATER_DETAIL_EVENT_CATALOG.length));
+check('catalog is frozen',()=>assert.ok(Object.isFrozen(TERRAIN_GROUNDWATER_DETAIL_EVENT_CATALOG)));
+check('catalog audit passes',()=>assert.equal(detailEventAudit().ok,true));
+check('helper policy is deterministic',()=>assert.equal(TERRAIN_GROUNDWATER_DETAIL_EVENT_HELPER_POLICY.deterministic,true));
+for(const event of TERRAIN_GROUNDWATER_DETAIL_EVENT_CATALOG){
+  check(`lookup-${event.id}`,()=>assert.equal(detailEventById(event.id).id,event.id));
+  check(`profile-${event.id}`,()=>{const p=detailEventProfile(event.id);assert.equal(p.id,event.id);assert.ok(p.intensity>=0&&p.intensity<=1)});
+  check(`priority-${event.id}`,()=>assert.ok(eventPriority(event.id)>=0));
+}
+check('unknown id falls back to recovery',()=>assert.equal(detailEventById('does-not-exist').id,'recovery'));
+check('unknown type normalizes to recovery',()=>assert.equal(normalizeGroundwaterEventType('does-not-exist'),'recovery'));
+check('trimmed type normalizes',()=>assert.equal(normalizeGroundwaterEventType(' STORM '),'storm'));
+check('case type normalizes',()=>assert.equal(normalizeGroundwaterEventType('DROUGHT'),'drought'));
+check('intensity lower clamp',()=>assert.equal(clampEventIntensity(-1),0));
+check('intensity upper clamp',()=>assert.equal(clampEventIntensity(2),1));
+check('intensity midpoint',()=>assert.equal(clampEventIntensity(.42),.42));
+check('storm wetting',()=>assert.equal(eventIsWetting('storm'),true));
+check('snowmelt wetting',()=>assert.equal(eventIsWetting('snowmelt'),true));
+check('drought drying',()=>assert.equal(eventIsDrying('drought'),true));
+check('evaporation drying',()=>assert.equal(eventIsDrying('evaporation'),true));
+check('freeze thermal',()=>assert.equal(eventIsThermal('freeze-thaw'),true));
+check('thermal spall thermal',()=>assert.equal(eventIsThermal('thermal-spall'),true));
+check('event family storm',()=>assert.equal(eventFamily('storm'),'wetting'));
+check('event family drought',()=>assert.equal(eventFamily('drought'),'drying'));
+check('event family freeze',()=>assert.equal(eventFamily('freeze-thaw'),'thermal'));
+check('event family recovery',()=>assert.equal(eventFamily('recovery'),'transition'));
+check('catalog family helper storm',()=>assert.equal(detailEventFamily('wetting').length>=2,true));
+check('catalog family helper drying',()=>assert.equal(detailEventFamily('drying').length>=2,true));
+check('catalog family helper thermal',()=>assert.equal(detailEventFamily('thermal').length>=2,true));
+check('catalog family helper transition',()=>assert.equal(detailEventFamily('transition').length>=1,true));
+const sequence=detailEventSequence(['storm','drought','freeze-thaw','snowmelt','recovery']);
+check('sequence preserves length',()=>assert.equal(sequence.length,5));
+check('sequence is frozen',()=>assert.ok(Object.isFrozen(sequence)));
+check('sequence intensities bounded',()=>sequence.forEach(e=>assert.ok(e.intensity>=0&&e.intensity<=1)));
+check('override intensity is respected',()=>assert.equal(detailEventProfile('storm',.23).intensity,.23));
+check('override negative is clamped',()=>assert.equal(detailEventProfile('storm',-2).intensity,0));
+check('override high is clamped',()=>assert.equal(detailEventProfile('storm',9).intensity,1));
+check('catalog event descriptions exist',()=>TERRAIN_GROUNDWATER_DETAIL_EVENT_CATALOG.forEach(e=>assert.ok(e.description.length>10)));
+check('catalog priorities are finite',()=>TERRAIN_GROUNDWATER_DETAIL_EVENT_CATALOG.forEach(e=>assert.ok(Number.isFinite(e.priority))));
+console.log(`[groundwater-detail-events] PASS: ${passed} checks`);
