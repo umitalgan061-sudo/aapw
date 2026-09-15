@@ -38,6 +38,11 @@ jobs:
           node scripts/generateSafakKartaliLivingWorldDirectorMatrix.mjs
           test "$(wc -l < artifacts/safak-kartali-living-world-director-matrix.jsonl)" -eq 4097
           test "$(jq -s 'length' artifacts/safak-kartali-living-world-director-matrix.jsonl)" -eq 4097
+      - name: Validate matrix provenance and uniqueness
+        run: |
+          set -euo pipefail
+          jq -e '.[0].schema == "safak-kartali-living-world-director-matrix-v1"' < <(jq -s '.' artifacts/safak-kartali-living-world-director-matrix.jsonl)
+          test "$(jq -s '[.[].digest] | unique | length' artifacts/safak-kartali-living-world-director-matrix.jsonl)" -gt 1
       - name: Commit deterministic evidence artifact
         run: |
           set -euo pipefail
