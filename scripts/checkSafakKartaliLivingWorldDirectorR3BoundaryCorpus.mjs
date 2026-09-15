@@ -16,7 +16,8 @@ const FILES = [
   'living-world-director-r3-boundary-corpus-06.jsonl',
   'living-world-director-r3-boundary-corpus-07.jsonl',
 ];
-const EXPECTED_ROWS = 3328;
+const EXPECTED_ROWS = 3072;
+const VARIANTS = 12;
 const BANDS = [0.05, 0.30, 0.65, 0.92];
 const SOCIAL = [0.10, 0.35, 0.70, 0.95];
 const SCARCITY = [0.05, 0.40, 0.72, 0.96];
@@ -48,7 +49,7 @@ for (let fileIndex = 0; fileIndex < FILES.length; fileIndex += 1) {
     if (!Number.isInteger(decoded.contextIndex) || decoded.contextIndex < 0 || decoded.contextIndex >= DIRECTOR_SCENARIO_CONTEXTS.length) {
       fail(`invalid context index at ${file}:${lineIndex + 1}`);
     }
-    if (!Number.isInteger(decoded.variant) || decoded.variant < 0 || decoded.variant > 11) {
+    if (!Number.isInteger(decoded.variant) || decoded.variant < 0 || decoded.variant >= VARIANTS) {
       fail(`invalid variant at ${file}:${lineIndex + 1}`);
     }
     rows.push(decoded);
@@ -72,7 +73,7 @@ for (const row of rows) {
   variantCounts.set(row.variant, (variantCounts.get(row.variant) ?? 0) + 1);
 
   const urgency = BANDS[row.variant % 4];
-  const threat = BANDS[Math.floor(row.variant / 4)];
+  const threat = BANDS[Math.floor(row.variant / 4) % 3];
   const socialNeed = SOCIAL[(row.roleIndex + row.variant) % 4];
   const scarcity = SCARCITY[(row.contextIndex + row.variant * 2) % 4];
   const request = {
@@ -97,13 +98,13 @@ for (const row of rows) {
   assert(['off', 'deferred', 'normal', 'priority', 'critical'].includes(first.tier), `invalid tier for ${key}`);
 }
 
-for (const role of DIRECTOR_SCENARIO_ROLES) assert.equal(roleCounts.get(role), 13 * DIRECTOR_SCENARIO_CONTEXTS.length, `role coverage drift: ${role}`);
-for (const context of DIRECTOR_SCENARIO_CONTEXTS) assert.equal(contextCounts.get(context), 13 * DIRECTOR_SCENARIO_ROLES.length, `context coverage drift: ${context}`);
-for (let variant = 0; variant <= 11; variant += 1) assert.equal(variantCounts.get(variant), 256, `variant coverage drift: ${variant}`);
+for (const role of DIRECTOR_SCENARIO_ROLES) assert.equal(roleCounts.get(role), VARIANTS * DIRECTOR_SCENARIO_CONTEXTS.length, `role coverage drift: ${role}`);
+for (const context of DIRECTOR_SCENARIO_CONTEXTS) assert.equal(contextCounts.get(context), VARIANTS * DIRECTOR_SCENARIO_ROLES.length, `context coverage drift: ${context}`);
+for (let variant = 0; variant < VARIANTS; variant += 1) assert.equal(variantCounts.get(variant), 256, `variant coverage drift: ${variant}`);
 
 const baseline = scoreScenarioRequest({ role: 'guard', context: 'quiet', urgency: 0.05, threat: 0.05, socialNeed: 0.10, scarcity: 0.05 });
 const escalation = scoreScenarioRequest({ role: 'guard', context: 'combat', urgency: 0.92, threat: 0.92, socialNeed: 0.10, scarcity: 0.05 });
 assert(escalation.score > baseline.score, 'high-threat/high-urgency boundary must escalate guard priority');
 assert.equal(escalation.protected, true, 'protected boundary must activate at production threshold');
 
-console.log(`R3 boundary corpus OK: ${rows.length} rows, ${unique.size} unique cases, 16 roles, 16 contexts, 12 variants`);
+console.log(`R3 boundary corpus OK: ${rows.length} rows, ${unique.size} unique cases, 16 roles, 16 contexts, ${VARIANTS} variants`);
