@@ -10,6 +10,9 @@ on:
       - 'src/3d/gameplay/playerLocomotionAnticipationProfiles.js'
       - 'src/3d/gameplay/playerLocomotionTransitionWindows.js'
       - 'src/3d/gameplay/playerLocomotionTemporalTuning.js'
+      - 'src/3d/gameplay/playerLocomotionVelocityHistory.js'
+      - 'src/3d/gameplay/playerLocomotionFootContactPolicy.js'
+      - 'src/3d/gameplay/playerLocomotionAnticipationRuntimeFacade.js'
       - 'scripts/checkPlayerLocomotionAnticipationAcceptance.mjs'
       - 'scripts/checkPlayerLocomotionAnticipationAdversarial.mjs'
       - 'scripts/checkPlayerLocomotionAnticipationInvariant.mjs'
@@ -18,7 +21,13 @@ on:
       - 'scripts/checkPlayerLocomotionAnticipationContract.mjs'
       - 'scripts/checkPlayerLocomotionTransitionWindows.mjs'
       - 'scripts/checkPlayerLocomotionTemporalTuning.mjs'
+      - 'scripts/checkPlayerLocomotionFootContact.mjs'
+      - 'scripts/checkPlayerLocomotionAnticipationFacade.mjs'
+      - 'scripts/checkPlayerLocomotionAnticipationReplayContract.mjs'
+      - 'scripts/checkPlayerLocomotionAnticipationScenarioMatrix.mjs'
+      - 'scripts/checkPlayerLocomotionAnticipationSoak.mjs'
       - 'src/3d/gameplay/PLAYER_LOCOMOTION_ANTICIPATION.md'
+      - 'src/3d/gameplay/PLAYER_LOCOMOTION_ANTICIPATION_REVIEW.md'
       - '.github/workflows/player-locomotion-anticipation.yml'
   push:
     branches:
@@ -30,7 +39,7 @@ permissions:
 jobs:
   anticipation-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,7 +69,24 @@ jobs:
             src/3d/gameplay/playerLocomotionAnimationBridge.js \
             src/3d/gameplay/playerLocomotionAnticipationProfiles.js \
             src/3d/gameplay/playerLocomotionTransitionWindows.js \
-            src/3d/gameplay/playerLocomotionTemporalTuning.js; do node --check "$file"; done
+            src/3d/gameplay/playerLocomotionTemporalTuning.js \
+            src/3d/gameplay/playerLocomotionVelocityHistory.js \
+            src/3d/gameplay/playerLocomotionFootContactPolicy.js \
+            src/3d/gameplay/playerLocomotionAnticipationRuntimeFacade.js; do node --check "$file"; done
+          for file in \
+            scripts/checkPlayerLocomotionAnticipationAcceptance.mjs \
+            scripts/checkPlayerLocomotionAnticipationAdversarial.mjs \
+            scripts/checkPlayerLocomotionAnticipationInvariant.mjs \
+            scripts/checkPlayerLocomotionAnticipationBridge.mjs \
+            scripts/checkPlayerLocomotionAnticipationProfiles.mjs \
+            scripts/checkPlayerLocomotionAnticipationContract.mjs \
+            scripts/checkPlayerLocomotionTransitionWindows.mjs \
+            scripts/checkPlayerLocomotionTemporalTuning.mjs \
+            scripts/checkPlayerLocomotionFootContact.mjs \
+            scripts/checkPlayerLocomotionAnticipationFacade.mjs \
+            scripts/checkPlayerLocomotionAnticipationReplayContract.mjs \
+            scripts/checkPlayerLocomotionAnticipationScenarioMatrix.mjs \
+            scripts/checkPlayerLocomotionAnticipationSoak.mjs; do node --check "$file"; done
       - name: Acceptance
         run: node scripts/checkPlayerLocomotionAnticipationAcceptance.mjs
       - name: Adversarial
@@ -77,12 +103,25 @@ jobs:
         run: node scripts/checkPlayerLocomotionTransitionWindows.mjs
       - name: Temporal tuning
         run: node scripts/checkPlayerLocomotionTemporalTuning.mjs
+      - name: Foot contact
+        run: node scripts/checkPlayerLocomotionFootContact.mjs
+      - name: Facade
+        run: node scripts/checkPlayerLocomotionAnticipationFacade.mjs
+      - name: Replay contract
+        run: node scripts/checkPlayerLocomotionAnticipationReplayContract.mjs
+      - name: Scenario matrix
+        run: node scripts/checkPlayerLocomotionAnticipationScenarioMatrix.mjs
+      - name: Long soak
+        run: node scripts/checkPlayerLocomotionAnticipationSoak.mjs
       - name: Deterministic double run
         run: |
           set -euo pipefail
           node scripts/checkPlayerLocomotionAnticipationAcceptance.mjs > /tmp/anticipation-a.log
           node scripts/checkPlayerLocomotionAnticipationAcceptance.mjs > /tmp/anticipation-b.log
           diff -u /tmp/anticipation-a.log /tmp/anticipation-b.log
+          node scripts/checkPlayerLocomotionAnticipationFacade.mjs > /tmp/facade-a.log
+          node scripts/checkPlayerLocomotionAnticipationFacade.mjs > /tmp/facade-b.log
+          diff -u /tmp/facade-a.log /tmp/facade-b.log
       - name: Runtime/editor boundary
         run: |
           set -euo pipefail
@@ -93,7 +132,10 @@ jobs:
             src/3d/gameplay/playerLocomotionAnimationBridge.js \
             src/3d/gameplay/playerLocomotionAnticipationProfiles.js \
             src/3d/gameplay/playerLocomotionTransitionWindows.js \
-            src/3d/gameplay/playerLocomotionTemporalTuning.js
+            src/3d/gameplay/playerLocomotionTemporalTuning.js \
+            src/3d/gameplay/playerLocomotionVelocityHistory.js \
+            src/3d/gameplay/playerLocomotionFootContactPolicy.js \
+            src/3d/gameplay/playerLocomotionAnticipationRuntimeFacade.js
       - name: Focused diff budget
         run: |
           set -euo pipefail
@@ -106,7 +148,11 @@ jobs:
             src/3d/gameplay/playerLocomotionAnticipationProfiles.js \
             src/3d/gameplay/playerLocomotionTransitionWindows.js \
             src/3d/gameplay/playerLocomotionTemporalTuning.js \
+            src/3d/gameplay/playerLocomotionVelocityHistory.js \
+            src/3d/gameplay/playerLocomotionFootContactPolicy.js \
+            src/3d/gameplay/playerLocomotionAnticipationRuntimeFacade.js \
             src/3d/gameplay/PLAYER_LOCOMOTION_ANTICIPATION.md \
+            src/3d/gameplay/PLAYER_LOCOMOTION_ANTICIPATION_REVIEW.md \
             scripts/checkPlayerLocomotionAnticipationAcceptance.mjs \
             scripts/checkPlayerLocomotionAnticipationAdversarial.mjs \
             scripts/checkPlayerLocomotionAnticipationInvariant.mjs \
@@ -115,6 +161,11 @@ jobs:
             scripts/checkPlayerLocomotionAnticipationContract.mjs \
             scripts/checkPlayerLocomotionTransitionWindows.mjs \
             scripts/checkPlayerLocomotionTemporalTuning.mjs \
+            scripts/checkPlayerLocomotionFootContact.mjs \
+            scripts/checkPlayerLocomotionAnticipationFacade.mjs \
+            scripts/checkPlayerLocomotionAnticipationReplayContract.mjs \
+            scripts/checkPlayerLocomotionAnticipationScenarioMatrix.mjs \
+            scripts/checkPlayerLocomotionAnticipationSoak.mjs \
             .github/workflows/player-locomotion-anticipation.yml | awk '{a += $1} END {print a+0}')"
           deletions="$(git diff --numstat origin/main...HEAD -- \
             src/3d/gameplay/playerLocomotionAnticipationPolicy.js \
@@ -124,7 +175,11 @@ jobs:
             src/3d/gameplay/playerLocomotionAnticipationProfiles.js \
             src/3d/gameplay/playerLocomotionTransitionWindows.js \
             src/3d/gameplay/playerLocomotionTemporalTuning.js \
+            src/3d/gameplay/playerLocomotionVelocityHistory.js \
+            src/3d/gameplay/playerLocomotionFootContactPolicy.js \
+            src/3d/gameplay/playerLocomotionAnticipationRuntimeFacade.js \
             src/3d/gameplay/PLAYER_LOCOMOTION_ANTICIPATION.md \
+            src/3d/gameplay/PLAYER_LOCOMOTION_ANTICIPATION_REVIEW.md \
             scripts/checkPlayerLocomotionAnticipationAcceptance.mjs \
             scripts/checkPlayerLocomotionAnticipationAdversarial.mjs \
             scripts/checkPlayerLocomotionAnticipationInvariant.mjs \
@@ -133,6 +188,11 @@ jobs:
             scripts/checkPlayerLocomotionAnticipationContract.mjs \
             scripts/checkPlayerLocomotionTransitionWindows.mjs \
             scripts/checkPlayerLocomotionTemporalTuning.mjs \
+            scripts/checkPlayerLocomotionFootContact.mjs \
+            scripts/checkPlayerLocomotionAnticipationFacade.mjs \
+            scripts/checkPlayerLocomotionAnticipationReplayContract.mjs \
+            scripts/checkPlayerLocomotionAnticipationScenarioMatrix.mjs \
+            scripts/checkPlayerLocomotionAnticipationSoak.mjs \
             .github/workflows/player-locomotion-anticipation.yml | awk '{d += $2} END {print d+0}')"
           total=$((additions + deletions))
           echo "focused diff lines: $total"
