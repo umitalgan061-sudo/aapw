@@ -1,0 +1,43 @@
+name: Kizil Ufuk player combat lock-on cycle
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/playerCombatLockOnCycle.js'
+      - 'scripts/checkPlayerCombatLockOnCycle.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-lock-on-cycle.yml'
+  push:
+    branches:
+      - agent/kizil-ufuk-lock-on-cycle-20260916-r10
+    paths:
+      - 'src/3d/gameplay/playerCombatLockOnCycle.js'
+      - 'scripts/checkPlayerCombatLockOnCycle.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-lock-on-cycle.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/playerCombatLockOnCycle.js
+          node --check scripts/checkPlayerCombatLockOnCycle.mjs
+      - name: Contract
+        run: node scripts/checkPlayerCombatLockOnCycle.mjs
+      - name: Changed-line guard
+        run: |
+          set -euo pipefail
+          total=$(git diff --numstat "${{ github.event.pull_request.base.sha || 'HEAD^' }}" HEAD -- src/3d/gameplay/playerCombatLockOnCycle.js scripts/checkPlayerCombatLockOnCycle.mjs .github/workflows/kizil-ufuk-player-combat-lock-on-cycle.yml | awk '{a+=$1+$2} END {print a+0}')
+          test "$total" -le 3000
