@@ -1,0 +1,1 @@
+R2 final checklist: current-main base, deterministic generator, generated 4,096-case evidence, production replay validator, render-only ownership checks, and CI diff hygiene.
