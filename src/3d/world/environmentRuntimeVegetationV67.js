@@ -1,0 +1,18 @@
+import { clamp01, finiteV67, meanV67, normalizeSampleV67, seasonPhaseV67 } from './environmentRuntimeV67.js';
+export const VEGETATION_V67=Object.freeze({id:'vegetation-v67',version:67,deterministic:true,noWorldMutation:true});
+const RULES=Object.freeze({forest:{base:.84,moisture:.68,canopy:.86},taiga:{base:.66,moisture:.58,canopy:.74},grassland:{base:.62,moisture:.42,canopy:.16},scrub:{base:.44,moisture:.3,canopy:.24},alpine:{base:.22,moisture:.25,canopy:.08},wetland:{base:.88,moisture:.84,canopy:.2},temperate:{base:.7,moisture:.55,canopy:.58}});
+export const vegetationDensityV67=(sample={})=>{const s=normalizeSampleV67(sample);const r=RULES[s.biome]??RULES.temperate;const moistureFit=clamp01(1-Math.abs(s.moisture-r.moisture));const disturbance=finiteV67(sample.disturbance,0);return clamp01(r.base*(.55+moistureFit*.45)*(1-clamp01(disturbance)*.42));};
+export const canopyDensityV67=(sample={})=>{const s=normalizeSampleV67(sample);const r=RULES[s.biome]??RULES.temperate;return clamp01(vegetationDensityV67(s)*.5+r.canopy*.5);};
+export const understoryDensityV67=(sample={})=>clamp01(vegetationDensityV67(sample)*.82+normalizeSampleV67(sample).moisture*.08);
+export const groundCoverV67=(sample={})=>clamp01(vegetationDensityV67(sample)*.9+(1-normalizeSampleV67(sample).slope)*.1);
+export const regenerationV67=(sample={},dayOfYear=180)=>{const phase=seasonPhaseV67(dayOfYear);const seasonal={winter:.32,spring:.78,summer:1,autumn:.62}[phase];const s=normalizeSampleV67(sample);return clamp01(vegetationDensityV67(s)*.5+seasonal*.3+(1-s.humanPressure)*.2);};
+export const grazingPressureV67=(sample={})=>clamp01(finiteV67(sample.herbivorePressure,0)*.7+finiteV67(sample.humanPressure,0)*.3);
+export const buildVegetationSampleV67=(sample={},dayOfYear=180)=>{const s=normalizeSampleV67(sample);const density=vegetationDensityV67(s);return{id:s.id,biome:s.biome,density,canopy:canopyDensityV67(s),understory:understoryDensityV67(s),groundCover:groundCoverV67(s),regeneration:regenerationV67(s,dayOfYear),grazingPressure:grazingPressureV67(s)};};
+export const buildVegetationFieldV67=(samples=[],dayOfYear=180)=>samples.map(sample=>buildVegetationSampleV67(sample,dayOfYear));
+export const ecotoneMixV67=(a={},b={},weight=.5)=>{const t=clamp01(weight);return{density:finiteV67(a.density)*(1-t)+finiteV67(b.density)*t,canopy:finiteV67(a.canopy)*(1-t)+finiteV67(b.canopy)*t,groundCover:finiteV67(a.groundCover)*(1-t)+finiteV67(b.groundCover)*t};};
+export const vegetationClassV67=(density=0)=>density>.74?'dense':density>.48?'mixed':density>.22?'sparse':'open';
+export const vegetationSummaryV67=(field=[])=>({samples:field.length,meanDensity:meanV67(field.map(x=>x.density)),meanCanopy:meanV67(field.map(x=>x.canopy)),meanRegeneration:meanV67(field.map(x=>x.regeneration)),classes:field.reduce((a,x)=>{const k=vegetationClassV67(x.density);a[k]=(a[k]??0)+1;return a;}, {})});
+export const validateVegetationV67=(field=[])=>{const errors=[];if(!Array.isArray(field))errors.push('field');if(field.some(x=>x.density<0||x.density>1))errors.push('density');if(field.some(x=>x.regeneration<0||x.regeneration>1))errors.push('regeneration');return{ok:errors.length===0,errors};};
+export const vegetationTelemetryV67=(field=[])=>({policy:VEGETATION_V67.id,valid:validateVegetationV67(field).ok,summary:vegetationSummaryV67(field)});
+export const vegetationDisturbanceRecoveryV67=(sample={},days=30)=>clamp01((1-clamp01(finiteV67(sample.disturbance,0)))*Math.min(1,finiteV67(days,30)/90));
+export const vegetationWindMotionV67=(sample={})=>clamp01(normalizeSampleV67(sample).wind*(.55+canopyDensityV67(sample)*.45));
