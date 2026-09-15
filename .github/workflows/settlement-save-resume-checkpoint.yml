@@ -1,0 +1,25 @@
+name: settlement-save-resume-checkpoint
+on:
+  push:
+    branches: ['agent/gunbatimi-settlement-save-resume-checkpoint-20260909']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run executable contract
+        run: node scripts/checkSettlementSaveResumeCheckpoint.mjs
+      - name: Syntax
+        run: node --check src/3d/gameplay/settlementSaveResumeCheckpoint.js
+      - name: Boundary guard
+        run: |
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" -n src/3d/gameplay/settlementSaveResumeCheckpoint.js scripts/checkSettlementSaveResumeCheckpoint.mjs
+      - name: Diff budget
+        run: |
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
