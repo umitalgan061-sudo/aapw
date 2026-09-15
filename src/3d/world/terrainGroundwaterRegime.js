@@ -110,6 +110,7 @@ export function normalizeGroundwaterSample(input = {}) {
     dayOfYear: ((Math.floor(safeNumber(input.dayOfYear, 1)) % 360) + 360) % 360,
     temperatureC: clamp(safeNumber(input.temperatureC, 12), -40, 55),
     drainage: clamp01(safeNumber(input.drainage, 0.5)),
+    windExposure: clamp01(safeNumber(input.windExposure, 0.5)),
     substrate: typeof input.substrate === 'string' ? input.substrate : 'mixed',
     biome: typeof input.biome === 'string' ? input.biome : 'temperate',
   };
@@ -252,7 +253,7 @@ export function dryingResistance(sampleInput = {}) {
   const proximity = waterTableProximity(sample);
   const capillary = capillaryRise(sample);
   const depthShield = smoothstep(0.2, 1.6, sample.soilDepth);
-  const windExposure = 1 - clamp01(safeNumber(sample.windExposure, 0.5));
+  const windExposure = 1 - sample.windExposure;
   const thermalDemand = smoothstep(4, 34, sample.temperatureC);
   return clamp01(
     proximity * 0.44 +
@@ -310,7 +311,7 @@ export function groundwaterStress(sampleInput = {}) {
   const sample = normalizeGroundwaterSample(sampleInput);
   const saturation = surfaceSaturation(sample);
   const drying = dryingResistance(sample);
-  const cold = smoothstep(0, -12, sample.temperatureC);
+  const cold = smoothstep(-12, 0, sample.temperatureC);
   const wetFreeze = saturation * cold;
   const drought = smoothstep(12, 46, sample.dryDays) * (1 - drying);
   return Object.freeze({
