@@ -1,0 +1,41 @@
+name: Terrain Groundwater Surface Detail Regression
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainGroundwaterSurfaceDetail*'
+      - 'scripts/checkTerrainGroundwaterSurfaceDetail*'
+      - 'docs/terrain-groundwater-surface-detail*'
+      - '.github/workflows/terrain-groundwater-surface-detail-regression.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainGroundwaterSurfaceDetail*'
+      - 'scripts/checkTerrainGroundwaterSurfaceDetail*'
+permissions:
+  contents: read
+jobs:
+  focused-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Focused surface detail acceptance
+        run: node scripts/checkTerrainGroundwaterSurfaceDetailAcceptanceV2.mjs
+      - name: Metamorphic regression
+        run: node scripts/checkTerrainGroundwaterSurfaceDetailMetamorphic.mjs
+      - name: Ownership guard
+        run: node scripts/checkTerrainGroundwaterSurfaceDetailNoMutation.mjs
+      - name: Stack integration
+        run: node scripts/checkTerrainGroundwaterSurfaceDetailIntegration.mjs
+      - name: Summary
+        run: |
+          set -euo pipefail
+          test -f docs/terrain-groundwater-surface-detail.md
+          test -f docs/terrain-groundwater-surface-detail-qa-matrix.md
+          test -f docs/terrain-groundwater-surface-detail-qa-vectors.md
+          git diff --check
