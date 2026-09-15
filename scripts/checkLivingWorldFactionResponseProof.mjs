@@ -30,7 +30,7 @@ const runtime = createLivingWorldReactionRuntime({
 
 const first = runtime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
 assert.equal(auditLivingWorldReactionResult(first).ok, true);
-const proof = summarizeFactionResponseProof(first, { expectedTick: first.tick, frameBudgetMs: 1.4 });
+const proof = summarizeFactionResponseProof(first, { expectedTick: first.tick ?? first.tickCount ?? first.telemetry?.tick, frameBudgetMs: 1.4 });
 if (!proof.accepted) console.error(JSON.stringify({ marker: 'FACTION_RESPONSE_PROOF_DIAGNOSTIC', proof, result: first }));
 assert.equal(proof.accepted, true);
 assert.equal(proof.deterministic, true);
