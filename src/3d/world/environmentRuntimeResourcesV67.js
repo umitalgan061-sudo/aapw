@@ -1,0 +1,23 @@
+import { clamp01, finiteV67, meanV67, normalizeSampleV67 } from './environmentRuntimeV67.js';
+import { soilProductivityV67 } from './environmentRuntimeEcologyV67.js';
+import { rockHardnessV67 } from './environmentRuntimeGeologyV67.js';
+
+export const RESOURCES_V67=Object.freeze({id:'resources-v67',version:67,deterministic:true,noWorldMutation:true});
+export const waterResourceV67=(sample={})=>clamp01(1-normalizeSampleV67(sample).waterDistance/220);
+export const woodResourceV67=(sample={})=>{const s=normalizeSampleV67(sample);return clamp01(s.canopy*.68+soilProductivityV67(s)*.2+(1-s.humanPressure)*.12);};
+export const stoneResourceV67=(sample={})=>{const s=normalizeSampleV67(sample);return clamp01(s.slope*.48+rockHardnessV67(s)*.37+(1-s.canopy)*.15);};
+export const forageResourceV67=(sample={})=>{const s=normalizeSampleV67(sample);return clamp01(soilProductivityV67(s)*.62+s.moisture*.2+(1-s.humanPressure)*.18);};
+export const resourceAbundanceV67=(sample={})=>clamp01(waterResourceV67(sample)*.24+woodResourceV67(sample)*.22+stoneResourceV67(sample)*.24+forageResourceV67(sample)*.3);
+export const resourceTypeV67=(sample={})=>{const values={water:waterResourceV67(sample),wood:woodResourceV67(sample),stone:stoneResourceV67(sample),forage:forageResourceV67(sample)};return Object.entries(values).sort((a,b)=>b[1]-a[1])[0][0];};
+export const depletionRateV67=(sample={},harvestPressure=0)=>clamp01(clamp01(harvestPressure)*.72+normalizeSampleV67(sample).humanPressure*.28);
+export const regenerationRateV67=(sample={},seasonMultiplier=1)=>clamp01((soilProductivityV67(sample)*.7+(1-normalizeSampleV67(sample).humanPressure)*.3)*clamp01(seasonMultiplier));
+export const recoverResourceV67=(current=0,sample={},days=30)=>clamp01(current+(1-current)*regenerationRateV67(sample)*Math.min(1,finiteV67(days,30)/90));
+export const buildResourceSampleV67=(sample={})=>{const s=normalizeSampleV67(sample);return{id:s.id,water:waterResourceV67(s),wood:woodResourceV67(s),stone:stoneResourceV67(s),forage:forageResourceV67(s),abundance:resourceAbundanceV67(s),dominant:resourceTypeV67(s),depletion:depletionRateV67(s,s.humanPressure)};};
+export const buildResourceFieldV67=(samples=[])=>samples.map(buildResourceSampleV67);
+export const resourceSummaryV67=(field=[])=>({samples:field.length,meanAbundance:meanV67(field.map(x=>x.abundance)),scarce:field.filter(x=>x.abundance<.28).length,dominant:field.reduce((a,x)=>(a[x.dominant]=(a[x.dominant]??0)+1,a),{})});
+export const resourceNodePriorityV67=(sample={})=>clamp01(resourceAbundanceV67(sample)*.7+waterResourceV67(sample)*.15+forageResourceV67(sample)*.15);
+export const resourceHarvestYieldV67=(sample={},base=1)=>Math.max(0,finiteV67(base,1)*resourceAbundanceV67(sample)*(1-depletionRateV67(sample,.15)));
+export const validateResourcesV67=(field=[])=>{const errors=[];if(!Array.isArray(field))errors.push('field');if(field.some(x=>x.abundance<0||x.abundance>1))errors.push('abundance');if(field.some(x=>!['water','wood','stone','forage'].includes(x.dominant)))errors.push('dominant');return{ok:errors.length===0,errors};};
+export const resourceTelemetryV67=(field=[])=>({policy:RESOURCES_V67.id,valid:validateResourcesV67(field).ok,summary:resourceSummaryV67(field)});
+export const resourceRouteValueV67=(sample={},distance=0)=>clamp01(resourceAbundanceV67(sample)-Math.min(1,Math.max(0,finiteV67(distance))/260)*.25);
+export const resourcePressureV67=(sample={})=>clamp01(normalizeSampleV67(sample).humanPressure*.72+(1-resourceAbundanceV67(sample))*.28);
