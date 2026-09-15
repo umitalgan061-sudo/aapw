@@ -32,5 +32,5 @@ for (let roleIndex = 0; roleIndex < roles.length; roleIndex += 1) {
 }
 if (index !== 4096) throw new Error(`scenario corpus size mismatch: ${index}`);
 fs.mkdirSync(path.dirname(OUTPUT), { recursive: true });
-fs.writeFileSync(OUTPUT, `${lines.join('\\n')}\\n`, 'utf8');
+fs.writeFileSync(OUTPUT, `${lines.join('\n')}\n`, 'utf8');
 console.log(JSON.stringify({ ok: true, rows: lines.length, cases: index, output: OUTPUT }));
