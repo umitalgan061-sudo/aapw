@@ -58,7 +58,8 @@ jobs:
             src/3d/gameplay/settlementWorldCoverageContinuitySignage.js \
             src/3d/gameplay/settlementWorldCoverageContinuityRoads.js \
             src/3d/gameplay/settlementWorldCoverageContinuityExperience.js \
-            src/3d/gameplay/settlementWorldCoverageContinuityEncounterBudget.js; do
+            src/3d/gameplay/settlementWorldCoverageContinuityEncounterBudget.js \
+            src/3d/gameplay/settlementWorldCoverageContinuityTelemetry.js; do
             node --check "$file"
           done
       - name: Syntax check regression scripts
@@ -72,7 +73,8 @@ jobs:
             scripts/checkSettlementWorldCoverageContinuityBoundaries.mjs \
             scripts/checkSettlementWorldCoverageContinuityAcceptance.mjs \
             scripts/checkSettlementWorldCoverageContinuityPresentation.mjs \
-            scripts/checkSettlementWorldCoverageContinuityEncounterBudget.mjs; do
+            scripts/checkSettlementWorldCoverageContinuityEncounterBudget.mjs \
+            scripts/checkSettlementWorldCoverageContinuityTelemetry.mjs; do
             node --check "$file"
           done
       - name: Run catalogue matrix
@@ -89,6 +91,8 @@ jobs:
         run: node scripts/checkSettlementWorldCoverageContinuityPresentation.mjs
       - name: Run encounter budget matrix
         run: node scripts/checkSettlementWorldCoverageContinuityEncounterBudget.mjs
+      - name: Run transition telemetry matrix
+        run: node scripts/checkSettlementWorldCoverageContinuityTelemetry.mjs
       - name: Verify exact-head ownership boundaries
         shell: bash
         run: |
