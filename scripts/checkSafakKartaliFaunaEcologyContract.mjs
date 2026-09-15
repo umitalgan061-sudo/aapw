@@ -75,6 +75,12 @@ assert.equal(replay.firstDigest, replay.secondDigest);
 const contract = faunaEcologyContractAudit(input);
 assert.equal(contract.ok, true, JSON.stringify(contract));
 
+const malformed = faunaEcologyContractAudit({
+  ...input,
+  actors: [{ ...input.actors[0], position: { x: Number.NaN, z: 0 } }],
+});
+assert.equal(malformed.ok, false, 'malformed actor coordinates must fail closed');
+
 const distant = faunaEcologyOffscreenPolicy(180);
 assert.equal(distant.lod, 'far');
 assert.equal(distant.simulatePerception, false);
@@ -96,6 +102,7 @@ console.log(JSON.stringify({
   habitatSafety: safe,
   blockedHabitat: blocked,
   placementOrder: order,
+  malformedInputRejected: malformed.ok === false,
   distantLod: distant,
   culledLod: culled,
   threatMemory: { active: activeMemory, expired: expiredMemory },
