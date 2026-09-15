@@ -9,6 +9,8 @@ on:
       - 'src/3d/gameplay/PLAYER_DIRECTIONAL_LOCOMOTION.md'
       - 'scripts/checkPlayerDirectionalLocomotionPolicy.mjs'
       - 'scripts/checkPlayerDirectionalLocomotionAcceptance.mjs'
+      - 'scripts/checkPlayerDirectionalLocomotionAdversarial.mjs'
+      - 'scripts/checkPlayerDirectionalLocomotionInvariantMatrix.mjs'
       - '.github/workflows/player-directional-locomotion.yml'
   push:
     branches:
@@ -49,10 +51,16 @@ jobs:
           node --check src/3d/gameplay/playerDirectionalLocomotionReplay.js
           node --check scripts/checkPlayerDirectionalLocomotionPolicy.mjs
           node --check scripts/checkPlayerDirectionalLocomotionAcceptance.mjs
+          node --check scripts/checkPlayerDirectionalLocomotionAdversarial.mjs
+          node --check scripts/checkPlayerDirectionalLocomotionInvariantMatrix.mjs
       - name: Focused executable regression
         run: node scripts/checkPlayerDirectionalLocomotionPolicy.mjs
       - name: Acceptance matrix
         run: node scripts/checkPlayerDirectionalLocomotionAcceptance.mjs
+      - name: Adversarial regression
+        run: node scripts/checkPlayerDirectionalLocomotionAdversarial.mjs
+      - name: Invariant matrix
+        run: node scripts/checkPlayerDirectionalLocomotionInvariantMatrix.mjs
       - name: Deterministic double run
         shell: bash
         run: |
@@ -80,6 +88,8 @@ jobs:
             src/3d/gameplay/PLAYER_DIRECTIONAL_LOCOMOTION.md \
             scripts/checkPlayerDirectionalLocomotionPolicy.mjs \
             scripts/checkPlayerDirectionalLocomotionAcceptance.mjs \
+            scripts/checkPlayerDirectionalLocomotionAdversarial.mjs \
+            scripts/checkPlayerDirectionalLocomotionInvariantMatrix.mjs \
             .github/workflows/player-directional-locomotion.yml | awk '{a += $1} END {print a + 0}')"
           deletions="$(git diff --numstat origin/main...HEAD -- \
             src/3d/gameplay/playerDirectionalLocomotionPolicy.js \
@@ -88,6 +98,8 @@ jobs:
             src/3d/gameplay/PLAYER_DIRECTIONAL_LOCOMOTION.md \
             scripts/checkPlayerDirectionalLocomotionPolicy.mjs \
             scripts/checkPlayerDirectionalLocomotionAcceptance.mjs \
+            scripts/checkPlayerDirectionalLocomotionAdversarial.mjs \
+            scripts/checkPlayerDirectionalLocomotionInvariantMatrix.mjs \
             .github/workflows/player-directional-locomotion.yml | awk '{d += $2} END {print d + 0}')"
           total=$((additions + deletions))
           echo "Directional locomotion diff: $total lines"
