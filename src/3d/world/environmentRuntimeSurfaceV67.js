@@ -1,0 +1,18 @@
+import { clamp01, finiteV67, meanV67, normalizeSampleV67 } from './environmentRuntimeV67.js';
+export const SURFACE_V67=Object.freeze({id:'surface-v67',version:67,deterministic:true,noWorldMutation:true});
+export const wetEdgeV67=(distance=1000)=>clamp01(1-Math.max(0,finiteV67(distance,1000))/200);
+export const compactionV67=(sample={})=>{const s=normalizeSampleV67(sample);return clamp01(s.humanPressure*.55+(1-s.moisture)*.18+s.slope*.12);};
+export const tractionV67=(sample={})=>{const s=normalizeSampleV67(sample);const wet=wetEdgeV67(s.waterDistance);return clamp01(1-s.slope*.62-wet*.28-s.humanPressure*.1);};
+export const roughnessV67=(sample={})=>{const s=normalizeSampleV67(sample);return clamp01(.48+s.slope*.18+(1-s.moisture)*.12+compactionV67(s)*.2);};
+export const materialStateV67=(sample={})=>{const s=normalizeSampleV67(sample);const wet=wetEdgeV67(s.waterDistance);if(wet>.78&&s.moisture>.76)return 'mud';if(s.snow>.6)return 'snow';if(s.slope>.68)return 'rock';if(compactionV67(s)>.7)return 'hard-packed';return wet>.46?'damp-soil':'soil';};
+export const microVariationV67=(sample={})=>{const id=normalizeSampleV67(sample).id;let h=0;for(const c of String(id))h=Math.imul(h^c.charCodeAt(0),33);return clamp01((h>>>0)/4294967295);};
+export const buildSurfaceSampleV67=(sample={})=>{const s=normalizeSampleV67(sample);return {id:s.id,state:materialStateV67(s),wetEdge:wetEdgeV67(s.waterDistance),traction:tractionV67(s),roughness:roughnessV67(s),compaction:compactionV67(s),microVariation:microVariationV67(s)};};
+export const buildSurfaceFieldV67=(samples=[])=>samples.map(buildSurfaceSampleV67);
+export const meanTractionV67=(field=[])=>meanV67(field.map(x=>x.traction));
+export const unsafeSurfaceCountV67=(field=[])=>field.filter(x=>x.traction<.28).length;
+export const surfaceSummaryV67=(field=[])=>({samples:field.length,meanTraction:meanTractionV67(field),unsafe:unsafeSurfaceCountV67(field),wet:field.filter(x=>x.wetEdge>.65).length,states:field.reduce((a,x)=>(a[x.state]=(a[x.state]??0)+1,a),{})});
+export const validateSurfaceV67=(field=[])=>{const errors=[];if(!Array.isArray(field))errors.push('field');if(field.some(x=>x.traction<0||x.traction>1))errors.push('traction');if(field.some(x=>x.roughness<0||x.roughness>1))errors.push('roughness');return{ok:errors.length===0,errors};};
+export const surfaceTelemetryV67=(field=[])=>({policy:SURFACE_V67.id,valid:validateSurfaceV67(field).ok,summary:surfaceSummaryV67(field)});
+export const blendedSurfaceV67=(a={},b={},weight=.5)=>{const t=clamp01(weight);return {traction:finiteV67(a.traction)*(1-t)+finiteV67(b.traction)*t,roughness:finiteV67(a.roughness)*(1-t)+finiteV67(b.roughness)*t};};
+export const snowlineSurfaceV67=(sample={})=>clamp01((finiteV67(sample.elevation)-850)/900);
+export const surfaceWearV67=(sample={})=>clamp01(finiteV67(sample.humanPressure)*.5+finiteV67(sample.traffic)*.5);
