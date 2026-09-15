@@ -1,0 +1,86 @@
+name: player-locomotion-state-synthesis
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  player-locomotion-state-synthesis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact head and main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GITHUB_SHA}"
+          git fetch origin main --no-tags --depth=1
+          git merge-base --is-ancestor "origin/main" "${GITHUB_SHA}"
+
+      - name: Syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/playerLocomotionStateSynthesis.js
+          node --check src/3d/gameplay/playerLocomotionStateTimeline.js
+          node --check src/3d/gameplay/playerLocomotionStateTelemetry.js
+          node --check src/3d/gameplay/playerLocomotionStateRuntime.js
+          node --check src/3d/gameplay/playerLocomotionStateQuality.js
+          node --check scripts/checkPlayerLocomotionStateSynthesisAcceptance.mjs
+          node --check scripts/checkPlayerLocomotionStateSynthesisAdversarial.mjs
+          node --check scripts/checkPlayerLocomotionStateSynthesisScenarioMatrix.mjs
+          node --check scripts/checkPlayerLocomotionStateRuntime.mjs
+          node --check scripts/checkPlayerLocomotionStateFixtures.mjs
+          node --check scripts/checkPlayerLocomotionStateQuality.mjs
+          node --check scripts/checkPlayerLocomotionStateOwnership.mjs
+
+      - name: State synthesis acceptance
+        run: node scripts/checkPlayerLocomotionStateSynthesisAcceptance.mjs
+
+      - name: State synthesis adversarial
+        run: node scripts/checkPlayerLocomotionStateSynthesisAdversarial.mjs
+
+      - name: State synthesis scenario matrix
+        run: node scripts/checkPlayerLocomotionStateSynthesisScenarioMatrix.mjs
+
+      - name: Runtime coordinator
+        run: node scripts/checkPlayerLocomotionStateRuntime.mjs
+
+      - name: Fixture corpus
+        run: node scripts/checkPlayerLocomotionStateFixtures.mjs
+
+      - name: Quality regression
+        run: node scripts/checkPlayerLocomotionStateQuality.mjs
+
+      - name: Ownership boundary
+        run: node scripts/checkPlayerLocomotionStateOwnership.mjs
+
+      - name: Deterministic double-run
+        shell: bash
+        run: |
+          set -euo pipefail
+          first="$(node scripts/checkPlayerLocomotionStateSynthesisScenarioMatrix.mjs)"
+          second="$(node scripts/checkPlayerLocomotionStateSynthesisScenarioMatrix.mjs)"
+          test "${first}" = "${second}"
+
+      - name: Four-thousand meaningful-line gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(git merge-base origin/main HEAD)"
+          additions="$(git diff --numstat "${base}"...HEAD | awk '{sum += $1} END {print sum + 0}')"
+          echo "Meaningful-added-lines=${additions}"
+          test "${additions}" -gt 4000
