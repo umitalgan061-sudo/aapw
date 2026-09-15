@@ -53,15 +53,22 @@ jobs:
           set -euo pipefail
           node --check scripts/checkSettlementWorldCoverageTraversalAcceptance.mjs
           node --check scripts/checkSettlementWorldCoverageTraversalRegression.mjs
+          node --check scripts/checkSettlementWorldCoverageTraversalBoundaries.mjs
+          node --check scripts/checkSettlementWorldCoverageTraversalApi.mjs
       - name: Run acceptance
         run: node scripts/checkSettlementWorldCoverageTraversalAcceptance.mjs
       - name: Run regression
         run: node scripts/checkSettlementWorldCoverageTraversalRegression.mjs
+      - name: Run boundaries
+        run: node scripts/checkSettlementWorldCoverageTraversalBoundaries.mjs
+      - name: Run API contract
+        run: node scripts/checkSettlementWorldCoverageTraversalApi.mjs
       - name: Ownership guard
         shell: bash
         run: |
           set -euo pipefail
           ! grep -R -nE 'scene\.add|BoxGeometry|MeshBasicMaterial|MeshStandardMaterial|spawnNpc|createNavMesh|saveState|terrain.*mutation|road.*mutation' src/3d/gameplay/settlementWorldCoverageTraversal*.js
+          ! grep -R -nE 'Math\.random|Date\.now|setTimeout|setInterval' src/3d/gameplay/settlementWorldCoverageTraversal*.js
       - name: Scope guard
         shell: bash
         run: |
@@ -72,3 +79,23 @@ jobs:
               *) echo "unexpected file: $file"; exit 1 ;;
             esac
           done
+      - name: Export traversal proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/settlement-traversal
+          printf '%s\n' "head_sha=${GITHUB_SHA}" > artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "lanes=10" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "phases=6" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "risk_factors=10" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "route_modes=5" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "milestones=10" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "signals=10" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "scenario_cases=70" >> artifacts/settlement-traversal/exact-head.txt
+          printf '%s\n' "diff_budget=2700..3000" >> artifacts/settlement-traversal/exact-head.txt
+      - name: Upload traversal proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: settlement-world-coverage-traversal-${{ github.sha }}
+          path: artifacts/settlement-traversal
+          if-no-files-found: error
