@@ -12,8 +12,10 @@ on:
       - 'scripts/checkPlayerRuntimeTelemetry.mjs'
       - 'scripts/checkPlayerRuntimeAssertionPlan.mjs'
       - 'scripts/checkPlayerRuntimeDeepMatrix.mjs'
+      - 'scripts/checkPlayerRuntimeHeadlessPreflight.mjs'
       - 'docs/player-runtime-environment-decision-matrix.md'
       - 'docs/player-runtime-combat-scenario-ledger.md'
+      - 'docs/player-runtime-preflight-acceptance-ledger.md'
       - '.github/workflows/player-runtime-environment-gate.yml'
   push:
     branches:
@@ -59,6 +61,7 @@ jobs:
           node --check scripts/checkPlayerRuntimeTelemetry.mjs
           node --check scripts/checkPlayerRuntimeAssertionPlan.mjs
           node --check scripts/checkPlayerRuntimeDeepMatrix.mjs
+          node --check scripts/checkPlayerRuntimeHeadlessPreflight.mjs
       - name: Policy regression
         run: node scripts/checkPlayerRuntimeBudgetPolicy.mjs
       - name: Environment gate regression
@@ -69,6 +72,18 @@ jobs:
         run: node scripts/checkPlayerRuntimeAssertionPlan.mjs
       - name: Deep matrix regression
         run: node scripts/checkPlayerRuntimeDeepMatrix.mjs
+      - name: Measured headless preflight
+        env:
+          AAPW_RUNTIME_PREFLIGHT_SAMPLES: 8
+          AAPW_RUNTIME_PREFLIGHT_LOAD_TIMEOUT_MS: 150000
+          AAPW_RUNTIME_PREFLIGHT_PROBE_TIMEOUT_MS: 90000
+        run: node scripts/checkPlayerRuntimeHeadlessPreflight.mjs --out=artifacts/player-runtime-preflight/runtime-preflight.json
+      - name: Upload preflight evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-runtime-preflight
+          path: artifacts/player-runtime-preflight/runtime-preflight.json
+          if-no-files-found: error
       - name: Deterministic double-run
         shell: bash
         run: |
@@ -95,7 +110,6 @@ jobs:
             src/3d/gameplay/playerRuntimeEnvironmentGate.js \
             src/3d/gameplay/playerRuntimeAssertionPlan.js
       - name: Diff budget
-        shell: bash
         run: |
           set -euo pipefail
           git fetch origin main --no-tags
@@ -109,8 +123,10 @@ jobs:
             scripts/checkPlayerRuntimeTelemetry.mjs \
             scripts/checkPlayerRuntimeAssertionPlan.mjs \
             scripts/checkPlayerRuntimeDeepMatrix.mjs \
+            scripts/checkPlayerRuntimeHeadlessPreflight.mjs \
             docs/player-runtime-environment-decision-matrix.md \
             docs/player-runtime-combat-scenario-ledger.md \
+            docs/player-runtime-preflight-acceptance-ledger.md \
             .github/workflows/player-runtime-environment-gate.yml | awk '{a += $1} END {print a + 0}')"
           deletions="$(git diff --numstat origin/main...HEAD -- \
             src/3d/gameplay/playerRuntimeBudgetPolicy.js \
@@ -122,8 +138,10 @@ jobs:
             scripts/checkPlayerRuntimeTelemetry.mjs \
             scripts/checkPlayerRuntimeAssertionPlan.mjs \
             scripts/checkPlayerRuntimeDeepMatrix.mjs \
+            scripts/checkPlayerRuntimeHeadlessPreflight.mjs \
             docs/player-runtime-environment-decision-matrix.md \
             docs/player-runtime-combat-scenario-ledger.md \
+            docs/player-runtime-preflight-acceptance-ledger.md \
             .github/workflows/player-runtime-environment-gate.yml | awk '{a += $2} END {print a + 0}')"
           echo "runtime environment package additions=$additions deletions=$deletions"
           test "$deletions" = "0"
