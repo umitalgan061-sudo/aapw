@@ -15,7 +15,7 @@ const freeze=(v,s=new Set())=>{if(!v||typeof v!=='object'||s.has(v))return v;s.a
 const stable=v=>v===null||typeof v!=='object'?JSON.stringify(v):Array.isArray(v)?`[${v.map(stable).join(',')}]`:`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;
 const digest=v=>{let h=2166136261;const s=stable(v);for(let i=0;i<s.length;i+=1){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(16).padStart(8,'0');};
 const stageWeight=s=>({far:.58,approach:.72,threshold:.92,inside:1,service:1,departure:.74,resume:.86}[s]??.5);
-const cueWeight=q=>Math.round(c(q?.score)*.7+c(n(q?.priority,q?.score))*.3*1000)/1000;
+const cueWeight=q=>Math.round((c(q?.score)*.7+c(n(q?.priority,q?.score))*.3)*1000)/1000;
 const role=c=>({gateway:'navigation',warning:'navigation',service:'interaction',road:'travel',route:'travel',checkpoint:'resume'}[t(c?.type,'ambient')]??'atmosphere');
 const cost=(r,m)=>Math.round((({navigation:1.05,interaction:1.1,travel:.95,resume:.9,atmosphere:.72}[r]??.8)*(m?.62:1))*100)/100;
 
