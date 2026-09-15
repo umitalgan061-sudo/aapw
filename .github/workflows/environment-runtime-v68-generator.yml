@@ -56,3 +56,4 @@ jobs:
           if git diff --cached --quiet; then echo 'no generation change'; exit 0; fi
           git commit -m 'feat(world): generate v68 settlement evidence runtime'
           git push
+# Turn-safe regeneration trigger retained for the V68 generated artifact.
