@@ -1,0 +1,131 @@
+name: Player Runtime Environment Gate
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerRuntimeBudgetPolicy.js'
+      - 'src/3d/gameplay/playerRuntimeTelemetry.js'
+      - 'src/3d/gameplay/playerRuntimeEnvironmentGate.js'
+      - 'src/3d/gameplay/playerRuntimeAssertionPlan.js'
+      - 'scripts/checkPlayerRuntimeBudgetPolicy.mjs'
+      - 'scripts/checkPlayerRuntimeEnvironmentGate.mjs'
+      - 'scripts/checkPlayerRuntimeTelemetry.mjs'
+      - 'scripts/checkPlayerRuntimeAssertionPlan.mjs'
+      - 'scripts/checkPlayerRuntimeDeepMatrix.mjs'
+      - 'docs/player-runtime-environment-decision-matrix.md'
+      - 'docs/player-runtime-combat-scenario-ledger.md'
+      - '.github/workflows/player-runtime-environment-gate.yml'
+  push:
+    branches:
+      - 'agent/uyarlanan-player-runtime-20260915'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Exact head
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+      - name: Current main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/playerRuntimeBudgetPolicy.js
+          node --check src/3d/gameplay/playerRuntimeTelemetry.js
+          node --check src/3d/gameplay/playerRuntimeEnvironmentGate.js
+          node --check src/3d/gameplay/playerRuntimeAssertionPlan.js
+          node --check scripts/checkPlayerRuntimeBudgetPolicy.mjs
+          node --check scripts/checkPlayerRuntimeEnvironmentGate.mjs
+          node --check scripts/checkPlayerRuntimeTelemetry.mjs
+          node --check scripts/checkPlayerRuntimeAssertionPlan.mjs
+          node --check scripts/checkPlayerRuntimeDeepMatrix.mjs
+      - name: Policy regression
+        run: node scripts/checkPlayerRuntimeBudgetPolicy.mjs
+      - name: Environment gate regression
+        run: node scripts/checkPlayerRuntimeEnvironmentGate.mjs
+      - name: Telemetry regression
+        run: node scripts/checkPlayerRuntimeTelemetry.mjs
+      - name: Assertion plan regression
+        run: node scripts/checkPlayerRuntimeAssertionPlan.mjs
+      - name: Deep matrix regression
+        run: node scripts/checkPlayerRuntimeDeepMatrix.mjs
+      - name: Deterministic double-run
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkPlayerRuntimeBudgetPolicy.mjs >/tmp/budget-a
+          node scripts/checkPlayerRuntimeBudgetPolicy.mjs >/tmp/budget-b
+          diff -u /tmp/budget-a /tmp/budget-b
+          node scripts/checkPlayerRuntimeEnvironmentGate.mjs >/tmp/gate-a
+          node scripts/checkPlayerRuntimeEnvironmentGate.mjs >/tmp/gate-b
+          diff -u /tmp/gate-a /tmp/gate-b
+          node scripts/checkPlayerRuntimeTelemetry.mjs >/tmp/telemetry-a
+          node scripts/checkPlayerRuntimeTelemetry.mjs >/tmp/telemetry-b
+          diff -u /tmp/telemetry-a /tmp/telemetry-b
+          node scripts/checkPlayerRuntimeAssertionPlan.mjs >/tmp/plan-a
+          node scripts/checkPlayerRuntimeAssertionPlan.mjs >/tmp/plan-b
+          diff -u /tmp/plan-a /tmp/plan-b
+      - name: Ownership boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -nE "from ['\"]three['\"]|EventBus|ActorRegistry|scene\.add|spawnNpc|createNavMesh|saveState|Math\.random|Date\.now|setTimeout|setInterval|localStorage|sessionStorage|fetch\(" \
+            src/3d/gameplay/playerRuntimeBudgetPolicy.js \
+            src/3d/gameplay/playerRuntimeTelemetry.js \
+            src/3d/gameplay/playerRuntimeEnvironmentGate.js \
+            src/3d/gameplay/playerRuntimeAssertionPlan.js
+      - name: Diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          additions="$(git diff --numstat origin/main...HEAD -- \
+            src/3d/gameplay/playerRuntimeBudgetPolicy.js \
+            src/3d/gameplay/playerRuntimeTelemetry.js \
+            src/3d/gameplay/playerRuntimeEnvironmentGate.js \
+            src/3d/gameplay/playerRuntimeAssertionPlan.js \
+            scripts/checkPlayerRuntimeBudgetPolicy.mjs \
+            scripts/checkPlayerRuntimeEnvironmentGate.mjs \
+            scripts/checkPlayerRuntimeTelemetry.mjs \
+            scripts/checkPlayerRuntimeAssertionPlan.mjs \
+            scripts/checkPlayerRuntimeDeepMatrix.mjs \
+            docs/player-runtime-environment-decision-matrix.md \
+            docs/player-runtime-combat-scenario-ledger.md \
+            .github/workflows/player-runtime-environment-gate.yml | awk '{a += $1} END {print a + 0}')"
+          deletions="$(git diff --numstat origin/main...HEAD -- \
+            src/3d/gameplay/playerRuntimeBudgetPolicy.js \
+            src/3d/gameplay/playerRuntimeTelemetry.js \
+            src/3d/gameplay/playerRuntimeEnvironmentGate.js \
+            src/3d/gameplay/playerRuntimeAssertionPlan.js \
+            scripts/checkPlayerRuntimeBudgetPolicy.mjs \
+            scripts/checkPlayerRuntimeEnvironmentGate.mjs \
+            scripts/checkPlayerRuntimeTelemetry.mjs \
+            scripts/checkPlayerRuntimeAssertionPlan.mjs \
+            scripts/checkPlayerRuntimeDeepMatrix.mjs \
+            docs/player-runtime-environment-decision-matrix.md \
+            docs/player-runtime-combat-scenario-ledger.md \
+            .github/workflows/player-runtime-environment-gate.yml | awk '{a += $2} END {print a + 0}')"
+          echo "runtime environment package additions=$additions deletions=$deletions"
+          test "$deletions" = "0"
+          test "$additions" -ge 4000
+          test "$additions" -le 5200
