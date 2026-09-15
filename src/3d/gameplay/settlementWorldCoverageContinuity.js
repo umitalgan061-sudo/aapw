@@ -179,10 +179,16 @@ function transitionBudget(stage, mobile) {
   return Math.max(2, Math.floor(desktop * (mobile ? SETTLEMENT_WORLD_COVERAGE_CONTINUITY_POLICY.mobileLodScale : 1)));
 }
 
-export function buildSettlementWorldCoverageContinuityContext({ settlement = {}, player = {}, surface = {}, regionId = null, seed = 0, mobile = false } = {}) {
+export function buildSettlementWorldCoverageContinuityContext({
+  settlement = {},
+  player = {},
+  surface = {},
+  regionId = null,
+  seed = 0,
+  mobile = false,
+} = {}) {
   const normalizedSettlement = normalizeSettlement(settlement);
-  const safePlayer = player && typeof player === 'object' ? player : {};
-  const playerPoint = normalizePoint(safePlayer.position ?? safePlayer);
+  const playerPoint = normalizePoint(player.position ?? player);
   const normalizedSurface = normalizeSurface(surface);
   const distance = distanceXZ(playerPoint, normalizedSettlement.anchor);
   const stage = radialStage(distance, normalizedSettlement);
@@ -203,9 +209,9 @@ export function buildSettlementWorldCoverageContinuityContext({ settlement = {},
     distance,
     stage,
     stageIndex: stageIndex(stage),
-    inSettlement: bool(safePlayer.inSettlement),
-    settlementOpen: safePlayer.settlementOpen !== false,
-    defeated: bool(safePlayer.defeated) || number(safePlayer.health, 100) <= 0,
+    inSettlement: bool(player.inSettlement),
+    settlementOpen: player.settlementOpen !== false,
+    defeated: bool(player.defeated) || number(player.health, 100) <= 0,
     worldChunkKey,
     continuitySeed,
     ownerChunkKey: geoContext.ownerChunkKey,
@@ -283,7 +289,14 @@ export function planSettlementWorldCoverageTransition(options = {}) {
   });
 }
 
-export function buildSettlementWorldCoverageApproachNodes({ settlement = {}, surface = {}, regionId = null, seed = 0, mobile = false, count = 24 } = {}) {
+export function buildSettlementWorldCoverageApproachNodes({
+  settlement = {},
+  surface = {},
+  regionId = null,
+  seed = 0,
+  mobile = false,
+  count = 24,
+} = {}) {
   const context = buildSettlementWorldCoverageContinuityContext({ settlement, surface, regionId, player: { position: settlement.anchor }, seed, mobile });
   const total = Math.max(1, Math.min(SETTLEMENT_WORLD_COVERAGE_CONTINUITY_POLICY.maxApproachNodes, int(count, 1, 24, 24)));
   const nodes = [];
@@ -323,7 +336,16 @@ function validateCheckpoint(checkpoint, settlementId) {
   return freeze({ ok: errors.length === 0, errors });
 }
 
-export function createSettlementWorldCoverageContinuitySession({ settlement = {}, initialPlayer = {}, surface = {}, regionId = null, seed = 0, mobile = false, now = () => Date.now(), historyLimit = 24 } = {}) {
+export function createSettlementWorldCoverageContinuitySession({
+  settlement = {},
+  initialPlayer = {},
+  surface = {},
+  regionId = null,
+  seed = 0,
+  mobile = false,
+  now = () => Date.now(),
+  historyLimit = 24,
+} = {}) {
   const settlementData = normalizeSettlement(settlement);
   let player = clone(initialPlayer) || {};
   let sequence = 0;
@@ -399,7 +421,20 @@ export function createSettlementWorldCoverageContinuitySession({ settlement = {}
     const plan = transition();
     const content = validateSettlementContent();
     const manifest = createSettlementContentManifest();
-    const continuity = { policy: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_POLICY.id, digest: plan.digest, stage: plan.transition.stage, gatewayState: plan.transition.gatewayState, serviceCount: plan.services.length, approachNodes: buildSettlementWorldCoverageApproachNodes({ settlement: settlementData, surface, regionId, seed, mobile }).length, historyCount: history.length, checkpoint: clone(checkpoint), contentValid: Boolean(content?.ok), contentDigest: digest(manifest), noTerrainMutation: true, noModelAttachment: true };
+    const continuity = {
+      policy: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_POLICY.id,
+      digest: plan.digest,
+      stage: plan.transition.stage,
+      gatewayState: plan.transition.gatewayState,
+      serviceCount: plan.services.length,
+      approachNodes: buildSettlementWorldCoverageApproachNodes({ settlement: settlementData, surface, regionId, seed, mobile }).length,
+      historyCount: history.length,
+      checkpoint: clone(checkpoint),
+      contentValid: Boolean(content?.ok),
+      contentDigest: digest(manifest),
+      noTerrainMutation: true,
+      noModelAttachment: true,
+    };
     return freeze({ version: 1, settlementId: settlementData.id, continuity, fingerprint: digest(continuity) });
   };
   const dispose = () => {
@@ -444,4 +479,9 @@ export function createSettlementWorldCoverageContinuityProof(options = {}) {
   });
 }
 
-export const SETTLEMENT_WORLD_COVERAGE_CONTINUITY_API = Object.freeze({ version: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_VERSION, services: [...SERVICE_IDS], stages: [...TRANSITION_STAGES], gatewayStates: [...GATEWAY_STATES] });
+export const SETTLEMENT_WORLD_COVERAGE_CONTINUITY_API = Object.freeze({
+  version: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_VERSION,
+  services: [...SERVICE_IDS],
+  stages: [...TRANSITION_STAGES],
+  gatewayStates: [...GATEWAY_STATES],
+});
