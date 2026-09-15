@@ -1,0 +1,1 @@
+R2 evidence is machine-generated from the production resolver and rechecked on every PR head. The matrix covers slope, fold, aspect, and lee-retention boundaries while preserving the render-only ownership contract.
