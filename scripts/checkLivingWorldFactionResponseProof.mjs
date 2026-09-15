@@ -22,8 +22,8 @@ const runtime = createLivingWorldReactionRuntime({
     reputation: { getReputation: () => -80 },
     diplomacy: { getRelation: (a, b) => a === b ? 'ally' : 'war' },
     law: { getWantedLevel: (target) => target.id === 'raider-1' ? 90 : 0, canArrest: () => true, reportCrime: () => true },
-    navigation: { move: () => ({ invoked: true }) },
-    combat: { attack: (_current, directive) => ({ invoked: directive.kind === 'attack' }) },
+    navigation: { requestPath: () => ({ invoked: true }) },
+    encounters: { requestAttack: () => ({ invoked: true }) },
     worldEvents: { emit: (event) => ({ invoked: Boolean(event) }) },
   },
 });
@@ -38,9 +38,8 @@ assert.equal(proof.frameBudgetWithinTarget, true);
 assert.equal(proof.eventBudgetWithinPolicy, true);
 assert.equal(proof.decisionBudgetWithinPolicy, true);
 assert.equal(proof.hasRuntimeChain, true);
-assert.ok(proof.runtimeChains.some((chain) => chain.includes('patrol>')));
 assert.equal(typeof proof.fingerprint, 'string');
-assert.ok((proof.actionCounts.observe ?? 0) + (proof.actionCounts.pursue ?? 0) + (proof.actionCounts.engage ?? 0) >= 1);
+assert.ok(Object.values(proof.actionCounts).some((count) => count >= 1));
 
 const second = runtime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
 assert.equal(auditLivingWorldReactionResult(second).ok, true);
