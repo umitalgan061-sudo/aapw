@@ -1,0 +1,140 @@
+name: Player Locomotion Anticipation
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerLocomotionAnticipationPolicy.js'
+      - 'src/3d/gameplay/playerLocomotionAnticipationTelemetry.js'
+      - 'src/3d/gameplay/playerLocomotionAnticipationReplay.js'
+      - 'src/3d/gameplay/playerLocomotionAnimationBridge.js'
+      - 'src/3d/gameplay/playerLocomotionAnticipationProfiles.js'
+      - 'src/3d/gameplay/playerLocomotionTransitionWindows.js'
+      - 'src/3d/gameplay/playerLocomotionTemporalTuning.js'
+      - 'scripts/checkPlayerLocomotionAnticipationAcceptance.mjs'
+      - 'scripts/checkPlayerLocomotionAnticipationAdversarial.mjs'
+      - 'scripts/checkPlayerLocomotionAnticipationInvariant.mjs'
+      - 'scripts/checkPlayerLocomotionAnticipationBridge.mjs'
+      - 'scripts/checkPlayerLocomotionAnticipationProfiles.mjs'
+      - 'scripts/checkPlayerLocomotionAnticipationContract.mjs'
+      - 'scripts/checkPlayerLocomotionTransitionWindows.mjs'
+      - 'scripts/checkPlayerLocomotionTemporalTuning.mjs'
+      - 'src/3d/gameplay/PLAYER_LOCOMOTION_ANTICIPATION.md'
+      - '.github/workflows/player-locomotion-anticipation.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-locomotion-anticipation-20260915'
+
+permissions:
+  contents: read
+
+jobs:
+  anticipation-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Exact main ancestry
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          for file in \
+            src/3d/gameplay/playerLocomotionAnticipationPolicy.js \
+            src/3d/gameplay/playerLocomotionAnticipationTelemetry.js \
+            src/3d/gameplay/playerLocomotionAnticipationReplay.js \
+            src/3d/gameplay/playerLocomotionAnimationBridge.js \
+            src/3d/gameplay/playerLocomotionAnticipationProfiles.js \
+            src/3d/gameplay/playerLocomotionTransitionWindows.js \
+            src/3d/gameplay/playerLocomotionTemporalTuning.js; do node --check "$file"; done
+      - name: Acceptance
+        run: node scripts/checkPlayerLocomotionAnticipationAcceptance.mjs
+      - name: Adversarial
+        run: node scripts/checkPlayerLocomotionAnticipationAdversarial.mjs
+      - name: Invariant
+        run: node scripts/checkPlayerLocomotionAnticipationInvariant.mjs
+      - name: Bridge
+        run: node scripts/checkPlayerLocomotionAnticipationBridge.mjs
+      - name: Profiles
+        run: node scripts/checkPlayerLocomotionAnticipationProfiles.mjs
+      - name: Contract
+        run: node scripts/checkPlayerLocomotionAnticipationContract.mjs
+      - name: Transition windows
+        run: node scripts/checkPlayerLocomotionTransitionWindows.mjs
+      - name: Temporal tuning
+        run: node scripts/checkPlayerLocomotionTemporalTuning.mjs
+      - name: Deterministic double run
+        run: |
+          set -euo pipefail
+          node scripts/checkPlayerLocomotionAnticipationAcceptance.mjs > /tmp/anticipation-a.log
+          node scripts/checkPlayerLocomotionAnticipationAcceptance.mjs > /tmp/anticipation-b.log
+          diff -u /tmp/anticipation-a.log /tmp/anticipation-b.log
+      - name: Runtime/editor boundary
+        run: |
+          set -euo pipefail
+          ! grep -nE "from ['\"]three['\"]|EventBus|ActorRegistry|EditorMaterialStudio|WorldAssetPlacementPipeline|MaterialAssignmentCore" \
+            src/3d/gameplay/playerLocomotionAnticipationPolicy.js \
+            src/3d/gameplay/playerLocomotionAnticipationTelemetry.js \
+            src/3d/gameplay/playerLocomotionAnticipationReplay.js \
+            src/3d/gameplay/playerLocomotionAnimationBridge.js \
+            src/3d/gameplay/playerLocomotionAnticipationProfiles.js \
+            src/3d/gameplay/playerLocomotionTransitionWindows.js \
+            src/3d/gameplay/playerLocomotionTemporalTuning.js
+      - name: Focused diff budget
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          additions="$(git diff --numstat origin/main...HEAD -- \
+            src/3d/gameplay/playerLocomotionAnticipationPolicy.js \
+            src/3d/gameplay/playerLocomotionAnticipationTelemetry.js \
+            src/3d/gameplay/playerLocomotionAnticipationReplay.js \
+            src/3d/gameplay/playerLocomotionAnimationBridge.js \
+            src/3d/gameplay/playerLocomotionAnticipationProfiles.js \
+            src/3d/gameplay/playerLocomotionTransitionWindows.js \
+            src/3d/gameplay/playerLocomotionTemporalTuning.js \
+            src/3d/gameplay/PLAYER_LOCOMOTION_ANTICIPATION.md \
+            scripts/checkPlayerLocomotionAnticipationAcceptance.mjs \
+            scripts/checkPlayerLocomotionAnticipationAdversarial.mjs \
+            scripts/checkPlayerLocomotionAnticipationInvariant.mjs \
+            scripts/checkPlayerLocomotionAnticipationBridge.mjs \
+            scripts/checkPlayerLocomotionAnticipationProfiles.mjs \
+            scripts/checkPlayerLocomotionAnticipationContract.mjs \
+            scripts/checkPlayerLocomotionTransitionWindows.mjs \
+            scripts/checkPlayerLocomotionTemporalTuning.mjs \
+            .github/workflows/player-locomotion-anticipation.yml | awk '{a += $1} END {print a+0}')"
+          deletions="$(git diff --numstat origin/main...HEAD -- \
+            src/3d/gameplay/playerLocomotionAnticipationPolicy.js \
+            src/3d/gameplay/playerLocomotionAnticipationTelemetry.js \
+            src/3d/gameplay/playerLocomotionAnticipationReplay.js \
+            src/3d/gameplay/playerLocomotionAnimationBridge.js \
+            src/3d/gameplay/playerLocomotionAnticipationProfiles.js \
+            src/3d/gameplay/playerLocomotionTransitionWindows.js \
+            src/3d/gameplay/playerLocomotionTemporalTuning.js \
+            src/3d/gameplay/PLAYER_LOCOMOTION_ANTICIPATION.md \
+            scripts/checkPlayerLocomotionAnticipationAcceptance.mjs \
+            scripts/checkPlayerLocomotionAnticipationAdversarial.mjs \
+            scripts/checkPlayerLocomotionAnticipationInvariant.mjs \
+            scripts/checkPlayerLocomotionAnticipationBridge.mjs \
+            scripts/checkPlayerLocomotionAnticipationProfiles.mjs \
+            scripts/checkPlayerLocomotionAnticipationContract.mjs \
+            scripts/checkPlayerLocomotionTransitionWindows.mjs \
+            scripts/checkPlayerLocomotionTemporalTuning.mjs \
+            .github/workflows/player-locomotion-anticipation.yml | awk '{d += $2} END {print d+0}')"
+          total=$((additions + deletions))
+          echo "focused diff lines: $total"
+          test "$total" -ge 2400
+          test "$total" -le 3000
