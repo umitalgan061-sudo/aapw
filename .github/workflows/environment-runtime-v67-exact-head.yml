@@ -1,0 +1,84 @@
+name: Environment Runtime V67 Exact Head
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentRuntime*V67.js'
+      - 'scripts/checkEnvironmentRuntimeV67*.mjs'
+      - '.github/workflows/environment-runtime-v67-exact-head.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-v67:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact trigger head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git fetch origin main --depth=1
+      - name: Verify current PR base
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          current_main="$(git rev-parse origin/main)"
+          test "${base}" = "${current_main}"
+      - name: Verify V67 line envelope
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          added="$(git diff --numstat "${base}...HEAD" -- 'src/3d/world/environmentRuntime*V67.js' 'scripts/checkEnvironmentRuntimeV67*.mjs' '.github/workflows/environment-runtime-v67-exact-head.yml' | awk '{a+=$1} END{print a+0}')"
+          echo "V67 added lines: ${added}"
+          test "${added}" -ge 2850
+          test "${added}" -le 3000
+      - name: Verify scope
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only "${{ github.event.pull_request.base.sha }}...HEAD" | while read -r path; do
+            case "$path" in
+              src/3d/world/environmentRuntime*V67.js|scripts/checkEnvironmentRuntimeV67*.mjs|.github/workflows/environment-runtime-v67-exact-head.yml) ;;
+              *) echo "Unexpected V67 path: $path"; exit 1 ;;
+            esac
+          done
+      - name: Syntax check V67 runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in src/3d/world/environmentRuntime*V67.js; do node --check "$f"; done
+          for f in scripts/checkEnvironmentRuntimeV67*.mjs; do node --check "$f"; done
+      - name: Boundary guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "new THREE\|EditorMaterialStudio\|addGeometry\|addMesh" src/3d/world/environmentRuntime*V67.js
+      - name: Core regression
+        run: node scripts/checkEnvironmentRuntimeV67.mjs
+      - name: Domain regression
+        run: node scripts/checkEnvironmentRuntimeV67Domains.mjs
+      - name: Scenario regression
+        run: node scripts/checkEnvironmentRuntimeV67Scenario.mjs
+      - name: Integration regression
+        run: node scripts/checkEnvironmentRuntimeV67Integration.mjs
+      - name: Edge regression
+        run: node scripts/checkEnvironmentRuntimeV67Edge.mjs
+      - name: Manifest audit
+        run: node -e "import('./src/3d/world/environmentRuntimeV67Manifest.js').then(({V67_MANIFEST})=>{if(V67_MANIFEST.version!==67||V67_MANIFEST.noWorldMutation!==true)process.exit(1)})"
+      - name: Diff whitespace audit
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}...HEAD"
