@@ -1,0 +1,26 @@
+name: player ground contact alignment
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerGroundContactAlignmentDirector.js'
+      - 'scripts/checkPlayerGroundContactAlignmentDirector.mjs'
+      - '.github/workflows/player-ground-contact-alignment.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check src/3d/gameplay/playerGroundContactAlignmentDirector.js
+      - run: node scripts/checkPlayerGroundContactAlignmentDirector.mjs
+      - run: |
+          git diff --check
+          base=$(git merge-base origin/main HEAD)
+          test "$(git diff --name-only "$base"...HEAD | sort | tr '\n' ' ')" = ".github/workflows/player-ground-contact-alignment.yml scripts/checkPlayerGroundContactAlignmentDirector.mjs src/3d/gameplay/playerGroundContactAlignmentDirector.js "
+          lines=$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$lines" -le 3000
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" src/3d/gameplay/playerGroundContactAlignmentDirector.js
