@@ -1,0 +1,38 @@
+name: player-combat-intent-arbiter
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/playerCombatIntentArbiter.js'
+      - 'scripts/checkPlayerCombatIntentArbiter.mjs'
+      - '.github/workflows/player-combat-intent-arbiter.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Exact main ancestry
+        run: git merge-base --is-ancestor origin/main HEAD
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerCombatIntentArbiter.js
+          node --check scripts/checkPlayerCombatIntentArbiter.mjs
+      - name: Regression
+        run: node scripts/checkPlayerCombatIntentArbiter.mjs
+      - name: Determinism
+        run: |
+          node scripts/checkPlayerCombatIntentArbiter.mjs > /tmp/arbiter-a.txt
+          node scripts/checkPlayerCombatIntentArbiter.mjs > /tmp/arbiter-b.txt
+          cmp /tmp/arbiter-a.txt /tmp/arbiter-b.txt
+      - name: Runtime boundary
+        run: |
+          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/playerCombatIntentArbiter.js
+          ! grep -q "from 'three'" src/3d/gameplay/playerCombatIntentArbiter.js
+      - name: Diff budget
+        run: |
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a += $1; d += $2} END {print a + d}')
+          test "$changed" -le 3000

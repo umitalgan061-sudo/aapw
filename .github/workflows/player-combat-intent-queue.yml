@@ -1,0 +1,31 @@
+name: Player combat intent queue
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatIntentArbiter.js'
+      - 'src/3d/gameplay/playerCombatIntentQueue.js'
+      - 'scripts/checkPlayerCombatIntentArbiter.mjs'
+      - 'scripts/checkPlayerCombatIntentQueue.mjs'
+      - '.github/workflows/player-combat-intent-queue.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Runtime/editor boundary
+        run: |
+          ! grep -R "EditorMaterialStudio\|from 'three'\|from \"three\"" src/3d/gameplay/playerCombatIntentArbiter.js src/3d/gameplay/playerCombatIntentQueue.js
+      - name: Intent arbiter regression
+        run: node scripts/checkPlayerCombatIntentArbiter.mjs
+      - name: Intent queue regression
+        run: node scripts/checkPlayerCombatIntentQueue.mjs
+      - name: Determinism
+        run: |
+          node scripts/checkPlayerCombatIntentQueue.mjs > /tmp/queue-a.txt
+          node scripts/checkPlayerCombatIntentQueue.mjs > /tmp/queue-b.txt
+          cmp /tmp/queue-a.txt /tmp/queue-b.txt
