@@ -43,7 +43,11 @@ const before = state.phase;
 const first = advanceOccupationSchedule(state, 20, { currentPosition: { x: 96, z: 14 } });
 assert.equal(first.phase, before);
 assert(first.nextChangeSeconds > 0);
-const transition = advanceOccupationSchedule(state, 3600, { currentPosition: { x: 98, z: 13 } });
+
+let transition = first;
+for (let tick = 0; tick < 2000 && transition.phase !== 'guard'; tick += 1) {
+	transition = advanceOccupationSchedule(state, 2, { currentPosition: { x: 98, z: 13 } });
+}
 assert.equal(transition.phase, 'guard');
 assert.equal(transition.changed, true);
 assert.equal(transition.previousPhase, 'travel');

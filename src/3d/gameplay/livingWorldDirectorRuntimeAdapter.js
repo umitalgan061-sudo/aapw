@@ -169,9 +169,10 @@ export function createLivingWorldDirector({
 	seed = 0,
 	clockSeconds = 0,
 } = {}) {
+	const initialClockSeconds = clockSeconds;
 	const eventState = createEventDirectorState(seed, clockSeconds);
 	const publisher = createWorldEventPublisherAdapter({ publish: worldEventPublisher, normalizePayload: worldEventNormalizer });
-	const occupationStates = new WeakMap();
+	let occupationStates = new WeakMap();
 	const actorTicks = new WeakMap();
 	let disposed = false;
 	let tickCount = 0;
@@ -298,7 +299,7 @@ export function createLivingWorldDirector({
 			const habitatSpecies = chooseHabitatSpecies(
 				faunaRequests.map((request) => request?.species).filter(Boolean),
 				normalizeEcologyContext(eventContext),
-		);
+			);
 			const events = tickWorldEvents(delta, eventContext, eventTypes);
 			tickCount += 1;
 			const snapshot = freeze({
@@ -326,9 +327,10 @@ export function createLivingWorldDirector({
 		reset() {
 			tickCount = 0;
 			emittedEvents = 0;
-			eventState.clockSeconds = 0;
+			eventState.clockSeconds = initialClockSeconds;
 			eventState.sequence = 0;
 			eventState.lastIssuedByType.clear();
+			occupationStates = new WeakMap();
 			return true;
 		},
 		dispose() {

@@ -19,7 +19,9 @@ on:
       - 'scripts/checkLivingWorldGroupDirectorAdapter.mjs'
       - 'scripts/checkLivingWorldAssetEvidencePolicy.mjs'
       - 'scripts/checkLivingWorldDirectorBrowser.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorRuntime.mjs'
       - '.github/workflows/living-world-director-runtime.yml'
+      - '.github/workflows/safak-kartali-living-world-director.yml'
   workflow_dispatch:
 
 permissions:
@@ -52,7 +54,7 @@ jobs:
           test "$total" -le 3000
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/(livingWorldOccupationSchedule|livingWorldEcologyPolicy|livingWorldEventDirectorAdapter|livingWorldDirectorRuntimeAdapter|livingWorldRuntimeEvidence|livingWorldGroupAiPolicy|livingWorldGroupDirectorAdapter|livingWorldAssetEvidencePolicy)\.js|scripts/checkLivingWorld(DirectorRuntimeAdapter|OccupationSchedule|EcologyPolicy|EventDirectorAdapter|GroupAiPolicy|GroupDirectorAdapter|AssetEvidencePolicy|DirectorBrowser)\.mjs|\.github/workflows/living-world-director-runtime\.yml)$' || true)"
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/(livingWorldOccupationSchedule|livingWorldEcologyPolicy|livingWorldEventDirectorAdapter|livingWorldDirectorRuntimeAdapter|livingWorldRuntimeEvidence|livingWorldGroupAiPolicy|livingWorldGroupDirectorAdapter|livingWorldAssetEvidencePolicy)\.js|scripts/checkLivingWorld(DirectorRuntimeAdapter|OccupationSchedule|EcologyPolicy|EventDirectorAdapter|GroupAiPolicy|GroupDirectorAdapter|AssetEvidencePolicy|DirectorBrowser)\.mjs|scripts/checkSafakKartaliLivingWorldDirectorRuntime\.mjs|\.github/workflows/(living-world-director-runtime|safak-kartali-living-world-director)\.yml)$' || true)"
           test -z "$unexpected"
           git diff --check origin/main...HEAD
 
@@ -87,6 +89,9 @@ jobs:
 
       - name: Director vertical slice regression
         run: node scripts/checkLivingWorldDirectorRuntimeAdapter.mjs
+
+      - name: Safak Kartali director acceptance proof
+        run: node scripts/checkSafakKartaliLivingWorldDirectorRuntime.mjs
 
       - name: Install Chromium proof tooling
         shell: bash
