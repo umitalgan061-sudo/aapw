@@ -1,11 +1,4 @@
-/**
- * Deterministic encounter-budget planner for the settlement boundary.
- *
- * This layer converts the existing continuity/experience evidence into bounded
- * presentation slots. It never spawns actors, mutates world state, or owns
- * combat/NPC persistence. Consumers may use the returned packet to decide how
- * much authored content can be presented at once on each scale.
- */
+/** Read-only deterministic presentation-slot budget for settlement boundaries. */
 import { createSettlementWorldCoverageContinuityExperience } from './settlementWorldCoverageContinuityExperience.js';
 
 export const SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_VERSION = 1;
@@ -15,187 +8,71 @@ export const SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_LIMITS = Obje
   mobileScale: 0.62,
   minScore: 0.35,
 });
+const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
+const t=(v,d='')=>{const s=String(v??'').trim();return s?s.slice(0,140):d;};
+const c=(v,d=0)=>Math.max(0,Math.min(1,n(v,d)));
+const freeze=(v,s=new Set())=>{if(!v||typeof v!=='object'||s.has(v))return v;s.add(v);Object.freeze(v);for(const x of Object.values(v))freeze(x,s);return v;};
+const stable=v=>v===null||typeof v!=='object'?JSON.stringify(v):Array.isArray(v)?`[${v.map(stable).join(',')}]`:`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;
+const digest=v=>{let h=2166136261;const s=stable(v);for(let i=0;i<s.length;i+=1){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(16).padStart(8,'0');};
+const stageWeight=s=>({far:.58,approach:.72,threshold:.92,inside:1,service:1,departure:.74,resume:.86}[s]??.5);
+const cueWeight=q=>Math.round(c(q?.score)*.7+c(n(q?.priority,q?.score))*.3*1000)/1000;
+const role=c=>({gateway:'navigation',warning:'navigation',service:'interaction',road:'travel',route:'travel',checkpoint:'resume'}[t(c?.type,'ambient')]??'atmosphere');
+const cost=(r,m)=>Math.round((({navigation:1.05,interaction:1.1,travel:.95,resume:.9,atmosphere:.72}[r]??.8)*(m?.62:1))*100)/100;
 
-const number = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-const text = (value, fallback = '') => {
-  const normalized = String(value ?? '').trim();
-  return normalized ? normalized.slice(0, 140) : fallback;
-};
-const clamp01 = (value, fallback = 0) => Math.max(0, Math.min(1, number(value, fallback)));
-const freeze = (value, seen = new Set()) => {
-  if (!value || typeof value !== 'object' || seen.has(value)) return value;
-  seen.add(value);
-  Object.freeze(value);
-  for (const child of Object.values(value)) freeze(child, seen);
-  return value;
-};
-const stable = (value) => value === null || typeof value !== 'object'
-  ? JSON.stringify(value)
-  : Array.isArray(value)
-    ? `[${value.map(stable).join(',')}]`
-    : `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
-const digest = (value) => {
-  let hash = 2166136261;
-  const source = stable(value);
-  for (let index = 0; index < source.length; index += 1) {
-    hash ^= source.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
+function candidates(experience,mobile){
+  return experience.quickCues.map((cue,index)=>{const r=role(cue);return{
+    id:`encounter:${cue.id}`,rank:index+1,sourceId:cue.id,type:cue.type,role:r,label:cue.label,copy:cue.copy,
+    score:Math.round(cueWeight(cue)*stageWeight(experience.stage)*1000)/1000,cost:cost(r,mobile),metadata:cue.metadata,
+  };}).filter(x=>x.score>=SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_LIMITS.minScore)
+    .sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id));
+}
+function choose(rows,mobile){
+  const max=mobile?8:12,slots=[],roles=new Set();let budgetCost=0;
+  for(const row of rows){
+    const penalty=roles.has(row.role)?.08:0;
+    const next=Math.round((budgetCost+row.cost+penalty)*100)/100;
+    if(slots.length>=max||next>max*.98)continue;
+    slots.push({...row,selectedScore:Math.round(Math.max(0,row.score-penalty)*1000)/1000});roles.add(row.role);budgetCost=next;
   }
-  return (hash >>> 0).toString(16).padStart(8, '0');
-};
-
-function stageWeight(stage) {
-  return {
-    far: 0.58,
-    approach: 0.72,
-    threshold: 0.92,
-    inside: 1,
-    service: 1,
-    departure: 0.74,
-    resume: 0.86,
-  }[stage] ?? 0.5;
+  return {slots,budgetCost,max};
 }
-function cueWeight(cue) {
-  const base = clamp01(cue?.score, 0);
-  const priority = clamp01(number(cue?.priority, base), base);
-  return Math.round(clamp01(base * 0.7 + priority * 0.3) * 1000) / 1000;
-}
-function roleForCue(cue) {
-  const type = text(cue?.type, 'ambient');
-  if (type === 'gateway' || type === 'warning') return 'navigation';
-  if (type === 'service') return 'interaction';
-  if (type === 'road' || type === 'route') return 'travel';
-  if (type === 'checkpoint') return 'resume';
-  return 'atmosphere';
-}
-function slotCost(role, mobile) {
-  const desktop = { navigation: 1.05, interaction: 1.1, travel: 0.95, resume: 0.9, atmosphere: 0.72 }[role] ?? 0.8;
-  return Math.round(desktop * (mobile ? SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_LIMITS.mobileScale : 1) * 100) / 100;
-}
-function buildCandidates(experience, mobile) {
-  const rows = experience.quickCues.map((cue, index) => {
-    const role = roleForCue(cue);
-    const weight = Math.round((cueWeight(cue) * stageWeight(experience.stage)) * 1000) / 1000;
-    return {
-      id: `encounter:${cue.id}`,
-      rank: index + 1,
-      sourceId: cue.id,
-      type: cue.type,
-      role,
-      label: cue.label,
-      copy: cue.copy,
-      score: weight,
-      cost: slotCost(role, mobile),
-      metadata: cue.metadata,
-    };
-  });
-  return candidates.filter((row) => row.score >= SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_LIMITS.minScore)
-    .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
-}
-function chooseSlots(candidates, mobile) {
-  const maxSlots = Math.max(2, Math.min(
-    SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_LIMITS.maxSlots,
-    mobile ? 8 : 12,
-  ));
-  const chosen = [];
-  const usedRoles = new Set();
-  let cost = 0;
-  for (const candidate of candidates) {
-    const rolePenalty = usedRoles.has(candidate.role) ? 0.08 : 0;
-    const nextCost = Math.round((cost + candidate.cost + rolePenalty) * 100) / 100;
-    if (chosen.length >= maxSlots || nextCost > maxSlots * 0.98) continue;
-    chosen.push({
-      ...candidate,
-      selectedScore: Math.round(Math.max(0, candidate.score - rolePenalty) * 1000) / 1000,
-    });
-    usedRoles.add(candidate.role);
-    cost = nextCost;
-  }
-  return { slots: chosen, budgetCost: cost, maxSlots };
-}
-function buildPrioritySlots(slots) {
-  return slots.slice(0, SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_LIMITS.maxPrioritySlots)
-    .map((slot, index) => ({
-      rank: index + 1,
-      id: slot.id,
-      role: slot.role,
-      score: slot.selectedScore,
-      label: slot.label,
-    }));
+function priorities(slots){
+  return slots.slice(0,4).map((x,i)=>({rank:i+1,id:x.id,role:x.role,score:x.selectedScore,label:x.label}));
 }
 
-export function createSettlementWorldCoverageContinuityEncounterBudget(options = {}) {
-  const mobile = Boolean(options.mobile);
-  const experience = createSettlementWorldCoverageContinuityExperience(options);
-  const selected = chooseSlots(buildCandidates(experience, mobile), mobile);
-  const roles = Object.freeze([...new Set(selected.slots.map((slot) => slot.role))]);
-  const result = {
-    version: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_VERSION,
-    settlementId: experience.settlementId,
-    stage: experience.stage,
-    mode: experience.mode,
-    mobile,
-    readiness: experience.readiness,
-    candidateCount: buildCandidates(experience, mobile).length,
-    selectedCount: selected.slots.length,
-    maxSlots: selected.maxSlots,
-    budgetCost: selected.budgetCost,
-    roles,
-    prioritySlots: buildPrioritySlots(selected.slots),
-    slots: selected.slots,
-    ownership: {
-      readOnly: true,
-      noNpcSpawn: true,
-      noCombatMutation: true,
-      noSaveMutation: true,
-    },
+export function createSettlementWorldCoverageContinuityEncounterBudget(options={}){
+  const mobile=Boolean(options.mobile),experience=createSettlementWorldCoverageContinuityExperience(options);
+  const rows=candidates(experience,mobile),selected=choose(rows,mobile);
+  const result={
+    version:SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_VERSION,settlementId:experience.settlementId,
+    stage:experience.stage,mode:experience.mode,mobile,readiness:experience.readiness,candidateCount:rows.length,
+    selectedCount:selected.slots.length,maxSlots:selected.max,budgetCost:selected.budgetCost,
+    roles:Object.freeze([...new Set(selected.slots.map(x=>x.role))]),prioritySlots:priorities(selected.slots),slots:selected.slots,
+    ownership:{readOnly:true,noNpcSpawn:true,noCombatMutation:true,noSaveMutation:true},
   };
-  return freeze({ ...result, fingerprint: digest(result) });
+  return freeze({...result,fingerprint:digest(result)});
 }
 
-export function validateSettlementWorldCoverageContinuityEncounterBudget(options = {}) {
-  const budget = createSettlementWorldCoverageContinuityEncounterBudget(options);
-  const errors = [];
-  if (budget.selectedCount > budget.maxSlots) errors.push('slot-cap');
-  if (budget.prioritySlots.length > SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_LIMITS.maxPrioritySlots) errors.push('priority-cap');
-  if (budget.budgetCost < 0) errors.push('negative-cost');
-  if (!budget.ownership.readOnly || !budget.ownership.noNpcSpawn || !budget.ownership.noSaveMutation) errors.push('ownership');
-  const ids = budget.slots.map((slot) => slot.id);
-  if (new Set(ids).size !== ids.length) errors.push('duplicate-slot-id');
-  if (budget.slots.some((slot) => slot.score < 0 || slot.score > 1)) errors.push('score-range');
-  if (budget.slots.some((slot) => slot.cost <= 0)) errors.push('cost-range');
-  return freeze({
-    ok: errors.length === 0,
-    errors,
-    settlementId: budget.settlementId,
-    selectedCount: budget.selectedCount,
-    budgetCost: budget.budgetCost,
-    fingerprint: budget.fingerprint,
-  });
+export function validateSettlementWorldCoverageContinuityEncounterBudget(options={}){
+  const b=createSettlementWorldCoverageContinuityEncounterBudget(options),errors=[];
+  if(b.selectedCount>b.maxSlots)errors.push('slot-cap');
+  if(b.prioritySlots.length>SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_LIMITS.maxPrioritySlots)errors.push('priority-cap');
+  if(b.budgetCost<0)errors.push('negative-cost');
+  if(!b.ownership.readOnly||!b.ownership.noNpcSpawn||!b.ownership.noSaveMutation)errors.push('ownership');
+  const ids=b.slots.map(x=>x.id);
+  if(new Set(ids).size!==ids.length)errors.push('duplicate-slot-id');
+  if(b.slots.some(x=>x.score<0||x.score>1))errors.push('score-range');
+  return freeze({ok:errors.length===0,errors,settlementId:b.settlementId,selectedCount:b.selectedCount,budgetCost:b.budgetCost,fingerprint:b.fingerprint});
 }
 
-export function summarizeSettlementWorldCoverageContinuityEncounterBudget(options = {}) {
-  const budget = createSettlementWorldCoverageContinuityEncounterBudget(options);
-  return freeze({
-    settlementId: budget.settlementId,
-    stage: budget.stage,
-    mode: budget.mode,
-    mobile: budget.mobile,
-    selectedCount: budget.selectedCount,
-    maxSlots: budget.maxSlots,
-    roles: budget.roles,
-    priorityCount: budget.prioritySlots.length,
-    budgetCost: budget.budgetCost,
-    topSlot: budget.slots[0]?.id ?? null,
-    fingerprint: budget.fingerprint,
-  });
+export function summarizeSettlementWorldCoverageContinuityEncounterBudget(options={}){
+  const b=createSettlementWorldCoverageContinuityEncounterBudget(options);
+  return freeze({settlementId:b.settlementId,stage:b.stage,mode:b.mode,mobile:b.mobile,selectedCount:b.selectedCount,maxSlots:b.maxSlots,
+    roles:b.roles,priorityCount:b.prioritySlots.length,budgetCost:b.budgetCost,topSlot:b.slots[0]?.id??null,fingerprint:b.fingerprint});
 }
 
-export const SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_API = Object.freeze({
-  version: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_VERSION,
-  maxSlots: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_LIMITS.maxSlots,
-  maxPrioritySlots: SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_LIMITS.maxPrioritySlots,
-  planner: 'createSettlementWorldCoverageContinuityEncounterBudget',
-  validate: 'validateSettlementWorldCoverageContinuityEncounterBudget',
-  summary: 'summarizeSettlementWorldCoverageContinuityEncounterBudget',
+export const SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_API=Object.freeze({
+  version:SETTLEMENT_WORLD_COVERAGE_CONTINUITY_ENCOUNTER_BUDGET_VERSION,maxSlots:12,maxPrioritySlots:4,
+  planner:'createSettlementWorldCoverageContinuityEncounterBudget',validate:'validateSettlementWorldCoverageContinuityEncounterBudget',
+  summary:'summarizeSettlementWorldCoverageContinuityEncounterBudget',
 });
