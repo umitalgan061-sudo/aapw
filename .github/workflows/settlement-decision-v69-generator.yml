@@ -1,0 +1,39 @@
+name: Settlement Decision V69 Generator
+
+on:
+  push:
+    branches:
+      - buzul-muhafizi/next-settlement-decision-v69-20260915
+    paths-ignore:
+      - src/3d/world/settlementDecisionRuntimeV69Generated.js
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate V69 catalogue
+        run: node scripts/generateSettlementDecisionRuntimeV69.mjs
+      - name: Validate generated module syntax
+        run: node --check src/3d/world/settlementDecisionRuntimeV69Generated.js
+      - name: Validate generated row count
+        run: |
+          node --input-type=module <<'NODE'
+          const mod = await import('./src/3d/world/settlementDecisionRuntimeV69Generated.js');
+          if (mod.V69_CATALOG.length !== 4200) throw new Error(`row count ${mod.V69_CATALOG.length}`);
+          if (mod.V69_DOMAINS.length !== 20) throw new Error(`domain count ${mod.V69_DOMAINS.length}`);
+          NODE
+      - name: Commit generated runtime
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/world/settlementDecisionRuntimeV69Generated.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'generated(world): refresh settlement decision v69 catalogue'
+          git push
