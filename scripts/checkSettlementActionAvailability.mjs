@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { buildSettlementActionAvailability, serializeSettlementActionAvailability } from '../src/3d/gameplay/settlementActionAvailability.js';
+
+const base = { inside: true, copper: 120, fatigue: 18, health: 100, services: ['gate','market','tavern','blacksmith','house'], capabilities: ['trade','buy','sell','craft','talk','rest','save'] };
+const first = buildSettlementActionAvailability(base);
+const second = buildSettlementActionAvailability(base);
+assert.deepEqual(first, second);
+assert.equal(first.rows.find((row) => row.action === 'craft').available, true);
+assert.equal(first.rows.find((row) => row.action === 'travel').available, false);
+assert.equal(first.rows.find((row) => row.action === 'travel').reason, 'capability-missing');
+assert.equal(Object.isFrozen(first), true);
+assert.equal(Object.isFrozen(first.rows[0]), true);
+assert.equal(serializeSettlementActionAvailability(first), serializeSettlementActionAvailability(second));
+const outside = buildSettlementActionAvailability({ inside: false, capabilities: ['enter','save'] }, ['enter','trade','save']);
+assert.equal(outside.rows.find((row) => row.action === 'trade').reason, 'outside-settlement');
+const defeated = buildSettlementActionAvailability({ inside: true, defeated: true, capabilities: ['trade','save','exit'] }, ['trade','save','exit']);
+assert.equal(defeated.rows.find((row) => row.action === 'trade').reason, 'player-defeated');
+assert.equal(defeated.rows.find((row) => row.action === 'exit').available, true);
+const malformed = buildSettlementActionAvailability(null, ['unknown', 'save']);
+assert.equal(malformed.rows[0].reason, 'unknown-action');
+assert.equal(Number.isFinite(malformed.context.copper), true);
+console.log('settlement action availability checks passed');
