@@ -6,7 +6,6 @@ import { createPlayerPresentationOrchestrator } from './playerMotionPresentation
 import { createPlayerMotionPresentationContract, validatePlayerMotionPresentationContract } from './playerMotionPresentationContract.js';
 import { blendPlayerMotionChannels } from './playerMotionPresentationBlendPolicy.js';
 import { diagnosePlayerMotionPresentation } from './playerMotionPresentationDiagnostics.js';
-import { buildPlayerMotionPresentationTimelineEntry } from './playerMotionPresentationTimeline.js';
 import { createPlayerMotionPresentationTelemetry } from './playerMotionPresentationTelemetry.js';
 
 export const PLAYER_MOTION_PRESENTATION_SCENARIO_RUNNER_VERSION='2026-09-15-v1';
