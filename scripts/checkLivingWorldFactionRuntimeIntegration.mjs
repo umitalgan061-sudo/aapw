@@ -34,10 +34,16 @@ const runtime = createLivingWorldReactionRuntime({
       reportCrime: () => true,
     },
     navigation: {
-      move: (actor, directive) => { navigations.push({ actorId: actor.id, kind: directive.kind }); return { invoked: true }; },
+      requestPath: (actor, destination, directive) => {
+        navigations.push({ actorId: actor.id, kind: directive.kind, destination });
+        return { invoked: true };
+      },
     },
-    combat: {
-      attack: (actor, directive) => { if (directive.kind === 'attack') attacks.push(actor.id); return { invoked: directive.kind === 'attack' }; },
+    encounters: {
+      requestAttack: (actor, targetId, directive) => {
+        if (directive.kind === 'attack') attacks.push({ actorId: actor.id, targetId });
+        return { invoked: directive.kind === 'attack' };
+      },
     },
     worldEvents: {
       emit: (event) => { if (event) events.push(event); return { invoked: Boolean(event) }; },
