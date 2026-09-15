@@ -6,7 +6,7 @@ on:
       - 'src/3d/gameplay/livingWorldFaunaEncounterDirector.js'
       - 'scripts/generateSafakKartaliFaunaEncounterMatrixR1.mjs'
       - 'scripts/checkSafakKartaliFaunaEncounterDirectorR1.mjs'
-      - 'artifacts/safak-kartali-fauna-encounter-matrix-r1.jsonl'
+      - 'artifacts/safak-kartali-fauna-encounter-r1/**'
       - '.github/workflows/safak-kartali-fauna-encounter-director-r1.yml'
   push:
     branches: ['agent/safak-kartali-fauna-encounter-director-20260915']
@@ -14,7 +14,7 @@ on:
       - 'src/3d/gameplay/livingWorldFaunaEncounterDirector.js'
       - 'scripts/generateSafakKartaliFaunaEncounterMatrixR1.mjs'
       - 'scripts/checkSafakKartaliFaunaEncounterDirectorR1.mjs'
-      - 'artifacts/safak-kartali-fauna-encounter-matrix-r1.jsonl'
+      - 'artifacts/safak-kartali-fauna-encounter-r1/**'
       - '.github/workflows/safak-kartali-fauna-encounter-director-r1.yml'
 permissions:
   contents: write
@@ -47,14 +47,14 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f artifacts/safak-kartali-fauna-encounter-matrix-r1.jsonl
+          git add -f artifacts/safak-kartali-fauna-encounter-r1/
           if git diff --cached --quiet; then
             echo 'corpus unchanged'
             exit 0
           fi
           target_branch="$GITHUB_REF_NAME"
           test "$target_branch" = 'agent/safak-kartali-fauna-encounter-director-20260915'
-          git commit -m 'generated(fauna): materialize R1 encounter corpus'
+          git commit -m 'generated(fauna): materialize R1 encounter matrix'
           git push origin HEAD:"$target_branch"
       - name: Diff hygiene
         run: git diff --check
