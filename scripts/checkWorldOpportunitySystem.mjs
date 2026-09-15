@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { buildWorldOpportunitySnapshot, scoreWorldOpportunity, rankWorldOpportunities } from '../src/3d/gameplay/worldOpportunityPolicy.js';
+import { planWorldOpportunitySteps, compareOpportunityRoutes, buildOpportunityIntent } from '../src/3d/gameplay/worldOpportunityPlanner.js';
+import { buildWorldOpportunityEvidence, validateOpportunityEvidence, buildOpportunityProof } from '../src/3d/gameplay/worldOpportunityEvidence.js';
+const base={seed:'opportunity-test',distanceMeters:84,slope:.2,vegetation:.7,moisture:.4,populationDensity:.5,threatLevel:.2,roadActivity:.7,routeFriction:.15,visibility:.9,clockSeconds:39600,weather:'clear',biome:'forest road',settlementDistanceMeters:120,landmarkDistanceMeters:110,shelterAvailable:true,resourceAbundance:.8,patrolPressure:.1};
+assert.equal(scoreWorldOpportunity('landmark',base),scoreWorldOpportunity('landmark',base));
+const a=buildWorldOpportunitySnapshot(base),b=buildWorldOpportunitySnapshot(base);assert.deepEqual(a,b);assert(Object.isFrozen(a));assert(a.candidates.length<=14);for(const c of a.candidates)assert(c.score>=0&&c.score<=1);
+const storm={...base,weather:'storm',clockSeconds:72000};assert(scoreWorldOpportunity('shelter',storm)>scoreWorldOpportunity('landmark',storm));
+const hidden={...base,visibility:.1};assert.equal(rankWorldOpportunities(hidden).phase,'morning');
+const p=planWorldOpportunitySteps({...base,mode:'approach'});assert(p.steps.length<=8);assert(p.steps.every(x=>x.utility>=0&&x.utility<=1));
+assert.equal(compareOpportunityRoutes(base,{...base,routeFriction:.9}).comparable,true);assert.equal(buildOpportunityIntent(base,{type:p.steps[0]?.opportunityType}).accepted,true);
+const report=buildWorldOpportunityEvidence(base,{mode:'discover'});assert.equal(validateOpportunityEvidence(report).valid,true);assert.equal(buildOpportunityProof(base).valid,true);
+console.log('world opportunity regression: PASS');

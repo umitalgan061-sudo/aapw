@@ -1,0 +1,88 @@
+name: World Opportunity Context
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/worldOpportunityPolicy.js'
+      - 'src/3d/gameplay/worldOpportunityPlanner.js'
+      - 'src/3d/gameplay/worldOpportunityEvidence.js'
+      - 'scripts/checkWorldOpportunitySystem.mjs'
+      - 'scripts/checkWorldOpportunityAdversarial.mjs'
+      - '.github/workflows/world-opportunity-context.yml'
+      - 'docs/world-opportunity-*.md'
+  push:
+    branches:
+      - 'agent/gunbatimi-world-opportunity-20260915'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Exact head
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+      - name: Current main freshness
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/worldOpportunityPolicy.js
+          node --check src/3d/gameplay/worldOpportunityPlanner.js
+          node --check src/3d/gameplay/worldOpportunityEvidence.js
+          node --check scripts/checkWorldOpportunitySystem.mjs
+          node --check scripts/checkWorldOpportunityAdversarial.mjs
+      - name: Regression
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldOpportunitySystem.mjs
+          node scripts/checkWorldOpportunityAdversarial.mjs
+      - name: Deterministic double-run
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldOpportunitySystem.mjs >/tmp/a.log
+          node scripts/checkWorldOpportunitySystem.mjs >/tmp/b.log
+          diff -u /tmp/a.log /tmp/b.log
+      - name: Ownership boundary
+        run: |
+          set -euo pipefail
+          ! grep -nE "from ['\"]three['\"]|scene\.add|spawnNpc|createNavMesh|saveState|Math\.random|Date\.now|setTimeout|setInterval" \
+            src/3d/gameplay/worldOpportunityPolicy.js \
+            src/3d/gameplay/worldOpportunityPlanner.js \
+            src/3d/gameplay/worldOpportunityEvidence.js
+      - name: Diff budget
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          additions="$(git diff --numstat origin/main...HEAD -- \
+            src/3d/gameplay/worldOpportunityPolicy.js \
+            src/3d/gameplay/worldOpportunityPlanner.js \
+            src/3d/gameplay/worldOpportunityEvidence.js \
+            scripts/checkWorldOpportunitySystem.mjs \
+            scripts/checkWorldOpportunityAdversarial.mjs \
+            docs/world-opportunity-*.md \
+            .github/workflows/world-opportunity-context.yml | awk '{a += $1} END {print a + 0}')"
+          deletions="$(git diff --numstat origin/main...HEAD -- \
+            src/3d/gameplay/worldOpportunityPolicy.js \
+            src/3d/gameplay/worldOpportunityPlanner.js \
+            src/3d/gameplay/worldOpportunityEvidence.js \
+            scripts/checkWorldOpportunitySystem.mjs \
+            scripts/checkWorldOpportunityAdversarial.mjs \
+            docs/world-opportunity-*.md \
+            .github/workflows/world-opportunity-context.yml | awk '{a += $2} END {print a + 0}')"
+          test "$deletions" = "0"
+          test "$additions" -ge 2700
+          test "$additions" -le 3000
