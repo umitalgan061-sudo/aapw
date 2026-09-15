@@ -1,0 +1,60 @@
+name: Player Combat Impact Cue Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatImpactCueDirector.js'
+      - 'scripts/checkPlayerCombatImpactCueDirector.mjs'
+      - '.github/workflows/player-combat-impact-cue-director.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-combat-impact-cue-director-20260915'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Assert exact head
+        shell: bash
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+
+      - name: Enforce bounded scope
+        shell: bash
+        env:
+          BASE_SHA: 1efe34727b3c873740057ac8a13f65f81d82eea6
+        run: |
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          printf '%s\n' "$changed"
+          test -n "$changed"
+          if printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/playerCombatImpactCueDirector\.js|scripts/checkPlayerCombatImpactCueDirector\.mjs|\.github/workflows/player-combat-impact-cue-director\.yml)$' | grep -q .; then
+            echo 'Unexpected path outside focused impact-cue slice' >&2
+            exit 1
+          fi
+          additions="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$additions" -le 3000
+
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerCombatImpactCueDirector.js
+          node --check scripts/checkPlayerCombatImpactCueDirector.mjs
+
+      - name: Focused deterministic regression
+        run: node scripts/checkPlayerCombatImpactCueDirector.mjs
+
+      - name: Repeat regression for determinism
+        shell: bash
+        run: |
+          first="$(node scripts/checkPlayerCombatImpactCueDirector.mjs)"
+          second="$(node scripts/checkPlayerCombatImpactCueDirector.mjs)"
+          test "$first" = "$second"
