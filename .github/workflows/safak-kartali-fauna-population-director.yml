@@ -1,0 +1,52 @@
+name: safak-kartali-fauna-population-director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaPopulationDirector.js'
+      - 'scripts/checkLivingWorldFaunaPopulationDirector.mjs'
+      - '.github/workflows/safak-kartali-fauna-population-director.yml'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.js'
+      - 'src/3d/gameplay/livingWorldFaunaRuntimeBridge.js'
+  push:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaPopulationDirector.js'
+      - 'scripts/checkLivingWorldFaunaPopulationDirector.mjs'
+      - '.github/workflows/safak-kartali-fauna-population-director.yml'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.js'
+      - 'src/3d/gameplay/livingWorldFaunaRuntimeBridge.js'
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Syntax and executable regression
+        run: |
+          node --check src/3d/gameplay/livingWorldFaunaPopulationDirector.js
+          node --check scripts/checkLivingWorldFaunaPopulationDirector.mjs
+          node scripts/checkLivingWorldFaunaPopulationDirector.mjs
+      - name: Deterministic double run
+        run: |
+          node scripts/checkLivingWorldFaunaPopulationDirector.mjs > /tmp/fauna-a.txt
+          node scripts/checkLivingWorldFaunaPopulationDirector.mjs > /tmp/fauna-b.txt
+          cmp /tmp/fauna-a.txt /tmp/fauna-b.txt
+      - name: Runtime and shared-contract boundaries
+        run: |
+          ! grep -nE "EditorMaterialStudio|from ['\"]three['\"]|EventBus|ActorRegistry" src/3d/gameplay/livingWorldFaunaPopulationDirector.js
+          grep -n "MaterialAssignmentCore" src/3d/gameplay/livingWorldFaunaPopulationDirector.js
+          grep -n "WorldAssetPlacementPipeline" src/3d/gameplay/livingWorldFaunaPopulationDirector.js
+      - name: Exact-main ancestry and change budget
+        run: |
+          base_sha=$(git rev-parse origin/main)
+          echo "current-main=$base_sha"
+          git merge-base --is-ancestor "$base_sha" HEAD
+          changed=$(git diff --numstat "$base_sha"...HEAD | awk '{a+=$1; d+=$2} END{print a+d+0}')
+          echo "changed-line-budget=${changed}"
+          test "$changed" -le 3000

@@ -1,0 +1,43 @@
+name: safak-kartali-fauna-signal-router
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaSignalRouter.js'
+      - 'scripts/checkLivingWorldFaunaSignalRouter.mjs'
+      - '.github/workflows/safak-kartali-fauna-signal-router.yml'
+  push:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaSignalRouter.js'
+      - 'scripts/checkLivingWorldFaunaSignalRouter.mjs'
+      - '.github/workflows/safak-kartali-fauna-signal-router.yml'
+permissions:
+  contents: read
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Syntax and regression
+        run: |
+          node --check src/3d/gameplay/livingWorldFaunaSignalRouter.js
+          node --check scripts/checkLivingWorldFaunaSignalRouter.mjs
+          node scripts/checkLivingWorldFaunaSignalRouter.mjs
+      - name: Deterministic replay
+        run: |
+          node scripts/checkLivingWorldFaunaSignalRouter.mjs > /tmp/a.txt
+          node scripts/checkLivingWorldFaunaSignalRouter.mjs > /tmp/b.txt
+          cmp /tmp/a.txt /tmp/b.txt
+      - name: Runtime boundary
+        run: |
+          ! grep -nE "^[[:space:]]*(import|export).*EditorMaterialStudio|^[[:space:]]*(import|export).*from ['\"]three['\"]|^[[:space:]]*(import|export).*EventBus|^[[:space:]]*(import|export).*ActorRegistry" src/3d/gameplay/livingWorldFaunaSignalRouter.js
+      - name: Exact ancestry and budget
+        run: |
+          base_sha=$(git rev-parse origin/main)
+          echo "current-main=${base_sha}"
+          git merge-base --is-ancestor "$base_sha" HEAD
+          changed=$(git diff --numstat "$base_sha"...HEAD | awk '{a+=$1; d+=$2} END{print a+d+0}')
+          echo "changed-line-budget=${changed}"
+          test "$changed" -le 3000
