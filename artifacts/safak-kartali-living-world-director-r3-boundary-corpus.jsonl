@@ -1,1 +1,0 @@
-{"caseId":"r3-boundary-0000-guard-quiet-00","role":"guard","context":"quiet","bandIndex":0,"inputs":{"role":"guard","context":"quiet","urgency":0.05,"threat":0.05,"socialNeed":0.1,"scarcity":0.05,"fatigue":0.0,"travelRisk":0.0,"distanceMeters":40,"waitingSeconds":0},"purpose":"deterministic-director-boundary-corpus"}
