@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { buildEnvironmentRuntimeV66, validateEnvironmentRuntimeV66 } from '../src/3d/world/environmentRuntimeIntegrationV66.js';
 import { buildStreamingBudgetV66, buildChunkAdmissionV66 } from '../src/3d/world/environmentRuntimeStreamingV66.js';
-import { buildEnvironmentEventsV66 } from '../src/3d/world/environmentRuntimeEventsV66.js';
+import { synthesizeEnvironmentEventsV66 } from '../src/3d/world/environmentRuntimeEventsV66.js';
 import { buildResonanceFieldV66 } from '../src/3d/world/environmentRuntimeResonanceV66.js';
 import { buildVisibilityFieldV66 } from '../src/3d/world/environmentRuntimeVisibilityV66.js';
 import { buildShelterFieldV66 } from '../src/3d/world/environmentRuntimeShelterV66.js';
@@ -64,7 +64,7 @@ assert.ok(admission.admitted.length<=admission.cap);
 assert.ok(admission.deferred.length>=1);
 
 const eventContexts=environments.map((sample,index)=>({...sample,...weatherProfiles[index%weatherProfiles.length],seed:66}));
-const events=buildEnvironmentEventsV66({contexts:eventContexts,seed:66,horizonSeconds:900});
+const events=synthesizeEnvironmentEventsV66({contexts:eventContexts,seed:66,horizonSeconds:900});
 assert.ok(events.events.length<=48);
 assert.equal(events.deterministic,true);
 
