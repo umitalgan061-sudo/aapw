@@ -7,7 +7,6 @@ on:
       - 'src/3d/gameplay/livingWorldDirectorScenarioContract.js'
       - 'scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs'
       - 'scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs'
-      - 'artifacts/safak-kartali-living-world-director-scenario-r4-cases.jsonl'
       - '.github/workflows/safak-kartali-living-world-scenario-contract-r4.yml'
   pull_request:
     branches: [main]
@@ -15,18 +14,20 @@ on:
       - 'src/3d/gameplay/livingWorldDirectorScenarioContract.js'
       - 'scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs'
       - 'scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs'
-      - 'artifacts/safak-kartali-living-world-director-scenario-r4-cases.jsonl'
       - '.github/workflows/safak-kartali-living-world-scenario-contract-r4.yml'
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
   acceptance:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - name: Checkout exact head
+      - name: Checkout exact PR head
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
@@ -41,17 +42,13 @@ jobs:
         run: node scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs
       - name: Validate runtime case matrix
         run: node scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs
-      - name: Materialize generated acceptance corpus
+      - name: Verify generated corpus is reproducible
         run: |
           set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add artifacts/safak-kartali-living-world-director-scenario-r4-cases.jsonl
-          if git diff --cached --quiet; then
-            echo 'corpus unchanged'
-            exit 0
-          fi
-          git commit -m 'generated(living-world): materialize R4 runtime scenario corpus'
-          git push origin HEAD:${GITHUB_REF_NAME}
+          expected_sha=$(sha256sum artifacts/safak-kartali-living-world-director-scenario-r4-cases.jsonl | cut -d' ' -f1)
+          node scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs
+          actual_sha=$(sha256sum artifacts/safak-kartali-living-world-director-scenario-r4-cases.jsonl | cut -d' ' -f1)
+          test "$expected_sha" = "$actual_sha"
+          git diff --exit-code -- artifacts/safak-kartali-living-world-director-scenario-r4-cases.jsonl
       - name: Diff hygiene
         run: git diff --check
