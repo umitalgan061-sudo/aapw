@@ -1,0 +1,55 @@
+name: Player Combat Animation Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatAnimationDirector.js'
+      - 'scripts/checkPlayerCombatAnimationDirector.mjs'
+      - '.github/workflows/player-combat-animation-director.yml'
+  push:
+    branches:
+      - main
+      - 'agent/kizil-ufuk-player-combat-animation-director-*'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=$(git merge-base HEAD origin/main 2>/dev/null || true)
+          if [[ -z "$BASE" ]]; then BASE=$(git rev-list --max-parents=0 HEAD); fi
+          mapfile -t changed < <(git diff --name-only "$BASE" HEAD)
+          allowed=(
+            'src/3d/gameplay/playerCombatAnimationDirector.js'
+            'scripts/checkPlayerCombatAnimationDirector.mjs'
+            '.github/workflows/player-combat-animation-director.yml'
+          )
+          for file in "${changed[@]}"; do
+            [[ " ${allowed[*]} " == *" $file "* ]] || { echo "unexpected changed path: $file"; exit 1; }
+          done
+          additions=$(git diff --numstat "$BASE" HEAD | awk '{a+=$1; d+=$2} END {print a+0}')
+          deletions=$(git diff --numstat "$BASE" HEAD | awk '{a+=$1; d+=$2} END {print d+0}')
+          total=$((additions + deletions))
+          (( total <= 1000 )) || { echo "focused diff budget exceeded: $total"; exit 1; }
+      - name: JavaScript syntax
+        run: |
+          node --check src/3d/gameplay/playerCombatAnimationDirector.js
+          node --check scripts/checkPlayerCombatAnimationDirector.mjs
+      - name: Execute director contract
+        run: node scripts/checkPlayerCombatAnimationDirector.mjs
+      - name: Shared material/editor boundary
+        shell: bash
+        run: |
+          ! grep -nE "EditorMaterialStudio|WorldAssetPlacementPipeline|MaterialAssignmentCore" src/3d/gameplay/playerCombatAnimationDirector.js
+      - name: Determinism repeat
+        shell: bash
+        run: |
+          first=$(node scripts/checkPlayerCombatAnimationDirector.mjs)
+          second=$(node scripts/checkPlayerCombatAnimationDirector.mjs)
+          test "$first" = "$second"
