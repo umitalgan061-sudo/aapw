@@ -50,7 +50,7 @@ export function summarizeFactionResponseProof(plan, { frameBudgetMs = 2.5, expec
   const tickConsistent = tickValue === null || Number.isFinite(tickValue) && observedTicks.every((tick) => tick === tickValue);
   const frameValue = Math.max(0, finite(frameBudgetMs, 0));
   const policy = plan?.policy ?? null;
-  const maxDecisions = finite(policy?.maxDecisions, 128);
+  const maxDecisions = finite(policy?.maxDecisions, finite(policy?.maxActors, 128));
   const maxEvents = finite(policy?.maxEvents, finite(policy?.maxEventsPerTick, 6));
   const chains = chainTransitions(decisions);
   const hasRuntimeChain = chains.some((chain) => /patrol>.*(investigate|chase|attack|flee)/.test(chain) || /detect>.*(investigate|chase|attack|flee)/.test(chain));
