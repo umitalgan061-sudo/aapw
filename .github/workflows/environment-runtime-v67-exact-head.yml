@@ -77,8 +77,24 @@ jobs:
         run: node scripts/checkEnvironmentRuntimeV67Integration.mjs
       - name: Edge regression
         run: node scripts/checkEnvironmentRuntimeV67Edge.mjs
+      - name: Acceptance regression
+        run: node scripts/checkEnvironmentRuntimeV67Acceptance.mjs
+      - name: Performance regression
+        run: node scripts/checkEnvironmentRuntimeV67Performance.mjs
+      - name: Stress regression
+        run: node scripts/checkEnvironmentRuntimeV67Stress.mjs
+      - name: Architecture regression
+        run: node scripts/checkEnvironmentRuntimeV67Architecture.mjs
+      - name: Transition regression
+        run: node scripts/checkEnvironmentRuntimeV67Transition.mjs
+      - name: Observability regression
+        run: node scripts/checkEnvironmentRuntimeV67Observability.mjs
+      - name: Release regression
+        run: node scripts/checkEnvironmentRuntimeV67Release.mjs
+      - name: Final governance regression
+        run: node scripts/checkEnvironmentRuntimeV67Final.mjs
       - name: Manifest audit
-        run: node -e "import('./src/3d/world/environmentRuntimeV67Manifest.js').then(({V67_MANIFEST})=>{if(V67_MANIFEST.version!==67||V67_MANIFEST.noWorldMutation!==true)process.exit(1)})"
+        run: node -e "import('./src/3d/world/environmentRuntimeV67Manifest.js').then(({V67_MANIFEST})=>{if(V67_MANIFEST.version!==67||V67_MANIFEST.noWorldMutation!==true||V67_MANIFEST.domains.length<30)process.exit(1)})"
       - name: Diff whitespace audit
         if: github.event_name == 'pull_request'
         run: git diff --check "${{ github.event.pull_request.base.sha }}...HEAD"
