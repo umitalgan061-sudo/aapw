@@ -1,0 +1,79 @@
+name: Safak Kartali living world director matrix R3
+
+on:
+  push:
+    branches:
+      - agent/safak-kartali-living-world-20260915-r3
+    paths:
+      - 'src/3d/gameplay/livingWorldDirectorScenarioPolicy.js'
+      - 'scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorR3BoundaryCorpus.mjs'
+      - 'artifacts/living-world-director-r3-boundary-corpus-*.jsonl'
+      - '.github/workflows/safak-kartali-living-world-director-r3-matrix.yml'
+      - '!artifacts/safak-kartali-living-world-director-matrix-r3.jsonl'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/livingWorldDirectorScenarioPolicy.js'
+      - 'scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorR3BoundaryCorpus.mjs'
+      - 'artifacts/living-world-director-r3-boundary-corpus-*.jsonl'
+      - 'artifacts/safak-kartali-living-world-director-matrix-r3.jsonl'
+      - '.github/workflows/safak-kartali-living-world-director-r3-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax gates
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/livingWorldDirectorScenarioPolicy.js
+          node --check src/3d/gameplay/livingWorldDirectorScenarioBridge.js
+          node --check src/3d/gameplay/livingWorldDirectorScenarioArbitration.js
+          node --check scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs
+          node --check scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs
+          node --check scripts/checkSafakKartaliLivingWorldDirectorScenarioBridge.mjs
+          node --check scripts/checkSafakKartaliLivingWorldDirectorR3BoundaryCorpus.mjs
+      - name: Generate deterministic full scenario matrix
+        run: node scripts/generateSafakKartaliLivingWorldDirectorMatrixR3.mjs
+      - name: Validate full matrix
+        run: |
+          set -euo pipefail
+          test "$(wc -l < artifacts/safak-kartali-living-world-director-matrix-r3.jsonl)" -eq 65537
+          node scripts/checkSafakKartaliLivingWorldDirectorMatrixR3.mjs
+      - name: Validate boundary regression corpus
+        run: |
+          set -euo pipefail
+          test "$(find artifacts -maxdepth 1 -name 'living-world-director-r3-boundary-corpus-*.jsonl' -print0 | xargs -0 cat | grep -c .)" -eq 3072
+          node scripts/checkSafakKartaliLivingWorldDirectorR3BoundaryCorpus.mjs
+      - name: Diff hygiene
+        run: git diff --check
+      - name: Materialize generated evidence
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add artifacts/safak-kartali-living-world-director-matrix-r3.jsonl
+          if git diff --cached --quiet; then
+            echo 'matrix unchanged'
+            exit 0
+          fi
+          git commit -m 'generated(living-world): materialize full director matrix evidence'
+          git push origin HEAD:${GITHUB_REF_NAME}
