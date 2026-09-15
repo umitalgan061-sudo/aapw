@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { buildTraversalPresentationTuningMatrix, buildTraversalTuningReviewCases, summarizeTraversalTuningReview, buildTraversalTuningFingerprint, compareTraversalTuningMatrices } from '../src/3d/gameplay/playerTraversalPresentationTuningReport.js';
+const matrix=buildTraversalPresentationTuningMatrix();
+const review=buildTraversalTuningReviewCases();
+const summary=summarizeTraversalTuningReview(review);
+assert.ok(matrix.profileCount>=4);
+assert.ok(matrix.surfaceCount>=7);
+assert.ok(review.length===matrix.surfaceCount*10);
+assert.equal(summary.validation.valid,true);
+assert.equal(compareTraversalTuningMatrices(matrix,JSON.parse(JSON.stringify(matrix))),true);
+assert.equal(typeof buildTraversalTuningFingerprint(),'string');
+console.log(`traversal tuning report passed: ${review.length} review rows`);

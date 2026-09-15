@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { generateTraversalStressSequence, executeTraversalStressSequence, validateTraversalStressResult } from '../src/3d/gameplay/playerTraversalPresentationStress.js';
+const records=generateTraversalStressSequence(720);
+const first=executeTraversalStressSequence(records);
+const second=executeTraversalStressSequence(records);
+assert.equal(validateTraversalStressResult(first).valid,true);
+assert.equal(first.count,720);
+assert.equal(JSON.stringify(first.telemetry),JSON.stringify(second.telemetry));
+assert.equal(JSON.stringify(first.states),JSON.stringify(second.states));
+console.log('traversal presentation stress: 720 deterministic samples passed');
