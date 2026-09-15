@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import { V67_COVERAGE_MATRIX, coverageSummaryV67, validateCoverageMatrixV67 } from '../src/3d/world/environmentRuntimeCoverageMatrixV67.js';
+import { buildEnvironmentRuntimeV67, acceptanceGateV67, runtimeSummaryEnvelopeV67 } from '../src/3d/world/environmentRuntimeIntegrationV67.js';
+import { buildResourceFieldV67 } from '../src/3d/world/environmentRuntimeResourcesV67.js';
+import { buildInteractionFieldV67 } from '../src/3d/world/environmentRuntimeInteractionV67.js';
+import { buildTransitionFieldV67 } from '../src/3d/world/environmentRuntimeBiomeTransitionsV67.js';
+
+assert.equal(validateCoverageMatrixV67(),true);
+const coverage=coverageSummaryV67();
+assert.ok(coverage.total>=120);
+assert.ok(coverage.biomes.length>=8);
+assert.ok(coverage.edge>=8);
+const samples=V67_COVERAGE_MATRIX.slice(0,48);
+const runtime=buildEnvironmentRuntimeV67({samples,clock:12,dayOfYear:180,seed:'acceptance-v67'});
+const gate=acceptanceGateV67(runtime);
+const summary=runtimeSummaryEnvelopeV67(runtime);
+assert.equal(gate.ok,true);
+assert.equal(summary.sampleCount,48);
+assert.ok(summary.quality>=.58);
+assert.equal(runtime.runtime.version,67);
+assert.equal(runtime.contract.deterministic,true);
+assert.equal(runtime.contract.noWorldMutation,true);
+assert.equal(runtime.resources.length,48);
+assert.equal(runtime.interactions.length,48);
+assert.equal(runtime.transitions.length,48);
+const resources=buildResourceFieldV67(samples);
+const interactions=buildInteractionFieldV67(samples);
+const transitions=buildTransitionFieldV67(samples);
+assert.equal(resources.length,48);
+assert.equal(interactions.length,48);
+assert.equal(transitions.length,48);
+assert.ok(resources.some(x=>x.dominant==='water'));
+assert.ok(resources.some(x=>x.dominant==='forage'));
+assert.ok(interactions.some(x=>x.shelter===true||x.harvest.forage===true));
+assert.ok(transitions.some(x=>x.primary!==x.secondary));
+for(const item of interactions){
+  assert.equal(typeof item.safety,'number');
+  assert.ok(item.safety>=0&&item.safety<=1);
+}
+for(const item of resources)assert.ok(item.abundance>=0&&item.abundance<=1);
+for(const item of transitions)assert.ok(item.ecotone>=0&&item.ecotone<=1);
+console.log('V67 acceptance regression PASS');
