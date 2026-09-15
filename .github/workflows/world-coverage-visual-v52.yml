@@ -1,0 +1,60 @@
+name: World Coverage Visual Runtime v52
+on:
+  pull_request:
+    paths:
+      - 'game3d.html'
+      - 'src/3d/world/worldCoverageVisualRuntimeV52.js'
+      - 'src/3d/world/worldCoverageVisualRuntimeV52Policies.js'
+      - 'scripts/checkWorldCoverageVisual*V52.mjs'
+      - 'scripts/worldCoverageVisualNodeLoaderV52.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  world-coverage-visual-v52:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: World Coverage v52 validation
+        env:
+          WORLD_COVERAGE_LOADER: ${{ github.workspace }}/scripts/worldCoverageVisualNodeLoaderV52.mjs
+        run: |
+          set -euo pipefail
+          export NODE_OPTIONS="--experimental-loader=$WORLD_COVERAGE_LOADER"
+          node --version
+          node --input-type=module -e "import 'three'; console.log('Vendored Three.js resolver OK')"
+          node --check src/3d/world/worldCoverageVisualRuntimeV52.js
+          node --check src/3d/world/worldCoverageVisualRuntimeV52Policies.js
+          node --check scripts/worldCoverageVisualNodeLoaderV52.mjs
+          for file in scripts/*WorldCoverageVisual*V52.mjs; do
+            node --check "$file"
+          done
+          node scripts/checkWorldCoverageVisualRuntimeV52.mjs
+          node scripts/checkWorldCoverageVisualRuntimeV52Contract.mjs
+          node scripts/checkWorldCoverageVisualAssetContractV52.mjs
+          node scripts/checkWorldCoverageVisualCanonicalParityV52.mjs
+          node scripts/checkWorldCoverageVisualRcaV52.mjs
+          node scripts/checkWorldCoverageVisualPolicyMatrixV52.mjs
+          node scripts/checkWorldCoverageVisualDeterminismV52.mjs
+          node scripts/checkWorldCoverageVisualRenderHookV52.mjs
+          node scripts/checkWorldCoverageVisualBudgetV52.mjs
+          node scripts/checkWorldCoverageVisualSourceCoverageV52.mjs
+          node scripts/checkWorldCoverageVisualRunRecordV52.mjs
+          node scripts/checkWorldCoverageVisualCameraMatrixV52.mjs
+          grep -F "./src/3d/world/worldCoverageVisualRuntimeV52.js" game3d.html
+          test "$(grep -n "worldCoverageVisualRuntimeV52.js" game3d.html | head -n1 | cut -d: -f1)" -lt "$(grep -n "src/3d/game3d.js" game3d.html | head -n1 | cut -d: -f1)"
+          git diff --check "$GITHUB_BASE_REF...HEAD"
+          changed="$(git diff --numstat "$GITHUB_BASE_REF...HEAD" | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          echo "World Coverage v52 total changed lines: $changed"
+          test "$changed" -le 3000
+          test "$changed" -ge 2850
