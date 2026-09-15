@@ -1,0 +1,49 @@
+name: Terrain Surface Probe Catalog Exact Head QA
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/fixtures/terrainSurfaceStackProbes*.js'
+      - 'scripts/checkTerrainSurfaceStackProbeCatalog.mjs'
+      - '.github/workflows/terrain-surface-probe-catalog.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/fixtures/terrainSurfaceStackProbes*.js'
+      - 'scripts/checkTerrainSurfaceStackProbeCatalog.mjs'
+      - '.github/workflows/terrain-surface-probe-catalog.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Assert exact head
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - name: Install runtime dependency
+        run: npm install --no-save three
+      - name: Syntax probes and QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/fixtures/terrainSurfaceStackProbesA.js
+          node --check scripts/fixtures/terrainSurfaceStackProbesB.js
+          node --check scripts/checkTerrainSurfaceStackProbeCatalog.mjs
+          node scripts/checkTerrainSurfaceStackProbeCatalog.mjs
+      - name: Verify fixture ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -nE 'Math\.random|Date\.now|setTimeout|setInterval|scene\.add|Mesh(Basic|Standard)Material' scripts/fixtures/terrainSurfaceStackProbes*.js
+      - name: Verify sample counts
+        run: |
+          node --input-type=module -e "import {TERRAIN_SURFACE_STACK_PROBES_A as a} from './scripts/fixtures/terrainSurfaceStackProbesA.js'; import {TERRAIN_SURFACE_STACK_PROBES_B as b} from './scripts/fixtures/terrainSurfaceStackProbesB.js'; if(a.length!==400||b.length!==400) process.exit(1); console.log('probe samples=800')"
