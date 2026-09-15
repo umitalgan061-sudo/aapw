@@ -45,8 +45,15 @@ jobs:
       - name: Checkout exact head
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           lfs: true
+
+      - name: Assert exact head checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
 
       - name: Establish exact-main ancestry and bounded scope
         shell: bash
@@ -67,7 +74,8 @@ jobs:
         run: |
           set -euo pipefail
           git lfs install
-          git lfs fetch origin "$GITHUB_SHA" --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/*.fbx"
+          EXACT_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          git lfs fetch origin "$EXACT_HEAD" --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/*.fbx"
           git lfs checkout assets/models/characters/peasant_girl.fbx assets/animations/peasant_girl/idle.fbx assets/animations/peasant_girl/walking.fbx assets/animations/peasant_girl/running.fbx
           for asset in \
             assets/models/characters/peasant_girl.fbx \
@@ -116,6 +124,13 @@ jobs:
 
       - name: Run asset contract
         run: node scripts/checkPlayerAnimationAssetContract.mjs
+
+      - name: Install visual-slice runtime dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save --ignore-scripts three@0.180.0
 
       - name: Run player animation visual slice
         run: node scripts/checkPlayerAnimationVisualSlice.mjs
