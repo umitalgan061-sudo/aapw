@@ -1,0 +1,69 @@
+name: Safak Kartali living world scenario contract R4
+on:
+  push:
+    branches:
+      - agent/safak-kartali-living-world-20260915-r4
+    paths:
+      - 'src/3d/gameplay/livingWorldDirectorScenarioContract.js'
+      - 'scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorR4RoleMatrix.mjs'
+      - 'artifacts/safak-kartali-living-world-director-scenario-r4-cases.jsonl'
+      - 'artifacts/safak-kartali-living-world-director-r4-matrix/**'
+      - '.github/workflows/safak-kartali-living-world-scenario-contract-r4.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/livingWorldDirectorScenarioContract.js'
+      - 'scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs'
+      - 'scripts/checkSafakKartaliLivingWorldDirectorR4RoleMatrix.mjs'
+      - 'artifacts/safak-kartali-living-world-director-scenario-r4-cases.jsonl'
+      - 'artifacts/safak-kartali-living-world-director-r4-matrix/**'
+      - '.github/workflows/safak-kartali-living-world-scenario-contract-r4.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/livingWorldDirectorScenarioContract.js
+          node --check scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs
+          node --check scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs
+          node --check scripts/checkSafakKartaliLivingWorldDirectorR4RoleMatrix.mjs
+      - name: Generate 4,096 deterministic runtime cases
+        run: node scripts/generateSafakKartaliLivingWorldDirectorScenarioR4.mjs
+      - name: Validate runtime case matrix
+        run: node scripts/checkSafakKartaliLivingWorldDirectorScenarioContractR4.mjs
+      - name: Validate role matrix shards
+        run: node scripts/checkSafakKartaliLivingWorldDirectorR4RoleMatrix.mjs
+      - name: Materialize generated acceptance corpus
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add artifacts/safak-kartali-living-world-director-scenario-r4-cases.jsonl
+          if git diff --cached --quiet; then
+            echo 'corpus unchanged'
+            exit 0
+          fi
+          target_branch="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          test -n "$target_branch"
+          git commit -m 'generated(living-world): materialize R4 runtime scenario corpus'
+          git push origin HEAD:"$target_branch"
+      - name: Diff hygiene
+        run: git diff --check
