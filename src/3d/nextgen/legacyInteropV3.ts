@@ -35,6 +35,7 @@ export class LegacyInteropV3 {
   readonly adapter: LegacySceneAdapter;
   #playerEntity: number | null = null;
   #attached = false;
+  #nextInputSequence = 1;
 
   constructor(runtime: NextGenRuntimeV3, adapter: LegacySceneAdapter) {
     this.runtime = runtime;
@@ -69,15 +70,28 @@ export class LegacyInteropV3 {
 
   syncToLegacy(): void {
     if (!this.#attached || this.#playerEntity === null) return;
-    const player = this.runtime.summary();
-    const state = this.runtime['__getPlayerStateForInterop']?.(this.#playerEntity);
-    if (state) this.adapter.writePlayer(state as PlayerState);
-    else this.emit({ type: 'runtime-warning', entityId: this.#playerEntity, tick: this.runtime.kernel.clock.tick, detail: `interop player state unavailable at runtime tick ${player.tick}` });
+    const state = this.runtime.getPlayerState(this.#playerEntity);
+    if (state) {
+      this.adapter.writePlayer(state);
+      this.emit({ type: 'player-sync', entityId: this.#playerEntity, tick: this.runtime.kernel.clock.tick, detail: 'player state copied into legacy adapter' });
+    } else {
+      this.emit({ type: 'runtime-warning', entityId: this.#playerEntity, tick: this.runtime.kernel.clock.tick, detail: 'interop player state unavailable' });
+    }
   }
 
   convertInput(legacy: Partial<PlayerInput>): PlayerInput {
     if (this.#playerEntity === null) throw new Error('interop player not attached');
-    return { tick: legacy.tick ?? this.runtime.kernel.clock.tick + 1, sequence: legacy.sequence ?? Date.now(), move: legacy.move ?? { x: 0, y: 0 }, lookYaw: legacy.lookYaw ?? 0, jump: Boolean(legacy.jump), sprint: Boolean(legacy.sprint), dodge: Boolean(legacy.dodge) };
+    const sequence = legacy.sequence ?? this.#nextInputSequence++;
+    if (sequence >= this.#nextInputSequence) this.#nextInputSequence = sequence + 1;
+    return {
+      tick: legacy.tick ?? this.runtime.kernel.clock.tick + 1,
+      sequence,
+      move: legacy.move ?? { x: 0, y: 0 },
+      lookYaw: legacy.lookYaw ?? 0,
+      jump: Boolean(legacy.jump),
+      sprint: Boolean(legacy.sprint),
+      dodge: Boolean(legacy.dodge),
+    };
   }
 
   entityCount(): number { return this.adapter.readEntities().length; }
