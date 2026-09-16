@@ -1,0 +1,104 @@
+name: modern-runtime-hardening
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/runtime/**'
+      - 'scripts/checkModernRuntimeHardening*.mjs'
+      - 'docs/MODERN_RUNTIME_HARDENING.md'
+      - '.github/workflows/modern-runtime-hardening.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/runtime/**'
+      - 'scripts/checkModernRuntimeHardening*.mjs'
+      - 'docs/MODERN_RUNTIME_HARDENING.md'
+      - '.github/workflows/modern-runtime-hardening.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    name: runtime syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check runtime modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do
+            node --check "$file"
+          done < <(find src/3d/runtime -type f -name '*.js' | sort)
+
+  acceptance:
+    name: runtime acceptance
+    runs-on: ubuntu-latest
+    needs: syntax
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Core acceptance suite
+        run: node scripts/checkModernRuntimeHardening.mjs
+      - name: Extended acceptance suite
+        run: node scripts/checkModernRuntimeHardeningExtended.mjs
+
+  determinism:
+    name: repeated determinism
+    runs-on: ubuntu-latest
+    needs: acceptance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run repeated deterministic acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkModernRuntimeHardening.mjs > /tmp/runtime-a.json
+          node scripts/checkModernRuntimeHardening.mjs > /tmp/runtime-b.json
+          diff -u /tmp/runtime-a.json /tmp/runtime-b.json
+          node scripts/checkModernRuntimeHardeningExtended.mjs > /tmp/runtime-ext-a.json
+          node scripts/checkModernRuntimeHardeningExtended.mjs > /tmp/runtime-ext-b.json
+          diff -u /tmp/runtime-ext-a.json /tmp/runtime-ext-b.json
+
+  ownership:
+    name: ownership boundary
+    runs-on: ubuntu-latest
+    needs: syntax
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject forbidden runtime ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE 'new THREE\\.|AnimationMixer|setTimeout\\(|Date\\.now\\(' src/3d/runtime; then
+            echo 'Runtime layer contains direct renderer/timer ownership; use caller-owned adapters.' >&2
+            exit 1
+          fi
+          if grep -RInE 'localStorage\\.|indexedDB\\.' src/3d/runtime; then
+            echo 'Runtime module must access storage through the adapter contract.' >&2
+            exit 1
+          fi
+
+  size-gate:
+    name: meaningful addition gate
+    runs-on: ubuntu-latest
+    needs: [acceptance, determinism, ownership]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require a real implementation-sized turn
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(git merge-base origin/main HEAD)"
+          additions="$(git diff --numstat "$base"...HEAD -- src/3d/runtime scripts/checkModernRuntimeHardening*.mjs docs/MODERN_RUNTIME_HARDENING.md .github/workflows/modern-runtime-hardening.yml | awk '{sum += $1} END {print sum + 0}')"
+          echo "meaningful runtime additions: ${additions}"
+          test "$additions" -gt 4000
