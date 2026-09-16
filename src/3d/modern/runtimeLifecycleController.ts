@@ -22,6 +22,15 @@ export interface RuntimeLifecycleControllerOptions {
   readonly debounceMs?: number;
 }
 
+type LifecycleCallback = (event: LifecycleEvent) => Promise<void> | void;
+interface LifecycleCallbacks {
+  readonly onSuspend?: LifecycleCallback;
+  readonly onResume?: LifecycleCallback;
+  readonly onSave?: LifecycleCallback;
+  readonly onFlush?: LifecycleCallback;
+  readonly onNetworkChange?: (online: boolean, event: LifecycleEvent) => Promise<void> | void;
+}
+
 export interface LifecycleStats {
   readonly state: LifecycleState;
   readonly events: number;
@@ -34,15 +43,12 @@ export interface LifecycleStats {
   readonly lastTimestamp: UnixMillis | null;
 }
 
-/**
- * Central lifecycle policy for browser/runtime integration. DOM listeners are attached only when a
- * real browser environment exists; every callback is guarded so one failing integration cannot
- * poison the remaining lifecycle handlers.
- */
+/** Central browser lifecycle policy with bounded, failure-isolated callbacks. */
 export class RuntimeLifecycleController {
   readonly debounceMs: number;
   readonly observability: RuntimeObservability;
   #now: () => UnixMillis;
+  #callbacks: LifecycleCallbacks;
   #state: LifecycleState = 'cold';
   #online = true;
   #listeners: Array<() => void> = [];
@@ -62,15 +68,13 @@ export class RuntimeLifecycleController {
     this.debounceMs = Math.max(0, Math.trunc(options.debounceMs ?? 100));
     this.observability = options.observability ?? new RuntimeObservability({ now: this.#now });
     this.#callbacks = {
-      onSuspend: options.onSuspend,
-      onResume: options.onResume,
-      onSave: options.onSave,
-      onFlush: options.onFlush,
-      onNetworkChange: options.onNetworkChange,
+      ...(options.onSuspend ? { onSuspend: options.onSuspend } : {}),
+      ...(options.onResume ? { onResume: options.onResume } : {}),
+      ...(options.onSave ? { onSave: options.onSave } : {}),
+      ...(options.onFlush ? { onFlush: options.onFlush } : {}),
+      ...(options.onNetworkChange ? { onNetworkChange: options.onNetworkChange } : {}),
     };
   }
-
-  #callbacks: Required<Pick<RuntimeLifecycleControllerOptions, 'onSuspend' | 'onResume' | 'onSave' | 'onFlush' | 'onNetworkChange'>>;
 
   get state(): LifecycleState { return this.#state; }
   get online(): boolean { return this.#online; }
@@ -79,7 +83,10 @@ export class RuntimeLifecycleController {
     if (this.#started) return;
     this.#started = true;
     this.#state = 'starting';
-    if (typeof document === 'undefined' || typeof window === 'undefined') { this.#state = 'running'; return; }
+    if (typeof document === 'undefined' || typeof window === 'undefined') {
+      this.#state = 'running';
+      return;
+    }
     const bind = (target: EventTarget, type: string, listener: EventListener): void => {
       target.addEventListener(type, listener);
       this.#listeners.push(() => target.removeEventListener(type, listener));
@@ -120,10 +127,10 @@ export class RuntimeLifecycleController {
       if (this.#state !== 'suspended') this.#suspends += 1;
       this.#state = 'suspended';
       await this.#safe('lifecycle-save', this.#callbacks.onSave, event);
-      this.#saves += 1;
+      if (this.#callbacks.onSave) this.#saves += 1;
       await this.#safe('lifecycle-suspend', this.#callbacks.onSuspend, event);
       await this.#safe('lifecycle-flush', this.#callbacks.onFlush, event);
-      this.#flushes += 1;
+      if (this.#callbacks.onFlush) this.#flushes += 1;
       return;
     }
     if (signal === 'visibility:visible' || signal === 'resume' || signal === 'pageshow') {
@@ -134,12 +141,11 @@ export class RuntimeLifecycleController {
     }
     if (signal === 'online' || signal === 'offline') {
       this.#online = signal === 'online';
-      await this.#safe('lifecycle-network', this.#callbacks.onNetworkChange, this.#online, event);
+      await this.#safeNetwork('lifecycle-network', this.#callbacks.onNetworkChange, this.#online, event);
+      return;
     }
-    if (signal === 'memory-pressure') {
-      await this.#safe('lifecycle-flush-memory', this.#callbacks.onFlush, event);
-      this.#flushes += 1;
-    }
+    await this.#safe('lifecycle-flush-memory', this.#callbacks.onFlush, event);
+    if (this.#callbacks.onFlush) this.#flushes += 1;
   }
 
   on(listener: (event: LifecycleEvent) => void): () => void {
@@ -156,7 +162,7 @@ export class RuntimeLifecycleController {
   dispose(): void {
     for (const dispose of this.#listeners.splice(0)) dispose();
     this.#eventListeners.clear();
-    if (this.#state !== 'stopped') this.#state = 'stopped';
+    this.#state = 'stopped';
     this.#started = false;
   }
 
@@ -164,9 +170,15 @@ export class RuntimeLifecycleController {
     return Object.freeze({ signal, timestamp, state: this.#state, reason: reason.slice(0, 256) });
   }
 
-  async #safe(name: string, callback: ((...args: any[]) => Promise<void> | void) | undefined, ...args: any[]): Promise<void> {
+  async #safe(name: string, callback: LifecycleCallback | undefined, event: LifecycleEvent): Promise<void> {
     if (!callback) return;
     const span = this.observability.start('recovery', 0 as never, { operation: name });
-    try { await callback(...args); span.end(true); } catch { span.fail(); }
+    try { await callback(event); span.end(true); } catch { span.fail(); }
+  }
+
+  async #safeNetwork(name: string, callback: LifecycleCallbacks['onNetworkChange'], online: boolean, event: LifecycleEvent): Promise<void> {
+    if (!callback) return;
+    const span = this.observability.start('recovery', 0 as never, { operation: name, online });
+    try { await callback(online, event); span.end(true); } catch { span.fail(); }
   }
 }
