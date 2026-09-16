@@ -1,12 +1,12 @@
 import type { Disposable, FrameContext, Result } from './coreTypes.ts';
 import { clamp, err, ok } from './coreTypes.ts';
 
-export type RenderBackend = 'webgpu' | 'webgl2' | 'unavailable';
+export type RenderBackend = 'webgpu' | 'webgl2' | 'headless' | 'unavailable';
 export type RenderQuality = 'safe' | 'low' | 'medium' | 'high' | 'ultra';
 export type RenderEffect = 'taa' | 'fxaa' | 'bloom' | 'ssao' | 'ssgi' | 'dof' | 'lut' | 'vignette' | 'fog';
 
 export interface RendererLike extends Disposable {
-  readonly backend: Exclude<RenderBackend, 'unavailable'>;
+  readonly backend: Exclude<RenderBackend, 'unavailable' | 'headless'>;
   readonly canvas: HTMLCanvasElement | OffscreenCanvas;
   readonly pixelRatio: number;
   render(scene: unknown, camera: unknown): void | Promise<void>;
@@ -81,15 +81,12 @@ const canCreateWebGl2 = (): boolean => {
   }
 };
 
-export const chooseBackend = (
-  capabilities: RenderDeviceCapabilities,
-  preference: 'auto' | 'webgpu' | 'webgl2' = 'auto',
-): RenderBackend => {
+export const chooseBackend = (capabilities: RenderDeviceCapabilities, preference: 'auto' | 'webgpu' | 'webgl2' = 'auto'): RenderBackend => {
   if (preference === 'webgpu' && capabilities.secureContext && capabilities.webGpu) return 'webgpu';
   if (preference === 'webgl2' && capabilities.webGl2) return 'webgl2';
   if (preference === 'auto' && capabilities.secureContext && capabilities.webGpu) return 'webgpu';
   if (capabilities.webGl2) return 'webgl2';
-  return 'unavailable';
+  return 'headless';
 };
 
 export const deriveQuality = (capabilities: RenderDeviceCapabilities, requested: RenderQuality = 'high'): RenderQuality => {
@@ -106,13 +103,12 @@ export const buildRenderPolicy = (
   options: { preference?: 'auto' | 'webgpu' | 'webgl2'; quality?: RenderQuality; gpuBudgetMs?: number; viewportWidth?: number; viewportHeight?: number } = {},
 ): Result<RenderPolicy, string> => {
   const backend = chooseBackend(capabilities, options.preference ?? 'auto');
-  if (backend === 'unavailable') return err('Neither WebGPU nor WebGL2 is available');
-  const quality = deriveQuality(capabilities, options.quality ?? 'high');
+  const quality = backend === 'headless' ? 'safe' : deriveQuality(capabilities, options.quality ?? 'high');
   const factor = QUALITY_FACTOR[quality];
   const gpuBudgetMs = clamp(options.gpuBudgetMs ?? (capabilities.mobile ? 14.5 : 12), 7, 30);
-  const effects = EFFECTS[quality].filter(effect => backend === 'webgpu' || effect !== 'ssgi');
+  const effects = backend === 'headless' ? [] : EFFECTS[quality].filter(effect => backend === 'webgpu' || effect !== 'ssgi');
   const scaleBase = clamp(Math.sqrt(gpuBudgetMs / (quality === 'ultra' ? 14 : 11)), 0.65, 1);
-  const renderScale = clamp(scaleBase * (backend === 'webgpu' ? 1 : 0.94), 0.55, 1);
+  const renderScale = backend === 'headless' ? 1 : clamp(scaleBase * (backend === 'webgpu' ? 1 : 0.94), 0.55, 1);
   const width = Math.max(320, options.viewportWidth ?? 1920);
   const height = Math.max(240, options.viewportHeight ?? 1080);
   const pixels = width * height * renderScale * renderScale;
@@ -123,8 +119,8 @@ export const buildRenderPolicy = (
   return ok(Object.freeze({
     backend,
     quality,
-    pixelRatio: clamp((typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1) * (capabilities.mobile ? 0.9 : 1), 0.75, backend === 'webgpu' ? 2.25 : 2),
-    dynamicResolution: true,
+    pixelRatio: backend === 'headless' ? 1 : clamp((typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1) * (capabilities.mobile ? 0.9 : 1), 0.75, backend === 'webgpu' ? 2.25 : 2),
+    dynamicResolution: backend !== 'headless',
     renderScale,
     effects,
     maxVisibleObjects: Math.max(800, Math.trunc(visibleBase * factor)),
@@ -137,14 +133,7 @@ export const buildRenderPolicy = (
   }));
 };
 
-export interface DynamicResolutionControllerOptions {
-  readonly targetFrameMs?: number;
-  readonly minimumScale?: number;
-  readonly maximumScale?: number;
-  readonly downStep?: number;
-  readonly upStep?: number;
-  readonly hysteresisFrames?: number;
-}
+export interface DynamicResolutionControllerOptions { readonly targetFrameMs?: number; readonly minimumScale?: number; readonly maximumScale?: number; readonly downStep?: number; readonly upStep?: number; readonly hysteresisFrames?: number; }
 
 export class DynamicResolutionController {
   private scaleValue: number;
@@ -166,9 +155,7 @@ export class DynamicResolutionController {
     this.upStep = clamp(options.upStep ?? 0.018, 0.002, 0.1);
     this.hysteresisFrames = Math.max(2, Math.trunc(options.hysteresisFrames ?? 8));
   }
-
   get scale(): number { return this.scaleValue; }
-
   update(frameMs: number): number {
     if (!Number.isFinite(frameMs)) return this.scaleValue;
     const over = frameMs > this.targetFrameMs * 1.08;
@@ -180,69 +167,36 @@ export class DynamicResolutionController {
     else if (this.fastFrames >= this.hysteresisFrames * 2) { this.scaleValue = clamp(this.scaleValue + this.upStep, this.minimumScale, this.maximumScale); this.fastFrames = 0; }
     return this.scaleValue;
   }
-
   reset(scale = 1): void { this.scaleValue = clamp(scale, this.minimumScale, this.maximumScale); this.slowFrames = 0; this.fastFrames = 0; }
 }
 
-export interface RenderFrameStats {
-  readonly cpuMs: number;
-  readonly gpuMs: number;
-  readonly drawCalls: number;
-  readonly triangles: number;
-  readonly visibleObjects: number;
-  readonly shadowObjects: number;
-  readonly resolutionScale: number;
-}
+export interface RenderFrameStats { readonly cpuMs: number; readonly gpuMs: number; readonly drawCalls: number; readonly triangles: number; readonly visibleObjects: number; readonly shadowObjects: number; readonly resolutionScale: number; }
 
 export class RenderTelemetry implements Disposable {
   private readonly history: RenderFrameStats[] = [];
   private disposed = false;
   constructor(private readonly capacity = 240) {}
-
-  push(stats: RenderFrameStats): void {
-    if (this.disposed) return;
-    this.history.push(Object.freeze({ ...stats }));
-    while (this.history.length > this.capacity) this.history.shift();
-  }
-
+  push(stats: RenderFrameStats): void { if (this.disposed) return; this.history.push(Object.freeze({ ...stats })); while (this.history.length > this.capacity) this.history.shift(); }
   snapshot(): readonly RenderFrameStats[] { return [...this.history]; }
-
   summary(): Readonly<{ avgCpuMs: number; avgGpuMs: number; p95CpuMs: number; p95GpuMs: number; avgDrawCalls: number; avgTriangles: number }> {
     if (this.history.length === 0) return { avgCpuMs: 0, avgGpuMs: 0, p95CpuMs: 0, p95GpuMs: 0, avgDrawCalls: 0, avgTriangles: 0 };
     const average = (field: keyof RenderFrameStats): number => this.history.reduce((sum, row) => sum + Number(row[field]), 0) / this.history.length;
-    const percentile = (field: keyof RenderFrameStats, p: number): number => {
-      const values = this.history.map(row => Number(row[field])).sort((a, b) => a - b);
-      return values[Math.min(values.length - 1, Math.floor(values.length * p))] ?? 0;
-    };
+    const percentile = (field: keyof RenderFrameStats, p: number): number => { const values = this.history.map(row => Number(row[field])).sort((a, b) => a - b); return values[Math.min(values.length - 1, Math.floor(values.length * p))] ?? 0; };
     return Object.freeze({ avgCpuMs: average('cpuMs'), avgGpuMs: average('gpuMs'), p95CpuMs: percentile('cpuMs', 0.95), p95GpuMs: percentile('gpuMs', 0.95), avgDrawCalls: average('drawCalls'), avgTriangles: average('triangles') });
   }
-
   dispose(): void { this.disposed = true; this.history.length = 0; }
 }
 
-export interface RendererFactoryOptions {
-  readonly canvas: HTMLCanvasElement | OffscreenCanvas;
-  readonly policy: RenderPolicy;
-  readonly createWebGpu?: (canvas: HTMLCanvasElement | OffscreenCanvas) => Promise<RendererLike>;
-  readonly createWebGl2?: (canvas: HTMLCanvasElement | OffscreenCanvas) => RendererLike;
-}
-
+export interface RendererFactoryOptions { readonly canvas: HTMLCanvasElement | OffscreenCanvas; readonly policy: RenderPolicy; readonly createWebGpu?: (canvas: HTMLCanvasElement | OffscreenCanvas) => Promise<RendererLike>; readonly createWebGl2?: (canvas: HTMLCanvasElement | OffscreenCanvas) => RendererLike; }
 export const createRenderer = async (options: RendererFactoryOptions): Promise<Result<RendererLike, string>> => {
   try {
     if (options.policy.backend === 'webgpu' && options.createWebGpu) return ok(await options.createWebGpu(options.canvas));
-    if (options.createWebGl2) return ok(options.createWebGl2(options.canvas));
-    return err('Renderer factory is not configured');
-  } catch (cause) {
-    return err(cause instanceof Error ? cause.message : 'renderer creation failed');
-  }
+    if (options.policy.backend === 'webgl2' && options.createWebGl2) return ok(options.createWebGl2(options.canvas));
+    return err(options.policy.backend === 'headless' ? 'renderer unavailable in headless mode' : 'Renderer factory is not configured');
+  } catch (cause) { return err(cause instanceof Error ? cause.message : 'renderer creation failed'); }
 };
 
-export interface FramePresenter extends Disposable {
-  begin(context: FrameContext): void;
-  render(scene: unknown, camera: unknown): Promise<void>;
-  end(): void;
-}
-
+export interface FramePresenter extends Disposable { begin(context: FrameContext): void; render(scene: unknown, camera: unknown): Promise<void>; end(): void; }
 export class BudgetAwarePresenter implements FramePresenter {
   private lastFrameMs = 0;
   private readonly scaleController: DynamicResolutionController;
@@ -251,8 +205,7 @@ export class BudgetAwarePresenter implements FramePresenter {
   async render(scene: unknown, camera: unknown): Promise<void> {
     const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
     await this.renderer.render(scene, camera);
-    const end = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const elapsed = end - start;
+    const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
     const previousScale = this.scaleController.scale;
     const nextScale = this.scaleController.update(elapsed);
     if (Math.abs(nextScale - previousScale) > 0.0001) this.renderer.setPixelRatio(nextScale);
@@ -261,14 +214,5 @@ export class BudgetAwarePresenter implements FramePresenter {
   dispose(): void { this.renderer.dispose(); }
 }
 
-export const cssPixelSize = (canvas: HTMLCanvasElement | OffscreenCanvas): { width: number; height: number } => {
-  if ('clientWidth' in canvas) return { width: Math.max(1, Math.trunc(canvas.clientWidth)), height: Math.max(1, Math.trunc(canvas.clientHeight)) };
-  return { width: Math.max(1, Math.trunc(canvas.width)), height: Math.max(1, Math.trunc(canvas.height)) };
-};
-
-export const resizeRenderer = (renderer: RendererLike, canvas: HTMLCanvasElement | OffscreenCanvas, pixelRatio: number): void => {
-  const size = cssPixelSize(canvas);
-  const clampedRatio = clamp(pixelRatio, 0.5, 2.5);
-  renderer.setPixelRatio(clampedRatio);
-  renderer.setSize(size.width, size.height, clampedRatio);
-};
+export const cssPixelSize = (canvas: HTMLCanvasElement | OffscreenCanvas): { width: number; height: number } => 'clientWidth' in canvas ? { width: Math.max(1, Math.trunc(canvas.clientWidth)), height: Math.max(1, Math.trunc(canvas.clientHeight)) } : { width: Math.max(1, Math.trunc(canvas.width)), height: Math.max(1, Math.trunc(canvas.height)) };
+export const resizeRenderer = (renderer: RendererLike, canvas: HTMLCanvasElement | OffscreenCanvas, pixelRatio: number): void => { const size = cssPixelSize(canvas); const clampedRatio = clamp(pixelRatio, 0.5, 2.5); renderer.setPixelRatio(clampedRatio); renderer.setSize(size.width, size.height, clampedRatio); };
