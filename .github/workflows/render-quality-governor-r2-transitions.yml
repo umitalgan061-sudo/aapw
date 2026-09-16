@@ -1,0 +1,22 @@
+name: Render Quality Governor R2 transitions
+on:
+  pull_request:
+    paths:
+      - 'src/3d/renderQualityGovernorR2.js'
+      - 'scripts/checkRenderQualityGovernorR2Transitions.mjs'
+  push:
+    paths:
+      - 'src/3d/renderQualityGovernorR2.js'
+      - 'scripts/checkRenderQualityGovernorR2Transitions.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  transitions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: node --check src/3d/renderQualityGovernorR2.js && node --check scripts/checkRenderQualityGovernorR2Transitions.mjs
+      - name: Execute
+        run: node scripts/checkRenderQualityGovernorR2Transitions.mjs
