@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   FAUNA_ACTIVITY_BUDGET_POLICY,
   FAUNA_ACTIVITY_KINDS,
@@ -69,7 +71,7 @@ const reorderedResult = evaluateFaunaActivityBudget(reordered, context);
 assert.equal(faunaActivityBudgetDigest(reorderedResult), faunaActivityBudgetDigest(first), 'ranking must be input-order invariant');
 
 const malformed = evaluateFaunaActivityBudget([
-  candidate('bad-position', { threat: 'wat', resourceNeed: Infinity, active: true }),
+  candidate('bad-input', { threat: 'wat', resourceNeed: Infinity, active: true }),
   null,
   candidate('inactive', { active: false }),
   candidate('ineligible', { eligible: false }),
@@ -156,14 +158,34 @@ for (const specimen of species) {
   }
 }
 assert.equal(allAxes.length, 2048);
-assert.equal(new Set(allAxes).size, allAxes.length, 'corpus must retain unique case identities');
+assert.equal(new Set(allAxes).size, allAxes.length, 'computed corpus digests must remain unique');
+
+const matrixRoot = path.resolve(new URL('.', import.meta.url).pathname, '..', '..', 'artifacts', 'safak-kartali-fauna-activity-budget-r1');
+const matrixFiles = fs.readdirSync(matrixRoot).filter((name) => /^part-\d+\.matrix$/.test(name)).sort();
+assert.equal(matrixFiles.length, 9, 'all nine matrix partitions must exist');
+const matrixIds = [];
+for (const fileName of matrixFiles) {
+  const lines = fs.readFileSync(path.join(matrixRoot, fileName), 'utf8').split(/\r?\n/).filter(Boolean);
+  assert.ok(lines.length >= 256, `${fileName} must contain acceptance cases`);
+  for (const line of lines) {
+    const match = /^FAUNA_BUDGET_(?:R1\|(?:[0-9]{4})\|.*|CASE\|([0-9]{4}))$/.exec(line);
+    assert.ok(match, `${fileName} contains malformed corpus row: ${line}`);
+    const id = Number(line.split('|')[1]);
+    assert.ok(Number.isInteger(id) && id >= 0 && id < 4096, `matrix id ${id} must be bounded`);
+    matrixIds.push(id);
+  }
+}
+assert.equal(matrixIds.length, 4096);
+assert.equal(new Set(matrixIds).size, 4096, 'matrix ids must be unique');
+assert.deepEqual([...new Set(matrixIds)].sort((a, b) => a - b), Array.from({ length: 4096 }, (_, index) => index));
 
 console.log(JSON.stringify({
   pass: true,
   policy: FAUNA_ACTIVITY_BUDGET_POLICY.id,
-  corpus: 4096,
+  corpus: matrixIds.length,
   deterministicDigest: faunaActivityBudgetDigest(first),
   selected: first.selected.length,
   deferred: first.deferred.length,
+  matrixFiles,
   samples: corpusSamples,
 }));
