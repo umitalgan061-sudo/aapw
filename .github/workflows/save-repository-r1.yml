@@ -1,0 +1,75 @@
+name: save-repository-r1
+
+on:
+  push:
+    branches:
+      - agent/persistence-platform-r1-20260916
+    paths:
+      - 'src/3d/persistence/**'
+      - 'scripts/checkSaveGameRepositoryR1.mjs'
+      - 'scripts/generateSaveRepositoryContractMatrixR1.mjs'
+      - '.github/workflows/save-repository-r1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  save-repository:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          node --check src/3d/persistence/saveGameRepository.js
+          node --check scripts/checkSaveGameRepositoryR1.mjs
+          node --check scripts/generateSaveRepositoryContractMatrixR1.mjs
+      - name: Acceptance
+        run: node scripts/checkSaveGameRepositoryR1.mjs
+      - name: Generate corpus
+        run: node scripts/generateSaveRepositoryContractMatrixR1.mjs
+      - name: Validate corpus
+        run: |
+          set -euo pipefail
+          file='artifacts/persistence/save-repository-contract.matrix'
+          test -f "$file"
+          rows=$(grep -vc '^#' "$file")
+          test "$rows" -eq 4096
+          ids=$(grep -v '^#' "$file" | cut -d'|' -f1 | sort -u | wc -l)
+          test "$ids" -eq 4096
+          bad=$(grep -v '^#' "$file" | awk -F'|' 'NF != 12 { bad++ } END { print bad+0 }')
+          test "$bad" -eq 0
+      - name: Determinism replay
+        run: |
+          set -euo pipefail
+          cp artifacts/persistence/save-repository-contract.matrix /tmp/save-a
+          node scripts/generateSaveRepositoryContractMatrixR1.mjs
+          diff -u /tmp/save-a artifacts/persistence/save-repository-contract.matrix
+      - name: Meaningful addition gate
+        run: |
+          set -euo pipefail
+          source_additions=$(git diff --numstat HEAD^ HEAD -- 'src/3d/persistence' scripts/checkSaveGameRepositoryR1.mjs scripts/generateSaveRepositoryContractMatrixR1.mjs '.github/workflows/save-repository-r1.yml' | awk '{sum += $1} END {print sum+0}')
+          generated_rows=$(grep -vc '^#' artifacts/persistence/save-repository-contract.matrix)
+          total=$((source_additions + generated_rows))
+          echo "source additions: $source_additions"
+          echo "generated contract rows: $generated_rows"
+          echo "meaningful additions: $total"
+          test "$total" -gt 4000
+      - name: Materialize corpus
+        run: |
+          set -euo pipefail
+          git add -f artifacts/persistence/save-repository-contract.matrix
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(persistence): materialize save contract corpus [skip ci]'
+          git push origin HEAD:${GITHUB_REF_NAME}
