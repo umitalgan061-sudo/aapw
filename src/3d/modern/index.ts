@@ -98,3 +98,4 @@ export * from './runtimeFacadeV3';
 export * from './inputIntentV3';
 export * from './renderProxyV3';
 export * from './runtimeOrchestrationV3';
+export * from './runtimeManifestV3';
