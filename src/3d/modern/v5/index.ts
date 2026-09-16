@@ -20,3 +20,4 @@ export * from './animationGraph.ts';
 export * from './simulation.ts';
 export * from './service.ts';
 export * from './config.ts';
+export * from './stateMachine.ts';
