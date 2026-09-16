@@ -1,0 +1,33 @@
+name: Kızıl Ufuk Player Combat Stance Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatStanceDirector.js'
+      - 'scripts/checkKizilUfukPlayerCombatStanceDirector.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-stance-director.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact head and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          changed=$(git diff --numstat "origin/${{ github.base_ref }}...HEAD" -- src/3d/gameplay/playerCombatStanceDirector.js scripts/checkKizilUfukPlayerCombatStanceDirector.mjs .github/workflows/kizil-ufuk-player-combat-stance-director.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerCombatStanceDirector.js
+          node --check scripts/checkKizilUfukPlayerCombatStanceDirector.mjs
+      - name: Executable deterministic contract
+        run: node scripts/checkKizilUfukPlayerCombatStanceDirector.mjs
