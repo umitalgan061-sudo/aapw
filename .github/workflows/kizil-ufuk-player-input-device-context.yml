@@ -1,0 +1,41 @@
+name: Kizil Ufuk - Player Input Device Context
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerInputDeviceContext.js'
+      - 'scripts/checkPlayerInputDeviceContext.mjs'
+      - '.github/workflows/kizil-ufuk-player-input-device-context.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact checkout
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerInputDeviceContext.js && node --check scripts/checkPlayerInputDeviceContext.mjs
+      - name: Contract
+        run: node scripts/checkPlayerInputDeviceContext.mjs
+      - name: Repeatability
+        shell: bash
+        run: |
+          first="$(node scripts/checkPlayerInputDeviceContext.mjs)"
+          second="$(node scripts/checkPlayerInputDeviceContext.mjs)"
+          test "$first" = "$second"
+      - name: Diff guard
+        shell: bash
+        run: |
+          changed="$(git diff --numstat "${{ github.event.pull_request.base.sha || 'HEAD^' }}" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$changed" -le 3000
