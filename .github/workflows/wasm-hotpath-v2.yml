@@ -1,0 +1,42 @@
+name: wasm-hotpath-v2
+
+on:
+  push:
+    branches: [agent/rust-hotpath-v2-20260916]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Generate deterministic policy matrix
+        run: node scripts/generateWasmHotPathV2Matrix.mjs
+      - name: Validate matrix
+        run: node scripts/checkWasmHotPathV2.mjs
+      - name: Build release WASM
+        run: cargo build --manifest-path wasm/Cargo.toml --release --target wasm32-unknown-unknown
+      - name: Verify Rust source contract
+        run: |
+          test $(grep -c "pub fn " wasm/src/simulation_v2.rs) -ge 20
+          grep -q "simulation_integrate_velocity" wasm/src/lib.rs
+          grep -q "simulation_boids" wasm/src/lib.rs
+          grep -q "pub extern \"C\" fn version() -> u32 { 2 }" wasm/src/lib.rs
+      - name: TypeScript typecheck
+        run: npm run typecheck
+      - name: Materialize deterministic matrix
+        run: |
+          git add -f artifacts/rust-hotpath-v2/hotpath-policy.matrix
+          git diff --cached --quiet || git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'test(wasm): materialize v2 policy coverage [skip ci]'
+          git push
