@@ -11,9 +11,11 @@ import {
   resolvePlayerDodgeRules,
   resolvePlayerRangedRules,
   resolvePlayerCombatEnvelope,
-  resolvePlayerAnimationPlan,
-  resolvePlayerEquipmentCombatProfile,
 } from './playerEquipmentCombatRules.js';
+import {
+  resolvePlayerEquipmentCombatProfile,
+  resolvePlayerAnimationPlan,
+} from './playerEquipmentCombatProfile.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
