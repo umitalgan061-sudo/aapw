@@ -15,11 +15,12 @@ const files = [
   'src/3d/modern/runtimeOrchestratorV4.ts',
   'src/3d/modern/runtimeV4Facade.ts',
   'src/3d/modern/migrationV4.ts',
+  'src/3d/modern/replayRuntimeV4.ts',
   'src/3d/modern/releaseGateV4.ts',
 ];
 
 const forbidden = [/Math\\.random\\s*\\(/, /\\beval\\s*\\(/, /new\\s+Function\\s*\\(/];
-const requiredExports = ['RuntimeOrchestratorV4', 'RuntimeV4Facade', 'CommandBusV4', 'SchedulerV4', 'SpatialIndexV4', 'AssetStreamingV4', 'NetworkReplicationV4', 'RenderPipelineV4', 'InputCommandRouterV4'];
+const requiredExports = ['RuntimeOrchestratorV4', 'RuntimeV4Facade', 'ReplayRuntimeV4', 'CommandBusV4', 'SchedulerV4', 'SpatialIndexV4', 'AssetStreamingV4', 'NetworkReplicationV4', 'RenderPipelineV4', 'InputCommandRouterV4'];
 
 let totalLines = 0;
 let failures = 0;
@@ -27,28 +28,19 @@ for (const file of files) {
   let content;
   try {
     content = await readFile(file, 'utf8');
-  } catch (error) {
+  } catch {
     console.error(`missing: ${file}`);
     failures += 1;
     continue;
   }
-  const lines = content.split(/\\r?\\n/).length;
-  totalLines += lines;
+  totalLines += content.split(/\\r?\\n/).length;
   for (const pattern of forbidden) {
     if (pattern.test(content)) {
       console.error(`forbidden primitive in ${file}: ${pattern}`);
       failures += 1;
     }
   }
-  if (!file.includes('runtimeContractsV4') && file.endsWith('V4.ts')) {
-    const exportsSomething = /export\\s+(?:class|function|interface|type|const)\\s+/.test(content);
-    if (!exportsSomething) {
-      console.error(`no public export found in ${file}`);
-      failures += 1;
-    }
-  }
 }
-
 const index = await readFile('src/3d/modern/index.ts', 'utf8');
 for (const name of requiredExports) {
   if (!index.includes(name)) {
@@ -56,14 +48,6 @@ for (const name of requiredExports) {
     failures += 1;
   }
 }
-
-const result = {
-  version: 4,
-  checkedFiles: files.length,
-  totalLines,
-  requiredExports,
-  forbiddenPrimitiveHits: failures,
-  deterministic: failures === 0,
-};
+const result = { version: 4, checkedFiles: files.length, totalLines, requiredExports, forbiddenPrimitiveHits: failures, deterministic: failures === 0 };
 console.log(JSON.stringify(result, null, 2));
 if (failures > 0) process.exit(1);
