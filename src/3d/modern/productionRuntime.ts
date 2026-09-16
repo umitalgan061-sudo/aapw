@@ -1,5 +1,5 @@
-import type { CameraState, FrameId, QualityTier, UnixMillis } from './types';
-import { RuntimeKernel, type KernelFrameInput } from './runtimeKernel';
+import type { FrameId, QualityTier, UnixMillis } from './types';
+import { RuntimeKernel } from './runtimeKernel';
 import { RuntimeStateGraph } from './runtimeState';
 import { RuntimeSecurityBoundary } from './runtimeSecurity';
 import { RuntimeTransport, LoopbackTransport, type TransportAdapter } from './networkTransport';
@@ -42,26 +42,12 @@ interface RuntimeGraphState extends Record<string, unknown> {
   world: Record<string, unknown>;
 }
 
-const DEFAULT_STATE: RuntimeGraphState = {
-  frame: 0,
-  elapsedMs: 0,
-  quality: 'high',
-  backend: 'headless',
-  paused: false,
-  player: {},
-  world: {},
-};
+const DEFAULT_STATE: RuntimeGraphState = { frame: 0, elapsedMs: 0, quality: 'high', backend: 'headless', paused: false, player: {}, world: {} };
 
 function finiteDelta(value: number, fallback: number): number { return Number.isFinite(value) ? Math.max(0, Math.min(250, value)) : fallback; }
-function viewportCamera(camera: CameraState): CameraState { return Object.freeze(structuredClone(camera)); }
+function nowClock(now: () => UnixMillis) { return { now }; }
 
-/**
- * Production-level composition root for the browser game.
- *
- * The coordinator deliberately keeps all mutable cross-system state behind RuntimeStateGraph.
- * Kernel, persistence, telemetry, networking and security are replaceable services; the legacy
- * Three.js scene remains an adapter through RuntimeSceneAdapter.
- */
+/** Production composition root. Cross-system state is transactional and independently replaceable. */
 export class ProductionRuntime {
   readonly kernel: RuntimeKernel;
   readonly session: RuntimeSession;
@@ -73,28 +59,23 @@ export class ProductionRuntime {
   readonly network: RuntimeTransport<unknown> | null;
   #now: () => UnixMillis;
   #status: ProductionRuntimeState['lifecycle'] = 'created';
-  #scene?: RuntimeSceneAdapter;
-  #networkEnabled: boolean;
   #telemetryEnabled: boolean;
   #persistenceEnabled: boolean;
-  #startedAt: UnixMillis | null = null;
   #lastFrameAt: UnixMillis | null = null;
   #dispose: Array<() => void> = [];
 
   constructor(config: ProductionRuntimeConfig = {}, scene?: RuntimeSceneAdapter) {
     this.#now = config.now ?? (() => Date.now() as UnixMillis);
-    this.#scene = scene;
-    this.#networkEnabled = config.networking ?? false;
     this.#telemetryEnabled = config.telemetry ?? true;
     this.#persistenceEnabled = config.persistence ?? true;
     this.security = new RuntimeSecurityBoundary(config.security, this.#now);
     this.kernel = new RuntimeKernel({ seed: config.seed, fixedStepMs: config.fixedStepMs, maxEntities: config.maxEntities });
-    this.session = new RuntimeSession({ seed: config.seed, fixedStepMs: config.fixedStepMs, scene, nowClock(this.#now), telemetryCapacity: 3600 });
-    this.state = new RuntimeStateGraph<RuntimeGraphState>({ initial: DEFAULT_STATE, now: this.#now, maxHistory: config.maxStateHistory ?? 1200 });
+    this.session = new RuntimeSession({ seed: config.seed, fixedStepMs: config.fixedStepMs, scene, clock: nowClock(this.#now), telemetryCapacity: 3600 });
+    this.state = new RuntimeStateGraph<RuntimeGraphState>({ initial: structuredClone(DEFAULT_STATE), now: this.#now, maxHistory: config.maxStateHistory ?? 1200 });
     this.performance = new PerformanceLab({ now: this.#now });
     this.telemetry = new TelemetryStore({ now: this.#now, capacity: 7200, sampleRate: 1 });
     this.saves = new SaveCoordinator({ now: this.#now });
-    this.network = this.#networkEnabled ? new RuntimeTransport(config.transport ?? new LoopbackTransport(), { now: this.#now, security: this.security }) : null;
+    this.network = config.networking ? new RuntimeTransport(config.transport ?? new LoopbackTransport(), { now: this.#now, security: this.security }) : null;
     this.#wireEvents();
   }
 
@@ -109,9 +90,7 @@ export class ProductionRuntime {
         const connection = await this.network.connect();
         if (!connection.ok) this.security.sanitizeError(connection.error, 'network');
       }
-      const now = this.#now();
-      this.#startedAt = now;
-      this.#lastFrameAt = now;
+      this.#lastFrameAt = this.#now();
       this.#status = 'running';
       this.state.transaction({ source: 'system' }).set('backend', this.kernel.profile.preferredBackend).set('paused', false).commit();
       return true;
@@ -137,6 +116,7 @@ export class ProductionRuntime {
       this.kernel.start();
       this.session.start();
       this.#status = 'running';
+      this.#lastFrameAt = this.#now();
       this.state.transaction({ source: 'system', reason }).set('paused', false).commit();
       return true;
     } catch (error) {
@@ -149,8 +129,7 @@ export class ProductionRuntime {
   async stop(): Promise<void> {
     if (this.#status === 'stopped') return;
     this.#status = 'stopping';
-    if (this.#persistenceEnabled) await this.session.stop(true);
-    else await this.session.stop(false);
+    await this.session.stop(this.#persistenceEnabled);
     this.kernel.stop();
     await this.network?.close();
     this.#status = 'stopped';
@@ -160,45 +139,33 @@ export class ProductionRuntime {
   async frame(deltaMs = 1000 / 60): Promise<ProductionRuntimeState> {
     if (this.#status !== 'running' && !(await this.start())) throw new Error('Runtime is not running');
     const now = this.#now();
-    const delta = finiteDelta(deltaMs, this.#lastFrameAt === null ? 16.6667 : Number(now) - Number(this.#lastFrameAt));
+    const fallback = this.#lastFrameAt === null ? 1000 / 60 : Number(now) - Number(this.#lastFrameAt);
+    const delta = finiteDelta(deltaMs, fallback);
     this.#lastFrameAt = now;
     const session = await this.session.tick(delta);
     const frame = session.snapshot.frame;
     const quality = session.runtime.context.quality;
     const backend = session.runtime.packet.backend;
-    const graph = this.state.transaction({ source: 'engine', frame }).
-      set('frame', Number(frame)).
-      set('elapsedMs', Number(frame) * delta).
-      set('quality', quality).
-      set('backend', backend).
-      set('paused', false);
-    if (session.snapshot.player) graph.set('player', session.snapshot.player as unknown as Record<string, unknown>);
-    if (session.snapshot.world) graph.set('world', session.snapshot.world as unknown as Record<string, unknown>);
-    graph.commit();
-
+    const tx = this.state.transaction({ source: 'engine', frame });
+    tx.set('frame', Number(frame)).set('elapsedMs', Number(frame) * delta).set('quality', quality).set('backend', backend).set('paused', false);
+    tx.set('player', structuredClone(session.snapshot.player) as unknown as Record<string, unknown>);
+    tx.set('world', structuredClone(session.snapshot.world) as unknown as Record<string, unknown>);
+    tx.commit();
     if (this.#telemetryEnabled) {
       this.telemetry.record('frame', session.metrics.frameMs, frame);
       this.telemetry.record('simulation', session.metrics.simulationMs, frame);
       this.telemetry.record('presentation', session.metrics.presentationMs, frame);
       this.telemetry.record('pressure', session.metrics.pressure, frame);
     }
-    if (this.network) {
-      void this.network.send('runtime.frame', { frame, quality, backend, digest: session.snapshot.digest }, { priority: 1, reliable: false });
-    }
+    if (this.network) void this.network.send('runtime.frame', { frame, quality, backend, digest: session.snapshot.digest }, { priority: 1, reliable: false });
     return this.snapshot();
   }
 
   dispatchAction(action: { readonly type: string; readonly payload?: unknown; readonly source?: 'ui' | 'engine' | 'network' | 'replay' }): boolean {
     const inspected = this.security.inspectPayload(action, action.source === 'network' ? 'network' : 'input', 'runtime-action');
-    if (!inspected.ok) return false;
+    if (!inspected.ok || !action.type || action.type.length > 128) return false;
     try {
-      this.session.handleAction({
-        action: action.type,
-        value: typeof action.payload === 'number' ? action.payload : 0,
-        phase: 'value',
-        source: action.source ?? 'ui',
-        repeat: false,
-      });
+      this.session.handleAction({ action: action.type as never, value: typeof action.payload === 'number' ? action.payload : 0, phase: 'value', source: (action.source ?? 'ui') as never, repeat: false });
       return true;
     } catch (error) {
       this.security.sanitizeError(error, 'input');
@@ -207,44 +174,18 @@ export class ProductionRuntime {
   }
 
   snapshot(): ProductionRuntimeState {
-    return Object.freeze({
-      lifecycle: this.#status,
-      frame: this.state.frame,
-      quality: this.kernel.quality.tier,
-      backend: this.kernel.profile.preferredBackend,
-      network: this.network?.stats() ?? null,
-      performance: this.performance.summary(),
-      telemetry: this.telemetry.summary(),
-      stateDigest: this.state.version().checksum,
-    });
+    return Object.freeze({ lifecycle: this.#status, frame: this.state.frame, quality: this.kernel.quality.tier, backend: this.kernel.profile.preferredBackend, network: this.network?.stats() ?? null, performance: this.performance.summary(), telemetry: this.telemetry.summary(), stateDigest: this.state.version().checksum });
   }
 
   diagnostics(): Readonly<Record<string, unknown>> {
-    return Object.freeze({
-      status: this.snapshot(),
-      security: { findings: this.security.findings(), blocked: [...this.security.findings().filter((item) => item.severity === 'blocker').map((item) => item.code)] },
-      kernel: this.kernel.diagnosticsSnapshot(),
-      session: this.session.diagnostics(),
-      state: { revision: this.state.revision, history: this.state.history().length },
-      network: this.network?.stats() ?? null,
-    });
+    return Object.freeze({ status: this.snapshot(), security: { findings: this.security.findings() }, kernel: this.kernel.diagnosticsSnapshot(), session: this.session.diagnostics(), state: { revision: this.state.revision, history: this.state.history().length }, network: this.network?.stats() ?? null });
   }
 
   #wireEvents(): void {
-    const unsubscribeQuality = this.kernel.events.on('render:quality-changed', ({ next }) => {
-      this.state.transaction({ source: 'engine' }).set('quality', next).commit();
-    });
-    const unsubscribeFrame = this.kernel.events.on('runtime:frame', ({ frame }) => {
-      this.state.transaction({ source: 'engine', frame }).set('frame', Number(frame)).commit();
-    });
+    const unsubscribeQuality = this.kernel.events.on('render:quality-changed', ({ next }) => { this.state.transaction({ source: 'engine' }).set('quality', next).commit(); });
+    const unsubscribeFrame = this.kernel.events.on('runtime:frame', ({ frame }) => { this.state.transaction({ source: 'engine', frame }).set('frame', Number(frame)).commit(); });
     this.#dispose.push(unsubscribeQuality, unsubscribeFrame);
   }
 }
 
-function nowClock(now: () => UnixMillis) {
-  return { now, sleep: async (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)) };
-}
-
-export function createProductionRuntime(config: ProductionRuntimeConfig = {}, scene?: RuntimeSceneAdapter): ProductionRuntime {
-  return new ProductionRuntime(config, scene);
-}
+export function createProductionRuntime(config: ProductionRuntimeConfig = {}, scene?: RuntimeSceneAdapter): ProductionRuntime { return new ProductionRuntime(config, scene); }
