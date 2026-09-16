@@ -104,8 +104,8 @@ describe('asset loader edges', () => {
   it('retries transient failures and eventually succeeds', async () => {
     const loader = new AssetStreamingV3({ maxConcurrent: 1, maxQueue: 4, maxResidentBytes: 1000, perAssetBytes: 100 });
     let calls = 0;
-    const fetcher = async () => { calls += 1; if (calls < 2) return new Response('fail', { status: 503 }); return new Response('ok', { status: 200 }); };
-    loader.request({ id: 'retry', url: 'https://cdn.example/retry', kind: 'text' as never, priority: 'high', estimatedBytes: 2, retries: 2 });
+    const fetcher = async () => { calls += 1; if (calls < 2) return new Response('{"ok":false}', { status: 503 }); return new Response('{"ok":true}', { status: 200 }); };
+    loader.request({ id: 'retry', url: 'https://cdn.example/retry.json', kind: 'json', priority: 'high', estimatedBytes: 2, retries: 2 });
     await loader.pump(fetcher as typeof fetch);
     expect(loader.get('retry')?.state).toBe('queued');
     await loader.pump(fetcher as typeof fetch);
@@ -115,7 +115,7 @@ describe('asset loader edges', () => {
 
   it('cancels queued requests', () => {
     const loader = new AssetStreamingV3({ maxQueue: 4 });
-    loader.request({ id: 'cancel-me', url: 'https://cdn.example/x', kind: 'json', priority: 'low', estimatedBytes: 1 });
+    loader.request({ id: 'cancel-me', url: 'https://cdn.example/x.json', kind: 'json', priority: 'low', estimatedBytes: 1 });
     expect(loader.cancel('cancel-me')).toBe(true);
     expect(loader.get('cancel-me')?.state).toBe('cancelled');
   });
