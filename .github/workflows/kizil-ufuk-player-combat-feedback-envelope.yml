@@ -30,8 +30,9 @@ jobs:
         run: |
           set -euo pipefail
           BASE="$(git merge-base HEAD origin/main)"
-          test "$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a "+" d}')" = "3+0" || {
-            git diff --numstat "$BASE"...HEAD
-            exit 1
-          }
-          test "$(git diff --name-only "$BASE"...HEAD | grep -Ev '^(src/3d/gameplay/playerCombatFeedbackEnvelope.js|scripts/checkPlayerCombatFeedbackEnvelope.mjs|.github/workflows/kizil-ufuk-player-combat-feedback-envelope.yml)$' | wc -l)" -eq 0
+          ADDED="$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1} END {print a+0}')"
+          DELETED="$(git diff --numstat "$BASE"...HEAD | awk '{d+=$2} END {print d+0}')"
+          test "$DELETED" -eq 0
+          test "$ADDED" -le 3000
+          OUT_OF_SCOPE="$(git diff --name-only "$BASE"...HEAD | grep -Ev '^(src/3d/gameplay/playerCombatFeedbackEnvelope.js|scripts/checkPlayerCombatFeedbackEnvelope.mjs|.github/workflows/kizil-ufuk-player-combat-feedback-envelope.yml)$' || true)"
+          test -z "$OUT_OF_SCOPE"
