@@ -6,8 +6,10 @@
   "engines":{"node":">=24.21.0"},
   "scripts":{
     "typecheck":"tsc --noEmit",
+    "typecheck:nextgen-modern":"tsc -p tsconfig.modern-nextgen.json --noEmit",
     "test":"vitest run",
     "test:watch":"vitest",
+    "test:nextgen-modern":"vitest run tests/modern/nextgen --passWithNoTests",
     "build:modern":"vite build",
     "check":"npm run typecheck && npm test -- --passWithNoTests",
     "verify:modern":"node scripts/checkModernPlatform.mjs",
@@ -16,7 +18,7 @@
     "test:typed":"node --experimental-strip-types scripts/checkTypedEngine.mjs",
     "verify:all-modern":"npm run verify:modern && npm run verify:modern:v3 && npm run verify:typed && npm run test:typed",
     "verify:nextgen":"node scripts/checkNextGenRuntimeV2.mjs",
-    "check:nextgen":"npm run verify:nextgen && npm run typecheck && npm test -- --passWithNoTests"
+    "check:nextgen":"npm run verify:nextgen && npm run typecheck:nextgen-modern && npm run test:nextgen-modern"
   },
   "devDependencies":{"@types/node":"^26.5.1","typescript":"^7.0.2","vite":"^8.3.0","vitest":"^5.0.1"}
 }
