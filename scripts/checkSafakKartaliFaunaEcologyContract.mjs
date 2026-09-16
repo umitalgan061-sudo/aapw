@@ -82,7 +82,9 @@ for (const species of ['horse', 'wolf', 'bird']) {
   const profile = getSpeciesProfile(species);
   assert.ok(profile, `missing species profile: ${species}`);
   assert.equal(typeof profile.kind, 'string');
-  assert.equal(Number.isFinite(profile.maxGroupSize), false);
+  assert.equal(Number.isInteger(profile.groupMin), true);
+  assert.equal(Number.isInteger(profile.groupMax), true);
+  assert.ok(profile.groupMin >= 1 && profile.groupMin <= profile.groupMax);
   const evaluated = evaluateHabitat(species, context);
   assert.equal(evaluated.species, species);
 }
