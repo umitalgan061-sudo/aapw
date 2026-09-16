@@ -30,6 +30,7 @@ export class IntegrationRuntime implements Disposable {
   #frame = 0;
   #disposed = false;
   #lastTick = 0;
+  #lastFrame: IntegrationFrame | null = null;
 
   constructor(options: IntegrationOptions = {}) {
     this.#now = options.now ?? (() => typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -60,14 +61,16 @@ export class IntegrationRuntime implements Disposable {
     this.telemetry.sample({ name: 'integration.frame.ms', value: Number.isFinite(input.deltaSeconds) ? input.deltaSeconds * 1000 : 0, unit: 'ms', tick: this.#lastTick, frame: this.#frame, tags: {} });
     this.telemetry.sample({ name: 'integration.entities', value: this.worldState.stats().entities, unit: 'count', tick: this.#lastTick, frame: this.#frame, tags: {} });
     if (this.#lastTick > 0 && this.#lastTick % this.#autoSnapshotTicks === 0) this.captureSnapshot();
-    return Object.freeze({ tick: this.#lastTick, frame, commands: this.commands.stats(), ecs: this.ecs.stats(), worldState: this.worldState.stats(), performance: this.performance.stats(), telemetry: this.telemetry.stats() });
+    const output: IntegrationFrame = Object.freeze({ tick: this.#lastTick, frame, commands: this.commands.stats(), ecs: this.ecs.stats(), worldState: this.worldState.stats(), performance: this.performance.stats(), telemetry: this.telemetry.stats() });
+    this.#lastFrame = output;
+    return output;
   }
 
   enqueue<T>(command: CommandEnvelope<T>): boolean { return this.commands.enqueue(command).ok; }
   publish<T>(type: string, payload: T, tick = this.#lastTick): boolean { return this.events.publish(type, payload, tick); }
   addEntity(id: string, position: Vec3, tags: readonly string[] = []): EntityId | null {
-    const entity = this.engine.addEntity(id, position, tags);
-    if (!entity) return null;
+    const added = this.engine.addEntity(id, position, tags);
+    if (!added) return null;
     const typedId = ENTITY_ID(id);
     this.worldState.upsert({ id: typedId, revision: this.#lastTick + 1, owner: 'local', transform: { position: Object.freeze({ ...position }), rotation: Object.freeze({ x: 0, y: 0, z: 0, w: 1 }), scale: Object.freeze({ x: 1, y: 1, z: 1 }) }, flags: 0, metadata: Object.freeze({ tags: tags.join(',') }) });
     return typedId;
@@ -82,8 +85,7 @@ export class IntegrationRuntime implements Disposable {
   health(): ReturnType<TelemetryRuntime['health']> { return this.telemetry.health(); }
   snapshot(): IntegrationFrame | null { return this.#lastFrame; }
   stats(): IntegrationStats { return Object.freeze({ frames: this.#frame, snapshots: this.snapshots.stats().snapshots, events: this.events.stats().published, commands: this.commands.stats().executed, releases: this.release.history().length }); }
-  dispose(): void { if (this.#disposed) return; this.#disposed = true; this.release.dispose(); this.telemetry.dispose(); this.worldState.dispose(); this.performance.dispose(); this.snapshots.dispose(); this.commands.dispose(); this.events.dispose(); this.ecs.dispose(); this.engine.dispose(); }
-  #lastFrame: IntegrationFrame | null = null;
+  dispose(): void { if (this.#disposed) return; this.#disposed = true; this.release.dispose(); this.telemetry.dispose(); this.worldState.dispose(); this.performance.dispose(); this.snapshots.dispose(); this.commands.dispose(); this.events.dispose(); this.ecs.dispose(); this.engine.dispose(); this.#lastFrame = null; }
   #wireCommands(): void { this.commands.register({ type: 'engine.pause', priority: 100, handle: () => ({ ok: this.engine.pause(), value: undefined }) }); this.commands.register({ type: 'engine.resume', priority: 100, handle: () => ({ ok: this.engine.resume(), value: undefined }) }); }
 }
 
