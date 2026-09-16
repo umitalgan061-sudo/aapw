@@ -95,3 +95,6 @@ export * from './securityRuntimeV3';
 export * from './networkStateV3';
 export * from './observabilityV3';
 export * from './runtimeFacadeV3';
+export * from './inputIntentV3';
+export * from './renderProxyV3';
+export * from './runtimeOrchestrationV3';
