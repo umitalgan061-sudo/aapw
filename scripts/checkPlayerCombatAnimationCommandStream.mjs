@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import { createPlayerCombatAnimationCommandStream, playerCombatAnimationCommandsFromFrame } from '../src/3d/gameplay/playerCombatAnimationCommandStream.js';
+
+const emitted = [];
+const stream = createPlayerCombatAnimationCommandStream({ onCommands: (envelope) => emitted.push(envelope), maxHistory: 2 });
+const idle = stream.consume({ animation: { baseAction: 'idle', combatAction: 'none', baseWeight: 1, combatOverlayWeight: 0 }, phase: 'idle' });
+assert.equal(idle.commands.length, 0);
+const attack = stream.consume({ animation: { baseAction: 'run', combatAction: 'light-attack', baseWeight: 0.2, combatOverlayWeight: 0.9, timeScale: 1.2 }, phase: 'active' });
+assert.deepEqual(attack.commands.map((command) => command.channel), ['base', 'overlay', 'timeScale', 'phase']);
+assert.equal(attack.state.base, 'run');
+assert.equal(attack.state.overlay, 'light-attack');
+assert.equal(emitted.length, 1);
+const epsilon = stream.consume({ animation: { baseAction: 'run', combatAction: 'light-attack', baseWeight: 0.2005, combatOverlayWeight: 0.9004, timeScale: 1.2004 }, phase: 'active' });
+assert.equal(epsilon.commands.length, 0);
+const recovery = stream.consume({ animation: { baseAction: 'idle', combatAction: 'none', baseWeight: 1, combatOverlayWeight: 0 }, phase: 'recovery' });
+assert.ok(recovery.commands.length >= 3);
+assert.equal(stream.snapshot().history.length, 2);
+const beforeResetRevision = stream.snapshot().revision;
+assert.equal(stream.reset(), true);
+assert.ok(stream.snapshot().revision > beforeResetRevision);
+const direct = playerCombatAnimationCommandsFromFrame({ animation: { baseAction: 'guard', combatAction: 'none', baseWeight: 0.8, combatOverlayWeight: 0.2 }, phase: 'defense' });
+assert.deepEqual(direct.commands.map((command) => command.channel), ['base', 'overlay', 'phase']);
+assert.equal(stream.dispose(), true);
+assert.equal(stream.consume({ animation: { baseAction: 'dodge', combatAction: 'none', baseWeight: 1 }, phase: 'dodge' }).commands.length, 0);
+console.log('[checkPlayerCombatAnimationCommandStream] PASS deterministic minimal mixer command envelopes, epsilon coalescing, bounded history, reset and disposal');
