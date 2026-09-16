@@ -13,7 +13,7 @@ import { createInputCommandBuffer } from './inputCommandBuffer.js';
 import { createRuntimeTelemetryHub } from './runtimeTelemetryHub.js';
 import { createRuntimeHealthMonitor } from './runtimeHealthMonitor.js';
 import { createVersionedPersistenceLedger, createLocalStorageAdapter } from './versionedPersistenceLedger.js';
-import { probePlatformCapabilities, classifyPlatformProfile, capabilityWarnings, probeStorageAvailability } from './platformCapabilityProbe.js';
+import { probePlatformCapabilities, classifyPlatformProfile, capabilityWarnings } from './platformCapabilityProbe.js';
 import { clamp, finiteOr, integerOr, createRuntimeSnapshot, createRuntimeId, createDisposer, resolveLogger } from './modernRuntimeContract.js';
 
 function defaultNow() {
@@ -96,7 +96,8 @@ export async function createModernRuntime(options = {}) {
     const deltaMs = clamp(rawDelta, 0, 250);
     frameIndex += 1;
 
-    const plan = scheduler.frame(deltaMs, {
+    let framePlan = null;
+    framePlan = scheduler.frame(deltaMs, {
       simulate(context) {
         input.setTick(context.tick);
         const commands = input.drainUntil(context.tick);
@@ -109,10 +110,10 @@ export async function createModernRuntime(options = {}) {
       present(context) {
         const healthSample = health.sample({
           deltaMs,
-          simulationMs: appHooks.lastSimulationMs || 0,
-          presentationMs: appHooks.lastPresentationMs || 0,
+          simulationMs: finiteOr(appHooks.lastSimulationMs, 0),
+          presentationMs: finiteOr(appHooks.lastPresentationMs, 0),
           timestampMs: now,
-          dropped: plan?.spiralGuard,
+          dropped: Boolean(framePlan?.spiralGuard),
         });
         const qualitySample = sampleQuality(deltaMs, now);
         const qualityPlan = quality.getPlan({ activeZones: appHooks.activeZones?.() || 0, visibility });
@@ -121,18 +122,35 @@ export async function createModernRuntime(options = {}) {
           phase: visibility === 'visible' ? 'present' : 'throttle',
           visibility,
           timestampMs: now,
-          frame: { deltaMs, fps: deltaMs > 0 ? 1000 / deltaMs : 0, cpuMs: appHooks.lastSimulationMs || 0, gpuMs: appHooks.lastPresentationMs || 0, dropped: plan?.spiralGuard },
-          world: { tick: context.tick, entityCount: appHooks.entityCount?.() || 0, activeZones: appHooks.activeZones?.() || 0 },
+          frame: {
+            deltaMs,
+            fps: deltaMs > 0 ? 1000 / deltaMs : 0,
+            cpuMs: finiteOr(appHooks.lastSimulationMs, 0),
+            gpuMs: finiteOr(appHooks.lastPresentationMs, 0),
+            dropped: Boolean(framePlan?.spiralGuard),
+          },
+          world: {
+            tick: context.tick,
+            entityCount: appHooks.entityCount?.() || 0,
+            activeZones: appHooks.activeZones?.() || 0,
+          },
           quality: { tier: qualityPlan.tier, scale: qualityPlan.scale, locked: quality.locked },
           flags: { platformProfile, frameIndex },
         });
         lastSnapshot = snapshot;
-        telemetry.frame({ timestampMs: now, deltaMs, fps: deltaMs > 0 ? 1000 / deltaMs : 0, cpuMs: appHooks.lastSimulationMs || 0, gpuMs: appHooks.lastPresentationMs || 0, dropped: plan?.spiralGuard });
+        telemetry.frame({
+          timestampMs: now,
+          deltaMs,
+          fps: deltaMs > 0 ? 1000 / deltaMs : 0,
+          cpuMs: finiteOr(appHooks.lastSimulationMs, 0),
+          gpuMs: finiteOr(appHooks.lastPresentationMs, 0),
+          dropped: Boolean(framePlan?.spiralGuard),
+        });
         appHooks.present?.(context, snapshot, qualityPlan, healthSample, qualitySample);
       },
     });
 
-    appHooks.frame?.(plan, lastSnapshot);
+    appHooks.frame?.(framePlan, lastSnapshot);
     frameHandle = defaultFrame(runFrame);
   }
 
@@ -244,7 +262,7 @@ export async function createModernRuntime(options = {}) {
   }
 
   function shutdown() {
-    stop();
+    void stop();
     try { disposer.dispose(); } catch (error) { telemetry.error(error, { operation: 'shutdown' }); }
     appHooks = {};
     input.clear();
