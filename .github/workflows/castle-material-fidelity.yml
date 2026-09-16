@@ -1,0 +1,125 @@
+name: Castle Material Fidelity Exact Head
+
+on:
+  push:
+    branches:
+      - codex/castle-authored-material-fidelity-20260901
+    paths:
+      - 'src/3d/world/settlements.js'
+      - 'src/3d/world/castleMaterialFidelity.js'
+      - 'scripts/checkCastleMaterialFidelity.mjs'
+      - 'scripts/checkCastleAuthoredPbrBrowser.js'
+      - 'scripts/checkValyriaCastleWeathering.mjs'
+      - 'scripts/castleMaterialFidelityHarness.html'
+      - 'service-worker.js'
+      - '.github/workflows/castle-material-fidelity.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/settlements.js'
+      - 'src/3d/world/castleMaterialFidelity.js'
+      - 'scripts/checkCastleMaterialFidelity.mjs'
+      - 'scripts/checkCastleAuthoredPbrBrowser.js'
+      - 'scripts/checkValyriaCastleWeathering.mjs'
+      - 'scripts/castleMaterialFidelityHarness.html'
+      - 'service-worker.js'
+      - '.github/workflows/castle-material-fidelity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  castle-material-fidelity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main bounded scope and quota
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          MAIN_SHA="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base origin/main HEAD)"
+          test "$MERGE_BASE" = "$MAIN_SHA"
+          mapfile -t CHANGED < <(git diff --name-only "$MAIN_SHA"...HEAD)
+          for path in "${CHANGED[@]}"; do
+            case "$path" in
+              src/3d/world/settlements.js|src/3d/world/castleMaterialFidelity.js|scripts/checkCastleMaterialFidelity.mjs|scripts/checkCastleAuthoredPbrBrowser.js|scripts/checkValyriaCastleWeathering.mjs|scripts/castleMaterialFidelityHarness.html|service-worker.js|.github/workflows/castle-material-fidelity.yml) ;;
+              *) echo "Unexpected path in castle material slice: $path" >&2; exit 1 ;;
+            esac
+          done
+          read -r ADDS DELS < <(git diff --numstat "$MAIN_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          TOTAL=$((ADDS + DELS))
+          echo "castle material scope: +${ADDS}/-${DELS} = ${TOTAL}/1000"
+          test "$TOTAL" -le 1000
+
+      - name: Syntax and vendored Three.js
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/castleMaterialFidelity.js
+          node --check src/3d/world/settlements.js
+          node --check scripts/checkCastleMaterialFidelity.mjs
+          node --check scripts/checkCastleAuthoredPbrBrowser.js
+          node --check scripts/checkValyriaCastleWeathering.mjs
+          node scripts/setupNodeThreeShim.mjs
+
+      - name: Castle material unit contract
+        run: node scripts/checkCastleMaterialFidelity.mjs
+
+      - name: Shared material and existing Valyria contracts
+        run: |
+          set -euo pipefail
+          node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkValyriaCastleWeathering.mjs
+
+      - name: Hydrate only castle assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/settlements/castles/**" --exclude=""
+          if grep -Il '^version https://git-lfs.github.com/spec/v1' assets/models/settlements/castles/*; then
+            echo 'One or more required castle assets remain LFS pointers.' >&2
+            exit 1
+          fi
+
+      - name: Install Chromium outside repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Real GLB authored-PBR browser proof
+        run: node scripts/checkCastleAuthoredPbrBrowser.js
+
+      - name: Upload rendered gatehouse evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: castle-material-fidelity-${{ github.run_id }}
+          path: artifacts/castle-material-fidelity/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          test "$(git merge-base origin/main HEAD)" = "$(git rev-parse origin/main)"
+          git diff --check
