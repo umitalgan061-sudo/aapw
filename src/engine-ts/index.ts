@@ -12,6 +12,14 @@ export * from './telemetry.js';
 export * from './config.js';
 export * from './capabilities.js';
 export * from './commandBuffer.js';
+export * from './memory.js';
+export * from './graph.js';
+export * from './validation.js';
+export * from './snapshot.js';
+export * from './migration.js';
+export * from './clock.js';
+export * from './workerBridge.js';
+export * from './replay.js';
 
 import { RuntimeKernel } from './runtime.js';
 import { TelemetryRegistry } from './telemetry.js';
