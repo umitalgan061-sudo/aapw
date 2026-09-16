@@ -16,7 +16,8 @@
     "test:typed":"node --experimental-strip-types scripts/checkTypedEngine.mjs",
     "verify:all-modern":"npm run verify:modern && npm run verify:modern:v3 && npm run verify:typed && npm run test:typed",
     "verify:nextgen":"node scripts/checkNextGenRuntimeV2.mjs",
-    "check:nextgen":"npm run verify:nextgen && npm run typecheck && npm test -- --passWithNoTests"
+    "check:nextgen":"npm run verify:nextgen && npm run typecheck && npm test -- --passWithNoTests",
+    "verify:modern:v2":"node scripts/checkModernRuntimeIntegrationV2.mjs"
   },
   "devDependencies":{"@types/node":"^26.5.1","typescript":"^7.0.2","vite":"^8.3.0","vitest":"^5.0.1"}
 }
