@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { createPlayerCombatPresentationEnvelope } from '../src/3d/gameplay/playerCombatPresentationEnvelope.js';
+
+const envelope = createPlayerCombatPresentationEnvelope();
+assert.equal(envelope.emit({ state: 'idle' }).cue, null);
+assert.equal(envelope.emit({ state: 'attack', attackIntensity: 2 }).cue.type, 'combat-attack');
+assert.equal(envelope.emit({ state: 'attack', confirmedHit: true, hitIntensity: 0.4 }).cue.type, 'combat-hit-confirm');
+assert.equal(envelope.emit({ state: 'guard' }).cue.type, 'combat-guard');
+assert.equal(envelope.emit({ state: 'parry' }).cue.type, 'combat-parry');
+assert.equal(envelope.emit({ state: 'dodge' }).cue.type, 'combat-dodge');
+assert.equal(envelope.emit({ state: 'stagger' }).cue.type, 'combat-stagger');
+assert.equal(envelope.emit({ state: 'defeated', defeated: true }).cue.type, 'combat-defeat');
+assert.equal(envelope.emit({ state: 'defeated', defeated: true }).cue, null);
+const first = createPlayerCombatPresentationEnvelope();
+const second = createPlayerCombatPresentationEnvelope();
+const sequence = [{ state: 'locomotion' }, { state: 'attack' }, { state: 'guard' }, { state: 'idle' }];
+assert.deepEqual(sequence.map((state) => first.emit(state)), sequence.map((state) => second.emit(state)));
+envelope.dispose();
+assert.throws(() => envelope.emit({ state: 'idle' }), /disposed/);
+console.log('PLAYER_COMBAT_PRESENTATION_ENVELOPE_PASS');
