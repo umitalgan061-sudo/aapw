@@ -23,22 +23,12 @@ export interface V3MigrationPolicy {
   readonly forbidCriticalJsAtStage: V3MigrationStage;
 }
 
-export const DEFAULT_V3_MIGRATION_POLICY: V3MigrationPolicy = Object.freeze({
-  minimumCoverage: 0.85,
-  minimumParity: 0.9,
-  minimumRecovery: 0.8,
-  allowJsForNonCritical: true,
-  forbidCriticalJsAtStage: 'native',
-});
-
+export const DEFAULT_V3_MIGRATION_POLICY: V3MigrationPolicy = Object.freeze({ minimumCoverage: 0.85, minimumParity: 0.9, minimumRecovery: 0.8, allowJsForNonCritical: true, forbidCriticalJsAtStage: 'native' });
 const stageRank: Record<V3MigrationStage, number> = Object.freeze({ observe: 0, bridge: 1, typed: 2, native: 3 });
 const riskRank: Record<RiskClass, number> = Object.freeze({ low: 0, medium: 1, high: 2, critical: 3 });
 
 export function classifyStage(module: Pick<V3ModuleRecord, 'extension' | 'runtimeCritical' | 'typedImports' | 'unsafeImports' | 'testCoverage' | 'parityEvidence' | 'recoveryEvidence'>): V3MigrationStage {
-  if (module.extension === '.js') {
-    if (module.runtimeCritical) return module.typedImports > 0 ? 'bridge' : 'observe';
-    return 'observe';
-  }
+  if (module.extension === '.js') return module.runtimeCritical && module.typedImports > 0 ? 'bridge' : 'observe';
   if (module.unsafeImports > 0 || module.testCoverage < 0.5) return 'typed';
   if (module.parityEvidence < 0.9 || module.recoveryEvidence < 0.8) return 'typed';
   return 'native';
@@ -73,20 +63,18 @@ export function evaluateV3Migration(modules: readonly V3ModuleRecord[], policy: 
     const derived = classifyStage(module);
     if (derived === 'native') migratedModules += 1;
     if (derived === 'bridge') bridgeModules += 1;
-    if (!canPromote(module, derived, policy)) {
-      blockedModules += 1;
-      errors.push(`${module.path}: promotion blocked at ${derived}`);
-    }
+    if (!canPromote(module, derived, policy)) { blockedModules += 1; errors.push(`${module.path}: promotion blocked at ${derived}`); }
     if (module.extension === '.js' && module.runtimeCritical) warnings.push(`${module.path}: critical JS remains behind an adapter`);
     if (riskRank[module.risk] >= riskRank.high) warnings.push(`${module.path}: risk=${module.risk}`);
   }
   return Object.freeze({ passed: errors.length === 0 && blockedModules === 0, migratedModules, bridgeModules, blockedModules, errors: Object.freeze(errors), warnings: Object.freeze(warnings) });
 }
 
+const toPlatformStage = (stage: V3MigrationStage): MigrationStage => stage === 'typed' ? 'typecheck' : stage;
+
 export function toPlatformRecord(module: V3ModuleRecord): ModuleMigrationRecord {
   const language: ModuleMigrationRecord['language'] = module.extension === '.ts' ? 'typescript' : 'javascript';
-  const stage: MigrationStage = module.stage;
-  return Object.freeze({ path: module.path, language, stage, risk: module.risk, runtimeCritical: module.runtimeCritical, hasExternalSideEffects: module.sideEffects, testCoverage: module.testCoverage, dependencyCount: module.typedImports + module.unsafeImports, blockers: Object.freeze(module.unsafeImports > 0 ? ['unsafe-imports'] : []) });
+  return Object.freeze({ path: module.path, language, stage: toPlatformStage(module.stage), risk: module.risk, runtimeCritical: module.runtimeCritical, hasExternalSideEffects: module.sideEffects, testCoverage: module.testCoverage, dependencyCount: module.typedImports + module.unsafeImports, blockers: Object.freeze(module.unsafeImports > 0 ? ['unsafe-imports'] : []) });
 }
 
 export function buildDefaultV3Inventory(): readonly V3ModuleRecord[] {
