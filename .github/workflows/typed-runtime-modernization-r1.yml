@@ -1,14 +1,24 @@
 name: typed-runtime-modernization-r1
 
 on:
-  push:
-    branches:
-      - agent/typed-runtime-modernization-r1-20260916
+  pull_request:
+    types: [opened, synchronize, reopened]
     paths:
       - 'src/engine-ts/**'
       - 'src/3d/modern/typedMigrationV5.ts'
       - 'scripts/generateTypedRuntimeMatrixR1.mjs'
       - 'scripts/checkTypedRuntimeModernization.mjs'
+      - 'scripts/checkTypedRuntimeBehavior.mjs'
+      - 'package.json'
+  push:
+    branches:
+      - agent/typed-runtime-modernization-r2-20260916
+    paths:
+      - 'src/engine-ts/**'
+      - 'src/3d/modern/typedMigrationV5.ts'
+      - 'scripts/generateTypedRuntimeMatrixR1.mjs'
+      - 'scripts/checkTypedRuntimeModernization.mjs'
+      - 'scripts/checkTypedRuntimeBehavior.mjs'
       - 'package.json'
   workflow_dispatch:
 
@@ -28,6 +38,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Node 24
         uses: actions/setup-node@v5
@@ -58,6 +69,7 @@ jobs:
           diff -u /tmp/runtime-compatibility.matrix.before artifacts/typed-runtime-r1/runtime-compatibility.matrix
 
       - name: Materialize generated matrix
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
         shell: bash
         run: |
           git config user.name 'aapw-automation'
@@ -67,5 +79,5 @@ jobs:
             echo 'No generated matrix changes.'
           else
             git commit -m 'ci(typed-runtime): materialize compatibility matrix [skip ci]'
-            git push
+            git push origin HEAD:${{ github.head_ref || github.ref_name }}
           fi
