@@ -1,0 +1,51 @@
+name: modern-nextgen-runtime
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/nextgen/**'
+      - 'scripts/checkNextGenRuntimeV2.mjs'
+      - 'package.json'
+      - '.github/workflows/modern-nextgen-runtime.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/modern/nextgen/**'
+      - 'scripts/checkNextGenRuntimeV2.mjs'
+      - 'package.json'
+      - '.github/workflows/modern-nextgen-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modern-nextgen-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - name: Install production toolchain
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Structural NextGen V2 verification
+        run: npm run verify:nextgen
+      - name: Full strict typecheck
+        run: npm run typecheck
+      - name: Full test suite
+        run: npm test -- --passWithNoTests
+      - name: Production build
+        run: npm run build:modern
+      - name: Determinism and unsafe-primitive guard
+        run: |
+          set -eu
+          if grep -R -nE '\beval\s*\(|\bnew Function\s*\(|\bMath\.random\s*\(|\bDate\.now\s*\(' src/3d/modern/nextgen; then
+            echo 'Unsafe or ambient nondeterminism found in modern NextGen runtime.'
+            exit 1
+          fi
