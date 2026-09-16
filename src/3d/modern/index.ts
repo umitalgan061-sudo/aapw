@@ -2,6 +2,7 @@ export { AdaptiveQualityController, FramePacingMonitor } from './adaptiveQuality
 export { AssetPipeline, createIdentityStage, createMapStage, decodeResponseBytes } from './assetPipeline';
 export { AssetRegistry, createFetchArrayBufferLoader, createFetchJsonLoader, createFetchTextLoader } from './assetRegistry';
 export { BrowserPlatformAdapter, GraphicsLifecycleGuard, ResizePolicy } from './browserPlatform';
+export { CameraFramePolicy, CameraShakeMixer, ExposureController, frameSphere, damp } from './cameraFramePolicy';
 export { ContentAddressedCache, compressBytes, decompressBytes } from './contentCache';
 export { DeterministicSimulation, InputTimeline } from './deterministicSimulation';
 export { EntityQueryPlanner, schedulePriorities, stableBatch } from './entityQueryPlanner';
@@ -31,4 +32,7 @@ export { WorkerBridge, WorkerPortTransport, InlineWorkerTransport } from './work
 export { ModernGameRuntime, detectDeviceCapabilities } from './runtime';
 export { LegacyRuntimeBridge, DEFAULT_MIGRATION_FLAGS, describeMigration, detectBrowserFeatures, safeCanvasResize, safeDevicePixelRatio } from './compatibility';
 export { createRuntimeHealthCollector, createLifecycleGuard, assertFiniteVector, sanitizeDeltaMs } from './integrationContract';
+export { runAcceptance } from './modernAcceptance';
+export { runContractMatrix } from './modernContractMatrix';
+export { runStressMatrix } from './modernStressMatrix';
 export * from './types';
