@@ -74,14 +74,19 @@ export class NextGenRuntimeV3 {
     const entity = this.world.createEntity();
     const predictor = new PlayerPredictor(initial, { fixedDeltaSeconds: this.config.fixedDeltaSeconds });
     this.#predictors.set(entity, predictor);
-    this.world.setTransform(entity as never, { position: predictor.state.position, rotation: { x: 0, y: predictor.state.yaw, z: 0 }, scale: { x: 1, y: 1, z: 1 } });
-    this.world.setVelocity(entity as never, { linear: predictor.state.velocity, angular: { x: 0, y: 0, z: 0 } });
+    this.world.setTransform(entity, { position: predictor.state.position, rotation: { x: 0, y: predictor.state.yaw, z: 0 }, scale: { x: 1, y: 1, z: 1 } });
+    this.world.setVelocity(entity, { linear: predictor.state.velocity, angular: { x: 0, y: 0, z: 0 } });
     const combatId = entity as unknown as CombatantId;
     this.combat.spawn(combatId, predictor.state.position, createCombatStats());
     return entity;
   }
 
+  getPlayerState(entityId: number): PlayerState | null {
+    return this.#predictors.get(entityId)?.state ?? null;
+  }
+
   createAi(entityId: number): AiBrain {
+    if (!this.world.hasEntity(entityId as never)) throw new Error(`cannot attach AI to unknown entity ${entityId}`);
     const brain = new AiBrain();
     this.#brains.set(entityId, brain);
     return brain;
