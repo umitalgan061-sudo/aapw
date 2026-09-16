@@ -36,8 +36,8 @@ export class MotionStateMachine {
   #state: MotionState = 'idle';
   #entity?: EntityId;
 
-  constructor(entity?: EntityId | string) {
-    this.#entity = entity as EntityId | undefined;
+  constructor(entity?: EntityId) {
+    this.#entity = entity;
   }
 
   step(input: MotionInput): MotionTransition | null {

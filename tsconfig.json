@@ -18,8 +18,9 @@
     "checkJs": false,
     "skipLibCheck": true,
     "types": ["node"],
+    "baseUrl": ".",
     "paths": {
-      "@aapw/*": ["./src/*"]
+      "@aapw/*": ["src/*"]
     },
     "noEmit": true
   },
