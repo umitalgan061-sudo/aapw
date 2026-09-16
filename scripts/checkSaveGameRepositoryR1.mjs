@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import {canonicalStringify,checksumString,createMemorySaveStorage,createSaveEnvelope,createSaveRepository,deleteStorageSlot,listStorageSlots,loadFromStorage,migrateSaveEnvelope,saveToStorage,validateSaveEnvelope} from '../src/3d/persistence/saveGameRepository.js';
+const s=createMemorySaveStorage();
+assert.equal(canonicalStringify({z:1,a:{y:2,x:3}}),canonicalStringify({a:{x:3,y:2},z:1}));
+assert.equal(checksumString('abc'),checksumString('abc'));
+const e=createSaveEnvelope({slot:'Primary Save',namespace:'world',timestampMs:123,snapshot:{player:{hp:80}},metadata:{seed:42}});
+assert.equal(e.slot,'primary-save');assert.equal(e.version,3);assert.equal(validateSaveEnvelope(e,{namespace:'world',expectedSlot:'primary-save',nowMs:123}).valid,true);
+assert.equal(validateSaveEnvelope({...e,payload:{player:{hp:1}}},{namespace:'world',nowMs:123}).reason,'CHECKSUM');
+assert.equal(validateSaveEnvelope(e,{namespace:'other',nowMs:123}).reason,'NAMESPACE');
+const snap={player:{x:10,z:-20,hp:90},world:{day:4},inventory:['iron','wood']};
+assert.equal(saveToStorage({storage:s,namespace:'aapw',slot:'slot-a',snapshot:snap,timestampMs:1000}).ok,true);
+assert.deepEqual(loadFromStorage({storage:s,namespace:'aapw',slot:'slot-a',nowMs:1000}).snapshot,snap);
+assert.equal(listStorageSlots({storage:s,namespace:'aapw',nowMs:1000})[0].valid,true);
+assert.equal(loadFromStorage({storage:s,namespace:'aapw',slot:'slot-a',nowMs:2000,maxAgeMs:100}).reason,'STALE');
+assert.equal(deleteStorageSlot({storage:s,namespace:'aapw',slot:'slot-a'}).ok,true);
+const legacy={schema:'aapw.save',version:2,namespace:'old',slot:'slot',payload:{player:{hp:50}},metadata:{old:true}};
+const m=migrateSaveEnvelope(legacy,{namespace:'old',nowMs:20});assert.equal(m.ok,true);assert.equal(m.envelope.version,3);
+const r=createSaveRepository({storage:s,namespace:'facade',now:()=>77});assert.equal(r.save('auto',{location:{x:1}}).ok,true);assert.equal(r.load('auto').ok,true);r.dispose();assert.throws(()=>r.list(),/SAVE_REPOSITORY_DISPOSED/);
+console.log('Save game repository R1 acceptance passed.');
