@@ -81,9 +81,10 @@ assert.ok(blocked.reasons.includes('water-depth'));
 for (const species of ['horse', 'wolf', 'bird']) {
   const profile = getSpeciesProfile(species);
   assert.ok(profile, `missing species profile: ${species}`);
-  assert.equal(typeof profile.id, 'string');
-  assert.equal(Number.isFinite(profile.maxGroupSize), true);
-  assert.ok(profile.maxGroupSize >= 1);
+  assert.equal(typeof profile.kind, 'string');
+  assert.equal(Number.isFinite(profile.maxGroupSize), false);
+  const evaluated = evaluateHabitat(species, context);
+  assert.equal(evaluated.species, species);
 }
 const activityA = chooseEcologyActivity('wolf', context, 'safak-kartali-fauna-contract', context.clockSeconds);
 const activityB = chooseEcologyActivity('wolf', context, 'safak-kartali-fauna-contract', context.clockSeconds);
