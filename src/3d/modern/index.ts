@@ -81,3 +81,4 @@ export * from './runtimeLifecycleController';
 export * from './legacyStateBridge';
 export * from './runtimeFacadeAdapter';
 export * from './productionBridge';
+export * from './cacheCoordinator';
