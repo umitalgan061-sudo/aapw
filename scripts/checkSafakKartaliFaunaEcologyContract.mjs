@@ -68,6 +68,8 @@ assert.equal(LIVING_WORLD_ECOLOGY_POLICY.deterministic, true);
 
 const safe = evaluateHabitat('wolf', context);
 assert.equal(safe.accepted, true, `canonical habitat must be safe: ${JSON.stringify(safe)}`);
+assert.equal(Number.isFinite(safe.score), true);
+assert.ok(safe.score >= 0 && safe.score <= 1);
 
 const blocked = evaluateHabitat('wolf', normalizeEcologyContext({
   ...context,
@@ -76,7 +78,13 @@ const blocked = evaluateHabitat('wolf', normalizeEcologyContext({
 assert.equal(blocked.accepted, false);
 assert.ok(blocked.reasons.includes('water-depth'));
 
-for (const species of ['horse', 'wolf', 'bird']) assert.ok(getSpeciesProfile(species));
+for (const species of ['horse', 'wolf', 'bird']) {
+  const profile = getSpeciesProfile(species);
+  assert.ok(profile, `missing species profile: ${species}`);
+  assert.equal(typeof profile.id, 'string');
+  assert.equal(Number.isFinite(profile.maxGroupSize), true);
+  assert.ok(profile.maxGroupSize >= 1);
+}
 const activityA = chooseEcologyActivity('wolf', context, 'safak-kartali-fauna-contract', context.clockSeconds);
 const activityB = chooseEcologyActivity('wolf', context, 'safak-kartali-fauna-contract', context.clockSeconds);
 assert.equal(activityA, activityB);
@@ -97,6 +105,8 @@ assert.equal(firstDigest, secondDigest);
 
 const malformed = evaluateHabitat('not-a-real-species', context);
 assert.equal(malformed.accepted, false);
+assert.ok(Array.isArray(malformed.reasons));
+assert.ok(malformed.reasons.length > 0);
 
 console.log(JSON.stringify({
   contract: 'safak-kartali-fauna-ecology',
