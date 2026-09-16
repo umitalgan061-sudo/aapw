@@ -99,6 +99,7 @@ export * from './inputIntentV3';
 export * from './renderProxyV3';
 export * from './runtimeOrchestrationV3';
 export * from './runtimeManifestV3';
+export * as nextgen from './nextgen/index.ts';
 export * from './runtimeContractsV4';
 export * from './commandBusV4';
 export * from './schedulerV4';
