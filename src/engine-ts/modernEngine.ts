@@ -1,6 +1,6 @@
 import type { Disposable, FrameContext, Result, Tick } from './coreTypes.ts';
 import { SIM_TIME_MS, TICK, clamp, err, ok } from './coreTypes.ts';
-import { DeterministicScheduler, FixedStepClock, RuntimeMetrics, TypedEventBus } from './runtimeContracts.ts';
+import { DeterministicScheduler, FixedStepClock, RuntimeMetrics, TypedEventBus, type SchedulerBudgetReport } from './runtimeContracts.ts';
 import { InputMapper } from './input.ts';
 import { AssetRegistry, AssetStreamDirector, ResidencyController } from './assets.ts';
 import { buildRenderPolicy, detectCapabilities, type RenderPolicy, type RenderQuality } from './renderBridge.ts';
@@ -29,13 +29,11 @@ export interface EngineFrameReport {
   readonly tick: Tick;
   readonly simulationTimeMs: number;
   readonly renderPolicy: RenderPolicy;
-  readonly scheduler: ReturnType<DeterministicScheduler['runFrame']>;
+  readonly scheduler: SchedulerBudgetReport;
   readonly assetsResident: number;
   readonly assetsResidentBytes: number;
   readonly worldEntities: number;
 }
-
-const browserStorage = (): StorageLike | undefined => typeof localStorage !== 'undefined' ? localStorage : undefined;
 
 export class ModernEngine implements Disposable {
   readonly events = new TypedEventBus();
@@ -53,6 +51,7 @@ export class ModernEngine implements Disposable {
   private initialized = false;
   private disposed = false;
   private lastFrameMs = 0;
+  private lastSchedulerReport: SchedulerBudgetReport = Object.freeze({ frameId: 0, budgetMs: 16.6, spentMs: 0, remainingMs: 16.6, executedTasks: 0, deferredTasks: 0, phaseSpans: Object.freeze({ input: 0, simulation: 0, ai: 0, streaming: 0, animation: 0, presentation: 0, render: 0, post: 0 }) });
 
   constructor(options: ModernEngineOptions = {}) {
     this.world = new WorldState(options.seed ?? 'aapw-modern-2026', this.events);
@@ -77,7 +76,9 @@ export class ModernEngine implements Disposable {
     if (this.disposed) throw new Error('engine disposed');
     if (!this.initialized) this.initialize(now);
     const inputFrame = this.input.advanceFrame(now);
+    let schedulerReport = this.lastSchedulerReport;
     const clockSnapshot = this.clock.advance(now, (deltaSeconds, tick) => {
+      this.frameIdValue += 1;
       const context: FrameContext = Object.freeze({
         tick,
         simulationTimeMs: SIM_TIME_MS(this.world.time.day * 86_400_000 + this.world.time.minuteOfDay * 60_000),
@@ -88,17 +89,16 @@ export class ModernEngine implements Disposable {
         deadlineMs: now + 16.6,
       });
       this.events.emit('runtime/frame-begin', { context });
-      this.scheduler.runFrame(context);
+      schedulerReport = this.scheduler.runFrame(context);
+      this.lastSchedulerReport = schedulerReport;
       this.events.emit('runtime/frame-end', { context, elapsedMs: deltaSeconds * 1000 });
     });
-    this.frameIdValue += 1;
-    const context: FrameContext = Object.freeze({ tick: clockSnapshot.tick, simulationTimeMs: clockSnapshot.simulationTimeMs, deltaSeconds: clockSnapshot.deltaSeconds, interpolationAlpha: clamp(clockSnapshot.accumulatorMs / (clockSnapshot.deltaSeconds * 1000), 0, 1), frameId: this.frameIdValue, budgetMs: 16.6, deadlineMs: now + 16.6 });
-    const scheduler = this.scheduler.runFrame(context);
+    if (clockSnapshot.tick === 0) this.frameIdValue += 1;
     this.metrics.increment('engine.frames', 1, clockSnapshot.tick);
     this.metrics.set('engine.input.actions', inputFrame.actions.size, clockSnapshot.tick);
     const usage = new ResidencyController(this.assets).usage();
     this.lastFrameMs = now;
-    return Object.freeze({ frameId: this.frameIdValue, tick: clockSnapshot.tick, simulationTimeMs: clockSnapshot.simulationTimeMs, renderPolicy: this.renderPolicy, scheduler, assetsResident: usage.assets, assetsResidentBytes: usage.bytes, worldEntities: this.world.entities.length });
+    return Object.freeze({ frameId: this.frameIdValue, tick: clockSnapshot.tick, simulationTimeMs: clockSnapshot.simulationTimeMs, renderPolicy: this.renderPolicy, scheduler: schedulerReport, assetsResident: usage.assets, assetsResidentBytes: usage.bytes, worldEntities: this.world.entities.length });
   }
 
   save(slot: SaveSlot, snapshot: GameplaySnapshot): Result<void, string> {
@@ -131,7 +131,7 @@ export class ModernEngine implements Disposable {
       world: { seed: this.world.seed, phase: this.world.time.phase, day: this.world.time.day, entities: this.world.entities.length },
       assets: assetUsage,
       metrics: this.metrics.snapshot(),
-      scheduler: { tasks: this.schedulerSize() },
+      scheduler: this.lastSchedulerReport,
       saveRevision: this.saves.revision,
     });
   }
@@ -143,12 +143,10 @@ export class ModernEngine implements Disposable {
     this.disposed = true;
     this.assets.dispose();
     this.stream.clear();
-    this.worldSystems.remove('core:world');
+    this.worldSystems.remove('world:clock');
+    this.scheduler.unregister('core:world');
     this.events.clear();
-    this.metrics.set('engine.disposed', 1, TICK(this.world.revision));
   }
-
-  private schedulerSize(): number { return Number((this.scheduler as unknown as { tasks?: Map<string, unknown> }).tasks?.size ?? 0); }
 
   private installCoreSystems(): void {
     this.scheduler.register({ id: 'core:world', system: 'core-world' as never, phase: 'simulation', priority: 100, budgetWeight: 2, run: context => this.worldSystems.update(this.world, context) });
