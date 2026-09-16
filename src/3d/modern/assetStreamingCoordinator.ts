@@ -78,7 +78,7 @@ export class AssetStreamingCoordinator<T = unknown> {
   }
 
   enqueue(request: AssetRequest): Result<AssetRuntimeState> {
-    const normalized = { ...request, distance: Math.max(0, request.distance), priority: clampPriority(request.priority) };
+    const normalized: AssetRequest = Object.freeze({ ...request, distance: Math.max(0, request.distance), priority: clampPriority(request.priority) });
     const now = this.#now();
     const current = this.#states.get(request.id);
     if (current?.residency === 'resident') {
@@ -170,8 +170,11 @@ export class AssetStreamingCoordinator<T = unknown> {
   prioritize(id: string, priority: AssetPriority): boolean {
     const state = this.#states.get(id);
     if (!state) return false;
-    this.#states.set(id, Object.freeze({ ...state, priority: clampPriority(priority) }));
-    for (const item of this.#queue) if (item.request.id === id) (item.request as { priority: AssetPriority }).priority = clampPriority(priority);
+    const nextPriority = clampPriority(priority);
+    this.#states.set(id, Object.freeze({ ...state, priority: nextPriority }));
+    this.#queue = this.#queue.map((item) => item.request.id === id
+      ? Object.freeze({ ...item, request: Object.freeze({ ...item.request, priority: nextPriority }) })
+      : item);
     return true;
   }
 
