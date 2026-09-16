@@ -25,7 +25,6 @@ governor.update({ frameMs: 4 });
 assert.equal(governor.scale, 0.7);
 governor.setForcedScale(null);
 assert.ok(recommendDynamicResolution({ gpuMs: 40, cpuMs: 20, currentScale: 0.9 }).recommendedScale < 0.9);
-
 governor.reset();
 assert.equal(governor.frame, 0);
 
@@ -39,8 +38,7 @@ graph.addPass({ id: 'present', order: 2, reads: ['color-b'] });
 const graphSnapshot = graph.snapshot();
 assert.deepEqual(graphSnapshot.dependencies.order, ['opaque', 'post', 'present']);
 assert.ok(graphSnapshot.aliasing.peakTransientSlots >= 1);
-assert.ok(estimateTransientMemory(graphSnapshot.aliasing).conservativeMb >= 0);
-
+assert.ok(estimateTransientMemory(graphSnapshot).conservativeMb >= 0);
 graph.reset();
 assert.equal(graph.snapshot().passes.length, 0);
 
@@ -49,7 +47,8 @@ const instances = Array.from({ length: 400 }, (_, index) => ({ id: `inst-${index
 const plannedA = instancePlanner.plan(instances, { tier: 'high' });
 const plannedB = instancePlanner.plan([...instances].reverse(), { tier: 'high' });
 assert.deepEqual(plannedA.batches, plannedB.batches);
-assert.equal(plannedA.visibleCount + plannedA.deferredCount, plannedA.inputCount - plannedA.inputCount + plannedA.visibleCount + plannedA.deferredCount);
+assert.equal(plannedA.inputCount, instances.length);
+assert.equal(plannedA.visibleCount + plannedA.deferredCount, plannedA.inputCount);
 assert.ok(estimateInstanceUploadBytes(plannedA).bytes >= 0);
 assert.equal(instancePlanner.compareOrder(instances, [...instances].reverse(), { tier: 'high' }).equal, true);
 
@@ -148,7 +147,7 @@ assert.equal(occlusion.classify({ id: 'hidden', visible: true }, 2).visible, tru
 
 const orchestrator = createNextGenRenderOrchestrator();
 const frame = orchestrator.renderFrame({
-  backend: 'webgpu', width: 1280, height: 720, frameMs: 17, cpuMs: 4, gpuMs: 9, runtimeTier: 'high', hardwareScore: 0.85,
+  backend: 'webgpu', webgpuAvailable: true, width: 1280, height: 720, frameMs: 17, cpuMs: 4, gpuMs: 9, runtimeTier: 'high', hardwareScore: 0.85,
   renderables: renderables.slice(0, 120), instances: instances.slice(0, 220), textures: textureInputs.slice(0, 50),
   shaderRequests: [{ features: { skinning: true, fog: true }, materialFamily: 'standard' }],
   triangles: 1500000, timestampMs: 100,
@@ -159,6 +158,11 @@ assert.ok(frame.instances.batches.length >= 0);
 assert.ok(frame.textures.resident.length > 0);
 assert.ok(frame.frameGraph.dependencies.order.length >= 2);
 assert.ok(frame.metrics.frame >= 1);
+assert.ok(frame.packet);
+assert.equal(typeof frame.packetDigest, 'string');
+assert.ok(frame.features);
+assert.ok(frame.degradation);
+assert.ok(frame.temporalHistory);
 assert.ok(orchestrator.diagnostics().frame >= 1);
 orchestrator.dispose();
 assert.equal(orchestrator.disposed, true);
