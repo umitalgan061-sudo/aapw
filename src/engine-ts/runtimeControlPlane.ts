@@ -35,11 +35,10 @@ export class RuntimeControlPlane implements Disposable {
 
   async execute(request: ControlRequest): Promise<ControlResult> {
     if (this.#disposed) return this.#result(request, false, 'control-plane-disposed');
-    const detail = request.operator.trim() ? request.operator.trim() : 'anonymous';
     let result: ControlResult;
     switch (request.command) {
-      case 'pause': result = this.#phaseResult(request, this.engine.runtime.pause()); break;
-      case 'resume': result = this.#phaseResult(request, this.engine.runtime.resume()); break;
+      case 'pause': result = this.#phaseResult(request, this.engine.pause()); break;
+      case 'resume': result = this.#phaseResult(request, this.engine.resume()); break;
       case 'recover': result = this.#recoverResult(request, String(request.payload ?? 'operator-recovery')); break;
       case 'flush-telemetry': result = this.#result(request, true, `telemetry:${this.telemetry.stats().samples}`, this.telemetry.export()); break;
       case 'clear-telemetry': this.telemetry.clear(); result = this.#result(request, true, 'telemetry-cleared'); break;
@@ -49,15 +48,14 @@ export class RuntimeControlPlane implements Disposable {
       default: result = this.#result(request, false, 'unsupported-command'); break;
     }
     this.#audit.push(result); if (this.#audit.length > 512) this.#audit.shift(); return result;
-    void detail;
   }
 
   async boot(): Promise<boolean> { return this.engine.boot(); }
   audit(): readonly ControlResult[] { return Object.freeze(this.#audit.slice()); }
-  snapshot(): ControlPlaneSnapshot { return Object.freeze({ phase: this.engine.runtime.phase, engine: this.engine.snapshot(), performance: this.performance.stats(), recovery: this.recovery.stats(), telemetry: this.telemetry.stats(), security: this.security.stats(), release: this.release.latest() }); }
+  snapshot(): ControlPlaneSnapshot { return Object.freeze({ phase: this.engine.phase, engine: this.engine.snapshot(), performance: this.performance.stats(), recovery: this.recovery.stats(), telemetry: this.telemetry.stats(), security: this.security.stats(), release: this.release.latest() }); }
   dispose(): void { if (this.#disposed) return; this.#disposed = true; this.release.dispose(); this.security.dispose(); this.telemetry.dispose(); this.recovery.dispose(); this.performance.dispose(); this.engine.dispose(); this.#audit.length = 0; }
 
-  #phaseResult(request: ControlRequest, outcome: { readonly ok: boolean }): ControlResult { return this.#result(request, outcome.ok, outcome.ok ? `${request.command}-accepted` : `${request.command}-rejected`); }
+  #phaseResult(request: ControlRequest, accepted: boolean): ControlResult { return this.#result(request, accepted, accepted ? `${request.command}-accepted` : `${request.command}-rejected`); }
   #recoverResult(request: ControlRequest, reason: string): ControlResult { const attempt = this.recovery.recover(reason); return this.#result(request, attempt.phase !== 'failed', attempt.phase === 'failed' ? 'recovery-failed' : 'recovered', attempt); }
   #releaseResult(request: ControlRequest, payload: unknown): ControlResult {
     const input = payload && typeof payload === 'object' ? payload as ReleaseInput : { typecheck: false, tests: false, build: false, deterministic: false, errorRate: 1, p95FrameMs: 999, memoryRatio: 1, unhandledExceptions: 1, legacySurfaces: 999 };
@@ -68,7 +66,7 @@ export class RuntimeControlPlane implements Disposable {
   #qualityResult(request: ControlRequest, payload: unknown): ControlResult { const values = ['minimal', 'low', 'medium', 'high', 'ultra'] as const; const tier = typeof payload === 'string' && values.includes(payload as typeof values[number]) ? payload as typeof values[number] : null; if (!tier) return this.#result(request, false, 'invalid-quality'); this.performance.force(tier); this.engine.render.forceQuality(tier); return this.#result(request, true, `quality:${tier}`); }
   #result(request: ControlRequest, accepted: boolean, detail: string, data?: unknown): ControlResult { return Object.freeze({ id: request.id, accepted, command: request.command, detail, ...(data === undefined ? {} : { data }) }); }
   #installRecoveryDomains(): void {
-    this.recovery.register({ id: 'engine', priority: 10, diagnose: () => this.engine.runtime.phase !== 'stopped', quiesce: () => this.engine.runtime.pause(), reset: () => this.engine.runtime.beginRecovery(), restore: () => {}, resume: () => this.engine.runtime.completeRecovery() });
+    this.recovery.register({ id: 'engine', priority: 10, diagnose: () => this.engine.phase !== 'disposed', quiesce: () => { this.engine.pause(); }, reset: () => { this.engine.recover('recovery-reset'); }, restore: () => {}, resume: () => { this.engine.resume(); } });
     this.recovery.register({ id: 'telemetry', priority: 20, diagnose: () => true, quiesce: () => {}, reset: () => this.telemetry.clear(), restore: () => {}, resume: () => {} });
     this.recovery.register({ id: 'network', priority: 30, diagnose: () => true, quiesce: () => {}, reset: () => {}, restore: () => {}, resume: () => {} });
   }
