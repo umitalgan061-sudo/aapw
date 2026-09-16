@@ -69,9 +69,12 @@ export interface RenderBridge {
   recover(reason: string): Promise<boolean>;
 }
 
-export function probeRendererBackends(env: { readonly isSecureContext?: boolean; readonly navigator?: Navigator } = {}): RendererBackendProbe {
-  const secureContext = env.isSecureContext ?? (typeof isSecureContext === 'boolean' ? isSecureContext : false);
-  const webgpuAvailable = secureContext && typeof GPU !== 'undefined' && typeof env.navigator?.gpu !== 'undefined';
+type NavigatorWithGpu = Navigator & { readonly gpu?: unknown };
+
+export function probeRendererBackends(env: { readonly isSecureContext?: boolean; readonly navigator?: NavigatorWithGpu } = {}): RendererBackendProbe {
+  const secureContext = env.isSecureContext ?? (typeof globalThis.isSecureContext === 'boolean' ? globalThis.isSecureContext : false);
+  const navigatorLike = env.navigator ?? (typeof navigator !== 'undefined' ? navigator as NavigatorWithGpu : undefined);
+  const webgpuAvailable = secureContext && Boolean(navigatorLike?.gpu);
   let webgl2Available = false;
   if (typeof document !== 'undefined') {
     const canvas = document.createElement('canvas');
