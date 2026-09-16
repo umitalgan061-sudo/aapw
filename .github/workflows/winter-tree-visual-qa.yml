@@ -17,6 +17,7 @@ on:
       - 'scripts/checkWinterPineMaterialTreatment.mjs'
       - 'scripts/checkWinterTreeVisualQa.js'
       - 'scripts/checkNorthSnowPineCrowdVisualQa.js'
+      - 'scripts/checkNorthSnowPineEcotoneVisualQa.js'
       - 'scripts/devServerHelper.js'
       - 'winter-tree-visual-qa.html'
       - 'north-snow-pine-crowd-visual-qa.html'
@@ -50,7 +51,7 @@ jobs:
           node --check src/3d/world/winterVegetationAsset.js
           node --check scripts/checkWinterPineMaterialTreatment.mjs
           node --check scripts/checkWinterTreeVisualQa.js
-          node --check scripts/checkNorthSnowPineCrowdVisualQa.js
+          node --check scripts/checkNorthSnowPineEcotoneVisualQa.js
           node scripts/checkWinterPineMaterialTreatment.mjs
 
       - name: Hydrate verified winter assets
@@ -74,10 +75,10 @@ jobs:
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkWinterTreeVisualQa.js
 
-      - name: Render production snow-pine crowd on canonical north terrain
+      - name: Render production snow-pine stand on canonical north ecotone
         run: |
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
-          node scripts/checkNorthSnowPineCrowdVisualQa.js
+          node scripts/checkNorthSnowPineEcotoneVisualQa.js
 
       - name: Render bare winter fallback comparison
         env:

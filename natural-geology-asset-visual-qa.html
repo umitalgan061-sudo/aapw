@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Natural Geology Asset Visual QA</title>
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #aeb8bd; }
+    #qa-root { width: 100%; height: 100%; }
+    canvas { display: block; width: 100%; height: 100%; }
+    #qa-label { position: fixed; left: 12px; top: 10px; z-index: 2; margin: 0; padding: 8px 10px; border-radius: 4px; background: rgba(15, 20, 23, 0.74); color: #f4f6f6; font: 12px/1.4 monospace; pointer-events: none; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./src/3d/vendor/three/three.module.js",
+      "three/addons/": "./src/3d/vendor/three/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="qa-root"></div>
+  <pre id="qa-label">natural geology asset visual QA</pre>
+</body>
+</html>
