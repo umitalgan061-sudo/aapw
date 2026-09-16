@@ -30,3 +30,4 @@ export * from './diagnostics';
 export * from './networkSnapshot';
 export * from './runtimeConfig';
 export * from './serialization';
+export * from './r2/index.ts';
