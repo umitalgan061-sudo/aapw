@@ -12,17 +12,13 @@ export interface NetworkDelta { version: number; serverTick: number; baselineTic
 export interface InputCommand { sequence: number; tick: number; moveX: number; moveY: number; yaw: number; actions: number }
 export interface DecodeResult<T> { value: T; bytes: number; valid: boolean; reason: string | null }
 
-function stableEntity(entity: NetworkEntityState): NetworkEntityState {
-  return { id: entity.id, position: quantizeVec3(entity.position, 0.001), velocity: quantizeVec3(entity.velocity, 0.001), yaw: roundDeterministic(entity.yaw, 4), health: roundDeterministic(entity.health, 3), flags: entity.flags >>> 0 };
-}
+function stableEntity(entity: NetworkEntityState): NetworkEntityState { return { id: entity.id, position: quantizeVec3(entity.position, 0.001), velocity: quantizeVec3(entity.velocity, 0.001), yaw: roundDeterministic(entity.yaw, 4), health: roundDeterministic(entity.health, 3), flags: entity.flags >>> 0 }; }
 
 export function snapshotDelta(previous: NetworkSnapshot | null, current: NetworkSnapshot): NetworkDelta {
   validateSnapshot(current);
   const previousMap = new Map(previous?.entities.map((entity) => [entity.id, stableEntity(entity)]) ?? []);
   const currentMap = new Map(current.entities.map((entity) => [entity.id, stableEntity(entity)]));
-  const created: NetworkEntityState[] = [];
-  const updated: NetworkDelta['updated'] = [];
-  const removed: number[] = [];
+  const created: NetworkEntityState[] = []; const updated: NetworkDelta['updated'] = []; const removed: number[] = [];
   for (const entity of currentMap.values()) {
     const old = previousMap.get(entity.id);
     if (!old) { created.push(entity); continue; }
@@ -40,51 +36,25 @@ export function snapshotDelta(previous: NetworkSnapshot | null, current: Network
 }
 
 export function applyDelta(baseline: NetworkSnapshot, delta: NetworkDelta): NetworkSnapshot {
-  validateSnapshot(baseline);
-  if (delta.version !== NETWORK_PROTOCOL_VERSION) throw new Error(`unsupported network delta version ${delta.version}`);
+  validateSnapshot(baseline); if (delta.version !== NETWORK_PROTOCOL_VERSION) throw new Error(`unsupported network delta version ${delta.version}`);
   const entities = new Map(baseline.entities.map((entity) => [entity.id, stableEntity(entity)]));
   for (const id of delta.removed) entities.delete(id);
   for (const entity of delta.created) entities.set(entity.id, stableEntity(entity));
-  for (const patch of delta.updated) {
-    const current = entities.get(patch.id);
-    if (!current) continue;
-    entities.set(patch.id, stableEntity({ ...current, ...patch }));
-  }
+  for (const patch of delta.updated) { const current = entities.get(patch.id); if (!current) continue; entities.set(patch.id, stableEntity({ ...current, ...patch })); }
   const result: NetworkSnapshot = { version: NETWORK_PROTOCOL_VERSION, serverTick: delta.serverTick, baselineTick: delta.baselineTick, ackSequence: delta.ackSequence, entities: [...entities.values()].sort((a, b) => a.id - b.id) };
-  validateSnapshot(result);
-  return result;
+  validateSnapshot(result); return result;
 }
 
-export function encodeSnapshot(snapshot: NetworkSnapshot): Uint8Array {
-  validateSnapshot(snapshot);
-  return encodeJson(snapshot);
-}
+export function encodeSnapshot(snapshot: NetworkSnapshot): Uint8Array { validateSnapshot(snapshot); return encodeJson(snapshot); }
+export function encodeDelta(delta: NetworkDelta): Uint8Array { if (delta.version !== NETWORK_PROTOCOL_VERSION) throw new Error('unsupported delta version'); return encodeJson(delta); }
+export function encodeInput(command: InputCommand): Uint8Array { if (!Number.isInteger(command.sequence) || command.sequence <= 0) throw new RangeError('invalid sequence'); if (!Number.isInteger(command.tick) || command.tick < 0) throw new RangeError('invalid tick'); const normalized = { sequence: command.sequence, tick: command.tick, moveX: quantize(clamp(command.moveX, -1, 1), 0.001), moveY: quantize(clamp(command.moveY, -1, 1), 0.001), yaw: quantize(command.yaw, 0.0001), actions: command.actions >>> 0 }; return encodeJson(normalized); }
 
-export function encodeDelta(delta: NetworkDelta): Uint8Array {
-  if (delta.version !== NETWORK_PROTOCOL_VERSION) throw new Error('unsupported delta version');
-  return encodeJson(delta);
-}
-
-export function encodeInput(command: InputCommand): Uint8Array {
-  if (!Number.isInteger(command.sequence) || command.sequence <= 0) throw new RangeError('invalid sequence');
-  if (!Number.isInteger(command.tick) || command.tick < 0) throw new RangeError('invalid tick');
-  const normalized = { sequence: command.sequence, tick: command.tick, moveX: quantize(clamp(command.moveX, -1, 1), 0.001), moveY: quantize(clamp(command.moveY, -1, 1), 0.001), yaw: quantize(command.yaw, 0.0001), actions: command.actions >>> 0 };
-  return encodeJson(normalized);
-}
-
-export function decodeSnapshot(bytes: Uint8Array): DecodeResult<NetworkSnapshot> {
-  return decodeJson(bytes, validateSnapshot);
-}
-export function decodeDelta(bytes: Uint8Array): DecodeResult<NetworkDelta> {
-  return decodeJson(bytes, (value) => { if ((value as NetworkDelta).version !== NETWORK_PROTOCOL_VERSION) throw new Error('unsupported delta version'); });
-}
-export function decodeInput(bytes: Uint8Array): DecodeResult<InputCommand> {
-  return decodeJson(bytes, (value) => { const command = value as InputCommand; if (!Number.isInteger(command.sequence) || command.sequence <= 0) throw new Error('invalid sequence'); });
-}
+export function decodeSnapshot(bytes: Uint8Array): DecodeResult<NetworkSnapshot> { return decodeJson<NetworkSnapshot>(bytes, validateSnapshot); }
+export function decodeDelta(bytes: Uint8Array): DecodeResult<NetworkDelta> { return decodeJson<NetworkDelta>(bytes, (value) => { if (value.version !== NETWORK_PROTOCOL_VERSION) throw new Error('unsupported delta version'); }); }
+export function decodeInput(bytes: Uint8Array): DecodeResult<InputCommand> { return decodeJson<InputCommand>(bytes, (value) => { if (!Number.isInteger(value.sequence) || value.sequence <= 0) throw new Error('invalid sequence'); }); }
 
 export class SnapshotHistory {
-  readonly capacity: number;
-  #snapshots: NetworkSnapshot[] = [];
+  readonly capacity: number; #snapshots: NetworkSnapshot[] = [];
   constructor(capacity = 32) { if (capacity <= 0) throw new RangeError('capacity must be > 0'); this.capacity = capacity; }
   push(snapshot: NetworkSnapshot): void { validateSnapshot(snapshot); this.#snapshots.push(snapshot); while (this.#snapshots.length > this.capacity) this.#snapshots.shift(); }
   latest(): NetworkSnapshot | undefined { return this.#snapshots.at(-1); }
@@ -100,30 +70,10 @@ export function validateSnapshot(snapshot: NetworkSnapshot): void {
   if (!Number.isInteger(snapshot.ackSequence) || snapshot.ackSequence < 0) throw new Error('invalid ackSequence');
   if (snapshot.entities.length > MAX_ENTITIES_PER_SNAPSHOT) throw new Error('entity snapshot capacity exceeded');
   let previousId = -1;
-  for (const entity of snapshot.entities) {
-    if (!Number.isInteger(entity.id) || entity.id <= previousId) throw new Error('entity ids must be strictly increasing');
-    previousId = entity.id;
-    for (const axis of [entity.position.x, entity.position.y, entity.position.z, entity.velocity.x, entity.velocity.y, entity.velocity.z, entity.yaw, entity.health]) if (!Number.isFinite(axis)) throw new Error('snapshot contains non-finite value');
-  }
+  for (const entity of snapshot.entities) { if (!Number.isInteger(entity.id) || entity.id <= previousId) throw new Error('entity ids must be strictly increasing'); previousId = entity.id; for (const axis of [entity.position.x, entity.position.y, entity.position.z, entity.velocity.x, entity.velocity.y, entity.velocity.z, entity.yaw, entity.health]) if (!Number.isFinite(axis)) throw new Error('snapshot contains non-finite value'); }
 }
 
-function encodeJson(value: unknown): Uint8Array {
-  const json = JSON.stringify(value);
-  const bytes = new TextEncoder().encode(json);
-  if (bytes.byteLength > MAX_PAYLOAD_BYTES) throw new Error('network payload exceeds budget');
-  return bytes;
-}
-
-function decodeJson<T>(bytes: Uint8Array, validate: (value: unknown) => void): DecodeResult<T> {
-  if (bytes.byteLength > MAX_PAYLOAD_BYTES) return { value: undefined as T, bytes: bytes.byteLength, valid: false, reason: 'payload too large' };
-  try {
-    const value = JSON.parse(new TextDecoder().decode(bytes)) as T;
-    validate(value);
-    return { value, bytes: bytes.byteLength, valid: true, reason: null };
-  } catch (error) {
-    return { value: undefined as T, bytes: bytes.byteLength, valid: false, reason: error instanceof Error ? error.message : String(error) };
-  }
-}
-
+function encodeJson(value: unknown): Uint8Array { const bytes = new TextEncoder().encode(JSON.stringify(value)); if (bytes.byteLength > MAX_PAYLOAD_BYTES) throw new Error('network payload exceeds budget'); return bytes; }
+function decodeJson<T>(bytes: Uint8Array, validate: (value: T) => void): DecodeResult<T> { if (bytes.byteLength > MAX_PAYLOAD_BYTES) return { value: undefined as T, bytes: bytes.byteLength, valid: false, reason: 'payload too large' }; try { const value = JSON.parse(new TextDecoder().decode(bytes)) as T; validate(value); return { value, bytes: bytes.byteLength, valid: true, reason: null }; } catch (error) { return { value: undefined as T, bytes: bytes.byteLength, valid: false, reason: error instanceof Error ? error.message : String(error) }; } }
 function distanceSq(a: Vec3, b: Vec3): number { const x = a.x - b.x; const y = a.y - b.y; const z = a.z - b.z; return x * x + y * y + z * z; }
 export function createNetworkEntity(id: number, position: Vec3): NetworkEntityState { return { id, position: stableVec3(position, 0.001), velocity: { x: 0, y: 0, z: 0 }, yaw: 0, health: 100, flags: 0 }; }
