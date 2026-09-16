@@ -1,0 +1,33 @@
+name: world-intelligence-contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/intelligence/**'
+      - 'src/3d/intelligence.ts'
+      - '.github/workflows/world-intelligence-contract.yml'
+      - 'package.json'
+      - 'tsconfig.json'
+      - 'vitest.config.ts'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/intelligence/**'
+      - 'src/3d/intelligence.ts'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vitest run src/3d/intelligence/worldIntelligence.test.ts
