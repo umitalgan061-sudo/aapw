@@ -10,6 +10,8 @@ const input = await importModule('src/engine-ts/input.ts');
 const world = await importModule('src/engine-ts/world.ts');
 const ecs = await importModule('src/engine-ts/ecsRuntime.ts');
 const render = await importModule('src/engine-ts/renderBridge.ts');
+const workers = await importModule('src/engine-ts/worker.ts');
+const network = await importModule('src/engine-ts/network.ts');
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -197,6 +199,92 @@ test('dynamic resolution only climbs after sustained headroom', () => {
   const low = controller.scale;
   for (let i = 0; i < 8; i += 1) controller.update(10);
   assert.ok(controller.scale > low);
+});
+
+test('worker concurrency is bounded for device class', () => {
+  assert.equal(workers.boundedWorkerConcurrency(16, false), 8);
+  assert.equal(workers.boundedWorkerConcurrency(8, true), 4);
+  assert.equal(workers.boundedWorkerConcurrency(1, true), 1);
+});
+
+test('worker pool executes and drains deterministically', async () => {
+  const pool = new workers.TypedWorkerPool({ execute: async task => ({ id: task.id, value: Number(task.payload) * 2 }) }, { concurrency: 1, maxQueue: 8, taskTimeoutMs: 1000 });
+  const first = await pool.submit({ id: 'work:a', kind: 'generic', payload: 2, priority: 10, costMs: 1 });
+  const second = await pool.submit({ id: 'work:b', kind: 'generic', payload: 3, priority: 1, costMs: 1 });
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.equal(first.value?.value, 4);
+  assert.equal(second.value?.value, 6);
+  pool.dispose();
+});
+
+test('network snapshots are canonical and checksummed', () => {
+  const entities = [
+    { entity: 'b', position: { x: 2.12345, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, flags: 3 },
+    { entity: 'a', position: { x: 1.1, y: 2.2, z: 3.3 }, velocity: { x: 0, y: 0, z: 1 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, flags: 0 },
+  ];
+  const packet = network.buildSnapshotPacket(12, 4, 1000, entities);
+  assert.equal(packet.protocol, 'aapw-net-v2');
+  assert.equal(network.validatePacketChecksum(packet), true);
+  assert.deepEqual(packet.entities.map(state => String(state.entity)), ['a', 'b']);
+});
+
+test('network delta is minimal and order invariant', () => {
+  const before = [{ entity: 'a', position: { x: 0, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, flags: 0 }];
+  const after = [{ ...before[0], position: { x: 1, y: 0, z: 0 } }, { entity: 'b', position: { x: 3, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, flags: 0 }];
+  const left = network.buildDeltaPacket(before, after, 20, 2, 3);
+  const right = network.buildDeltaPacket([...before].reverse(), [...after].reverse(), 20, 2, 3);
+  assert.deepEqual(left, right);
+  assert.deepEqual(left.removals, []);
+  assert.deepEqual(left.upserts.map(state => String(state.entity)), ['a', 'b']);
+});
+
+test('network snapshot interpolation is stable across arrival order', () => {
+  const first = network.buildSnapshotPacket(10, 1, 100, [{ entity: 'a', position: { x: 0, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, flags: 0 }]);
+  const second = network.buildSnapshotPacket(20, 2, 200, [{ entity: 'a', position: { x: 10, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, flags: 0 }]);
+  const buffer = new network.SnapshotBuffer();
+  assert.equal(buffer.push(second, 200).ok, true);
+  assert.equal(buffer.push(first, 100).ok, true);
+  assert.equal(buffer.interpolate(15)[0]?.position.x, 5);
+});
+
+test('prediction buffer acknowledges commands by tick', () => {
+  const buffer = new network.ClientPredictionBuffer();
+  buffer.add({ tick: 4, sequence: 2, action: 'move-right', value: 1 });
+  buffer.add({ tick: 3, sequence: 1, action: 'move-forward', value: 1 });
+  assert.equal(buffer.snapshot()[0]?.tick, 3);
+  buffer.acknowledge(3);
+  assert.equal(buffer.snapshot().length, 1);
+  assert.equal(buffer.snapshot()[0]?.tick, 4);
+});
+
+test('reliable channel retries only after deadline', () => {
+  const channel = new network.ReliableSequenceChannel(50, 2);
+  const first = channel.next({ hello: true }, 0);
+  assert.equal(channel.due(20).length, 0);
+  assert.equal(channel.due(60).length, 1);
+  channel.acknowledge(first.sequence);
+  assert.equal(channel.pendingCount, 0);
+});
+
+test('network health derives bounded quality', () => {
+  const monitor = new network.NetworkHealthMonitor();
+  for (let i = 0; i < 20; i += 1) { monitor.sampleRtt(40); monitor.samplePacket(true); }
+  assert.equal(monitor.snapshot().quality, 'excellent');
+  for (let i = 0; i < 50; i += 1) { monitor.sampleRtt(300); monitor.samplePacket(false); }
+  assert.equal(monitor.snapshot().quality, 'offline');
+});
+
+test('typed render presenter applies a changed dynamic scale', async () => {
+  let ratio = 1;
+  const renderer = { backend: 'webgpu', canvas: { width: 640, height: 360 }, pixelRatio: 1, render: async () => undefined, setSize: () => undefined, setPixelRatio: value => { ratio = value; }, setAnimationLoop: () => undefined, dispose: () => undefined };
+  const presenter = new render.BudgetAwarePresenter(renderer, 1);
+  for (let i = 0; i < 8; i += 1) {
+    presenter.begin({ frameId: i, tick: i, simulationTimeMs: i, deltaSeconds: 0.016, interpolationAlpha: 0, budgetMs: 16, deadlineMs: 20 });
+    await presenter.render({}, {});
+  }
+  assert.equal(ratio, 1);
+  presenter.dispose();
 });
 
 test('typed modules avoid nondeterministic hashing', () => {
