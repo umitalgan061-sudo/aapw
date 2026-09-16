@@ -1,0 +1,133 @@
+name: Immersive Audio Experience Regression
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/audio/**'
+      - 'scripts/checkImmersiveAudio*.mjs'
+      - 'docs/immersive-audio-*.md'
+      - '.github/workflows/immersive-audio-experience-regression.yml'
+  push:
+    branches:
+      - main
+      - 'agent/next-experience-fidelity-platform-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: immersive-audio-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Deterministic audio policy contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ github.sha }}
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          check-latest: true
+
+      - name: Verify modern syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            src/3d/audio/audioAccessibilityPolicy.js
+            src/3d/audio/audioContinuousEmitterPolicy.js
+            src/3d/audio/audioDialogueClarityPolicy.js
+            src/3d/audio/audioDynamicRangePolicy.js
+            src/3d/audio/audioGraphSafetyMonitor.js
+            src/3d/audio/audioMixEngine.js
+            src/3d/audio/audioMusicStatePolicy.js
+            src/3d/audio/audioOcclusionPolicy.js
+            src/3d/audio/audioPerformanceBudget.js
+            src/3d/audio/audioSpatialMotionPolicy.js
+            src/3d/audio/audioZonePolicy.js
+            src/3d/audio/environmentSoundscape.js
+            src/3d/audio/immersiveAudioDirector.js
+            src/3d/audio/immersiveAudioPolicy.js
+            src/3d/audio/proceduralSoundBank.js
+            src/3d/audio/spatialAudioRegistry.js
+            src/3d/audio/spatialPannerAdapter.js
+            scripts/checkImmersiveAudioExperiencePolicies.mjs
+            scripts/checkImmersiveAudioRegressionMatrix.mjs
+          )
+          for file in "${files[@]}"; do
+            test -f "$file"
+            node --check "$file"
+          done
+
+      - name: Run policy contracts twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkImmersiveAudioExperiencePolicies.mjs > /tmp/audio-policy-a.json
+          node scripts/checkImmersiveAudioExperiencePolicies.mjs > /tmp/audio-policy-b.json
+          diff -u /tmp/audio-policy-a.json /tmp/audio-policy-b.json
+          node scripts/checkImmersiveAudioRegressionMatrix.mjs > /tmp/audio-matrix-a.json
+          node scripts/checkImmersiveAudioRegressionMatrix.mjs > /tmp/audio-matrix-b.json
+          diff -u /tmp/audio-matrix-a.json /tmp/audio-matrix-b.json
+
+      - name: Enforce bounded scope and ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          forbidden='(player\.js|game3d\.js|ActorRegistry|EditorMaterialStudio|Math\.random|Date\.now|setInterval|setTimeout)'
+          if grep -RInE "$forbidden" src/3d/audio scripts/checkImmersiveAudioExperiencePolicies.mjs scripts/checkImmersiveAudioRegressionMatrix.mjs; then
+            echo "Forbidden gameplay/global ownership signal detected in immersive audio scope."
+            exit 1
+          fi
+          test "$(git diff --name-status HEAD^ HEAD | grep -v '^D' | wc -l)" -gt 0
+
+  repository:
+    name: Repository-wide audio compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: contract
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ github.sha }}
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          check-latest: true
+
+      - name: Confirm legacy audio API remains intact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f src/3d/audio/audioManager.js
+          grep -q "function playClick" src/3d/audio/audioManager.js
+          grep -q "function playDiscoveryChime" src/3d/audio/audioManager.js
+          grep -q "function setMuted" src/3d/audio/audioManager.js
+          grep -q "function isMuted" src/3d/audio/audioManager.js
+          grep -q "function dispose" src/3d/audio/audioManager.js
+
+      - name: Confirm workflow and operations documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f docs/immersive-spatial-audio-platform.md
+          test -f docs/immersive-audio-operations.md
+          grep -q "bounded" docs/immersive-audio-operations.md
+          grep -q "accessibility" docs/immersive-audio-operations.md
+          grep -q "Web Audio" docs/immersive-audio-operations.md
+
+      - name: Scope summary
+        run: |
+          git diff --stat HEAD^ HEAD
