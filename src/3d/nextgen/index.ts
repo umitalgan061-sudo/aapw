@@ -11,6 +11,7 @@ export * from './networkProtocolV3';
 export * from './runtimeTelemetryV3';
 export * from './saveSystemV3';
 export * from './workerProtocolV3';
+export * from './runtimeSecurityV3';
 export * from './runtimeContractsV3';
 export * from './runtimeConfigV3';
 export * from './performanceGovernorV3';
