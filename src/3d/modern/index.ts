@@ -143,3 +143,6 @@ export * from './weatherRuntime';
 export * from './worldChunkRuntime';
 export * from './worldInvariantV2';
 export * from './worldSpatialIndex';
+
+// Runtime R2: typed next-generation simulation, gameplay, streaming, networking, persistence and observability.
+export * from './r2/index.ts';

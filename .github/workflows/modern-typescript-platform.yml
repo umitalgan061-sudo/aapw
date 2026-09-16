@@ -14,6 +14,7 @@ on:
       - 'scripts/checkTypedEngine.mjs'
       - 'scripts/checkNextGenRuntimeV2.mjs'
       - 'scripts/checkModernRuntimeIntegrationV2.mjs'
+      - 'scripts/checkModernRuntimeR2.mjs'
       - 'package.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
@@ -34,6 +35,7 @@ on:
       - 'scripts/checkModernPlatformV3.mjs'
       - 'scripts/checkNextGenRuntimeV2.mjs'
       - 'scripts/checkModernRuntimeIntegrationV2.mjs'
+      - 'scripts/checkModernRuntimeR2.mjs'
       - 'package.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
@@ -68,6 +70,7 @@ jobs:
       - run: npm run verify:typed
       - run: npm run verify:nextgen
       - run: npm run verify:modern:v2
+      - run: npm run verify:runtime-r2
       - run: npm run typecheck
       - run: npm test -- --passWithNoTests
       - run: npm run test:typed
@@ -89,6 +92,7 @@ jobs:
       - run: node scripts/checkTypedArchitecture.mjs
       - run: node scripts/checkNextGenRuntimeV2.mjs
       - run: node scripts/checkModernRuntimeIntegrationV2.mjs
+      - run: node scripts/checkModernRuntimeR2.mjs
       - name: Guard deterministic core surfaces
         run: |
           set -eu
@@ -143,6 +147,20 @@ jobs:
             src/3d/modern/worldInvariantV2.ts; do
             if grep -nE 'Math\.random\(|eval\(|new Function\(' "$file"; then
               echo "Unsafe or nondeterministic primitive detected: $file"
+              exit 1
+            fi
+          done
+      - name: Guard runtime-r2 deterministic boundaries
+        run: |
+          set -eu
+          for file in \
+            src/3d/modern/r2/simulationKernel.ts \
+            src/3d/modern/r2/ecsRuntime.ts \
+            src/3d/modern/r2/networkReplicationV3.ts \
+            src/3d/modern/r2/predictionReconciliation.ts \
+            src/3d/modern/r2/worldQueryRuntime.ts; do
+            if grep -nE 'Math\.random\(|eval\(|new Function\(' "$file"; then
+              echo "Unsafe or nondeterministic primitive detected in runtime-r2: $file"
               exit 1
             fi
           done
