@@ -24,6 +24,8 @@ const MODIFIERS = Object.freeze({
   settlement: { reverb: 0.22, low: 0.04, ambience: 1.16 },
 });
 
+const LEGACY_ZONE_DEFAULTS = Object.freeze({ castle: { reverbMix: 0.42, lowpassHz: 6200 }, cave: { reverbMix: 0.68, lowpassHz: 4200 }, forest: { reverbMix: 0.2, lowpassHz: 7600 }, shore: { reverbMix: 0.1, lowpassHz: 9000 }, open: { reverbMix: 0.05, lowpassHz: 10000 } });
+
 export function createAudioZone(input = {}) {
   const zoneType = type(input.type);
   return freeze({ version: 1, id: String(input.id ?? 'zone').slice(0, 96), type: zoneType, priority: clamp(Math.round(finiteOr(input.priority, 10)), 0, 100), radius: clamp(finiteOr(input.radius, 20), 1, 1000), fade: clamp(finiteOr(input.fade, 6), 0.5, 200), modifiers: { ...MODIFIERS[zoneType] }, center: { x: finiteOr(input.center?.x, 0), y: finiteOr(input.center?.y, 0), z: finiteOr(input.center?.z, 0) } });
@@ -55,7 +57,16 @@ export function resolveAudioZones(zones = [], position) {
 
 export function evaluateAudioZone(input = {}, position) {
   const zone = input?.modifiers && input?.center ? input : createAudioZone(input);
-  return freeze({ zone, influence: evaluateZoneInfluence(zone, position), resolved: resolveAudioZones([zone], position) });
+  const resolved = resolveAudioZones([zone], position);
+  const legacyType = String(input?.zoneType ?? zone.type ?? 'open').toLowerCase();
+  const legacyDefaults = LEGACY_ZONE_DEFAULTS[legacyType] ?? LEGACY_ZONE_DEFAULTS.open;
+  const distance = finiteOr(input?.distance, position ? evaluateZoneInfluence(zone, position).distance : 0);
+  const roomSize = clamp(finiteOr(input?.roomSize, 0.5), 0, 1);
+  const wallAbsorption = clamp(finiteOr(input?.wallAbsorption, 0.5), 0, 1);
+  const geometryMix = clamp(1 - distance / 100, 0, 1);
+  const reverbMix = Number(clamp(legacyDefaults.reverbMix * (0.55 + roomSize * 0.45) * (0.65 + geometryMix * 0.35) * (1 - wallAbsorption * 0.35), 0, 1).toFixed(5));
+  const lowpassHz = Number(clamp(legacyDefaults.lowpassHz * (0.82 + geometryMix * 0.18) * (1 - wallAbsorption * 0.35), 200, 12000).toFixed(2));
+  return freeze({ version: 1, zone, influence: evaluateZoneInfluence(zone, position), resolved, reverbMix, lowpassHz });
 }
 
 export function audioZoneConstants() { return freeze({ types: ZONE_TYPES, modifiers: MODIFIERS }); }
