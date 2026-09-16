@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { auditFaunaAmbientLifePlan, planFaunaAmbientLife } from '../src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js';
 const input={seed:'ambient-proof',world:{tick:42,hour:19,weatherPressure:0.22},playerPosition:{x:0,z:0},actors:[
 {id:'wolf-2',species:'wolf',role:'predator',position:{x:38,z:4},threatLevel:0.7,groundValid:true,navReachable:true},
-{id:'deer-1',species:'deer',role:'grazer',position:{x:96,z:10},nearWater:true,groundValid:true,navReachable:true},
+{id:'deer-1',species:'deer',role:'grazer',activity:'drink',position:{x:96,z:10},nearWater:true,groundValid:true,navReachable:true},
 {id:'hawk-1',species:'hawk',role:'avian',position:{x:160,z:-12},groundValid:true,navReachable:true},
 {id:'cliff-goat',species:'goat',role:'grazer',position:{x:20,z:1},groundValid:false,navReachable:true}]};
 const left=planFaunaAmbientLife(input); const right=planFaunaAmbientLife({...input,actors:[...input.actors].reverse()});
