@@ -1,452 +1,183 @@
 /**
- * Runtime coordinator for the next-generation rendering stack.
- *
- * This module is intentionally renderer-agnostic: it consumes the declarative policy layer,
- * observes frame timing, applies conservative resolution/feature shedding, and exposes a stable
- * runtime snapshot for HUD/debug/telemetry consumers. It does not own scene/gameplay state.
- *
- * Design goals:
- * - no per-frame allocations in the hot path;
- * - deterministic feature decisions for identical observations;
- * - hysteresis around quality transitions to prevent oscillation;
- * - graceful operation with an existing WebGL2 renderer;
- * - optional future WebGPU pipeline attachment without changing game-loop ownership.
- *
- * @module renderRuntimeCoordinator
+ * Adaptive runtime coordinator for the next-generation render policy.
+ * It owns timing/quality decisions only; scene, gameplay and asset state stay elsewhere.
  */
-
-import {
-  buildRenderPipelinePolicy,
-  deriveRenderTier,
-  estimatePipelineCost,
-  recommendDynamicResolution,
-  shedOptionalPasses,
-} from './renderPipelinePolicy.js';
+import { buildRenderPipelinePolicy } from './renderPipelinePolicy.js';
 import { chooseRendererBackend, resizeRendererAdapter, setRendererOutputPolicy } from './nextGenRendererAdapter.js';
-import { planGpuPassBudget } from './gpuPassBudget.js';
+import { buildGpuPassBudgetPlan } from './gpuPassBudget.js';
 
-const DEFAULTS = Object.freeze({
-  targetFrameMs: 16.67,
-  minimumFrameMs: 12,
-  maximumFrameMs: 33.34,
-  sampleWindow: 30,
-  stableSamples: 10,
-  degradeStep: 1,
-  recoverStep: 1,
-  resolutionMin: 0.55,
-  resolutionMax: 1,
-  hysteresisMs: 1.5,
-  maxConsecutivePressure: 4,
-  maxConsecutiveHealthy: 12,
-  initialTier: 3,
-});
+const TIERS = Object.freeze(['low', 'medium', 'high', 'ultra']);
+const FEATURE_KEYS = Object.freeze(['taa', 'fxaa', 'bloom', 'ssao', 'ssgi', 'dof', 'lut', 'vignette', 'fog', 'mrt', 'temporalHistory']);
+const DEFAULTS = Object.freeze({ targetFrameMs: 16.67, sampleWindow: 30, pressureSamples: 4, healthySamples: 12, minScale: 0.55, maxScale: 1, initialTier: 3 });
 
-const FEATURE_KEYS = Object.freeze([
-  'taa',
-  'fxaa',
-  'bloom',
-  'ssao',
-  'ssgi',
-  'dof',
-  'lut',
-  'vignette',
-  'fog',
-  'mrt',
-  'temporalHistory',
-]);
+function n(v, fallback = 0) { const x = Number(v); return Number.isFinite(x) ? x : fallback; }
+function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, n(v, lo))); }
+function int(v, fallback = 0) { return Math.round(n(v, fallback)); }
+function bool(v) { return v === true; }
+function tierName(rank) { return TIERS[clamp(int(rank), 0, TIERS.length - 1)]; }
+function cloneFeatures(source = {}) { const target = Object.create(null); for (const key of FEATURE_KEYS) target[key] = bool(source[key]); return target; }
 
-function finite(value, fallback = 0) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
-}
-
-function clamp(value, minimum, maximum) {
-  return Math.min(maximum, Math.max(minimum, finite(value, minimum)));
-}
-
-function boolean(value, fallback = false) {
-  return typeof value === 'boolean' ? value : fallback;
-}
-
-function integer(value, fallback = 0) {
-  return Math.round(finite(value, fallback));
-}
-
-function cloneFeatures(source = {}) {
-  const target = Object.create(null);
-  for (const key of FEATURE_KEYS) target[key] = boolean(source[key]);
-  return target;
-}
-
-function createRing(size) {
-  const ring = new Float64Array(size);
-  return Object.seal({ values: ring, cursor: 0, count: 0, sum: 0 });
-}
-
+function createRing(size) { return { values: new Float64Array(size), cursor: 0, count: 0, sum: 0 }; }
 function pushRing(ring, value) {
-  const numeric = Math.max(0, finite(value));
-  if (ring.count < ring.values.length) {
-    ring.values[ring.cursor] = numeric;
-    ring.sum += numeric;
-    ring.count += 1;
-  } else {
-    ring.sum -= ring.values[ring.cursor];
-    ring.values[ring.cursor] = numeric;
-    ring.sum += numeric;
-  }
+  const sample = Math.max(0, n(value));
+  if (ring.count < ring.values.length) { ring.values[ring.cursor] = sample; ring.sum += sample; ring.count += 1; }
+  else { ring.sum -= ring.values[ring.cursor]; ring.values[ring.cursor] = sample; ring.sum += sample; }
   ring.cursor = (ring.cursor + 1) % ring.values.length;
-  return ring.count ? ring.sum / ring.count : 0;
+  return ring.count ? ring.sum / ring.count : sample;
 }
 
-function emptyCounters() {
-  return {
-    frames: 0,
-    pressure: 0,
-    healthy: 0,
-    degraded: 0,
-    recovered: 0,
-    shed: 0,
-    restored: 0,
-    backendFallbacks: 0,
-  };
-}
-
-function normalizeConfig(input = {}) {
-  const config = { ...DEFAULTS, ...input };
+function normalizeOptions(options = {}) {
+  const config = { ...DEFAULTS, ...options };
+  config.sampleWindow = clamp(int(config.sampleWindow, DEFAULTS.sampleWindow), 8, 240);
   config.targetFrameMs = clamp(config.targetFrameMs, 8, 50);
-  config.minimumFrameMs = clamp(config.minimumFrameMs, 6, config.targetFrameMs);
-  config.maximumFrameMs = clamp(config.maximumFrameMs, config.targetFrameMs, 100);
-  config.sampleWindow = clamp(integer(config.sampleWindow, DEFAULTS.sampleWindow), 8, 240);
-  config.stableSamples = clamp(integer(config.stableSamples, DEFAULTS.stableSamples), 2, 120);
-  config.resolutionMin = clamp(config.resolutionMin, 0.35, 1);
-  config.resolutionMax = clamp(config.resolutionMax, config.resolutionMin, 1.5);
-  config.hysteresisMs = clamp(config.hysteresisMs, 0.25, 5);
-  config.maxConsecutivePressure = clamp(integer(config.maxConsecutivePressure, DEFAULTS.maxConsecutivePressure), 1, 30);
-  config.maxConsecutiveHealthy = clamp(integer(config.maxConsecutiveHealthy, DEFAULTS.maxConsecutiveHealthy), 1, 60);
+  config.pressureSamples = clamp(int(config.pressureSamples, DEFAULTS.pressureSamples), 1, 30);
+  config.healthySamples = clamp(int(config.healthySamples, DEFAULTS.healthySamples), 1, 60);
+  config.minScale = clamp(config.minScale, 0.35, 1);
+  config.maxScale = clamp(config.maxScale, config.minScale, 1.25);
+  config.initialTier = clamp(int(config.initialTier, DEFAULTS.initialTier), 0, 3);
   return Object.freeze(config);
 }
 
-function pressureKind(averageMs, config) {
-  if (averageMs > config.maximumFrameMs) return 'severe';
-  if (averageMs > config.targetFrameMs + config.hysteresisMs) return 'pressure';
-  if (averageMs < config.targetFrameMs - config.hysteresisMs) return 'healthy';
-  return 'neutral';
-}
-
-function tierLabel(tier) {
-  return ['low', 'medium', 'high', 'ultra'][clamp(integer(tier, 0), 0, 3)];
-}
-
-function normalizeRuntimeInput(input = {}) {
+function normalizeInput(input = {}) {
   const viewport = input.viewport ?? {};
   const device = input.device ?? {};
   const scene = input.scene ?? {};
   return {
     requestedBackend: input.requestedBackend ?? 'webgpu',
-    webgpuAvailable: boolean(input.webgpuAvailable),
-    qualityTier: clamp(integer(input.qualityTier, DEFAULTS.initialTier), 0, 3),
-    coarsePointer: boolean(device.coarsePointer),
-    mobile: boolean(device.mobile),
-    width: Math.max(1, integer(viewport.width, 1)),
-    height: Math.max(1, integer(viewport.height, 1)),
-    devicePixelRatio: clamp(device.devicePixelRatio, 0.5, 4),
-    visibleObjects: Math.max(0, integer(scene.visibleObjects)),
-    shadowCasters: Math.max(0, integer(scene.shadowCasters)),
-    animatedObjects: Math.max(0, integer(scene.animatedObjects)),
-    textureBytes: Math.max(0, finite(scene.textureBytes)),
-    gpuMemoryPressure: clamp(input.gpuMemoryPressure, 0, 1),
+    webgpuAvailable: bool(input.webgpuAvailable),
+    mobile: bool(device.mobile),
+    coarsePointer: bool(device.coarsePointer),
+    width: Math.max(1, int(viewport.width, 1)),
+    height: Math.max(1, int(viewport.height, 1)),
+    dpr: clamp(device.devicePixelRatio, 0.5, 4),
+    visibleObjects: Math.max(0, int(scene.visibleObjects)),
+    shadowCasters: Math.max(0, int(scene.shadowCasters)),
+    animatedObjects: Math.max(0, int(scene.animatedObjects)),
+    textureBytes: Math.max(0, n(scene.textureBytes)),
+    pressure: clamp(input.gpuMemoryPressure, 0, 1),
   };
 }
 
-function chooseInitialResolution(input, config) {
-  const base = input.mobile || input.coarsePointer ? 0.8 : 1;
-  const dprPenalty = Math.min(0.2, Math.max(0, input.devicePixelRatio - 1) * 0.1);
-  return clamp(base - dprPenalty, config.resolutionMin, config.resolutionMax);
+function featureMask(policy, tierRank, pressure) {
+  const next = cloneFeatures(policy.features);
+  if (pressure === 'severe' || pressure === 'pressure') { next.ssgi = false; next.dof = false; }
+  if (pressure === 'severe' && tierRank < 3) { next.bloom = false; next.temporalHistory = false; }
+  return next;
 }
-
-function chooseBackend(input) {
-  return chooseRendererBackend({
-    requestedBackend: input.requestedBackend,
-    webgpuAvailable: input.webgpuAvailable,
-  });
-}
-
-function applyFeatureMask(rendererPolicy, tier, pressure) {
-  const baseline = cloneFeatures(rendererPolicy.features);
-  if (pressure === 'severe') {
-    baseline.ssgi = false;
-    baseline.dof = false;
-    baseline.bloom = tier < 3 ? false : baseline.bloom;
-    baseline.temporalHistory = tier > 1 && baseline.temporalHistory;
-  } else if (pressure === 'pressure') {
-    baseline.ssgi = false;
-    baseline.dof = false;
-  }
-  return baseline;
-}
-
-function signatureFromState(state) {
-  return [
-    state.backend,
-    state.tier,
-    state.resolution.toFixed(3),
-    state.features.ssgi ? 1 : 0,
-    state.features.dof ? 1 : 0,
-    state.features.bloom ? 1 : 0,
-    state.features.temporalHistory ? 1 : 0,
-  ].join('|');
+function policySignature(state) {
+  return [state.backend, state.tier, state.scale.toFixed(3), FEATURE_KEYS.map((key) => state.features[key] ? '1' : '0').join('')].join('|');
 }
 
 export function createRenderRuntimeCoordinator(options = {}) {
-  const config = normalizeConfig(options);
+  const config = normalizeOptions(options);
   const ring = createRing(config.sampleWindow);
   const state = {
-    backend: 'webgl2',
-    tier: clamp(integer(options.initialTier, config.initialTier), 0, 3),
-    resolution: 1,
-    targetResolution: 1,
-    features: cloneFeatures(),
-    frameAverageMs: 0,
+    backend: chooseRendererBackend({ requestedBackend: options.requestedBackend ?? 'webgpu', webgpuAvailable: bool(options.webgpuAvailable) }),
+    tier: config.initialTier,
+    scale: 1,
+    targetScale: 1,
+    averageFrameMs: 0,
     lastFrameMs: 0,
-    pressureKind: 'neutral',
+    pressure: 'neutral',
     pressureStreak: 0,
     healthyStreak: 0,
     revision: 0,
-    lastSignature: '',
+    signature: '',
+    features: cloneFeatures(),
     policy: null,
-    counters: emptyCounters(),
+    budget: null,
+    frames: 0,
+    degraded: 0,
+    recovered: 0,
+    listeners: new Set(),
+    adapter: null,
   };
-
-  let adapter = null;
-  let sceneMetrics = Object.create(null);
-  const listeners = new Set();
-  const inputCache = { width: 1, height: 1, pixelRatio: 1 };
 
   function emit(reason) {
     state.revision += 1;
     const snapshot = getSnapshot();
-    for (const listener of listeners) {
-      try {
-        listener(snapshot, reason);
-      } catch {
-        // Observers are non-critical and must never break the render loop.
-      }
-    }
+    for (const listener of state.listeners) { try { listener(snapshot, reason); } catch {} }
   }
 
-  function rebuildPolicy(input) {
-    const quality = tierLabel(state.tier);
-    const policy = buildRenderPipelinePolicy({
-      backend: state.backend,
-      tier: quality,
-      mobile: input.mobile,
-      coarsePointer: input.coarsePointer,
-      dynamicResolution: true,
-      viewport: {
-        width: input.width,
-        height: input.height,
-      },
-    });
-    const pressure = state.pressureKind;
-    const features = applyFeatureMask(policy, state.tier, pressure);
-    state.features = shedOptionalPasses(features, { pressure, backend: state.backend });
+  function rebuild(input) {
+    const policy = buildRenderPipelinePolicy({ backend: state.backend, runtimeTier: tierName(state.tier), mobile: input.mobile, coarsePointer: input.coarsePointer, dynamicResolution: true, renderScale: state.scale });
+    state.features = featureMask(policy, state.tier, state.pressure);
     state.policy = Object.freeze({ ...policy, features: cloneFeatures(state.features) });
-    state.targetResolution = recommendDynamicResolution({
-      currentScale: state.resolution,
-      averageFrameMs: state.frameAverageMs,
-      targetFrameMs: config.targetFrameMs,
-      minimumScale: config.resolutionMin,
-      maximumScale: config.resolutionMax,
-    });
+    const currentGpuMs = Math.max(0.1, state.averageFrameMs * 0.72);
+    const budget = buildGpuPassBudgetPlan({ targetFrameMs: config.targetFrameMs, estimatedGpuMs: currentGpuMs, qualityScale: state.scale, pressure: input.pressure, activePasses: ['base', 'shadow', 'water', 'foliage', 'effects', 'post'] });
+    state.budget = budget;
+    const ratio = clamp(config.targetFrameMs / Math.max(config.targetFrameMs, state.averageFrameMs || config.targetFrameMs), 0.65, 1.15);
+    state.targetScale = clamp(state.scale * Math.sqrt(ratio), config.minScale, config.maxScale);
   }
 
-  function updatePressure() {
-    const kind = pressureKind(state.frameAverageMs, config);
-    state.pressureKind = kind;
-    if (kind === 'pressure' || kind === 'severe') {
-      state.pressureStreak += 1;
-      state.healthyStreak = 0;
-    } else if (kind === 'healthy') {
-      state.healthyStreak += 1;
-      state.pressureStreak = 0;
-    } else {
-      state.pressureStreak = 0;
-      state.healthyStreak = 0;
-    }
+  function pressureClass(avg) {
+    if (avg > config.targetFrameMs * 2) return 'severe';
+    if (avg > config.targetFrameMs * 1.2) return 'pressure';
+    if (avg < config.targetFrameMs * 0.85) return 'healthy';
+    return 'neutral';
   }
 
-  function transitionQuality(input) {
+  function smoothScale() {
+    const delta = clamp(state.targetScale - state.scale, -0.08, 0.08);
+    state.scale = clamp(state.scale + delta, config.minScale, config.maxScale);
+  }
+
+  function transition(input) {
     let changed = false;
-    const severe = state.pressureKind === 'severe';
-    if ((severe || state.pressureStreak >= config.maxConsecutivePressure) && state.tier > 0) {
-      state.tier -= config.degradeStep;
-      state.counters.degraded += 1;
-      state.counters.shed += 1;
-      changed = true;
-    } else if (state.healthyStreak >= config.maxConsecutiveHealthy && state.tier < 3) {
-      state.tier += config.recoverStep;
-      state.counters.recovered += 1;
-      state.counters.restored += 1;
-      changed = true;
+    if ((state.pressure === 'severe' || state.pressureStreak >= config.pressureSamples) && state.tier > 0) {
+      state.tier -= 1; state.degraded += 1; state.pressureStreak = 0; changed = true;
+    } else if (state.pressure === 'healthy' && state.healthyStreak >= config.healthySamples && state.tier < 3) {
+      state.tier += 1; state.recovered += 1; state.healthyStreak = 0; changed = true;
     }
-    if (changed) {
-      state.tier = clamp(state.tier, 0, 3);
-      rebuildPolicy(input);
-      emit('quality-transition');
-    }
+    if (changed) { rebuild(input); emit('quality-transition'); }
   }
 
-  function applyRuntimeResolution(input) {
-    const recommendation = clamp(state.targetResolution, config.resolutionMin, config.resolutionMax);
-    const maxStep = 0.08;
-    const delta = recommendation - state.resolution;
-    state.resolution = clamp(state.resolution + clamp(delta, -maxStep, maxStep), config.resolutionMin, config.resolutionMax);
-    if (adapter?.renderer) {
-      const effectivePixelRatio = input.devicePixelRatio * state.resolution;
-      resizeRendererAdapter(adapter, {
-        width: input.width,
-        height: input.height,
-        pixelRatio: effectivePixelRatio,
-      });
-    }
+  function recordFrame(frameMs, input = {}) {
+    const runtime = normalizeInput({ ...options, ...input });
+    state.lastFrameMs = Math.max(0, n(frameMs));
+    state.averageFrameMs = pushRing(ring, state.lastFrameMs);
+    state.frames += 1;
+    state.pressure = pressureClass(state.averageFrameMs);
+    if (state.pressure === 'pressure' || state.pressure === 'severe') { state.pressureStreak += 1; state.healthyStreak = 0; }
+    else if (state.pressure === 'healthy') { state.healthyStreak += 1; state.pressureStreak = 0; }
+    else { state.pressureStreak = 0; state.healthyStreak = 0; }
+    rebuild(runtime);
+    smoothScale();
+    if (state.adapter) resizeRendererAdapter(state.adapter, { width: runtime.width, height: runtime.height, pixelRatio: runtime.dpr * state.scale });
+    transition(runtime);
+    const nextSignature = policySignature(state);
+    if (nextSignature !== state.signature) { state.signature = nextSignature; emit('policy-change'); }
+    return getSnapshot();
   }
 
-  function attachRenderer(nextAdapter) {
-    adapter = nextAdapter ?? null;
-    if (!adapter) return false;
-    state.backend = adapter.backend;
-    if (adapter.fallback) state.counters.backendFallbacks += 1;
-    setRendererOutputPolicy(adapter, { colorSpace: 'srgb', exposure: 1 });
-    rebuildPolicy(normalizeRuntimeInput({ ...options, ...inputCache }));
+  function attachRenderer(adapter) {
+    state.adapter = adapter ?? null;
+    if (!state.adapter) return false;
+    state.backend = state.adapter.backend;
+    setRendererOutputPolicy(state.adapter, { colorSpace: 'srgb', exposure: 1 });
+    rebuild(normalizeInput({ ...options, viewport: { width: state.adapter.renderer?.domElement?.width, height: state.adapter.renderer?.domElement?.height }, device: { devicePixelRatio: 1 } }));
     emit('renderer-attached');
     return true;
   }
 
-  function recordFrame(frameMs, input = {}) {
-    const runtimeInput = normalizeRuntimeInput(input);
-    const average = pushRing(ring, frameMs);
-    state.lastFrameMs = Math.max(0, finite(frameMs));
-    state.frameAverageMs = average;
-    state.counters.frames += 1;
-    sceneMetrics = runtimeInput;
-    updatePressure();
-    rebuildPolicy(runtimeInput);
-    applyRuntimeResolution(runtimeInput);
-    transitionQuality(runtimeInput);
-    const nextSignature = signatureFromState(state);
-    if (nextSignature !== state.lastSignature) {
-      state.lastSignature = nextSignature;
-      emit('policy-change');
-    }
+  function setViewport(width, height, dpr = 1) {
+    if (state.adapter) resizeRendererAdapter(state.adapter, { width, height, pixelRatio: clamp(dpr, 0.5, 4) * state.scale });
     return getSnapshot();
   }
 
-  function setViewport(width, height, pixelRatio = 1) {
-    inputCache.width = Math.max(1, integer(width, 1));
-    inputCache.height = Math.max(1, integer(height, 1));
-    inputCache.pixelRatio = clamp(pixelRatio, 0.5, 4);
-    if (adapter) resizeRendererAdapter(adapter, {
-      width: inputCache.width,
-      height: inputCache.height,
-      pixelRatio: inputCache.pixelRatio * state.resolution,
-    });
-    return getSnapshot();
-  }
+  function setSceneMetrics(metrics = {}) { rebuild(normalizeInput({ ...options, scene: metrics })); return getSnapshot(); }
+  function onChange(listener) { if (typeof listener !== 'function') return () => {}; state.listeners.add(listener); return () => state.listeners.delete(listener); }
+  function getSnapshot() { return Object.freeze({ revision: state.revision, backend: state.backend, tier: state.tier, tierLabel: tierName(state.tier), scale: Number(state.scale.toFixed(4)), targetScale: Number(state.targetScale.toFixed(4)), averageFrameMs: Number(state.averageFrameMs.toFixed(3)), lastFrameMs: Number(state.lastFrameMs.toFixed(3)), pressure: state.pressure, features: Object.freeze(cloneFeatures(state.features)), policy: state.policy, gpuBudget: state.budget, frames: state.frames, degraded: state.degraded, recovered: state.recovered }); }
+  function dispose() { state.listeners.clear(); state.adapter = null; state.policy = null; state.budget = null; }
 
-  function setSceneMetrics(metrics = {}) {
-    sceneMetrics = normalizeRuntimeInput({ scene: metrics, device: metrics.device, viewport: metrics.viewport });
-    rebuildPolicy(sceneMetrics);
-    return getSnapshot();
-  }
+  const initial = normalizeInput(options);
+  state.scale = clamp(initial.mobile || initial.coarsePointer ? 0.8 : 1, config.minScale, config.maxScale);
+  rebuild(initial);
+  state.signature = policySignature(state);
 
-  function onChange(listener) {
-    if (typeof listener !== 'function') return () => {};
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  }
-
-  function getGpuBudget() {
-    const policy = state.policy ?? {};
-    return planGpuPassBudget({
-      tier: tierLabel(state.tier),
-      backend: state.backend,
-      frameBudgetMs: config.targetFrameMs,
-      averageFrameMs: state.frameAverageMs,
-      effects: policy.features,
-    });
-  }
-
-  function getSnapshot() {
-    return Object.freeze({
-      revision: state.revision,
-      backend: state.backend,
-      tier: state.tier,
-      tierLabel: tierLabel(state.tier),
-      resolution: Number(state.resolution.toFixed(4)),
-      targetResolution: Number(state.targetResolution.toFixed(4)),
-      features: Object.freeze(cloneFeatures(state.features)),
-      frameAverageMs: Number(state.frameAverageMs.toFixed(3)),
-      lastFrameMs: Number(state.lastFrameMs.toFixed(3)),
-      pressure: state.pressureKind,
-      counters: Object.freeze({ ...state.counters }),
-      scene: Object.freeze({ ...sceneMetrics }),
-      gpuBudget: Object.freeze({ ...getGpuBudget() }),
-      policy: state.policy,
-    });
-  }
-
-  function dispose() {
-    listeners.clear();
-    adapter = null;
-    sceneMetrics = Object.create(null);
-  }
-
-  const initialInput = normalizeRuntimeInput(options);
-  state.backend = chooseBackend(initialInput);
-  state.resolution = chooseInitialResolution(initialInput, config);
-  rebuildPolicy(initialInput);
-  state.lastSignature = signatureFromState(state);
-
-  return Object.freeze({
-    attachRenderer,
-    recordFrame,
-    setViewport,
-    setSceneMetrics,
-    onChange,
-    getSnapshot,
-    getGpuBudget,
-    dispose,
-  });
+  return Object.freeze({ attachRenderer, recordFrame, setViewport, setSceneMetrics, onChange, getSnapshot, dispose });
 }
 
+export function runtimeFrameBudgetScore(frameMs, targetFrameMs = DEFAULTS.targetFrameMs) { return clamp(targetFrameMs / Math.max(0.1, n(frameMs, targetFrameMs)), 0, 2); }
+export function classifyRuntimePressure(frameMs, targetFrameMs = DEFAULTS.targetFrameMs) { const ratio = n(frameMs, 0) / Math.max(1, n(targetFrameMs, DEFAULTS.targetFrameMs)); return ratio > 2 ? 'severe' : ratio > 1.2 ? 'pressure' : ratio < 0.85 ? 'healthy' : 'neutral'; }
 export const RENDER_RUNTIME_DEFAULTS = DEFAULTS;
-export const RENDER_RUNTIME_FEATURE_KEYS = FEATURE_KEYS;
-
-export function runtimeFrameBudgetScore({ frameMs = 0, targetFrameMs = DEFAULTS.targetFrameMs } = {}) {
-  const actual = Math.max(0.01, finite(frameMs));
-  const target = Math.max(1, finite(targetFrameMs, DEFAULTS.targetFrameMs));
-  return clamp(target / actual, 0, 2);
-}
-
-export function classifyRuntimePressure({ averageFrameMs = 0, targetFrameMs = DEFAULTS.targetFrameMs } = {}) {
-  const average = Math.max(0, finite(averageFrameMs));
-  const target = Math.max(1, finite(targetFrameMs, DEFAULTS.targetFrameMs));
-  if (average > target * 2) return 'severe';
-  if (average > target * 1.2) return 'pressure';
-  if (average < target * 0.85) return 'healthy';
-  return 'neutral';
-}
-
-export function summarizeRenderRuntime(snapshot = {}) {
-  const features = snapshot.features ?? {};
-  const enabledFeatures = FEATURE_KEYS.filter((feature) => features[feature]).length;
-  return Object.freeze({
-    backend: snapshot.backend ?? 'webgl2',
-    tier: snapshot.tierLabel ?? 'low',
-    resolutionScale: finite(snapshot.resolution, 1),
-    frameAverageMs: finite(snapshot.frameAverageMs),
-    pressure: snapshot.pressure ?? 'neutral',
-    enabledFeatures,
-    gpuFrameBudgetMs: finite(snapshot.gpuBudget?.targetFrameMs),
-  });
-}
