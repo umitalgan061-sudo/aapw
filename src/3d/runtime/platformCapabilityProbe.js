@@ -71,7 +71,8 @@ function detectPwa() {
 }
 
 function detectMemory() {
-  const memory = navigator?.deviceMemory;
+  const navigatorValue = globalThis?.navigator;
+  const memory = navigatorValue?.deviceMemory;
   const jsHeap = globalThis?.performance?.memory?.jsHeapSizeLimit;
   return Object.freeze({
     deviceMemoryGb: clamp(finiteOr(memory, 4), 0.25, 64),
