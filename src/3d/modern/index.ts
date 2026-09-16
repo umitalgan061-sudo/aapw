@@ -75,3 +75,8 @@ export * from './worldDeltaReplicator';
 export * from './browserCapabilityMatrix';
 export * from './productionChecks';
 export * from './migrationGuards';
+export * from './runtimeObservability';
+export * from './productionSimulation';
+export * from './runtimeLifecycleController';
+export * from './legacyStateBridge';
+export * from './runtimeFacadeAdapter';
