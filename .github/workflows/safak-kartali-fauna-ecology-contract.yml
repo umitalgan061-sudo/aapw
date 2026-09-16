@@ -1,0 +1,52 @@
+name: Safak Kartali fauna ecology contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaEcologyDirector.js'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.js'
+      - 'scripts/checkSafakKartaliFaunaEcologyContract.mjs'
+      - '.github/workflows/safak-kartali-fauna-ecology-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: safak-kartali-fauna-ecology-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax gate
+        run: |
+          node --check src/3d/gameplay/livingWorldFaunaEcologyDirector.js
+          node --check src/3d/gameplay/livingWorldEcologyPolicy.js
+          node --check scripts/checkSafakKartaliFaunaEcologyContract.mjs
+
+      - name: Fauna ecology contract proof
+        run: node scripts/checkSafakKartaliFaunaEcologyContract.mjs
+
+      - name: Diff cap
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
