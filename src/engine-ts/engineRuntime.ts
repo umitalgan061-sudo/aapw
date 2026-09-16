@@ -1,14 +1,15 @@
-import type { Disposable, EntityId, FrameContext, Vec3 } from './coreTypes.js';
+import type { Disposable, EntityId, Vec3 } from './coreTypes.js';
 import { ENTITY_ID } from './coreTypes.js';
 import { RuntimeKernel } from './runtime.js';
 import { WorldRuntime } from './worldRuntime.js';
 import { AssetRuntime } from './assetsRuntime.js';
 import { NetworkRuntime } from './networkRuntime.js';
-import { GameplayRuntime } from './gameplayRuntime.js';
+import { GameplayRuntime, type GameplayCommand, type GameplayEvent } from './gameplayRuntime.js';
 import { RenderRuntime, type CameraView, type RenderItem } from './renderRuntime.js';
 import { InputRuntime } from './inputRuntime.js';
 import { AiRuntime, NavigationRuntime, type NavigationGrid } from './aiRuntime.js';
 import { PersistenceRuntime } from './persistenceRuntime.js';
+import type { RuntimeFrameResult } from './types.js';
 
 export interface EngineRuntimeOptions {
   readonly clock?: { now(): number };
@@ -21,14 +22,14 @@ export interface EngineRuntimeOptions {
 export interface EngineFrameInput {
   readonly deltaSeconds: number;
   readonly camera: CameraView;
-  readonly commands?: readonly import('./gameplayRuntime.js').GameplayCommand[];
+  readonly commands?: readonly GameplayCommand[];
   readonly inputTick?: number;
 }
 
 export interface EngineFrameOutput {
-  readonly context: FrameContext;
+  readonly context: RuntimeFrameResult['frame'];
   readonly render: ReturnType<RenderRuntime['build']>;
-  readonly gameplayEvents: readonly import('./gameplayRuntime.js').GameplayEvent[];
+  readonly gameplayEvents: readonly GameplayEvent[];
   readonly input: ReturnType<InputRuntime['consume']>;
   readonly health: ReturnType<RuntimeKernel['snapshot']>;
   readonly world: ReturnType<WorldRuntime['stats']>;
@@ -53,11 +54,12 @@ export class EngineRuntime implements Disposable {
   readonly entityBudget: number;
   #disposed = false;
   #booted = false;
+  #paused = false;
   #lastFrame: EngineFrameOutput | null = null;
 
   constructor(options: EngineRuntimeOptions = {}) {
     const clock = options.clock ?? defaultClock;
-    this.runtime = new RuntimeKernel({ clock });
+    this.runtime = new RuntimeKernel();
     this.world = new WorldRuntime();
     this.assets = new AssetRuntime({ now: () => clock.now() });
     this.network = new NetworkRuntime(undefined, () => clock.now());
@@ -74,18 +76,41 @@ export class EngineRuntime implements Disposable {
   async boot(): Promise<boolean> {
     if (this.#disposed) return false;
     if (this.#booted) return true;
-    const result = await this.runtime.boot();
+    const result = this.runtime.initialize();
     this.#booted = result.ok;
     return result.ok;
   }
 
+  pause(): boolean {
+    if (!this.#booted || this.#disposed || this.#paused) return false;
+    this.#paused = true;
+    return true;
+  }
+
+  resume(): boolean {
+    if (!this.#booted || this.#disposed || !this.#paused) return false;
+    this.#paused = false;
+    return true;
+  }
+
+  recover(reason = 'runtime-fault'): boolean {
+    if (this.#disposed) return false;
+    return this.runtime.recover(reason).ok;
+  }
+
+  get phase(): 'ready' | 'paused' | 'disposed' | 'booting' {
+    if (this.#disposed) return 'disposed';
+    if (!this.#booted) return 'booting';
+    return this.#paused ? 'paused' : 'ready';
+  }
+
   async frame(input: EngineFrameInput): Promise<EngineFrameOutput | null> {
-    if (this.#disposed || !(await this.boot())) return null;
-    const runtimeFrame = this.runtime.frame(0);
-    if (!runtimeFrame.ok) return null;
+    if (this.#disposed || this.#paused || !(await this.boot())) return null;
+    const runtimeFrame = this.runtime.advance({ deltaSeconds: Math.max(0, input.deltaSeconds), commands: [] });
     for (const command of input.commands ?? []) this.gameplay.dispatch(command);
-    const inputFrame = this.input.consume(input.inputTick ?? Number(runtimeFrame.value.tick));
-    const events = this.gameplay.update(input.deltaSeconds, Number(runtimeFrame.value.tick));
+    const tick = Number(runtimeFrame.frame.tick);
+    const inputFrame = this.input.consume(input.inputTick ?? tick);
+    const events = this.gameplay.update(input.deltaSeconds, tick);
     await this.assets.pump();
     await this.network.update();
     const renderItems: RenderItem[] = this.world.entities().filter(entity => entity.active).map(entity => ({
@@ -99,7 +124,7 @@ export class EngineRuntime implements Disposable {
       layer: entity.layer,
     }));
     const packet = this.render.build(input.camera, renderItems, {});
-    const output: EngineFrameOutput = Object.freeze({ context: runtimeFrame.value, render: packet, gameplayEvents: events, input: inputFrame, health: this.runtime.snapshot(), world: this.world.stats(), assets: this.assets.stats(), network: this.network.stats() });
+    const output: EngineFrameOutput = Object.freeze({ context: runtimeFrame.frame, render: packet, gameplayEvents: events, input: inputFrame, health: this.runtime.snapshot(), world: this.world.stats(), assets: this.assets.stats(), network: this.network.stats() });
     this.#lastFrame = output;
     return output;
   }
@@ -130,13 +155,13 @@ export class EngineRuntime implements Disposable {
     this.#disposed = true;
     this.persistence.dispose();
     this.ai.dispose();
-    this.navigation.dispose();
     this.input.dispose();
     this.render.dispose();
     this.gameplay.dispose();
     this.network.dispose();
     this.assets.dispose();
     this.world.dispose();
+    this.navigation.dispose();
     this.runtime.dispose();
     this.#lastFrame = null;
   }
