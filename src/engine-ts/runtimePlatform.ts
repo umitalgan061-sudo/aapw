@@ -20,7 +20,19 @@ export class RuntimePlatform implements Disposable {
   async boot(): Promise<boolean> { if (this.#disposed) return false; if (this.#lifecycle === 'active') return true; this.#transition('booting'); try { const ok = await this.engine.boot(); this.#transition(ok ? 'active' : 'failed'); return ok; } catch (error) { this.#hooks.onError?.(error); this.#transition('failed'); return false; } }
   visibility(hidden: boolean): void { if (this.#disposed || this.#lifecycle === 'stopped') return; this.#transition(hidden ? 'hidden' : 'active'); }
   connectivity(online: boolean): void { if (this.#disposed || this.#lifecycle === 'stopped') return; this.#transition(online ? 'active' : 'offline'); }
-  async frame(input: Parameters<EngineRuntime['frame']>[0]): Promise<Awaited<ReturnType<EngineRuntime['frame']>>> { if (!(await this.boot())) return null; const result = await this.engine.frame(input); if (result) { const values = result.health.metrics; this.telemetry.sample({ name: 'runtime.frame.ms', value: values.lastFrameMs, unit: 'ms', tick: Number(values.tick), frame: values.frame, tags: {} }); this.telemetry.sample({ name: 'runtime.entities', value: result.world.entities, unit: 'count', tick: Number(values.tick), frame: values.frame, tags: {} }); this.telemetry.sample({ name: 'network.packetLoss', value: result.network.connected ? 0 : 1, unit: 'ratio', tick: Number(values.tick), frame: values.frame, tags: {} }); } return result; }
+  async frame(input: Parameters<EngineRuntime['frame']>[0]): Promise<Awaited<ReturnType<EngineRuntime['frame']>>> {
+    if (!(await this.boot())) return null;
+    const result = await this.engine.frame(input);
+    if (result) {
+      const scheduler = result.health.scheduler;
+      const frame = scheduler.frame;
+      const tick = Number(scheduler.tick);
+      this.telemetry.sample({ name: 'runtime.frame.ms', value: scheduler.deltaSeconds * 1000, unit: 'ms', tick, frame, tags: {} });
+      this.telemetry.sample({ name: 'runtime.entities', value: result.world.entities, unit: 'count', tick, frame, tags: {} });
+      this.telemetry.sample({ name: 'network.packetLoss', value: result.network.connected ? 0 : 1, unit: 'ratio', tick, frame, tags: {} });
+    }
+    return result;
+  }
   validatePayload(payload: unknown): boolean { return this.security.validate(payload).ok; }
   snapshot(): PlatformSnapshot { return Object.freeze({ lifecycle: this.#lifecycle, runtime: this.engine.snapshot(), telemetry: this.telemetry.stats(), security: this.security.stats(), capabilities: this.security.capabilities() }); }
   attachBrowserLifecycle(target: EventTarget = window): () => void { if (this.#disposed) return () => {}; const onVisibility = () => this.visibility(typeof document !== 'undefined' && document.visibilityState === 'hidden'); const onOnline = () => this.connectivity(true); const onOffline = () => this.connectivity(false); const onPageHide = () => this.visibility(true); target.addEventListener('visibilitychange', onVisibility); target.addEventListener('online', onOnline); target.addEventListener('offline', onOffline); target.addEventListener('pagehide', onPageHide); return () => { target.removeEventListener('visibilitychange', onVisibility); target.removeEventListener('online', onOnline); target.removeEventListener('offline', onOffline); target.removeEventListener('pagehide', onPageHide); }; }
