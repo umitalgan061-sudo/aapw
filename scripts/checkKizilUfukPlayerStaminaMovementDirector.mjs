@@ -13,12 +13,12 @@ assert.ok(a.locomotion.targetSpeedMps > 0);
 assert.throws(() => { a.locomotion.state = 'idle'; }, TypeError);
 
 const guarded = resolvePlayerStaminaMovement(equipment, { ...input, guardActive: true });
-assert.equal(guarded.sprinting, undefined);
 assert.equal(guarded.effectiveState, 'run');
 assert.equal(guarded.guardSuppressedSprint, true);
+assert.equal(guarded.locomotion.sprinting, false);
 
 const exhausted = resolvePlayerStaminaMovement(equipment, { ...input, staminaRatio: 0.01, requestedSprint: true });
-assert.equal(exhausted.sprintEligible, undefined);
+assert.equal(exhausted.locomotion.sprintEligible, false);
 assert.equal(exhausted.exhausted, true);
 assert.equal(validatePlayerStaminaMovementReceipt(exhausted).ok, true);
 
