@@ -32,6 +32,8 @@ export * from './world.js';
 export * from './ecsRuntime.js';
 export * from './modernEngine.js';
 export * from './legacyAdapters.js';
+export * from './worker.js';
+export * from './network.js';
 
 import { RuntimeKernel } from './runtime.js';
 import { TelemetryRegistry } from './telemetry.js';
