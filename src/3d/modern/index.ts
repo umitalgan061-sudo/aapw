@@ -116,8 +116,6 @@ export * from './runtimeV4Facade';
 export * from './migrationV4';
 export * from './replayRuntimeV4';
 export * from './releaseGateV4';
-
-// Modern runtime v2 gameplay authorities and hardening surfaces.
 export * from './aiAuthority';
 export * from './animationAuthority';
 export * from './assetIntegrityV2';
@@ -143,6 +141,18 @@ export * from './weatherRuntime';
 export * from './worldChunkRuntime';
 export * from './worldInvariantV2';
 export * from './worldSpatialIndex';
-
-// Runtime R2: typed next-generation simulation, gameplay, streaming, networking, persistence and observability.
 export * from './r2/index.ts';
+export * from './typedSceneContractsV6';
+export * from './typedCameraRuntimeV6';
+export * from './typedInputRuntimeV6';
+export * from './typedWorldRuntimeV6';
+export * from './typedRenderLoopV6';
+export * from './typedPlayerRuntimeV6';
+export * from './typedLegacyAdapterV6';
+export * from './typedMigrationGateV6';
+export * from './typedRuntimeFacadeV6';
+export * from './typedMigrationBridgeV6';
+export * from './typedLegacySurfaceV6';
+export * from './typedAssetRuntimeV6';
+export * from './typedRuntimeVerificationV6';
+export * from './typedSceneCoordinatorV6';
