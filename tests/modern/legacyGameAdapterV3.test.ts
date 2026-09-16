@@ -24,13 +24,13 @@ describe('TypeSafeLegacyGameAdapter', () => {
     expect(adapter.isLoaded()).toBe(false);
   });
 
-  it('does not execute arbitrary actions after a failed callback', async () => {
+  it('retains a loaded state when an unrelated bridged operation fails', async () => {
     const adapter = createTypeSafeLegacyGameAdapter({ loader: async () => ({ initGame3D: () => undefined }) });
     const events: boolean[] = [];
-    adapter['#unused'] = undefined as never;
     await adapter.load();
     await expect(adapter.invoke('failure', async () => { throw new Error('expected'); })).rejects.toThrow('expected');
     events.push(adapter.isLoaded());
     expect(events).toEqual([true]);
+    await adapter.unload();
   });
 });
