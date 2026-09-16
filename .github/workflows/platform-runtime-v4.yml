@@ -1,0 +1,20 @@
+name: Platform Runtime V4
+on:
+  pull_request:
+    paths: [src/3d/modern/platformRuntimeV4.ts, tests/nextgen/platformRuntimeV4.test.ts, scripts/checkPlatformRuntimeV4.mjs, package.json, .github/workflows/platform-runtime-v4.yml]
+  push:
+    branches: [main]
+    paths: [src/3d/modern/platformRuntimeV4.ts, tests/nextgen/platformRuntimeV4.test.ts, scripts/checkPlatformRuntimeV4.mjs, package.json, .github/workflows/platform-runtime-v4.yml]
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run verify:platform-v4
+      - run: npx tsc --noEmit
+      - run: npx vitest run tests/nextgen/platformRuntimeV4.test.ts
