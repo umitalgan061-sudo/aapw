@@ -1,0 +1,29 @@
+name: Safak Kartali fauna activity budget R2
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaActivityBudget.js'
+      - 'scripts/checkSafakKartaliFaunaActivityBudgetR2.mjs'
+      - 'scripts/runSafakKartaliFaunaActivityBudgetR2.mjs'
+      - 'artifacts/safak-kartali-fauna-activity-budget-r2/**'
+      - 'src/3d/gameplay/FAUNA_ACTIVITY_BUDGET_R2.md'
+      - '.github/workflows/safak-kartali-fauna-activity-budget-r2.yml'
+  push:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaActivityBudget.js'
+      - 'scripts/runSafakKartaliFaunaActivityBudgetR2.mjs'
+      - 'artifacts/safak-kartali-fauna-activity-budget-r2/**'
+      - 'src/3d/gameplay/FAUNA_ACTIVITY_BUDGET_R2.md'
+      - '.github/workflows/safak-kartali-fauna-activity-budget-r2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: node --check src/3d/gameplay/livingWorldFaunaActivityBudget.js && node --check scripts/checkSafakKartaliFaunaActivityBudgetR2.mjs && node --check scripts/runSafakKartaliFaunaActivityBudgetR2.mjs
+      - name: Acceptance
+        run: node scripts/runSafakKartaliFaunaActivityBudgetR2.mjs
