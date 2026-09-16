@@ -1,0 +1,1 @@
+export const MODERNIZATION_BRANCH_MARKER = 'v3';
