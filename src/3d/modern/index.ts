@@ -157,3 +157,4 @@ export * from './typedAssetRuntimeV6';
 export * from './typedRuntimeVerificationV6';
 export * from './typedSceneCoordinatorV6';
 export * from './v3/index.ts';
+export * as v6 from './v6/index.ts';

@@ -1,0 +1,42 @@
+name: v6-platform
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/v6/**'
+      - 'src/3d/modern/index.ts'
+      - 'tests/modern/v6Platform.test.ts'
+      - 'scripts/verifyV6Platform.mjs'
+      - 'package.json'
+      - '.github/workflows/v6-platform.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/modern/v6/**'
+      - 'src/3d/modern/index.ts'
+      - 'tests/modern/v6Platform.test.ts'
+      - 'scripts/verifyV6Platform.mjs'
+      - 'package.json'
+      - '.github/workflows/v6-platform.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v6-platform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-v6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:v6
+      - run: npm run typecheck
+      - run: npm test -- tests/modern/v6Platform.test.ts --passWithNoTests
+      - run: npm run build:modern
