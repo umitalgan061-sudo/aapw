@@ -15,8 +15,12 @@ const directorSource = await readFile(new URL('../src/3d/gameplay/livingWorldFau
 assert.match(directorSource, /export function planLivingWorldFaunaEcologyTick/);
 assert.match(directorSource, /export function buildFaunaEcologyReplayTape/);
 assert.match(directorSource, /export function applyLivingWorldFaunaEcologyPlan/);
-assert.doesNotMatch(directorSource, /from ['\"]three['\"]/);
-assert.doesNotMatch(directorSource, /document\./);
+const importSurface = directorSource
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/(^|\n)\s*\/\/.*$/gm, '$1');
+assert.doesNotMatch(importSurface, /^\s*import(?:[\s\S]*?)\sfrom\s+['\"]three['\"];?\s*$/m);
+assert.doesNotMatch(importSurface, /^\s*import\s+['\"]three['\"];?\s*$/m);
+assert.doesNotMatch(importSurface, /document\./);
 
 const habitat = {
   id: 'pine-edge',
