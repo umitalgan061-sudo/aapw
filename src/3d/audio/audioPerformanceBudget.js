@@ -40,8 +40,18 @@ export function audioPerformanceAdmission(policy, { critical = false, kind = 'so
 }
 
 export function evaluateAudioPerformanceBudget(input = {}) {
+  const hasLegacyBudget = Number.isFinite(input.activeVoices) || Number.isFinite(input.maxVoices) || Number.isFinite(input.positionalVoices) || Number.isFinite(input.maxPositionalVoices) || Number.isFinite(input.queuedCues);
+  if (hasLegacyBudget) {
+    const activeVoices = Math.max(0, finiteOr(input.activeVoices, 0));
+    const maxVoices = Math.max(0, finiteOr(input.maxVoices, 48));
+    const positionalVoices = Math.max(0, finiteOr(input.positionalVoices, 0));
+    const maxPositionalVoices = Math.max(0, finiteOr(input.maxPositionalVoices, 28));
+    const queuedCues = Math.max(0, finiteOr(input.queuedCues, 0));
+    const withinBudget = activeVoices <= maxVoices && positionalVoices <= maxPositionalVoices && queuedCues <= 32;
+    return freeze({ version: 1, withinBudget, activeVoices, maxVoices, positionalVoices, maxPositionalVoices, queuedCues, pressure: Number(clamp((activeVoices / Math.max(maxVoices, 1)) * 0.55 + (positionalVoices / Math.max(maxPositionalVoices, 1)) * 0.3 + (queuedCues / 32) * 0.15, 0, 2).toFixed(4)), budget: { maxVoices, maxPositionalVoices, maxQueuedCues: 32 } });
+  }
   const policy = createAudioPerformanceBudget(input);
-  return freeze({ ...policy, admission: audioPerformanceAdmission(policy, { kind: 'source', current: policy.measurements.sources, estimatedCost: 1 }), qualityIndex: audioPerformanceQualityIndex(policy.quality) });
+  return freeze({ ...policy, admission: audioPerformanceAdmission(policy, { kind: 'source', current: policy.measurements.sources, estimatedCost: 1 }), qualityIndex: audioPerformanceQualityIndex(policy.quality), withinBudget: policy.measurements.sources <= policy.budget.maxSources && policy.measurements.transientRate <= policy.budget.maxTransientPerSecond });
 }
 
 export function audioPerformanceQualityIndex(quality) { return QUALITY[quality] ?? QUALITY.balanced; }
