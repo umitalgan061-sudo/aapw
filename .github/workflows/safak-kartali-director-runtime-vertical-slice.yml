@@ -1,0 +1,43 @@
+name: Safak Kartali director runtime vertical slice
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/livingWorldDirectorRuntimeAdapter.js'
+      - 'src/3d/gameplay/livingWorldOccupationSchedule.js'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.js'
+      - 'src/3d/gameplay/livingWorldEventDirectorAdapter.js'
+      - 'scripts/checkSafakKartaliDirectorRuntimeVerticalSlice.mjs'
+      - '.github/workflows/safak-kartali-director-runtime-vertical-slice.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-proof:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax gate
+        run: |
+          set -euo pipefail
+          node --check scripts/checkSafakKartaliDirectorRuntimeVerticalSlice.mjs
+          node --check src/3d/gameplay/livingWorldDirectorRuntimeAdapter.js
+      - name: Runtime vertical-slice proof
+        run: node scripts/checkSafakKartaliDirectorRuntimeVerticalSlice.mjs
+      - name: Scope and shared-boundary guard
+        run: |
+          set -euo pipefail
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+          ! grep -R "EditorMaterialStudio" -n scripts/checkSafakKartaliDirectorRuntimeVerticalSlice.mjs .github/workflows/safak-kartali-director-runtime-vertical-slice.yml
