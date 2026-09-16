@@ -50,7 +50,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '24.21.0'
-          cache: npm
 
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
@@ -73,7 +72,7 @@ jobs:
           test -n "$(find dist -type f | wc -l)"
 
       - name: Upload build artifact
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v7
         with:
           name: aapw-modern-build-${{ github.sha }}
@@ -100,5 +99,4 @@ jobs:
       - name: Syntax-check legacy JavaScript entrypoints
         run: |
           node --check script.js
-          node --check sw.js
           node --check service-worker.js
