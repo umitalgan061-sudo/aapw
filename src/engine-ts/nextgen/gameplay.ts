@@ -1,15 +1,6 @@
-import { EcsWorld, ComponentType, TransformComponent, VelocityComponent, HealthState, EntityId, asTick, clamp, Vec3, distance3 } from './contracts.ts' as unknown as {
-  EcsWorld: typeof import('./ecs.ts').EcsWorld;
-  ComponentType: typeof import('./ecs.ts').ComponentType;
-  TransformComponent: unknown;
-  VelocityComponent: unknown;
-  HealthState: unknown;
-  EntityId: unknown;
-  asTick: (n: number) => number;
-  clamp: (n: number, min: number, max: number) => number;
-  Vec3: unknown;
-  distance3: (a: any, b: any) => number;
-};
+import type { EntityId, HealthState, Vec3 } from './contracts.ts';
+import { asTick, clamp, distance3 } from './contracts.ts';
+import type { EcsWorld, ComponentType } from './ecs.ts';
 
 export interface ActorStats {
   readonly maxHealth: number;
@@ -24,7 +15,7 @@ export interface ActorStats {
 }
 
 export interface ActorState {
-  readonly entity: number;
+  readonly entity: EntityId;
   readonly faction: string;
   readonly stats: ActorStats;
   readonly grounded: boolean;
@@ -36,8 +27,8 @@ export interface ActorState {
 }
 
 export interface DamageEvent {
-  readonly source: number;
-  readonly target: number;
+  readonly source: EntityId;
+  readonly target: EntityId;
   readonly amount: number;
   readonly poiseDamage: number;
   readonly tick: number;
@@ -60,43 +51,59 @@ export interface AttackDefinition {
 export const LIGHT_ATTACK: AttackDefinition = Object.freeze({ id: 'light', windupMs: 120, activeMs: 90, recoveryMs: 260, range: 2.1, arcDegrees: 105, staminaCost: 12, damageMultiplier: 1, poiseMultiplier: 0.8, comboWindowMs: 220 });
 export const HEAVY_ATTACK: AttackDefinition = Object.freeze({ id: 'heavy', windupMs: 320, activeMs: 140, recoveryMs: 460, range: 2.5, arcDegrees: 85, staminaCost: 28, damageMultiplier: 2.2, poiseMultiplier: 2, comboWindowMs: 320 });
 
-interface ActiveAttack { readonly actor: number; readonly definition: AttackDefinition; elapsedMs: number; hitTargets: Set<number>; }
+interface ActiveAttack { readonly actor: EntityId; readonly definition: AttackDefinition; elapsedMs: number; hitTargets: Set<EntityId>; }
 
 export class CombatSystem {
-  readonly #actors = new Map<number, ActorState>();
+  readonly #actors = new Map<EntityId, ActorState>();
   readonly #attacks: ActiveAttack[] = [];
   readonly #damageEvents: DamageEvent[] = [];
   #tick = 0;
 
-  register(entity: number, faction: string, stats: Partial<ActorStats> = {}): ActorState {
-    const base: ActorStats = Object.freeze({ maxHealth: Math.max(1, stats.maxHealth ?? 100), health: clamp(stats.health ?? stats.maxHealth ?? 100, 0, Math.max(1, stats.maxHealth ?? 100)), stamina: clamp(stats.stamina ?? stats.maxStamina ?? 100, 0, Math.max(1, stats.maxStamina ?? 100)), maxStamina: Math.max(1, stats.maxStamina ?? 100), poise: clamp(stats.poise ?? stats.maxPoise ?? 100, 0, Math.max(1, stats.maxPoise ?? 100)), maxPoise: Math.max(1, stats.maxPoise ?? 100), moveSpeed: Math.max(0, stats.moveSpeed ?? 4), attackSpeed: Math.max(0.1, stats.attackSpeed ?? 1), damage: Math.max(0, stats.damage ?? 15) });
-    const state = Object.freeze({ entity, faction, stats: base, grounded: true, stunnedUntil: 0, invulnerableUntil: 0, dead: false, comboStep: 0, revision: 0 });
+  register(entity: EntityId, faction: string, stats: Partial<ActorStats> = {}): ActorState {
+    const maxHealth = Math.max(1, stats.maxHealth ?? 100);
+    const maxStamina = Math.max(1, stats.maxStamina ?? 100);
+    const maxPoise = Math.max(1, stats.maxPoise ?? 100);
+    const base: ActorStats = Object.freeze({
+      maxHealth,
+      health: clamp(stats.health ?? maxHealth, 0, maxHealth),
+      stamina: clamp(stats.stamina ?? maxStamina, 0, maxStamina),
+      maxStamina,
+      poise: clamp(stats.poise ?? maxPoise, 0, maxPoise),
+      maxPoise,
+      moveSpeed: Math.max(0, stats.moveSpeed ?? 4),
+      attackSpeed: Math.max(0.1, stats.attackSpeed ?? 1),
+      damage: Math.max(0, stats.damage ?? 15),
+    });
+    const state: ActorState = Object.freeze({ entity, faction, stats: base, grounded: true, stunnedUntil: 0, invulnerableUntil: 0, dead: base.health <= 0, comboStep: 0, revision: 0 });
     this.#actors.set(entity, state);
     return state;
   }
 
-  get(entity: number): ActorState | undefined { return this.#actors.get(entity); }
-  values(): readonly ActorState[] { return Object.freeze([...this.#actors.values()].sort((a, b) => a.entity - b.entity)); }
+  get(entity: EntityId): ActorState | undefined { return this.#actors.get(entity); }
+  values(): readonly ActorState[] { return Object.freeze([...this.#actors.values()].sort((a, b) => Number(a.entity) - Number(b.entity))); }
 
-  attack(entity: number, definition: AttackDefinition = LIGHT_ATTACK): boolean {
+  attack(entity: EntityId, definition: AttackDefinition = LIGHT_ATTACK): boolean {
     const actor = this.#actors.get(entity);
     if (!actor || actor.dead || actor.stunnedUntil > this.#tick || actor.stats.stamina < definition.staminaCost || this.#attacks.some((attack) => attack.actor === entity)) return false;
-    actor.stats = Object.freeze({ ...actor.stats, stamina: actor.stats.stamina - definition.staminaCost });
+    const stats = Object.freeze({ ...actor.stats, stamina: actor.stats.stamina - definition.staminaCost });
+    this.#actors.set(entity, Object.freeze({ ...actor, stats, comboStep: (actor.comboStep + 1) % 3, revision: actor.revision + 1 }));
     this.#attacks.push({ actor: entity, definition, elapsedMs: 0, hitTargets: new Set() });
     return true;
   }
 
-  tick(deltaMs: number, positions: ReadonlyMap<number, Vec3>, forwards: ReadonlyMap<number, Vec3>): readonly DamageEvent[] {
+  tick(deltaMs: number, positions: ReadonlyMap<EntityId, Vec3>, forwards: ReadonlyMap<EntityId, Vec3>): readonly DamageEvent[] {
     this.#tick += 1;
-    for (const actor of this.#actors.values()) {
+    const dt = Math.max(1, deltaMs);
+    for (const [entity, actor] of this.#actors) {
       if (actor.dead) continue;
-      const staminaRegen = actor.stunnedUntil > this.#tick ? 0.05 : 0.18;
-      actor.stats = Object.freeze({ ...actor.stats, stamina: clamp(actor.stats.stamina + staminaRegen * deltaMs, 0, actor.stats.maxStamina), poise: clamp(actor.stats.poise + deltaMs * 0.08, 0, actor.stats.maxPoise) });
+      const regenFactor = actor.stunnedUntil > this.#tick ? 0.03 : 0.18;
+      const stats = Object.freeze({ ...actor.stats, stamina: clamp(actor.stats.stamina + regenFactor * dt, 0, actor.stats.maxStamina), poise: clamp(actor.stats.poise + dt * 0.08, 0, actor.stats.maxPoise) });
+      this.#actors.set(entity, Object.freeze({ ...actor, stats }));
     }
     for (let index = this.#attacks.length - 1; index >= 0; index -= 1) {
       const attack = this.#attacks[index]!;
-      const scaledDelta = deltaMs * (this.#actors.get(attack.actor)?.stats.attackSpeed ?? 1);
-      attack.elapsedMs += scaledDelta;
+      const actor = this.#actors.get(attack.actor);
+      attack.elapsedMs += dt * (actor?.stats.attackSpeed ?? 1);
       const activeStart = attack.definition.windupMs;
       const activeEnd = activeStart + attack.definition.activeMs;
       if (attack.elapsedMs >= activeStart && attack.elapsedMs <= activeEnd) this.#resolveHits(attack, positions, forwards);
@@ -107,57 +114,62 @@ export class CombatSystem {
     return result;
   }
 
-  private #resolveHits(attack: ActiveAttack, positions: ReadonlyMap<number, Vec3>, forwards: ReadonlyMap<number, Vec3>): void {
+  #resolveHits(attack: ActiveAttack, positions: ReadonlyMap<EntityId, Vec3>, forwards: ReadonlyMap<EntityId, Vec3>): void {
     const source = this.#actors.get(attack.actor);
     const sourcePosition = positions.get(attack.actor);
     if (!source || !sourcePosition) return;
     const sourceForward = forwards.get(attack.actor) ?? { x: 0, y: 0, z: 1 };
     for (const [targetId, target] of this.#actors) {
-      if (targetId === attack.actor || target.dead || target.faction === source.faction || attack.hitTargets.has(targetId)) continue;
-      if (target.invulnerableUntil > this.#tick) continue;
+      if (targetId === attack.actor || target.dead || target.faction === source.faction || attack.hitTargets.has(targetId) || target.invulnerableUntil > this.#tick) continue;
       const targetPosition = positions.get(targetId);
       if (!targetPosition) continue;
       const distance = distance3(sourcePosition, targetPosition);
       if (distance > attack.definition.range) continue;
-      const direction = { x: targetPosition.x - sourcePosition.x, y: 0, z: targetPosition.z - sourcePosition.z };
-      const length = Math.hypot(direction.x, direction.z) || 1;
-      const facing = (direction.x * sourceForward.x + direction.z * sourceForward.z) / length;
-      const threshold = Math.cos((attack.definition.arcDegrees * Math.PI) / 360);
-      if (facing < threshold) continue;
+      const dx = targetPosition.x - sourcePosition.x;
+      const dz = targetPosition.z - sourcePosition.z;
+      const length = Math.hypot(dx, dz) || 1;
+      const facing = (dx * sourceForward.x + dz * sourceForward.z) / length;
+      const arcThreshold = Math.cos((attack.definition.arcDegrees * Math.PI) / 360);
+      if (facing < arcThreshold) continue;
       const critical = facing > 0.92 && distance < attack.definition.range * 0.75;
-      const rawDamage = source.stats.damage * attack.definition.damageMultiplier * (critical ? 1.5 : 1);
-      const targetAfterPoise = target.stats.poise - source.stats.damage * attack.definition.poiseMultiplier;
-      const stunned = targetAfterPoise <= 0;
-      const nextHealth = Math.max(0, target.stats.health - rawDamage);
-      const next: ActorState = Object.freeze({ ...target, stats: Object.freeze({ ...target.stats, health: nextHealth, poise: Math.max(0, targetAfterPoise) }), stunnedUntil: stunned ? this.#tick + 20 : target.stunnedUntil, dead: nextHealth <= 0, revision: target.revision + 1 });
+      const amount = source.stats.damage * attack.definition.damageMultiplier * (critical ? 1.5 : 1);
+      const poise = source.stats.damage * attack.definition.poiseMultiplier;
+      const remainingHealth = Math.max(0, target.stats.health - amount);
+      const remainingPoise = Math.max(0, target.stats.poise - poise);
+      const next: ActorState = Object.freeze({ ...target, stats: Object.freeze({ ...target.stats, health: remainingHealth, poise: remainingPoise }), stunnedUntil: remainingPoise <= 0 ? this.#tick + 20 : target.stunnedUntil, dead: remainingHealth <= 0, revision: target.revision + 1 });
       this.#actors.set(targetId, next);
       attack.hitTargets.add(targetId);
-      this.#damageEvents.push(Object.freeze({ source: attack.actor, target: targetId, amount: rawDamage, poiseDamage: source.stats.damage * attack.definition.poiseMultiplier, tick: this.#tick, critical }));
+      this.#damageEvents.push(Object.freeze({ source: attack.actor, target: targetId, amount, poiseDamage: poise, tick: this.#tick, critical }));
     }
   }
 }
 
-export interface AbilityDefinition { readonly id: string; readonly cooldownMs: number; readonly cost: number; readonly durationMs: number; readonly apply: (actor: ActorState) => ActorState; }
+export interface AbilityDefinition {
+  readonly id: string;
+  readonly cooldownMs: number;
+  readonly cost: number;
+  readonly durationMs: number;
+  readonly apply: (actor: ActorState) => ActorState;
+}
 
 export class AbilityBook {
   readonly #definitions = new Map<string, AbilityDefinition>();
   readonly #cooldowns = new Map<string, number>();
   register(definition: AbilityDefinition): void { if (this.#definitions.has(definition.id)) throw new Error(`ability exists: ${definition.id}`); this.#definitions.set(definition.id, Object.freeze(definition)); }
-  canUse(actor: ActorState, id: string, nowMs: number): boolean { const ability = this.#definitions.get(id); if (!ability || actor.dead || actor.stunnedUntil > nowMs) return false; return (this.#cooldowns.get(`${actor.entity}:${id}`) ?? 0) <= nowMs && actor.stats.stamina >= ability.cost; }
+  canUse(actor: ActorState, id: string, nowMs: number): boolean { const ability = this.#definitions.get(id); return Boolean(ability && !actor.dead && actor.stunnedUntil <= nowMs && (this.#cooldowns.get(`${actor.entity}:${id}`) ?? 0) <= nowMs && actor.stats.stamina >= ability.cost); }
   use(actor: ActorState, id: string, nowMs: number): ActorState | null { const ability = this.#definitions.get(id); if (!ability || !this.canUse(actor, id, nowMs)) return null; this.#cooldowns.set(`${actor.entity}:${id}`, nowMs + ability.cooldownMs); const modified = ability.apply(actor); return Object.freeze({ ...modified, stats: Object.freeze({ ...modified.stats, stamina: Math.max(0, modified.stats.stamina - ability.cost) }) }); }
   clear(): void { this.#cooldowns.clear(); }
 }
 
-export const bindCombatToEcs = (world: any, transform: any, velocity: any, health: any, combat: CombatSystem, tick: number): readonly DamageEvent[] => {
-  const positions = new Map<number, any>();
-  const forwards = new Map<number, any>();
-  for (const row of world.query({ all: ['transform'] })) {
-    const value = row.components.transform as any;
+export const bindCombatToEcs = (world: EcsWorld, transform: ComponentType<{ readonly position: Vec3; readonly yaw: number }>, combat: CombatSystem, deltaMs: number): readonly DamageEvent[] => {
+  const positions = new Map<EntityId, Vec3>();
+  const forwards = new Map<EntityId, Vec3>();
+  for (const row of world.query({ all: [transform.id] })) {
+    const value = row.components[transform.id] as { readonly position: Vec3; readonly yaw: number };
     positions.set(row.entity, value.position);
     forwards.set(row.entity, { x: Math.sin(value.yaw), y: 0, z: Math.cos(value.yaw) });
   }
-  void velocity; void health;
-  return combat.tick(Math.max(1, tick), positions, forwards);
+  return combat.tick(deltaMs, positions, forwards);
 };
 
-export const finiteActorHealth = (state: ActorState): HealthState => Object.freeze({ current: state.stats.health, maximum: state.stats.maxHealth, regenerationPerSecond: 0, invulnerableUntilTick: asTick(state.invulnerableUntil) as any });
+export const finiteActorHealth = (state: ActorState): HealthState => Object.freeze({ current: state.stats.health, maximum: state.stats.maxHealth, regenerationPerSecond: 0, invulnerableUntilTick: asTick(state.invulnerableUntil) });
