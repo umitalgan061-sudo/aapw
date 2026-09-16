@@ -7,11 +7,12 @@ const requiredModules = [
   'combatSimulation.ts', 'aiSimulation.ts', 'navigationRuntimeV3.ts', 'assetStreamingV3.ts', 'networkProtocolV3.ts',
   'runtimeTelemetryV3.ts', 'saveSystemV3.ts', 'workerProtocolV3.ts', 'runtimeSecurityV3.ts', 'runtimeContractsV3.ts',
   'runtimeConfigV3.ts', 'performanceGovernorV3.ts', 'renderQualityV3.ts', 'fixedStepControllerV3.ts', 'runtimeLoopV3.ts',
-  'worldAuthorityV3.ts', 'runtimeFacadeV3.ts', 'legacyInteropV3.ts', 'index.ts',
+  'worldAuthorityV3.ts', 'runtimeFacadeV3.ts', 'legacyInteropV3.ts', 'cameraRuntimeV3.ts', 'index.ts',
 ];
 const requiredTests = [
   'nextgenRuntimeV3.test.ts', 'nextgenDeterminismStress.test.ts', 'runtimeContractsV3.test.ts', 'runtimeFacadeIntegration.test.ts',
-  'runtimeLoopV3.test.ts', 'worldAuthorityV3.test.ts', 'performanceGovernorV3.test.ts', 'renderQualityV3.test.ts', 'inputAndJournalV3.test.ts',
+  'runtimeLoopV3.test.ts', 'worldAuthorityV3.test.ts', 'performanceGovernorV3.test.ts', 'renderQualityV3.test.ts',
+  'inputAndJournalV3.test.ts', 'cameraRuntimeV3.test.ts',
 ];
 
 async function read(path) { return readFile(resolve(root, path), 'utf8'); }
