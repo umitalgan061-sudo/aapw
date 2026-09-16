@@ -1,0 +1,38 @@
+name: Kızıl Ufuk Player Combat Feedback Envelope
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatFeedbackEnvelope.js'
+      - 'scripts/checkPlayerCombatFeedbackEnvelope.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-feedback-envelope.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-combat-feedback-envelope-20260916-r11'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact-head syntax and runtime proof
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/playerCombatFeedbackEnvelope.js
+          node --check scripts/checkPlayerCombatFeedbackEnvelope.mjs
+          node scripts/checkPlayerCombatFeedbackEnvelope.mjs
+      - name: Additive scope guard
+        run: |
+          set -euo pipefail
+          BASE="$(git merge-base HEAD origin/main)"
+          ADDED="$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1} END {print a+0}')"
+          DELETED="$(git diff --numstat "$BASE"...HEAD | awk '{d+=$2} END {print d+0}')"
+          test "$DELETED" -eq 0
+          test "$ADDED" -le 3000
+          OUT_OF_SCOPE="$(git diff --name-only "$BASE"...HEAD | grep -Ev '^(src/3d/gameplay/playerCombatFeedbackEnvelope.js|scripts/checkPlayerCombatFeedbackEnvelope.mjs|.github/workflows/kizil-ufuk-player-combat-feedback-envelope.yml)$' || true)"
+          test -z "$OUT_OF_SCOPE"
