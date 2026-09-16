@@ -21,6 +21,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund --ignore-scripts
       - name: Generate deterministic policy matrix
         run: node scripts/generateWasmHotPathV2Matrix.mjs
       - name: Validate matrix
