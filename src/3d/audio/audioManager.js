@@ -1,136 +1,67 @@
 /**
- * Minimal sound-effect playback for the 3D mode — the first audio in the game
- * (`GOVERNANCE_FULL_GAME_DIRECTIVE.md` §3 item 6: "Ses (müzik + efekt) — Yok. `assets/audio/`
- * fiilen boş." until this run).
+ * Production audio facade for the 3D mode.
  *
- * Scope, deliberately kept small for one bounded subtask, same "smallest first slice" pattern
- * `ui/pauseMenu.js` itself established for its own FAZ gap (run 339): a single UI click cued from
- * `ui/pauseMenu.js`'s open/close transitions. No music, no positional/spatial SFX, no volume
- * control yet — `ui/pauseMenu.js`'s own header already discloses "no volume control" as a deferred
- * scope edge tied to `assets/audio/` being empty; this run closes the "a real sound exists" half of
- * that gap without attempting the "a settings UI to control it" half in the same pass.
- *
- * **Browser autoplay policy.** An `AudioContext` starts `suspended` until a user gesture resumes
- * it. `playClick()` is only ever called from `ui/pauseMenu.js`'s button-click/Escape-keydown
- * handlers (via `game3d.js`'s `onOpenChange`) — both are trusted, synchronous DOM events — so
- * `context.resume()` is fired synchronously at the top of `playClick()`, before any `await`, to
- * stay inside that gesture's call stack instead of losing "user activation" across a microtask
- * boundary.
- *
- * **Error boundary (§8.13).** Every failure mode (no Web Audio support, the file failing to load,
- * playback throwing) is caught and logged, never thrown past this module — one missing UI click
- * must not crash the rest of the game.
- *
- * **Mute (run 347).** `ui/pauseMenu.js`'s settings screen gained a mute checkbox — unlike the
- * graphics-quality picker next to it, this applies live (`setMuted()`/`AudioListener.setMasterVolume`)
- * rather than needing a reload, since there is no scene state to reconstruct. This module still owns
- * no `localStorage` writes (`ui/pauseMenu.js` does, same as it already does for
- * `STORAGE_KEYS.QUALITY_SETTING`) — only the guarded *read* of the persisted default, needed here
- * because `createAudioManager()` runs before any UI class exists (`readStoredMuted()` below, same
- * try/catch shape `sceneManager.js`'s own `readManualQualityLevel()` uses).
- *
- * **Second sound cue (run 348).** `ui/settlementDiscovery.js`'s discovery toast now cues
- * `playDiscoveryChime()` — deliberately reusing `ui-click.wav`'s already-loaded buffer (same "smallest
- * slice" reasoning as every prior step here) rather than sourcing and licensing a second asset file
- * for one bounded subtask. `setPlaybackRate()`/a lower `setVolume()` give it a distinct, chime-like
- * feel from the pause menu's own sharper click without needing new content. Both share
- * `playBuffer()` below.
- * @module audio/audioManager
+ * Keeps the established click/discovery API intact while adding a bounded immersive director for
+ * procedural world ambience, spatial source policy, dynamic ducking, occlusion and accessibility.
+ * The facade still owns the AudioListener lifecycle because that was already its responsibility; the
+ * immersive director is a contained policy/graph layer beneath it and remains fail-closed when Web Audio
+ * is unavailable.
  */
 
 import * as THREE from 'three';
 import { ASSET_PATHS, STORAGE_KEYS } from '../config.js';
+import { createImmersiveAudioDirector } from './immersiveAudioDirector.js';
+import { createAudioSnapshot, serializeAudioSnapshot } from './audioSnapshot.js';
 
-/** `ASSET_PATHS.AUDIO` has been in `config.js` since Phase 0 ("no magic numbers... add them here
- * instead") but had no reader anywhere in `src/` until this run — same "finally consume a
- * since-Phase-0 config value" pattern `renderQuality.js`'s `shadowMapSize`/`pixelRatioCap` wiring
- * already established (ADR-0288/ADR-0291). */
 const CLICK_SOUND_URL = `${ASSET_PATHS.AUDIO}ui-click.wav`;
-
-/** Quiet enough to read as a UI accent, not a jarring beep — picked by ear against the source
- * file (CC0, see `CREDITS.md`), no formula behind this number. */
 const CLICK_VOLUME = 0.35;
-
-/** Discovery chime (run 348) reuses `CLICK_SOUND_URL`'s buffer at a lower volume and a higher
- * pitch (`setPlaybackRate`) — quieter and brighter than the pause-menu click, since it interrupts
- * active play rather than responding to a deliberate menu action, and needs to read as a distinct
- * cue despite sharing the same source file. Picked by ear, same as `CLICK_VOLUME`. */
 const DISCOVERY_CHIME_VOLUME = 0.22;
 const DISCOVERY_CHIME_PLAYBACK_RATE = 1.6;
 
-/** Guarded `localStorage` read for the persisted mute preference — `ui/pauseMenu.js`'s settings
- * screen owns *writing* `STORAGE_KEYS.SOUND_MUTED`; this is the one place that needs to read it
- * back, since `createAudioManager()` is constructed before any UI class exists. Same try/catch
- * shape `sceneManager.js`'s own `readManualQualityLevel()` uses for `STORAGE_KEYS.QUALITY_SETTING`
- * — a blocked/absent `localStorage` (private browsing, some embedded webviews) falls back to
- * unmuted rather than throwing.
- * @returns {boolean}
- */
 export function readStoredMuted() {
-	try {
-		return globalThis.localStorage?.getItem(STORAGE_KEYS.SOUND_MUTED) === '1';
-	} catch {
-		return false;
-	}
+	try { return globalThis.localStorage?.getItem(STORAGE_KEYS.SOUND_MUTED) === '1'; } catch { return false; }
 }
 
 /**
- * @param {object} options
- * @param {THREE.Camera} options.camera Real scene camera — the `AudioListener` is added as its
- *   child so `THREE.Audio` has an output to route through. This project doesn't use positional
- *   audio yet, so the listener's tracked position/orientation goes unused today but is harmless
- *   (three.js updates it once per frame as part of the camera's own `updateMatrixWorld`).
- * @param {boolean} [options.initialMuted] Starting mute state — callers pass `readStoredMuted()`
- *   (`game3d.js` does); defaults to `false` so a caller that skips this option still gets sound.
- * @returns {{playClick: () => Promise<void>, playDiscoveryChime: () => Promise<void>,
- *   setMuted: (muted: boolean) => void, isMuted: () => boolean, dispose: () => void}}
+ * Existing callers only need the legacy four methods. New runtime callers can consume the additional
+ * immersive methods without knowing anything about Web Audio internals. `quality`, accessibility and
+ * environment options are optional so older scene bootstrap code remains source compatible.
  */
-export function createAudioManager({ camera, initialMuted = false }) {
+export function createAudioManager({ camera, initialMuted = false, quality = 'balanced', reducedMotion = false, coarsePointer = false, environment = 'plains' }) {
 	let listener = null;
 	let audioLoader = null;
 	let muted = !!initialMuted;
-	/** @type {Promise<AudioBuffer|null>|null} */
 	let clickBufferPromise = null;
+	let audioDirector = null;
 
 	try {
 		listener = new THREE.AudioListener();
 		camera.add(listener);
 		listener.setMasterVolume(muted ? 0 : 1);
+		try {
+			audioDirector = createImmersiveAudioDirector({ listener, quality, reducedMotion, coarsePointer, environment });
+		} catch (error) {
+			console.warn('[audioManager] immersive audio director unavailable, legacy cues remain active', error);
+			audioDirector = null;
+		}
 	} catch (error) {
-		// A device/browser without usable Web Audio must not take the rest of the game down over
-		// one UI click — every method below already treats `listener === null` as "sound disabled".
 		console.warn('[audioManager] AudioListener unavailable, sound disabled', error);
 		listener = null;
 	}
 
-	/** Lazily fetches+decodes the click buffer once, memoized (including the failure case, so a
-	 * broken/missing file doesn't retry a network request on every future click). */
 	function loadClickBuffer() {
 		if (!clickBufferPromise) {
 			audioLoader = audioLoader ?? new THREE.AudioLoader();
-			clickBufferPromise = new Promise((resolve, reject) => {
-				audioLoader.load(CLICK_SOUND_URL, resolve, undefined, reject);
-			}).catch((error) => {
-				console.warn('[audioManager] click sound failed to load', error);
-				return null;
-			});
+			clickBufferPromise = new Promise((resolve, reject) => audioLoader.load(CLICK_SOUND_URL, resolve, undefined, reject))
+				.catch((error) => { console.warn('[audioManager] click sound failed to load', error); return null; });
 		}
 		return clickBufferPromise;
 	}
 
-	/** Shared playback path for both `playClick()` and `playDiscoveryChime()` (run 348) — both cue
-	 * off a real, trusted-gesture-adjacent moment (a menu click; a player walking into a settlement's
-	 * discovery radius while already playing), so both get the same autoplay-resume handling. Safe to
-	 * call even if audio is unavailable or the buffer hasn't resolved yet (early-returns; never
-	 * throws).
-	 * @param {number} volume
-	 * @param {number} playbackRate
-	 */
 	async function playBuffer(volume, playbackRate) {
 		if (!listener) return;
 		const context = listener.context;
-		// Initiated before the `await` below on purpose — see the module doc's autoplay-policy note.
-		const resumePromise = context.state === 'suspended' ? context.resume().catch(() => {}) : null;
+		const resumePromise = context?.state === 'suspended' ? context.resume().catch(() => {}) : null;
 		const buffer = await loadClickBuffer();
 		if (resumePromise) await resumePromise;
 		if (!buffer) return;
@@ -139,50 +70,54 @@ export function createAudioManager({ camera, initialMuted = false }) {
 			sound.setBuffer(buffer);
 			sound.setVolume(volume);
 			sound.setPlaybackRate(playbackRate);
-			// Wrap rather than replace the prototype's `onEnded` (which flips `isPlaying` back to
-			// false) so this still disconnects the finished source's audio-graph nodes, without
-			// losing that base bookkeeping.
 			const baseOnEnded = sound.onEnded.bind(sound);
 			sound.onEnded = () => { baseOnEnded(); sound.disconnect(); };
 			sound.play();
-		} catch (error) {
-			console.warn('[audioManager] sound playback failed', error);
-		}
+		} catch (error) { console.warn('[audioManager] sound playback failed', error); }
 	}
 
-	/** Plays the pause-menu UI click. */
-	function playClick() {
-		return playBuffer(CLICK_VOLUME, 1);
-	}
+	function playClick() { audioDirector?.triggerCue?.('ui', { gain: CLICK_VOLUME }) ; return playBuffer(CLICK_VOLUME, 1); }
+	function playDiscoveryChime() { audioDirector?.triggerCue?.('ambience', { gain: DISCOVERY_CHIME_VOLUME }); return playBuffer(DISCOVERY_CHIME_VOLUME, DISCOVERY_CHIME_PLAYBACK_RATE); }
+	function setMuted(next) { muted = !!next; if (listener) listener.setMasterVolume(muted ? 0 : 1); audioDirector?.setMasterVolume?.(muted ? 0 : 1); }
+	function isMuted() { return muted; }
 
-	/** Plays the settlement-discovery chime (run 348) — same source buffer as `playClick()`, at a
-	 * lower volume and higher pitch so it reads as a distinct cue (see this module's own doc). */
-	function playDiscoveryChime() {
-		return playBuffer(DISCOVERY_CHIME_VOLUME, DISCOVERY_CHIME_PLAYBACK_RATE);
-	}
+	function update(deltaSeconds, world = {}) { return audioDirector?.update?.(deltaSeconds, world) ?? null; }
+	function setEnvironment(nextEnvironment, state = {}) { return audioDirector?.setEnvironment?.(nextEnvironment, state) ?? null; }
+	function registerSpatialSource(source) { return audioDirector?.registerSource?.(source) ?? null; }
+	function updateSpatialSource(id, patch) { return audioDirector?.updateSource?.(id, patch) ?? null; }
+	function removeSpatialSource(id) { return audioDirector?.removeSource?.(id) ?? false; }
+	function setAudioDuck(group, active, options = {}) { return audioDirector?.setDuck?.(group, active, options) ?? null; }
+	function clearAudioDuck(id) { return audioDirector?.clearDuck?.(id) ?? false; }
+	function applyAudioOcclusion(result) { return audioDirector?.applyOcclusion?.(result) ?? null; }
+	function playWorldCue(kind, options = {}) { return audioDirector?.triggerCue?.(kind, options) ?? false; }
+	function getImmersiveSnapshot() { return audioDirector?.snapshot?.() ?? null; }
+	function getAudioSnapshot() { return createAudioSnapshot({ director: audioDirector }); }
+	function getAudioSnapshotJson() { return serializeAudioSnapshot({ director: audioDirector }); }
 
-	/** Live mute/unmute for every sound routed through this listener (today just `playClick()`'s
-	 * one-shot nodes, but future sounds get this for free) via `AudioListener.setMasterVolume` —
-	 * multiplying the whole listener's output rather than gating `playClick()` itself, so a click
-	 * already mid-playback when the player mutes stops immediately instead of finishing at full
-	 * volume. No-op if the listener never came up — same "listener === null means sound is already
-	 * off" treatment every other method here gives that case; `muted` still updates so `isMuted()`
-	 * stays accurate. */
-	function setMuted(next) {
-		muted = !!next;
-		if (listener) listener.setMasterVolume(muted ? 0 : 1);
-	}
-
-	function isMuted() {
-		return muted;
-	}
-
-	/** Removes the listener from the camera. No timers/DOM/global listeners were ever added, so
-	 * this is the entire memory-leak surface. */
 	function dispose() {
+		try { audioDirector?.dispose?.(); } catch (error) { console.warn('[audioManager] immersive audio dispose failed', error); }
+		audioDirector = null;
 		if (listener) camera.remove(listener);
 		listener = null;
 	}
 
-	return { playClick, playDiscoveryChime, setMuted, isMuted, dispose };
+	return {
+		playClick,
+		playDiscoveryChime,
+		setMuted,
+		isMuted,
+		update,
+		setEnvironment,
+		registerSpatialSource,
+		updateSpatialSource,
+		removeSpatialSource,
+		setAudioDuck,
+		clearAudioDuck,
+		applyAudioOcclusion,
+		playWorldCue,
+		getImmersiveSnapshot,
+		getAudioSnapshot,
+		getAudioSnapshotJson,
+		dispose,
+	};
 }
