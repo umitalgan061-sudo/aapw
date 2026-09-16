@@ -1,0 +1,91 @@
+name: Runtime Resilience Platform
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/platform/**'
+      - 'scripts/checkRuntimeResiliencePlatform.mjs'
+      - 'scripts/checkRuntimeSourceBoundaries.mjs'
+      - '.github/workflows/runtime-resilience-platform.yml'
+  pull_request:
+    paths:
+      - 'src/3d/platform/**'
+      - 'scripts/checkRuntimeResiliencePlatform.mjs'
+      - 'scripts/checkRuntimeSourceBoundaries.mjs'
+      - '.github/workflows/runtime-resilience-platform.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-resilience-platform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Platform contract and boundary checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Syntax check platform sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find src/3d/platform -type f -name '*.js' -print0 | sort -z)
+
+      - name: Runtime resilience executable contract
+        run: node scripts/checkRuntimeResiliencePlatform.mjs
+
+      - name: Runtime source ownership boundaries
+        run: node scripts/checkRuntimeSourceBoundaries.mjs
+
+      - name: Diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --check; then
+            echo 'Whitespace errors found.' >&2
+            exit 1
+          fi
+
+      - name: File size guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          oversized=$(find src/3d/platform -type f -name '*.js' -print0 | xargs -0 awk 'length($0)>180 { c++ } END { print c+0 }')
+          if [ "$oversized" -gt 0 ]; then
+            echo "Long-line count: $oversized"
+            exit 1
+          fi
+
+  source-surface:
+    name: Platform source surface inventory
+    runs-on: ubuntu-latest
+    needs: contract
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inventory platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(find src/3d/platform -type f -name '*.js' | sort | wc -l)
+          lines=$(find src/3d/platform -type f -name '*.js' -print0 | xargs -0 cat | wc -l)
+          echo "RUNTIME_PLATFORM_FILES=$files"
+          echo "RUNTIME_PLATFORM_LINES=$lines"
+          test "$files" -ge 10
+          test "$lines" -ge 3000
