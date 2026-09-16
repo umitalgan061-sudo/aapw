@@ -4,6 +4,7 @@ export * from './adapters.js';
 export * from './assetStream.js';
 export * from './config.js';
 export * from './determinism.js';
+export * from './errors.js';
 export * from './input.js';
 export * from './renderBridge.js';
 export * from './resourceCache.js';
