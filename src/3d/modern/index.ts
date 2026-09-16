@@ -156,3 +156,4 @@ export * from './typedLegacySurfaceV6';
 export * from './typedAssetRuntimeV6';
 export * from './typedRuntimeVerificationV6';
 export * from './typedSceneCoordinatorV6';
+export * from './v3/index.ts';
