@@ -1,0 +1,59 @@
+name: next-gen-rendering-hardening
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/rendering/**'
+      - 'scripts/checkNextGenRender*.mjs'
+      - 'docs/NEXT_GEN_RENDERING*.md'
+      - '.github/workflows/next-gen-rendering-hardening.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  rendering-hardening:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          for file in src/3d/rendering/*.js; do node --check "$file"; done
+          for file in scripts/checkNextGenRender*.mjs; do node --check "$file"; done
+      - name: Comprehensive contract
+        run: node scripts/checkNextGenRenderHardening.mjs
+      - name: Feature and packet contract
+        run: node scripts/checkNextGenRenderFeatureNegotiation.mjs
+      - name: Adversarial capacity
+        run: node scripts/checkNextGenRenderAdversarial.mjs
+      - name: Matrix
+        run: node scripts/checkNextGenRenderMatrix.mjs
+      - name: Repeat determinism
+        run: |
+          set -euo pipefail
+          node scripts/checkNextGenRenderFeatureNegotiation.mjs > /tmp/render-feature-a.txt
+          node scripts/checkNextGenRenderFeatureNegotiation.mjs > /tmp/render-feature-b.txt
+          diff -u /tmp/render-feature-a.txt /tmp/render-feature-b.txt
+      - name: Ownership guard
+        run: |
+          set -euo pipefail
+          if grep -RInE "Math\.random\(|Date\.now\(" src/3d/rendering/dynamicResolutionGovernor.js src/3d/rendering/frameGraphResourcePlanner.js src/3d/rendering/gpuInstanceBatchPlanner.js src/3d/rendering/nextGenRenderOrchestrator.js src/3d/rendering/occlusionHintPlanner.js src/3d/rendering/renderDeviceRecovery.js src/3d/rendering/renderMaterialMigrationRegistry.js src/3d/rendering/renderMetricsCollector.js src/3d/rendering/renderPassBudgetPlanner.js src/3d/rendering/renderPipelineComposer.js src/3d/rendering/renderTemporalHistoryPolicy.js src/3d/rendering/renderVisibilityScheduler.js src/3d/rendering/shaderVariantRegistry.js src/3d/rendering/textureResidencyPlanner.js src/3d/rendering/renderFeatureNegotiator.js src/3d/rendering/gpuPressureModel.js src/3d/rendering/renderFramePacket.js; then
+            echo 'Deterministic render policy modules must not use random or wall-clock state.'
+            exit 1
+          fi
+      - name: Diff hygiene
+        run: git diff --check
+      - name: Meaningful addition gate
+        run: |
+          set -euo pipefail
+          base="$(git merge-base origin/main HEAD)"
+          additions="$(git diff --numstat "$base"...HEAD -- src/3d/rendering scripts/checkNextGenRender*.mjs docs/NEXT_GEN_RENDERING*.md .github/workflows/next-gen-rendering-hardening.yml | awk '{sum += $1} END {print sum + 0}')"
+          echo "meaningful additions: ${additions}"
+          test "$additions" -gt 4000
