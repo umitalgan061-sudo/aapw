@@ -50,6 +50,7 @@ export class NextGenRuntimeV3 {
   #brains = new Map<number, AiBrain>();
   #predictors = new Map<number, PlayerPredictor>();
   #lastNetworkSnapshot: NetworkSnapshot | null = null;
+  #networkBaselineSnapshot: NetworkSnapshot | null = null;
   #worldSeed = 1;
 
   constructor(config?: Partial<NextGenConfig>) {
@@ -129,11 +130,19 @@ export class NextGenRuntimeV3 {
   }
 
   buildNetworkSnapshot(entities: readonly NetworkSnapshot['entities'][number][]): NetworkSnapshot {
-    const snapshot: NetworkSnapshot = { version: 3, serverTick: this.kernel.clock.tick, baselineTick: this.#lastNetworkSnapshot?.serverTick ?? 0, ackSequence: 0, entities: [...entities].sort((a, b) => a.id - b.id) };
-    this.networkHistory.push(snapshot); this.#lastNetworkSnapshot = snapshot; return snapshot;
+    const previous = this.#lastNetworkSnapshot;
+    const snapshot: NetworkSnapshot = { version: 3, serverTick: this.kernel.clock.tick, baselineTick: previous?.serverTick ?? 0, ackSequence: 0, entities: [...entities].sort((a, b) => a.id - b.id) };
+    this.#networkBaselineSnapshot = previous;
+    this.#lastNetworkSnapshot = snapshot;
+    this.networkHistory.push(snapshot);
+    return snapshot;
   }
 
-  buildNetworkDelta(current: NetworkSnapshot): NetworkDelta { return snapshotDelta(this.#lastNetworkSnapshot, current); }
+  buildNetworkDelta(current: NetworkSnapshot): NetworkDelta {
+    const baseline = this.#networkBaselineSnapshot ?? this.networkHistory.find(current.serverTick - 1) ?? null;
+    return snapshotDelta(baseline, current);
+  }
+
   applyNetworkDelta(baseline: NetworkSnapshot, delta: NetworkDelta): NetworkSnapshot { return applyDelta(baseline, delta); }
 
   save(): Uint8Array {
