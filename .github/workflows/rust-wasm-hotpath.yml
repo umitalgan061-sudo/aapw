@@ -37,23 +37,29 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Install JS dependencies
         run: npm install --no-audit --no-fund
-      - name: Generate parity corpus
+      - name: Generate deterministic vector corpus
         run: node scripts/generateWasmHotPathMatrix.mjs
       - name: Check Rust target
         run: cargo check --manifest-path wasm/Cargo.toml --target wasm32-unknown-unknown
+      - name: Build release WASM
+        run: |
+          cargo build --manifest-path wasm/Cargo.toml --release --target wasm32-unknown-unknown
+          mkdir -p public/wasm
+          cp target/wasm32-unknown-unknown/release/aapw_hotpath.wasm public/wasm/aapw_hotpath.wasm
+          test -s public/wasm/aapw_hotpath.wasm
       - name: Typecheck
         run: npm run typecheck
-      - name: Validate parity contract
+      - name: Validate parity contract and corpus
         run: node scripts/checkWasmHotPath.mjs
-      - name: Materialize generated corpus
+      - name: Materialize generated assets on non-main pushes
         if: github.event_name == 'push' && github.ref != 'refs/heads/main'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f artifacts/wasm-hotpath/validation-matrix.ndjson
+          git add -f artifacts/wasm-hotpath/vectors public/wasm/aapw_hotpath.wasm
           if git diff --cached --quiet; then
-            echo 'Generated parity corpus is unchanged.'
+            echo 'Generated WASM assets and vector corpus are unchanged.'
           else
-            git commit -m 'ci(wasm): materialize deterministic hot-path parity corpus [skip ci]'
+            git commit -m 'ci(wasm): materialize release hotpath and conformance corpus [skip ci]'
             git push
           fi
