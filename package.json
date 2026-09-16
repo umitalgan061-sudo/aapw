@@ -1,1 +1,25 @@
-{"name":"aapw","private":true,"version":"1.0.0-modernization","type":"module","engines":{"node":">=24.21.0"},"scripts":{"typecheck":"tsc --noEmit","test":"vitest run","test:watch":"vitest","build:modern":"vite build","check":"npm run typecheck && npm test -- --passWithNoTests","verify:modern":"node scripts/checkModernPlatform.mjs"},"devDependencies":{"@types/node":"^26.5.1","typescript":"^7.0.2","vite":"^8.3.0","vitest":"^5.0.1"}}
+{
+  "name": "aapw",
+  "private": true,
+  "version": "1.0.0-modernization",
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:modern": "vite build",
+    "check": "npm run typecheck && npm test -- --passWithNoTests",
+    "verify:modern": "node scripts/checkModernPlatform.mjs",
+    "verify:runtime-r2": "node scripts/checkModernRuntimeR2.mjs",
+    "check:runtime-r2": "npm run verify:runtime-r2 && npm run typecheck && npm test -- tests/modern/runtimeR2.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}
