@@ -46,6 +46,8 @@ jobs:
           node --check src/3d/rendering/renderPipelinePolicy.js
           node --check src/3d/rendering/instanceBudgetPlanner.js
           node --check src/3d/rendering/textureResidencyPolicy.js
+          node --check src/3d/rendering/visibilityLodPlanner.js
+          node --check src/3d/rendering/gpuPassBudget.js
           node --check scripts/checkNextGenRenderingStackR1.mjs
           node --check scripts/generateNextGenRenderingMatrixR1.mjs
 
