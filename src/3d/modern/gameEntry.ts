@@ -3,6 +3,7 @@ import { createModernRuntime, tickModernRuntime, type RuntimeFrameInput, type Ru
 import { installEntryGate, type EntryGateController } from './entryGate';
 import { platformEvents } from './eventBus';
 import { modernState } from './stateStore';
+import { createTypeSafeLegacyGameAdapter } from './v3/legacyGameAdapter.js';
 
 export interface Game3DEntryOptions {
   readonly canvas?: HTMLCanvasElement;
@@ -20,10 +21,7 @@ export interface Game3DEntryOptions {
   readonly onError?: (error: unknown) => void;
 }
 
-export interface LegacyGameModule {
-  readonly initGame3D?: () => void | Promise<void>;
-}
-
+export interface LegacyGameModule { readonly initGame3D?: () => void | Promise<void>; }
 export interface LegacyEventBusModule {
   readonly gameEvents?: { readonly on?: (event: string, handler: (payload: unknown) => void) => void };
   readonly EVENTS?: Readonly<Record<string, string>>;
@@ -40,16 +38,7 @@ export interface ModernGame3DSession {
   readonly dispose: () => void;
 }
 
-const DEFAULT_CAMERA: CameraState = Object.freeze({
-  position: Object.freeze({ x: 0, y: 80, z: 120 }),
-  target: Object.freeze({ x: 0, y: 0, z: 0 }),
-  fov: 60,
-  near: 0.1,
-  far: 30_000,
-  viewportWidth: 1,
-  viewportHeight: 1,
-  dpr: 1,
-});
+const DEFAULT_CAMERA: CameraState = Object.freeze({ position: Object.freeze({ x: 0, y: 80, z: 120 }), target: Object.freeze({ x: 0, y: 0, z: 0 }), fov: 60, near: 0.1, far: 30_000, viewportWidth: 1, viewportHeight: 1, dpr: 1 });
 
 export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): Promise<ModernGame3DSession | undefined> {
   const loading = resolveElement(options.loadingId ?? 'game3d-loading');
@@ -58,7 +47,8 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
     if (!canvas) throw new Error('GAME3D_CANVAS_MISSING');
     const runtime = await createModernRuntime({ canvas, initialQuality: options.initialQuality, maxTelemetrySamples: options.maxTelemetrySamples });
     const gate = options.installGate === false ? undefined : installEntryGate(options.gateOptions);
-    const legacyLoaded = options.legacyLoader ? await options.legacyLoader() : await loadLegacyGame();
+    const legacyAdapter = options.legacyLoader ? undefined : createTypeSafeLegacyGameAdapter();
+    const legacyLoaded = options.legacyLoader ? Boolean(await options.legacyLoader()) : Boolean(await legacyAdapter!.load());
     bridgeLegacyEvents();
     const state: { running: boolean; raf: number | undefined; lastTime: number | undefined; lastSnapshot: RuntimeSnapshot | undefined } = { running: false, raf: undefined, lastTime: undefined, lastSnapshot: undefined };
     const getCamera = (): CameraState => options.camera?.() ?? viewportCamera(canvas);
@@ -109,11 +99,11 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
       state.raf = undefined;
       platformEvents.emit('runtime:loop', { action: 'stop' });
     };
-    const dispose = (): void => { stop(); gate?.dispose(); };
+    const dispose = (): void => { stop(); void legacyAdapter?.unload(); gate?.dispose(); };
     const session: ModernGame3DSession = Object.freeze({ runtime, gate, snapshot: () => state.lastSnapshot, frame: () => Number(runtime.clock.frame()) as FrameId, tick, start, stop, dispose });
     tick({ frameMs: 0, cpuMs: 0, camera: getCamera() });
     loading?.classList.add('g3d-loading-hidden');
-    platformEvents.emit('runtime:session', { backend: runtime.capabilities.backend, legacyLoaded: Boolean(legacyLoaded) });
+    platformEvents.emit('runtime:session', { backend: runtime.capabilities.backend, legacyLoaded });
     options.onReady?.(session);
     if (options.startLoop !== false && typeof requestAnimationFrame === 'function') start();
     return session;
@@ -125,13 +115,6 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
 }
 
 export const bootModernGame3D = bootstrapModernGame3D;
-
-async function loadLegacyGame(): Promise<boolean> {
-  const module = await import('../game3d.js') as unknown as LegacyGameModule;
-  if (typeof module.initGame3D !== 'function') throw new Error('LEGACY_GAME_INIT_MISSING');
-  await module.initGame3D();
-  return true;
-}
 
 async function bridgeLegacyEvents(): Promise<void> {
   try {
