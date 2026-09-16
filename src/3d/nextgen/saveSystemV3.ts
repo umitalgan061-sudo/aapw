@@ -43,7 +43,7 @@ function checksumText(value: string): number {
   return deterministicHash(numbers);
 }
 
-export class SaveSystemV3<T extends object> {
+export class SaveSystemV3<T extends object = WorldSaveState> {
   readonly currentSchema: number;
   readonly maxBytes: number;
   #migrations: SaveMigration<object, object>[] = [];
@@ -65,8 +65,8 @@ export class SaveSystemV3<T extends object> {
     const body = stableJson(normalized);
     const checksum = checksumText(body);
     const header: SaveHeader = { magic: MAGIC, schema: this.currentSchema, createdTick: tick, worldSeed, checksum, payloadBytes: body.length };
-    const document = JSON.stringify({ header, state: normalized } satisfies SaveDocument<T>);
-    const bytes = new TextEncoder().encode(document);
+    const document: SaveDocument<T> = { header, state: normalized };
+    const bytes = new TextEncoder().encode(JSON.stringify(document));
     if (bytes.byteLength > this.maxBytes) throw new Error(`save exceeds ${this.maxBytes} byte budget`);
     return bytes;
   }
@@ -77,7 +77,7 @@ export class SaveSystemV3<T extends object> {
     try { document = JSON.parse(new TextDecoder().decode(bytes)) as SaveDocument<object>; } catch { throw new Error('save payload is not valid JSON'); }
     const validation = this.validateDocument(document, bytes.byteLength);
     if (!validation.valid) throw new Error(validation.reason ?? 'invalid save');
-    let state = document.state;
+    let state: object = document.state;
     let schema = document.header.schema;
     while (schema < this.currentSchema) {
       const migration = this.#migrations.find((item) => item.from === schema);
@@ -86,7 +86,7 @@ export class SaveSystemV3<T extends object> {
       schema = migration.to;
     }
     if (schema !== this.currentSchema) throw new Error(`unsupported future save schema ${schema}`);
-    return { state: this.normalizeState(state) as T, header: document.header };
+    return { state: this.normalizeState(state), header: document.header };
   }
 
   validate(bytes: Uint8Array): SaveValidation {
@@ -110,9 +110,9 @@ export class SaveSystemV3<T extends object> {
     return { valid: true, reason: null, checksum, bytes };
   }
 
-  private normalizeState(value: object): object {
+  private normalizeState(value: object): T {
     if (!value || typeof value !== 'object') throw new Error('save state must be an object');
-    return JSON.parse(stableJson(value)) as object;
+    return JSON.parse(stableJson(value)) as T;
   }
 }
 
