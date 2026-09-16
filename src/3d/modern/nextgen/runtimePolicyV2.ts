@@ -1,8 +1,10 @@
-export type RuntimeMode = 'development' | 'production' | 'benchmark' | 'replay' | 'safe';
-export type FeatureState = 'enabled' | 'disabled' | 'degraded';
+import { hashString, stableStringify } from './types.ts';
+
+export type PolicyMode = 'strict' | 'balanced' | 'permissive';
+export type FeatureState = 'enabled' | 'disabled' | 'shadow';
 
 export interface RuntimePolicy {
-  mode: RuntimeMode;
+  mode: PolicyMode;
   maxEntities: number;
   maxCommandsPerTick: number;
   maxEventsPerTick: number;
@@ -15,25 +17,19 @@ export interface RuntimePolicy {
   enableDiagnostics: boolean;
 }
 
+export interface FeatureFlag {
+  id: string;
+  state: FeatureState;
+  rollout: number;
+  requires?: readonly string[];
+}
+
 export interface PolicyViolation {
   code: string;
   subsystem: string;
   actual: number;
   limit: number;
   fatal: boolean;
-}
-
-export interface PolicyDecision {
-  accepted: boolean;
-  violations: readonly PolicyViolation[];
-  actions: readonly string[];
-}
-
-export interface FeatureFlag {
-  id: string;
-  state: FeatureState;
-  rollout: number;
-  requires?: readonly string[];
 }
 
 export interface CapabilitySnapshot {
@@ -43,24 +39,21 @@ export interface CapabilitySnapshot {
 }
 
 const DEFAULT_POLICY: RuntimePolicy = {
-  mode: 'production',
-  maxEntities: 12000,
+  mode: 'strict',
+  maxEntities: 100_000,
   maxCommandsPerTick: 512,
-  maxEventsPerTick: 2048,
-  maxNetworkBytesPerSecond: 512 * 1024,
-  maxAssetBytes: 64 * 1024 * 1024,
+  maxEventsPerTick: 1024,
+  maxNetworkBytesPerSecond: 8 * 1024 * 1024,
+  maxAssetBytes: 256 * 1024 * 1024,
   maxWorkerRequests: 256,
   strictDeterminism: true,
   allowDynamicCode: false,
-  allowRemoteAssets: true,
+  allowRemoteAssets: false,
   enableDiagnostics: true,
 };
 
-function clampRollout(value: number): number { return Math.min(1, Math.max(0, value)); }
-function finiteNonNegative(value: number): boolean { return Number.isFinite(value) && value >= 0; }
-
 export class RuntimePolicyV2 {
-  readonly #policy: RuntimePolicy;
+  #policy: RuntimePolicy;
   readonly #features = new Map<string, FeatureFlag>();
   readonly #dependencies = new Map<string, Set<string>>();
 
@@ -69,86 +62,58 @@ export class RuntimePolicyV2 {
     this.#validatePolicy();
   }
 
-  get policy(): RuntimePolicy { return { ...this.#policy }; }
-
-  setMode(mode: RuntimeMode): void {
-    this.#policy.mode = mode;
-    if (mode === 'safe' || mode === 'replay') this.#policy.allowDynamicCode = false;
-    if (mode === 'replay') this.#policy.strictDeterminism = true;
-  }
+  policy(): RuntimePolicy { return { ...this.#policy }; }
 
   registerFeature(feature: FeatureFlag): void {
-    if (!feature.id.trim() || feature.id.length > 128) throw new RangeError('Invalid feature id');
-    if (this.#features.has(feature.id)) throw new Error(`Feature ${feature.id} already registered`);
-    this.#features.set(feature.id, { ...feature, rollout: clampRollout(feature.rollout), requires: feature.requires ? [...feature.requires] : feature.requires });
+    if (!feature.id.trim()) throw new Error('Feature id must not be empty');
+    if (!Number.isFinite(feature.rollout) || feature.rollout < 0 || feature.rollout > 1) throw new RangeError('Feature rollout must be between 0 and 1');
+    const normalized = Object.freeze({ ...feature, requires: feature.requires ? [...feature.requires] : undefined });
+    this.#features.set(feature.id, normalized);
     this.#dependencies.set(feature.id, new Set(feature.requires ?? []));
   }
 
-  updateFeature(id: string, state: FeatureState, rollout = this.#features.get(id)?.rollout ?? 1): boolean {
+  setFeature(id: string, state: FeatureState): void {
     const feature = this.#features.get(id);
-    if (!feature) return false;
-    feature.state = state;
-    feature.rollout = clampRollout(rollout);
-    return true;
+    if (!feature) throw new Error(`Unknown feature: ${id}`);
+    this.#features.set(id, Object.freeze({ ...feature, state }));
   }
 
-  featureEnabled(id: string, cohortValue = 0): boolean {
+  isEnabled(id: string, rolloutKey = id): boolean {
     const feature = this.#features.get(id);
-    if (!feature || feature.state !== 'enabled') return false;
-    if (cohortValue < 0 || cohortValue > 1) return false;
-    if (cohortValue > feature.rollout) return false;
-    for (const dependency of this.#dependencies.get(id) ?? []) if (!this.featureEnabled(dependency, cohortValue)) return false;
-    return true;
+    if (!feature || feature.state === 'disabled') return false;
+    if (feature.state === 'shadow') return false;
+    for (const dependency of this.#dependencies.get(id) ?? []) if (!this.isEnabled(dependency, rolloutKey)) return false;
+    const hash = hashString(`${id}:${rolloutKey}`) / 0x1_0000_0000;
+    return hash <= feature.rollout;
   }
 
-  features(): FeatureFlag[] {
-    return [...this.#features.values()].sort((a, b) => a.id.localeCompare(b.id)).map((feature) => ({ ...feature, requires: feature.requires ? [...feature.requires] : feature.requires }));
-  }
-
-  evaluate(input: { entities: number; commands: number; events: number; networkBytesPerSecond: number; largestAssetBytes: number; workerRequests: number; dynamicCodeRequested?: boolean; remoteAssetRequested?: boolean }): PolicyDecision {
+  evaluate(input: { entities?: number; commands?: number; events?: number; networkBytes?: number; assetBytes?: number; workerRequests?: number }): readonly PolicyViolation[] {
     const violations: PolicyViolation[] = [];
-    const actions: string[] = [];
-    this.#check(violations, 'entities', input.entities, this.#policy.maxEntities, false);
-    this.#check(violations, 'commands', input.commands, this.#policy.maxCommandsPerTick, true);
-    this.#check(violations, 'events', input.events, this.#policy.maxEventsPerTick, true);
-    this.#check(violations, 'network', input.networkBytesPerSecond, this.#policy.maxNetworkBytesPerSecond, false);
-    this.#check(violations, 'asset', input.largestAssetBytes, this.#policy.maxAssetBytes, true);
-    this.#check(violations, 'worker', input.workerRequests, this.#policy.maxWorkerRequests, true);
-    if (input.dynamicCodeRequested && !this.#policy.allowDynamicCode) violations.push({ code: 'dynamic_code_denied', subsystem: 'security', actual: 1, limit: 0, fatal: true });
-    if (input.remoteAssetRequested && !this.#policy.allowRemoteAssets) violations.push({ code: 'remote_asset_denied', subsystem: 'security', actual: 1, limit: 0, fatal: true });
-    if (violations.some((violation) => violation.fatal)) actions.push('enter_safe_mode');
-    if (violations.some((violation) => violation.subsystem === 'network')) actions.push('reduce_replication');
-    if (violations.some((violation) => violation.subsystem === 'worker')) actions.push('shed_background_work');
-    if (violations.some((violation) => violation.subsystem === 'entities')) actions.push('reduce_population_lod');
-    return { accepted: violations.every((violation) => !violation.fatal), violations, actions };
+    if (input.entities !== undefined) this.#check(violations, 'entities', input.entities, this.#policy.maxEntities, true);
+    if (input.commands !== undefined) this.#check(violations, 'commands', input.commands, this.#policy.maxCommandsPerTick, true);
+    if (input.events !== undefined) this.#check(violations, 'events', input.events, this.#policy.maxEventsPerTick, true);
+    if (input.networkBytes !== undefined) this.#check(violations, 'network_bytes', input.networkBytes, this.#policy.maxNetworkBytesPerSecond, false);
+    if (input.assetBytes !== undefined) this.#check(violations, 'asset_bytes', input.assetBytes, this.#policy.maxAssetBytes, true);
+    if (input.workerRequests !== undefined) this.#check(violations, 'worker_requests', input.workerRequests, this.#policy.maxWorkerRequests, true);
+    return Object.freeze(violations);
   }
 
   snapshot(): CapabilitySnapshot {
-    const body = { features: this.features(), policy: this.policy };
-    const checksum = stableHash(body);
-    return { ...body, checksum };
+    const features = Object.freeze([...this.#features.values()].sort((a, b) => a.id.localeCompare(b.id)));
+    const policy = this.policy();
+    return Object.freeze({ features, policy, checksum: stableHash({ features, policy }) });
   }
 
   restore(snapshot: CapabilitySnapshot): void {
     if (stableHash({ features: snapshot.features, policy: snapshot.policy }) !== snapshot.checksum) throw new Error('Runtime policy snapshot checksum mismatch');
-    this.#policy.mode = snapshot.policy.mode;
-    this.#policy.maxEntities = snapshot.policy.maxEntities;
-    this.#policy.maxCommandsPerTick = snapshot.policy.maxCommandsPerTick;
-    this.#policy.maxEventsPerTick = snapshot.policy.maxEventsPerTick;
-    this.#policy.maxNetworkBytesPerSecond = snapshot.policy.maxNetworkBytesPerSecond;
-    this.#policy.maxAssetBytes = snapshot.policy.maxAssetBytes;
-    this.#policy.maxWorkerRequests = snapshot.policy.maxWorkerRequests;
-    this.#policy.strictDeterminism = snapshot.policy.strictDeterminism;
-    this.#policy.allowDynamicCode = snapshot.policy.allowDynamicCode;
-    this.#policy.allowRemoteAssets = snapshot.policy.allowRemoteAssets;
-    this.#policy.enableDiagnostics = snapshot.policy.enableDiagnostics;
+    this.#policy = { ...snapshot.policy };
     this.#features.clear();
     this.#dependencies.clear();
     for (const feature of snapshot.features) this.registerFeature(feature);
     this.#validatePolicy();
   }
 
-  private #check(violations: PolicyViolation[], subsystem: string, actual: number, limit: number, fatal: boolean): void {
+  #check(violations: PolicyViolation[], subsystem: string, actual: number, limit: number, fatal: boolean): void {
     if (!Number.isFinite(actual) || actual < 0) {
       violations.push({ code: `${subsystem}_invalid`, subsystem, actual, limit, fatal: true });
       return;
@@ -157,23 +122,18 @@ export class RuntimePolicyV2 {
   }
 
   #validatePolicy(): void {
-    const numeric = [this.#policy.maxEntities, this.#policy.maxCommandsPerTick, this.#policy.maxEventsPerTick, this.#policy.maxNetworkBytesPerSecond, this.#policy.maxAssetBytes, this.#policy.maxWorkerRequests];
-    if (numeric.some((value) => !Number.isInteger(value) ? !finiteNonNegative(value) : value <= 0)) throw new RangeError('Runtime limits must be positive');
+    const numeric = [
+      this.#policy.maxEntities,
+      this.#policy.maxCommandsPerTick,
+      this.#policy.maxEventsPerTick,
+      this.#policy.maxNetworkBytesPerSecond,
+      this.#policy.maxAssetBytes,
+      this.#policy.maxWorkerRequests,
+    ];
+    if (numeric.some((value) => !Number.isFinite(value) || value <= 0)) throw new RangeError('Runtime limits must be positive');
   }
 }
 
 function stableHash(value: unknown): number {
-  const text = JSON.stringify(sortValue(value));
-  let hash = 2166136261;
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function sortValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortValue);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry]) => [key, sortValue(entry)]));
-  return value;
+  return hashString(stableStringify(value));
 }
