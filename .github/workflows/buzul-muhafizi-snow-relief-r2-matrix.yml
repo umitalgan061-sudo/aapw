@@ -8,7 +8,9 @@ on:
       - 'src/3d/world/terrainWindSnowSurfaceFabric.js'
       - 'scripts/generateBuzulMuhafiziSnowReliefR2Matrix.mjs'
       - 'scripts/checkBuzulMuhafiziSnowReliefR2Matrix.mjs'
+      - 'scripts/checkBuzulMuhafiziSnowReliefR2Corpus.mjs'
       - 'artifacts/buzul-muhafizi-snow-relief-r2-matrix.jsonl'
+      - 'artifacts/buzul-muhafizi-snow-relief-r2-corpus-*.jsonl'
       - '.github/workflows/buzul-muhafizi-snow-relief-r2-matrix.yml'
   pull_request:
     branches: [main]
@@ -16,7 +18,9 @@ on:
       - 'src/3d/world/terrainWindSnowSurfaceFabric.js'
       - 'scripts/generateBuzulMuhafiziSnowReliefR2Matrix.mjs'
       - 'scripts/checkBuzulMuhafiziSnowReliefR2Matrix.mjs'
+      - 'scripts/checkBuzulMuhafiziSnowReliefR2Corpus.mjs'
       - 'artifacts/buzul-muhafizi-snow-relief-r2-matrix.jsonl'
+      - 'artifacts/buzul-muhafizi-snow-relief-r2-corpus-*.jsonl'
       - '.github/workflows/buzul-muhafizi-snow-relief-r2-matrix.yml'
   workflow_dispatch:
 
@@ -43,9 +47,12 @@ jobs:
           node --check src/3d/world/terrainWindSnowSurfaceFabric.js
           node --check scripts/generateBuzulMuhafiziSnowReliefR2Matrix.mjs
           node --check scripts/checkBuzulMuhafiziSnowReliefR2Matrix.mjs
-      - name: Generate deterministic R2 corpus
+          node --check scripts/checkBuzulMuhafiziSnowReliefR2Corpus.mjs
+      - name: Validate indexed 4,096-case production corpus
+        run: node scripts/checkBuzulMuhafiziSnowReliefR2Corpus.mjs
+      - name: Generate deterministic R2 matrix
         run: node scripts/generateBuzulMuhafiziSnowReliefR2Matrix.mjs
-      - name: Validate deterministic R2 corpus
+      - name: Validate deterministic R2 matrix
         run: node scripts/checkBuzulMuhafiziSnowReliefR2Matrix.mjs
       - name: Diff hygiene
         run: git diff --check
