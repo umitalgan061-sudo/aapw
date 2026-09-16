@@ -1,0 +1,89 @@
+name: modern-typescript-v5
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/v5/**'
+      - 'tests/modern-v5/**'
+      - 'scripts/checkCompleteTypeScriptPlatformV5.mjs'
+      - 'src/3d/modern/index.ts'
+      - 'package.json'
+      - 'tsconfig.json'
+      - 'vitest.config.ts'
+      - '.github/workflows/modern-typescript-v5.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/modern/v5/**'
+      - 'tests/modern-v5/**'
+      - 'scripts/checkCompleteTypeScriptPlatformV5.mjs'
+      - 'src/3d/modern/index.ts'
+      - 'package.json'
+      - 'tsconfig.json'
+      - 'vitest.config.ts'
+      - '.github/workflows/modern-typescript-v5.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modern-typescript-v5-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: TypeScript typecheck
+        run: npm run typecheck
+      - name: V5 migration gate
+        run: npm run verify:modern:v5
+      - name: V5 test suite
+        run: npm test -- --passWithNoTests
+      - name: Modern build
+        run: npm run build:modern
+
+  determinism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Guard V5 deterministic boundaries
+        run: |
+          set -eu
+          for file in \
+            src/3d/modern/v5/domain.ts \
+            src/3d/modern/v5/ecs.ts \
+            src/3d/modern/v5/commandBus.ts \
+            src/3d/modern/v5/scheduler.ts \
+            src/3d/modern/v5/network.ts \
+            src/3d/modern/v5/simulation.ts \
+            src/3d/modern/v5/stateMachine.ts; do
+            if grep -nE 'Math\.random\(|eval\(|new Function\(' "$file"; then
+              echo "Forbidden nondeterministic or dynamic-eval primitive found in $file"
+              exit 1
+            fi
+          done
+      - name: Guard V5 typed boundary
+        run: |
+          set -eu
+          if grep -RInE --include='*.ts' '(^|[^A-Za-z0-9_])(any|as any)([^A-Za-z0-9_]|$)' src/3d/modern/v5; then
+            echo "Explicit any is forbidden in modern v5 runtime surfaces"
+            exit 1
+          fi
