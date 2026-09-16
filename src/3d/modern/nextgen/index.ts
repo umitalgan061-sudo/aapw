@@ -21,3 +21,4 @@ export * from './pathfinding.ts';
 export * from './validation.ts';
 export * from './assertions.ts';
 export * from './clockDiagnostics.ts';
+export * from './runtimeManifest.ts';
