@@ -13,6 +13,7 @@ on:
   push:
     branches:
       - agent/typed-runtime-modernization-r2-20260916
+      - agent/typed-runtime-coverage-r2-20260916
     paths:
       - 'src/engine-ts/**'
       - 'src/3d/modern/typedMigrationV5.ts'
@@ -43,7 +44,7 @@ jobs:
       - name: Setup Node 24
         uses: actions/setup-node@v5
         with:
-          node-version: 24.21.0
+          node-version: 24.x
           cache: npm
 
       - name: Install dependencies
