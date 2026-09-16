@@ -12,7 +12,6 @@ import {
 import {
   EcsScheduler,
   EcsWorld,
-  HealthSchema,
   TransformSchema,
   VelocitySchema,
 } from '../../src/3d/modern/r2/ecsRuntime.ts';
@@ -47,6 +46,7 @@ import {
   ActorStateSchema,
   GameplayBridge,
   GameplayTagSchema,
+  HealthSchema,
   TeamSchema,
   type GameplayActorDefinition,
 } from '../../src/3d/modern/r2/gameplayBridge.ts';
