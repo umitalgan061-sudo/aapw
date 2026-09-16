@@ -10,7 +10,9 @@ on:
       - 'tsconfig.modern-nextgen.json'
       - '.github/workflows/modern-nextgen-runtime.yml'
   push:
-    branches: [main]
+    branches:
+      - main
+      - agent/nextgen-evolution-r2-20260916
     paths:
       - 'src/3d/modern/nextgen/**'
       - 'tests/modern/nextgen/**'
