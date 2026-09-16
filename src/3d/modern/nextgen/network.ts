@@ -155,7 +155,7 @@ export class ReplicationServer {
       payload: delta,
       checksum: hashString(stableStringify(delta)),
     };
-    if (Buffer.byteLength(JSON.stringify(packet), 'utf8') > this.#policy.maxPacketBytes) return null;
+    if (encodedByteLength(packet) > this.#policy.maxPacketBytes) return null;
     return packet;
   }
 
@@ -190,9 +190,7 @@ export interface InterpolationResult {
 export function selectInterpolationPair(history: SnapshotHistory, renderTick: Tick): InterpolationResult | null {
   const before = history.range(tickValue(Math.max(0, Number(renderTick) - 1)), renderTick)[0];
   const after = history.get(renderTick);
-  if (before && after && before.tick !== after.tick) {
-    return { from: before, to: after, alpha: 0.5 };
-  }
+  if (before && after && before.tick !== after.tick) return { from: before, to: after, alpha: 0.5 };
   const nearest = history.nearest(renderTick);
   return nearest ? { from: nearest, to: nearest, alpha: 0 } : null;
 }
@@ -201,6 +199,10 @@ export function validatePacket<T>(packet: NetworkPacket<T>, maxBytes = DEFAULT_P
   if (packet.protocol < 1 || packet.protocol > 2) return false;
   if (!Number.isInteger(packet.sequence) || packet.sequence <= 0) return false;
   if (!Number.isInteger(packet.tick) || packet.tick < 0) return false;
-  if (JSON.stringify(packet).length > maxBytes) return false;
+  if (encodedByteLength(packet) > maxBytes) return false;
   return packet.checksum === hashString(stableStringify(packet.payload));
+}
+
+function encodedByteLength(value: unknown): number {
+  return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }
