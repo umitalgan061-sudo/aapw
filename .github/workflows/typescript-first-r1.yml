@@ -1,0 +1,41 @@
+name: TypeScript-first runtime R1
+on:
+  push:
+    branches: ["agent/ts-native-cutover-20260916"]
+    paths:
+      - "src/engine-ts/**"
+      - "scripts/generateTypeScriptFirstMatrix.mjs"
+      - ".github/workflows/typescript-first-r1.yml"
+      - "artifacts/typescript-first-r1/**"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: node scripts/generateTypeScriptFirstMatrix.mjs
+      - name: Validate matrix
+        run: |
+          test -f artifacts/typescript-first-r1/compatibility.matrix
+          test "$(wc -l < artifacts/typescript-first-r1/compatibility.matrix)" -eq 4100
+          test "$(tail -n +5 artifacts/typescript-first-r1/compatibility.matrix | cut -d'|' -f1 | sort -u | wc -l)" -eq 4096
+      - name: Validate runtime imports
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const source = readFileSync('src/engine-ts/tsFirstApplication.ts','utf8');
+          for (const token of ['strict','RuntimeKernel','submit(command','healthScore','dispose()']) if (!source.includes(token)) throw new Error(`missing-runtime-token:${token}`);
+          NODE
+      - name: Materialize generated corpus
+        run: |
+          git add -f artifacts/typescript-first-r1/compatibility.matrix
+          git diff --cached --quiet || git -c user.name='aapw-bot' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'ci(engine): materialize TypeScript-first compatibility corpus [skip ci]'
+          git push origin HEAD
