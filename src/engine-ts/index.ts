@@ -20,6 +20,7 @@ export * from './migration.js';
 export * from './clock.js';
 export * from './workerBridge.js';
 export * from './replay.js';
+export * from './diagnostics.js';
 
 import { RuntimeKernel } from './runtime.js';
 import { TelemetryRegistry } from './telemetry.js';
