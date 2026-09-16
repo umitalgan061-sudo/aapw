@@ -36,7 +36,8 @@ export class DeterministicRandomStream {
 
   constructor(seed: number, state?: number) {
     this.#seed = normalizeSeed(seed);
-    this.#state = normalizeSeed(state ?? this.#seed || 0x9e3779b9);
+    const initialState = state ?? this.#seed;
+    this.#state = normalizeSeed(initialState || 0x9e3779b9);
   }
 
   get seed(): number { return this.#seed; }
@@ -138,50 +139,24 @@ export class RandomRegistry {
   root(): DeterministicRandomStream { return this.#root; }
 
   stream(name: string, salt = 0): DeterministicRandomStream {
-    const existing = this.#streams.get(name);
+    const key = `${name}:${salt}`;
+    const existing = this.#streams.get(key);
     if (existing) return existing;
     const created = this.#root.fork({ label: name, salt });
-    this.#streams.set(name, created);
+    this.#streams.set(key, created);
     return created;
   }
 
-  has(name: string): boolean { return this.#streams.has(name); }
-
-  names(): string[] { return [...this.#streams.keys()].sort(); }
-
-  snapshot(): Record<string, RandomStreamSnapshot> {
-    return Object.fromEntries(this.names().map((name) => [name, this.#streams.get(name)!.snapshot()]));
-  }
-
-  restore(snapshot: Record<string, RandomStreamSnapshot>): void {
-    for (const [name, state] of Object.entries(snapshot)) this.stream(name).restore(state);
-  }
-
-  clear(): void { this.#streams.clear(); }
-
   digest(): number {
     let digest = this.#root.digest();
-    for (const name of this.names()) digest = mixHash(digest, hashString(name));
-    for (const name of this.names()) digest = mixHash(digest, this.#streams.get(name)!.digest());
+    for (const [name, stream] of [...this.#streams.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      digest = mixHash(digest, hashString(name));
+      digest = mixHash(digest, stream.digest());
+    }
     return digest;
   }
-}
 
-export function seededNoise2D(seed: number, x: number, y: number): number {
-  const ix = Math.floor(x);
-  const iy = Math.floor(y);
-  const fractionalX = x - ix;
-  const fractionalY = y - iy;
-  const stream = new DeterministicRandomStream(mixHash(mixHash(normalizeSeed(seed), ix), iy));
-  const a = stream.nextSigned();
-  const b = stream.nextSigned();
-  const c = stream.nextSigned();
-  const d = stream.nextSigned();
-  const ab = a + (b - a) * fractionalX;
-  const cd = c + (d - c) * fractionalX;
-  return ab + (cd - ab) * fractionalY;
-}
-
-export function normalizedSeedFromString(value: string): number {
-  return hashString(value);
+  clear(): void {
+    this.#streams.clear();
+  }
 }
