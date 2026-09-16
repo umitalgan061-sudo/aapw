@@ -87,7 +87,6 @@ export * from './cacheCoordinator';
 export * from './ecsRuntimeV3';
 export * from './engineKernelV3';
 export * from './assetPipelineV3';
-export * from './performanceRuntimeV3';
 export * from './worldQueryV3';
 export * from './saveRuntimeV3';
 export * from './workerRuntimeV3';
@@ -116,6 +115,7 @@ export * from './runtimeV4Facade';
 export * from './migrationV4';
 export * from './replayRuntimeV4';
 export * from './releaseGateV4';
+export * from './runtimeDiagnosticsV4';
 
 // Modern runtime v2 gameplay authorities and hardening surfaces.
 export * from './aiAuthority';
