@@ -1,0 +1,1 @@
+R2 readiness is tied to current main. The acceptance artifact is expected to be regenerated whenever the canonical snow-surface resolver changes.

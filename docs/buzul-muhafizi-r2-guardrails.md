@@ -1,0 +1,1 @@
+Guardrails: render-only snow presentation; canonical terrain, hydrology, collider, placement, and height authorities remain untouched. Qualification is deterministic and bounded.

@@ -1,0 +1,48 @@
+name: Buzul Muhafızı Snow Relief R2 Materializer
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'src/3d/world/terrainWindSnowSurfaceFabric.js'
+      - 'scripts/generateBuzulMuhafiziSnowReliefR2Matrix.mjs'
+      - '.github/workflows/buzul-muhafizi-snow-relief-r2-materialize.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact head branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate corpus
+        run: node scripts/generateBuzulMuhafiziSnowReliefR2Matrix.mjs
+      - name: Validate corpus
+        run: node scripts/checkBuzulMuhafiziSnowReliefR2Matrix.mjs
+      - name: Commit generated evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add artifacts/buzul-muhafizi-snow-relief-r2-matrix.jsonl
+          if git diff --cached --quiet; then
+            echo 'corpus unchanged'
+            exit 0
+          fi
+          git commit -m 'generated(terrain): materialize R2 snow relief evidence'
+          git push origin HEAD:${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}

@@ -1,0 +1,1 @@
+R2 qualification is intentionally scoped to the existing render-only snow surface fabric on current main. The generated corpus records expected resolver output, so changes are reviewable as deterministic presentation behavior rather than hidden runtime state.

@@ -1,0 +1,83 @@
+name: Buzul Muhafızı Snow Relief R2 Matrix
+
+on:
+  push:
+    branches:
+      - agent/buzul-muhafizi-snow-relief-20260915-r2
+    paths:
+      - 'src/3d/world/terrainWindSnowSurfaceFabric.js'
+      - 'scripts/generateBuzulMuhafiziSnowReliefR2Matrix.mjs'
+      - 'scripts/checkBuzulMuhafiziSnowReliefR2Matrix.mjs'
+      - 'scripts/checkBuzulMuhafiziSnowReliefR2Corpus.mjs'
+      - 'artifacts/buzul-muhafizi-snow-relief-r2-matrix.jsonl'
+      - 'artifacts/buzul-muhafizi-snow-relief-r2-corpus-*.jsonl'
+      - '.github/workflows/buzul-muhafizi-snow-relief-r2-matrix.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainWindSnowSurfaceFabric.js'
+      - 'scripts/generateBuzulMuhafiziSnowReliefR2Matrix.mjs'
+      - 'scripts/checkBuzulMuhafiziSnowReliefR2Matrix.mjs'
+      - 'scripts/checkBuzulMuhafiziSnowReliefR2Corpus.mjs'
+      - 'artifacts/buzul-muhafizi-snow-relief-r2-matrix.jsonl'
+      - 'artifacts/buzul-muhafizi-snow-relief-r2-corpus-*.jsonl'
+      - '.github/workflows/buzul-muhafizi-snow-relief-r2-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  qualification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax gates
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/terrainWindSnowSurfaceFabric.js
+          node --check scripts/generateBuzulMuhafiziSnowReliefR2Matrix.mjs
+          node --check scripts/checkBuzulMuhafiziSnowReliefR2Matrix.mjs
+          node --check scripts/checkBuzulMuhafiziSnowReliefR2Corpus.mjs
+      - name: Validate indexed 4,096-case production corpus
+        run: node scripts/checkBuzulMuhafiziSnowReliefR2Corpus.mjs
+      - name: Generate deterministic R2 matrix
+        run: node scripts/generateBuzulMuhafiziSnowReliefR2Matrix.mjs
+      - name: Validate deterministic R2 matrix
+        run: node scripts/checkBuzulMuhafiziSnowReliefR2Matrix.mjs
+      - name: Diff hygiene
+        run: git diff --check
+      - name: Materialize generated corpus on branch push
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add artifacts/buzul-muhafizi-snow-relief-r2-matrix.jsonl
+          if git diff --cached --quiet; then
+            echo 'generated corpus unchanged'
+            exit 0
+          fi
+          git commit -m 'generated(terrain): materialize snow relief R2 qualification corpus'
+          git push origin HEAD:${GITHUB_REF_NAME}
+      - name: Changed-line envelope
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          ADD="$(git diff --numstat origin/main...HEAD | awk '{a+=$1} END {print a+0}')"
+          DEL="$(git diff --numstat origin/main...HEAD | awk '{d+=$2} END {print d+0}')"
+          TOTAL=$((ADD + DEL))
+          echo "ADDITIONS=$ADD DELETIONS=$DEL TOTAL=$TOTAL"
+          test "$TOTAL" -ge 4000

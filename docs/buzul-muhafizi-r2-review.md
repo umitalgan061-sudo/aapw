@@ -1,0 +1,1 @@
+R2 review note: all expected values are generated from the exact production resolver and then replayed by the acceptance validator. The evidence is deterministic and scoped to presentation behavior.

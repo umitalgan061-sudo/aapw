@@ -1,0 +1,1 @@
+Validation entrypoints: generator, full matrix validator, and contract smoke check. The generated JSONL is derived from the canonical terrain wind/snow surface resolver.
