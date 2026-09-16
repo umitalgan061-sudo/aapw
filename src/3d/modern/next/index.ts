@@ -26,3 +26,5 @@ export * from './contentPipeline.ts';
 export * from './animation.ts';
 export * from './camera.ts';
 export * from './metrics.ts';
+export * from './audio.ts';
+export * from './snapshot.ts';
