@@ -6,8 +6,10 @@ on:
       - 'wasm/**'
       - 'src/engine-ts/wasmHotPath.ts'
       - 'src/engine-ts/workerSimulation.ts'
+      - 'src/engine-ts/wasmHotPathVectors.ts'
       - 'scripts/checkWasmHotPath.mjs'
       - 'scripts/generateWasmHotPathMatrix.mjs'
+      - 'scripts/buildWasmHotPath.mjs'
       - 'artifacts/wasm-hotpath/**'
       - '.github/workflows/rust-wasm-hotpath.yml'
   pull_request:
@@ -15,8 +17,10 @@ on:
       - 'wasm/**'
       - 'src/engine-ts/wasmHotPath.ts'
       - 'src/engine-ts/workerSimulation.ts'
+      - 'src/engine-ts/wasmHotPathVectors.ts'
       - 'scripts/checkWasmHotPath.mjs'
       - 'scripts/generateWasmHotPathMatrix.mjs'
+      - 'scripts/buildWasmHotPath.mjs'
       - 'artifacts/wasm-hotpath/**'
       - '.github/workflows/rust-wasm-hotpath.yml'
   workflow_dispatch:
@@ -42,15 +46,13 @@ jobs:
       - name: Check Rust target
         run: cargo check --manifest-path wasm/Cargo.toml --target wasm32-unknown-unknown
       - name: Build release WASM
-        run: |
-          cargo build --manifest-path wasm/Cargo.toml --release --target wasm32-unknown-unknown
-          mkdir -p public/wasm
-          cp target/wasm32-unknown-unknown/release/aapw_hotpath.wasm public/wasm/aapw_hotpath.wasm
-          test -s public/wasm/aapw_hotpath.wasm
+        run: npm run build:wasm
       - name: Typecheck
         run: npm run typecheck
-      - name: Validate parity contract and corpus
-        run: node scripts/checkWasmHotPath.mjs
+      - name: Validate hot-path contract and corpus
+        run: npm run verify:wasm-hotpath
+      - name: Ensure release asset exists
+        run: test -s public/wasm/aapw_hotpath.wasm
       - name: Materialize generated assets on non-main pushes
         if: github.event_name == 'push' && github.ref != 'refs/heads/main'
         run: |
@@ -58,7 +60,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f artifacts/wasm-hotpath/vectors public/wasm/aapw_hotpath.wasm
           if git diff --cached --quiet; then
-            echo 'Generated WASM assets and vector corpus are unchanged.'
+            echo 'Generated WASM asset and conformance corpus are unchanged.'
           else
             git commit -m 'ci(wasm): materialize release hotpath and conformance corpus [skip ci]'
             git push
