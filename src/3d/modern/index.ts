@@ -1,3 +1,4 @@
+export { AsyncGate, deferred, delay, runAbortable, withRetry } from './asyncGate';
 export { AdaptiveQualityController, FramePacingMonitor } from './adaptiveQuality';
 export { AssetPipeline, createIdentityStage, createMapStage, decodeResponseBytes } from './assetPipeline';
 export { AssetRegistry, createFetchArrayBufferLoader, createFetchJsonLoader, createFetchTextLoader } from './assetRegistry';
