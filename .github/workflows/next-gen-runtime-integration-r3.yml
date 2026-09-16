@@ -1,0 +1,84 @@
+name: next-gen-runtime-integration-r3
+
+on:
+  push:
+    branches:
+      - agent/next-gen-runtime-integration-r3-20260916
+    paths:
+      - 'src/3d/rendering/**'
+      - 'scripts/checkNextGenRuntimeIntegrationR3.mjs'
+      - 'scripts/generateNextGenRuntimeContractMatrixR3.mjs'
+      - 'docs/NEXT_GEN_RUNTIME_INTEGRATION_R3.md'
+      - '.github/workflows/next-gen-runtime-integration-r3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install renderer dependency for contract tests
+        run: npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
+      - name: Syntax
+        run: |
+          node --check src/3d/rendering/renderRuntimeCoordinator.js
+          node --check src/3d/rendering/materialRuntimeOptimizer.js
+          node --check src/3d/rendering/streamingBudgetController.js
+          node --check scripts/generateNextGenRuntimeContractMatrixR3.mjs
+          node --check scripts/checkNextGenRuntimeIntegrationR3.mjs
+      - name: Acceptance suite
+        run: node scripts/checkNextGenRuntimeIntegrationR3.mjs
+      - name: Generate deterministic corpus
+        run: node scripts/generateNextGenRuntimeContractMatrixR3.mjs
+      - name: Validate corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          file='artifacts/next-gen-runtime-integration/runtime-contract.matrix'
+          test -f "$file"
+          rows=$(grep -vc '^#' "$file")
+          test "$rows" -eq 4096
+          ids=$(grep -v '^#' "$file" | cut -d'|' -f1 | sort -u | wc -l)
+          test "$ids" -eq 4096
+          fields=$(grep -v '^#' "$file" | awk -F'|' 'NF != 30 { bad++ } END { print bad+0 }')
+          test "$fields" -eq 0
+          echo "validated 4096 unique runtime contract rows with 30 fields each"
+      - name: Determinism replay
+        run: |
+          cp artifacts/next-gen-runtime-integration/runtime-contract.matrix /tmp/runtime-contract.matrix.first
+          node scripts/generateNextGenRuntimeContractMatrixR3.mjs
+          diff -u /tmp/runtime-contract.matrix.first artifacts/next-gen-runtime-integration/runtime-contract.matrix
+      - name: Meaningful addition gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_additions=$(git diff --numstat HEAD^ HEAD -- 'src/3d/rendering' 'scripts' 'docs' '.github/workflows' | awk '{sum += $1} END {print sum+0}')
+          generated_rows=$(grep -vc '^#' artifacts/next-gen-runtime-integration/runtime-contract.matrix)
+          total=$((source_additions + generated_rows))
+          echo "source additions: $source_additions"
+          echo "generated runtime cases: $generated_rows"
+          echo "meaningful additions: $total"
+          test "$total" -gt 4000
+      - name: Materialize generated contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -f artifacts/next-gen-runtime-integration/runtime-contract.matrix
+          if git diff --cached --quiet; then
+            echo 'runtime contract is already materialized'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(rendering): materialize runtime contract corpus [skip ci]'
+          git push origin HEAD:${GITHUB_REF_NAME}
