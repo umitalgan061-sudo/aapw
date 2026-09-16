@@ -1,0 +1,63 @@
+name: typescript7-foundation-r1
+
+on:
+  push:
+    branches:
+      - agent/typescript7-runtime-foundation-r1-20260916
+    paths:
+      - 'src/3d/types/**'
+      - 'scripts/generateTypeScript7MigrationMatrix.mjs'
+      - 'scripts/validateTypeScript7Foundation.mjs'
+      - 'tsconfig.runtime-foundation.json'
+      - '.github/workflows/typescript7-foundation-r1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: typescript7-foundation-r1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Generate migration matrix
+        run: node scripts/generateTypeScript7MigrationMatrix.mjs
+
+      - name: Materialize generated corpus
+        run: |
+          test -f artifacts/typescript7-runtime-foundation/migration-contract-matrix.ts
+          rows=$(grep -c '"id":[0-9]' artifacts/typescript7-runtime-foundation/migration-contract-matrix.ts)
+          test "$rows" -eq 4096
+          git add -f artifacts/typescript7-runtime-foundation/migration-contract-matrix.ts
+          if git diff --cached --quiet; then
+            echo 'matrix unchanged'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'test(types): materialize TypeScript 7 migration matrix [skip ci]'
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
+
+      - name: Install TypeScript 7
+        run: npx -y -p typescript@7 tsc --version
+
+      - name: Strict declaration check
+        run: npx -y -p typescript@7 tsc -p tsconfig.runtime-foundation.json --noEmit
+
+      - name: Validate foundation
+        run: TSC_BIN='npx -y -p typescript@7 tsc' node scripts/validateTypeScript7Foundation.mjs
