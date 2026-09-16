@@ -72,39 +72,38 @@ export class BehaviorRuntime implements Disposable {
     }
     if (node.kind === 'cooldown') {
       if (context.tick < previous.cooldownUntil) return previous;
-      const child = node.children[0]; if (!child) return this.#store(node, { status: 'failure', runningChild: 0, cooldownUntil: 0, repeats: 0 });
+      const child = node.children[0]; if (!child) return this.#store(context.actor, node, { status: 'failure', runningChild: 0, cooldownUntil: 0, repeats: 0 });
       const result = this.#visit(child, context);
       const until = result.status === 'success' ? context.tick + clampInt(node.cooldownTicks ?? 1, 1, 100000) : 0;
-      return this.#store(node, { ...result, cooldownUntil: until });
+      return this.#store(context.actor, node, { ...result, cooldownUntil: until });
     }
     if (node.kind === 'repeat') {
-      const child = node.children[0]; if (!child) return this.#store(node, { status: 'failure', runningChild: 0, cooldownUntil: 0, repeats: 0 });
+      const child = node.children[0]; if (!child) return this.#store(context.actor, node, { status: 'failure', runningChild: 0, cooldownUntil: 0, repeats: 0 });
       const limit = clampInt(node.repeatCount ?? 1, 1, 1000);
       let repeats = previous.repeats;
       const result = this.#visit(child, context);
       if (result.status === 'success') repeats += 1;
       if (repeats >= limit) repeats = 0;
-      return this.#store(node, { ...result, repeats });
+      return this.#store(context.actor, node, { ...result, repeats });
     }
     if (node.kind === 'sequence') {
       let runningChild = 0;
       for (let i = 0; i < node.children.length; i += 1) {
         const child = this.#visit(node.children[i]!, context);
-        if (child.status === 'failure') return this.#store(node, { status: 'failure', runningChild: i, cooldownUntil: 0, repeats: 0 });
-        if (child.status === 'running') { runningChild = i; return this.#store(node, { status: 'running', runningChild, cooldownUntil: 0, repeats: 0 }); }
+        if (child.status === 'failure') return this.#store(context.actor, node, { status: 'failure', runningChild: i, cooldownUntil: 0, repeats: 0 });
+        if (child.status === 'running') { runningChild = i; return this.#store(context.actor, node, { status: 'running', runningChild, cooldownUntil: 0, repeats: 0 }); }
       }
-      return this.#store(node, { status: 'success', runningChild, cooldownUntil: 0, repeats: 0 });
+      return this.#store(context.actor, node, { status: 'success', runningChild, cooldownUntil: 0, repeats: 0 });
     }
-    let fallback = this.#store(node, { status: 'failure', runningChild: 0, cooldownUntil: 0, repeats: 0 });
+    let fallback = this.#store(context.actor, node, { status: 'failure', runningChild: 0, cooldownUntil: 0, repeats: 0 });
     for (let i = 0; i < node.children.length; i += 1) {
       const child = this.#visit(node.children[i]!, context);
-      if (child.status === 'success') return this.#store(node, { status: 'success', runningChild: i, cooldownUntil: 0, repeats: 0 });
-      if (child.status === 'running') return this.#store(node, { status: 'running', runningChild: i, cooldownUntil: 0, repeats: 0 });
-      fallback = this.#store(node, { status: 'failure', runningChild: i, cooldownUntil: 0, repeats: 0 });
+      if (child.status === 'success') return this.#store(context.actor, node, { status: 'success', runningChild: i, cooldownUntil: 0, repeats: 0 });
+      if (child.status === 'running') return this.#store(context.actor, node, { status: 'running', runningChild: i, cooldownUntil: 0, repeats: 0 });
+      fallback = this.#store(context.actor, node, { status: 'failure', runningChild: i, cooldownUntil: 0, repeats: 0 });
     }
     return fallback;
   }
 
-  #store(node: BehaviorNode, state: BehaviorState): BehaviorState { const frozen = Object.freeze(state); this.#states.get(this.#currentActor())?.set(node.id, frozen); return frozen; }
-  #currentActor(): EntityId { return [...this.#roots.keys()][0]!; }
+  #store(actor: EntityId, node: BehaviorNode, state: BehaviorState): BehaviorState { const frozen = Object.freeze(state); this.#states.get(actor)?.set(node.id, frozen); return frozen; }
 }
