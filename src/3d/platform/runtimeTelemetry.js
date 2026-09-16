@@ -66,13 +66,7 @@ export class RuntimeTelemetry {
 		if (this.disposed || !LEVELS.includes(level)) return null;
 		const safeName = String(name ?? 'event').replace(/[^a-zA-Z0-9_.:-]/g, '_').slice(0, MAX_NAME_LENGTH) || 'event';
 		const safeFields = sanitizeFields(fields);
-		const entry = freeze({
-			sequence: ++this.sequence,
-			timestamp: Number.isFinite(timestamp) ? timestamp : 0,
-			level,
-			name: safeName,
-			fields: safeFields,
-		});
+		const entry = freeze({ sequence: ++this.sequence, timestamp: Number.isFinite(timestamp) ? timestamp : 0, level, name: safeName, fields: safeFields });
 		this.entries = [...this.entries.slice(-(this.limit - 1)), entry];
 		const counterKey = `${level}:${safeName}`;
 		this.counters.set(counterKey, (this.counters.get(counterKey) ?? 0) + 1);
@@ -85,54 +79,47 @@ export class RuntimeTelemetry {
 	error(name, fields, timestamp) { return this.emit('error', name, fields, timestamp); }
 
 	recent(limit = 32) {
-	const count = clamp(Math.round(Number.isFinite(limit) ? limit : 32), 1, this.limit);
-	return this.entries.slice(-count);
+		const count = clamp(Math.round(Number.isFinite(limit) ? limit : 32), 1, this.limit);
+		return this.entries.slice(-count);
 	}
 
 	count(name) {
-	if (typeof name !== 'string') return 0;
-	return [...this.counters.entries()]
-		.filter(([key]) => key.endsWith(`:${name}`))
-		.reduce((sum, [, value]) => sum + value, 0);
+		if (typeof name !== 'string') return 0;
+		return [...this.counters.entries()].filter(([key]) => key.endsWith(`:${name}`)).reduce((sum, [, value]) => sum + value, 0);
 	}
 
 	summarize() {
-	const levels = Object.fromEntries(LEVELS.map((level) => [level, 0]));
-	for (const entry of this.entries) levels[entry.level] += 1;
-	const recentErrors = this.entries.filter((entry) => entry.level === 'error').slice(-5).map((entry) => entry.name);
-	return freeze({ version: 1, sessionId: this.sessionId, retained: this.entries.length, sequence: this.sequence, levels, recentErrors });
+		const levels = Object.fromEntries(LEVELS.map((level) => [level, 0]));
+		for (const entry of this.entries) levels[entry.level] += 1;
+		const recentErrors = this.entries.filter((entry) => entry.level === 'error').slice(-5).map((entry) => entry.name);
+		return freeze({ version: 1, sessionId: this.sessionId, retained: this.entries.length, sequence: this.sequence, levels, recentErrors });
 	}
 
 	digest() {
-	const parts = this.entries.map((entry) => `${entry.sequence}:${entry.timestamp}:${entry.level}:${entry.name}:${stableFieldString(entry.fields)}`);
-	let hash = 2166136261;
-	for (const value of parts.join('\n')) {
-		hash ^= value.charCodeAt(0);
-		hash = Math.imul(hash, 16777619) >>> 0;
-	}
-	return hash.toString(16).padStart(8, '0');
+		const serialized = this.entries.map((entry) => `${entry.sequence}:${entry.timestamp}:${entry.level}:${entry.name}:${stableFieldString(entry.fields)}`).join('\n');
+		let hash = 2166136261;
+		for (let i = 0; i < serialized.length; i += 1) {
+			hash ^= serialized.charCodeAt(i);
+			hash = Math.imul(hash, 16777619) >>> 0;
+		}
+		return hash.toString(16).padStart(8, '0');
 	}
 
 	clear() {
-	if (this.disposed) return;
-	this.entries = [];
-	this.counters.clear();
-	this.sequence += 1;
+		if (this.disposed) return;
+		this.entries = [];
+		this.counters.clear();
+		this.sequence += 1;
 	}
 
 	dispose() {
-	this.disposed = true;
-	this.entries = [];
-	this.counters.clear();
+		this.disposed = true;
+		this.entries = [];
+		this.counters.clear();
 	}
 
 	get isDisposed() { return this.disposed; }
 }
 
-export function createRuntimeTelemetry(options) {
-	return new RuntimeTelemetry(options);
-}
-
-export function telemetryLevels() {
-	return LEVELS.slice();
-}
+export function createRuntimeTelemetry(options) { return new RuntimeTelemetry(options); }
+export function telemetryLevels() { return LEVELS.slice(); }
