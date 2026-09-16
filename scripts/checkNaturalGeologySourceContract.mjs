@@ -96,7 +96,7 @@ for (const snippet of [
   'procedural-villages',
   'wind-grass-ground-cover',
   'createValyriaBarrenEcologyPlacementProbe',
-  'isValyriaBarrenAtWorldXZ',
+  'isOrdinaryEcologyAllowedAtWorldXZ',
 ]) {
   assert(ecologySource.includes(snippet), `Valyria ecology contract lost: ${snippet}`);
 }
