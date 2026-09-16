@@ -58,10 +58,16 @@ function run() {
   assert.ok(calm.responses.every((row) => row.state === 'roam' && row.command.action === 'roam'));
 
   const attack = planFaunaThreatResponses({
-    ...population,
-    groups: population.groups.map((group) => group.species === 'dragon'
-      ? { ...group, state: 'roam', threat: { id: 'near-hostile', kind: 'intruder', distanceMeters: 30, confidence: 0.9, hostile: true, ageSeconds: 0 }, threatId: '' }
-      : group),
+    groups: [{
+      groupId: 'dragon-roost',
+      species: 'dragon',
+      habitatId: 'high-crag',
+      count: 1,
+      members: ['dragon-ancient'],
+      state: 'roam',
+      threat: { id: 'near-hostile', kind: 'intruder', distanceMeters: 30, confidence: 0.9, hostile: true, ageSeconds: 0 },
+      threatId: '',
+    }],
   });
   assert.ok(attack.responses.some((row) => row.species === 'dragon' && row.state === 'attack' && row.command.action === 'attack'));
 
