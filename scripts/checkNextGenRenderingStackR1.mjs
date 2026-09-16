@@ -3,6 +3,8 @@ import { BACKENDS, chooseRendererBackend } from '../src/3d/rendering/nextGenRend
 import { buildRenderPipelinePolicy, estimatePipelineCost, migratePipelinePolicy, validatePipelinePolicy } from '../src/3d/rendering/renderPipelinePolicy.js';
 import { buildInstanceBufferLayout, planInstanceBatches, validateInstancePlan } from '../src/3d/rendering/instanceBudgetPlanner.js';
 import { buildTextureResidencyPlan, deriveTextureMip, estimateTextureBytes, validateTextureResidencyPlan } from '../src/3d/rendering/textureResidencyPolicy.js';
+import { buildVisibilityLodPlan, validateVisibilityLodPlan } from '../src/3d/rendering/visibilityLodPlanner.js';
+import { allocateGpuPassBudget, buildGpuPassBudgetPlan, recommendDynamicResolution, validateGpuPassBudgetPlan } from '../src/3d/rendering/gpuPassBudget.js';
 
 assert.equal(chooseRendererBackend({ requestedBackend: BACKENDS.WEBGPU, webgpuAvailable: true }), BACKENDS.WEBGPU);
 assert.equal(chooseRendererBackend({ requestedBackend: BACKENDS.WEBGPU, webgpuAvailable: false }), BACKENDS.WEBGL2);
@@ -58,9 +60,40 @@ assert.equal(validateTextureResidencyPlan(residency), true);
 assert.ok(residency.residentBytes <= residency.capacityBytes);
 assert.ok(residency.resident.length > 0);
 
+const sceneItems = Array.from({ length: 2500 }, (_, i) => ({
+  id: `obj-${i}`,
+  x: ((i * 13) % 1800) - 900,
+  y: 2,
+  z: ((i * 19) % 1800) - 900,
+  radius: 1 + (i % 7) / 4,
+  importance: i % 100,
+  visible: i % 29 !== 0,
+  castShadow: i % 3 !== 0,
+  animated: i % 5 === 0,
+  playerFocused: i === 0,
+  velocityMetersPerSecond: i % 11,
+}));
+const visibility = buildVisibilityLodPlan({ items: sceneItems, camera: { x: 0, y: 4, z: 0 }, viewportHeight: 1080, tier: 'high' });
+assert.equal(validateVisibilityLodPlan(visibility), true);
+assert.ok(visibility.counts.visible <= 2200);
+assert.ok(visibility.counts.shadows <= 360);
+assert.ok(visibility.counts.animated <= 420);
+const reversedVisibility = buildVisibilityLodPlan({ items: [...sceneItems].reverse(), camera: { x: 0, y: 4, z: 0 }, viewportHeight: 1080, tier: 'high' });
+assert.deepEqual(visibility.visible.map((item) => item.id), reversedVisibility.visible.map((item) => item.id));
+
+const allocations = allocateGpuPassBudget(10);
+assert.ok(allocations.base > 0);
+const passPlan = buildGpuPassBudgetPlan({ targetFrameMs: 16.67, estimatedGpuMs: 17, qualityScale: 0.9, pressure: 0.45 });
+assert.equal(validateGpuPassBudgetPlan(passPlan), true);
+assert.ok(passPlan.estimatedAfterSheddingMs < passPlan.estimatedGpuMs);
+const resolution = recommendDynamicResolution({ currentScale: 1, measuredGpuMs: 18, targetGpuMs: 10 });
+assert.equal(resolution.direction, 'down');
+
 console.log(JSON.stringify({
   renderer: { webgpu: webGpuPolicy, webgl2: webGlPolicy },
   instancing: { accepted: plan.instanceCount, batches: plan.batchCount, rejected: plan.rejectedCount },
   textures: { resident: residency.resident.length, deferred: residency.deferredCount, bytes: residency.residentBytes },
+  visibility: visibility.counts,
+  gpuBudget: { enabled: passPlan.enabled, shed: passPlan.shed, budgetMs: passPlan.gpuBudgetMs },
   status: 'acceptance-passed',
 }, null, 2));
