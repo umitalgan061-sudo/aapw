@@ -20,8 +20,12 @@ const base = {
   ],
 };
 
+function buildPopulation(overrides = {}) {
+  return planFaunaPopulationTick({ ...base, ...overrides });
+}
+
 function run() {
-  const population = planFaunaPopulationTick(base);
+  const population = buildPopulation();
   assert.equal(auditFaunaPopulationPlan(population).ok, true);
   assert.equal(population.deterministic, true);
 
@@ -33,13 +37,43 @@ function run() {
   assert.ok(response.responses.some((row) => ['flee', 'stalk', 'attack', 'investigate'].includes(row.state)));
   assert.ok(response.responses.every((row) => row.command && row.memberCount <= 24));
 
-  const replay = planFaunaThreatResponses(planFaunaPopulationTick(base));
+  const replay = planFaunaThreatResponses(buildPopulation());
   assert.equal(replay.digest, response.digest);
+
+  const staleThreat = planFaunaThreatResponses({
+    ...population,
+    groups: population.groups.map((group) => ({
+      ...group,
+      state: 'attack',
+      threat: { id: 'expired-noise', kind: 'intruder', distanceMeters: 12, confidence: 1, hostile: true, ageSeconds: 99 },
+    })),
+  });
+  assert.ok(staleThreat.responses.every((row) => row.state === 'return' && row.command.action === 'return'));
+
+  const calm = planFaunaThreatResponses({
+    ...population,
+    groups: population.groups.map((group) => ({ ...group, state: 'roam', threat: null })),
+  });
+  assert.ok(calm.responses.every((row) => row.state === 'roam' && row.command.action === 'roam'));
+
+  const attack = planFaunaThreatResponses({
+    ...population,
+    groups: population.groups.map((group) => group.species === 'dragon'
+      ? { ...group, state: 'roam', threat: { id: 'near-hostile', kind: 'intruder', distanceMeters: 30, confidence: 0.9, hostile: true, ageSeconds: 0 } }
+      : group),
+  });
+  assert.ok(attack.responses.some((row) => row.species === 'dragon' && row.state === 'attack' && row.command.action === 'attack'));
 
   console.log(JSON.stringify({
     ok: true,
     populationDigest: population.digest,
     responseDigest: response.digest,
+    transitionDigests: {
+      replay: replay.digest,
+      staleThreat: staleThreat.digest,
+      calm: calm.digest,
+      attack: attack.digest,
+    },
     counts: response.counts,
     groups: response.responses.length,
     states: response.responses.map((row) => ({ groupId: row.groupId, state: row.state, action: row.command.action })),
