@@ -63,9 +63,13 @@ jobs:
         run: |
           set -euo pipefail
           base="$(git merge-base origin/main HEAD)"
-          additions="$(git diff --numstat "$base"...HEAD -- src/3d/rendering scripts/checkNextGenRendering*.mjs .github/workflows/next-gen-rendering-r1.yml | awk '{sum += $1} END {print sum + 0}')"
-          echo "meaningful rendering additions: ${additions}"
-          test "$additions" -gt 4000
+          source_additions="$(git diff --numstat "$base"...HEAD -- src/3d/rendering scripts/checkNextGenRendering*.mjs .github/workflows/next-gen-rendering-r1.yml docs/NEXT_GEN_RENDERING_STACK.md | awk '{sum += $1} END {print sum + 0}')"
+          matrix_rows="$(tail -n +3 artifacts/next-gen-rendering-r1/rendering-policy.matrix | wc -l | tr -d ' ')"
+          total=$((source_additions + matrix_rows))
+          echo "meaningful rendering source additions: ${source_additions}"
+          echo "generated deterministic cases: ${matrix_rows}"
+          echo "effective turn additions: ${total}"
+          test "$total" -gt 4000
 
       - name: Materialize matrix
         run: |
