@@ -13,6 +13,7 @@ on:
       - 'scripts/checkTypedArchitecture.mjs'
       - 'scripts/checkTypedEngine.mjs'
       - 'scripts/checkNextGenRuntimeV2.mjs'
+      - 'scripts/checkModernRuntimeIntegrationV2.mjs'
       - 'package.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
@@ -27,10 +28,12 @@ on:
       - 'src/3d/state.ts'
       - 'src/engine-ts/**'
       - 'scripts/checkModernPlatform.mjs'
-      - 'scripts/checkModernPlatformV3.mjs'
       - 'scripts/checkTypedArchitecture.mjs'
       - 'scripts/checkTypedEngine.mjs'
+      - 'scripts/checkModernPlatform.mjs'
+      - 'scripts/checkModernPlatformV3.mjs'
       - 'scripts/checkNextGenRuntimeV2.mjs'
+      - 'scripts/checkModernRuntimeIntegrationV2.mjs'
       - 'package.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
@@ -44,20 +47,27 @@ concurrency:
   group: modern-typescript-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CI: true
+  NODE_OPTIONS: --enable-source-maps
+
 jobs:
   typecheck:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: package.json
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run verify:modern
       - run: npm run verify:modern:v3
       - run: npm run verify:typed
       - run: npm run verify:nextgen
+      - run: npm run verify:modern:v2
       - run: npm run typecheck
       - run: npm test -- --passWithNoTests
       - run: npm run test:typed
@@ -65,17 +75,20 @@ jobs:
 
   determinism:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: package.json
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: node scripts/checkModernPlatform.mjs
       - run: node scripts/checkModernPlatformV3.mjs
       - run: node scripts/checkTypedArchitecture.mjs
       - run: node scripts/checkNextGenRuntimeV2.mjs
+      - run: node scripts/checkModernRuntimeIntegrationV2.mjs
       - name: Guard deterministic core surfaces
         run: |
           set -eu
@@ -117,6 +130,19 @@ jobs:
             src/3d/modern/nextgen/worldStateCodecV2.ts; do
             if grep -nE 'Math\.random\(|eval\(|new Function\(' "$file"; then
               echo "Unsafe primitive detected in nextgen runtime: $file"
+              exit 1
+            fi
+          done
+      - name: Guard v2 deterministic boundaries
+        run: |
+          set -eu
+          for file in \
+            src/3d/modern/replayVerifierV2.ts \
+            src/3d/modern/rollbackControllerV2.ts \
+            src/3d/modern/runtimeContractMatrixV2.ts \
+            src/3d/modern/worldInvariantV2.ts; do
+            if grep -nE 'Math\.random\(|eval\(|new Function\(' "$file"; then
+              echo "Unsafe or nondeterministic primitive detected: $file"
               exit 1
             fi
           done
