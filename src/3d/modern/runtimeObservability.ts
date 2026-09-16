@@ -59,6 +59,8 @@ export class RuntimeObservability {
     this.maxCounters = Math.max(16, Math.min(1000, Math.trunc(options.maxCounters ?? 128)));
   }
 
+  now(): UnixMillis { return this.#now(); }
+
   start(kind: SpanKind, frame: FrameId, metadata: Record<string, number | string | boolean> = {}): RuntimeSpanHandle {
     return new RuntimeSpanHandle(this, ++this.#nextSpan, kind, frame, this.#now(), metadata);
   }
@@ -73,8 +75,7 @@ export class RuntimeObservability {
   }
 
   markError(frame: FrameId | null = null): void { this.#errors += 1; this.count('errors', 1, frame); }
-
-  spans(kind?: SpanKind): readonly RuntimeSpan[] { return Object.freeze((kind ? this.#spans.filter((span) => span.kind === kind) : [...this.#spans])); }
+  spans(kind?: SpanKind): readonly RuntimeSpan[] { return Object.freeze(kind ? this.#spans.filter((span) => span.kind === kind) : [...this.#spans]); }
   counters(): readonly RuntimeCounter[] { return Object.freeze([...this.#counterMap.values()].sort((a, b) => a.name.localeCompare(b.name))); }
 
   snapshot(): ObservabilitySnapshot {
@@ -109,12 +110,11 @@ export class RuntimeSpanHandle {
   end(success = true, metadata: Record<string, number | string | boolean> = {}): RuntimeSpan {
     if (this.#ended) throw new Error('Span already ended');
     this.#ended = true;
-    const endedAt = Math.max(this.#startedAt, this.#observerNow());
+    const endedAt = Math.max(this.#startedAt, this.#observer.now());
     const span: RuntimeSpan = { id: this.#id, kind: this.#kind, frame: this.#frame, startedAt: this.#startedAt, endedAt, durationMs: Number(endedAt) - Number(this.#startedAt), success, metadata: Object.freeze({ ...this.#metadata, ...metadata }) };
     this.#observer._record(span);
     return span;
   }
 
   fail(metadata: Record<string, number | string | boolean> = {}): RuntimeSpan { return this.end(false, metadata); }
-  #observerNow(): UnixMillis { return (this.#observer as unknown as { __now?: () => UnixMillis }).__now?.() ?? (Date.now() as UnixMillis); }
 }
