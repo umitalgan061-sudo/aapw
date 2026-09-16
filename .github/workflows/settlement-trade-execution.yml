@@ -1,0 +1,23 @@
+name: Settlement Trade Execution
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementTradeUx.js'
+      - 'src/3d/gameplay/settlementTradeExecution.js'
+      - 'scripts/checkSettlementTradeExecution.mjs'
+      - '.github/workflows/settlement-trade-execution.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: false }
+      - run: npm install --no-package-lock --ignore-scripts
+      - run: node --check src/3d/gameplay/settlementTradeUx.js
+      - run: node --check src/3d/gameplay/settlementTradeExecution.js
+      - run: node --check scripts/checkSettlementTradeExecution.mjs
+      - run: node scripts/setupNodeThreeShim.mjs
+      - run: node scripts/checkSettlementTradeExecution.mjs
