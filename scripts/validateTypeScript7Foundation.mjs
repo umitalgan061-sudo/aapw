@@ -37,8 +37,7 @@ if (ids.length !== 4096 || new Set(ids).size !== 4096 || ids[0] !== 1 || ids.at(
   throw new Error(`migration matrix invariant failed: rows=${ids.length}`);
 }
 
-const compiler = process.env.TSC_BIN ?? 'tsc';
-const result = spawnSync(compiler, ['--version'], { encoding: 'utf8' });
+const result = spawnSync('npx', ['-y', '-p', 'typescript@7', 'tsc', '--version'], { encoding: 'utf8' });
 if (result.status !== 0) throw new Error(`TypeScript compiler unavailable: ${result.stderr || result.stdout}`);
 console.log(result.stdout.trim());
 console.log(`validated ${ids.length} deterministic TypeScript 7 migration contracts`);
