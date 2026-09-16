@@ -1,0 +1,74 @@
+name: TypeScript 7 V3 Native Cutover
+
+on:
+  push:
+    branches:
+      - agent/typescript7-v3-native-cutover-20260916
+    paths:
+      - 'src/3d/modern/v3/**'
+      - 'tests/modern/runtimeV3Native.test.ts'
+      - 'scripts/checkTypeScript7V3Cutover.mjs'
+      - 'scripts/generateTypeScript7V3CutoverMatrix.mjs'
+      - '.github/workflows/typescript7-v3-cutover.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Generate deterministic cutover matrix
+        run: node scripts/generateTypeScript7V3CutoverMatrix.mjs
+      - name: Validate matrix cardinality
+        shell: bash
+        run: |
+          rows=$(grep -c '"id":' artifacts/typescript7-v3-cutover/cutover-matrix.ts)
+          test "$rows" -eq 4096
+      - name: TypeScript strict typecheck
+        run: npm run typecheck
+      - name: Native V3 acceptance
+        run: node scripts/checkTypeScript7V3Cutover.mjs
+      - name: Native V3 runtime tests
+        run: npm test -- --run tests/modern/runtimeV3Native.test.ts
+      - name: Deterministic generator repeat
+        shell: bash
+        run: |
+          cp artifacts/typescript7-v3-cutover/cutover-matrix.ts "$RUNNER_TEMP/cutover-first.ts"
+          node scripts/generateTypeScript7V3CutoverMatrix.mjs
+          cmp "$RUNNER_TEMP/cutover-first.ts" artifacts/typescript7-v3-cutover/cutover-matrix.ts
+      - name: Enforce meaningful migration size
+        shell: bash
+        run: |
+          git add -f artifacts/typescript7-v3-cutover/cutover-matrix.ts
+          git diff --cached --numstat > "$RUNNER_TEMP/numstat.txt"
+          source_additions=$(awk '$2 == 0 {sum += $1} END {print sum + 0}' "$RUNNER_TEMP/numstat.txt")
+          generated_cases=$(grep -c '"id":' artifacts/typescript7-v3-cutover/cutover-matrix.ts)
+          meaningful=$((source_additions + generated_cases))
+          echo "source_additions=$source_additions generated_cases=$generated_cases meaningful=$meaningful"
+          test "$generated_cases" -eq 4096
+          test "$meaningful" -ge 4000
+      - name: Materialize generated corpus
+        shell: bash
+        run: |
+          git config user.name 'aapw-bot'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --cached --quiet; then
+            echo 'generated corpus already materialized'
+          else
+            git commit -m 'chore(runtime-v3): materialize cutover matrix [skip ci]'
+            git push origin HEAD
+          fi
