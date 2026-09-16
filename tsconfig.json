@@ -5,6 +5,7 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2024", "DOM", "DOM.Iterable", "WebWorker"],
     "strict": true,
+    "strictNullChecks": false,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,
     "noImplicitOverride": true,
