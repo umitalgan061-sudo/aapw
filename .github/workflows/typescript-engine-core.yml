@@ -1,0 +1,72 @@
+name: TypeScript Engine Core
+
+on:
+  pull_request:
+    paths:
+      - 'src/engine-ts/**'
+      - 'scripts/checkTypeScriptEngineCore.mjs'
+      - 'tsconfig.engine.json'
+      - 'package.json'
+      - '.github/workflows/typescript-engine-core.yml'
+  push:
+    branches:
+      - main
+      - 'agent/typescript-engine-core-*'
+    paths:
+      - 'src/engine-ts/**'
+      - 'scripts/checkTypeScriptEngineCore.mjs'
+      - 'tsconfig.engine.json'
+      - 'package.json'
+      - '.github/workflows/typescript-engine-core.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  engine-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate repository diff
+        run: git diff --check
+
+      - name: Strict TypeScript typecheck
+        run: npx --yes typescript@7.0.2 tsc -p tsconfig.engine.json --noEmit
+
+      - name: Compile TypeScript engine
+        run: npx --yes typescript@7.0.2 tsc -p tsconfig.engine.json
+
+      - name: Execute engine contract proof
+        run: node scripts/checkTypeScriptEngineCore.mjs
+
+      - name: Run protocol and source hygiene checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f src/engine-ts/index.ts
+          test -f src/engine-ts/runtime.ts
+          test -f src/engine-ts/migration.ts
+          test -f src/engine-ts/replay.ts
+          ! grep -R "EditorMaterialStudio" -n src/engine-ts
+          ! grep -R "document\.body\|window\.location\|THREE\.WebGLRenderer" -n src/engine-ts
+
+      - name: Enforce autonomous-turn meaningful-addition floor
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          additions="$(git diff --numstat "$base"...HEAD -- src/engine-ts package.json tsconfig.engine.json scripts/checkTypeScriptEngineCore.mjs .github/workflows/typescript-engine-core.yml | awk '{s+=$1} END {print s+0}')"
+          echo "meaningful additions: $additions"
+          test "$additions" -ge 4000
