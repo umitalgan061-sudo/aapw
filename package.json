@@ -1,13 +1,23 @@
 {
-  "name": "aapw-engine-core",
+  "name": "aapw",
   "private": true,
+  "version": "1.0.0-modernization",
   "type": "module",
+  "engines": {
+    "node": ">=24.21.0"
+  },
   "scripts": {
-    "typecheck:engine": "tsc -p tsconfig.engine.json --noEmit",
-    "build:engine": "tsc -p tsconfig.engine.json",
-    "test:engine": "node scripts/checkTypeScriptEngineCore.mjs"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build:modern": "vite build",
+    "check": "npm run typecheck && npm test -- --passWithNoTests",
+    "verify:modern": "node scripts/checkModernPlatform.mjs"
   },
   "devDependencies": {
-    "typescript": "7.0.2"
+    "@types/node": "^26.5.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
   }
 }
