@@ -46,20 +46,21 @@ function run() {
       ...group,
       state: 'attack',
       threat: { id: 'expired-noise', kind: 'intruder', distanceMeters: 12, confidence: 1, hostile: true, ageSeconds: 99 },
+      threatId: '',
     })),
   });
   assert.ok(staleThreat.responses.every((row) => row.state === 'return' && row.command.action === 'return'));
 
   const calm = planFaunaThreatResponses({
     ...population,
-    groups: population.groups.map((group) => ({ ...group, state: 'roam', threat: null })),
+    groups: population.groups.map((group) => ({ ...group, state: 'roam', threat: null, threatId: '' })),
   });
   assert.ok(calm.responses.every((row) => row.state === 'roam' && row.command.action === 'roam'));
 
   const attack = planFaunaThreatResponses({
     ...population,
     groups: population.groups.map((group) => group.species === 'dragon'
-      ? { ...group, state: 'roam', threat: { id: 'near-hostile', kind: 'intruder', distanceMeters: 30, confidence: 0.9, hostile: true, ageSeconds: 0 } }
+      ? { ...group, state: 'roam', threat: { id: 'near-hostile', kind: 'intruder', distanceMeters: 30, confidence: 0.9, hostile: true, ageSeconds: 0 }, threatId: '' }
       : group),
   });
   assert.ok(attack.responses.some((row) => row.species === 'dragon' && row.state === 'attack' && row.command.action === 'attack'));
