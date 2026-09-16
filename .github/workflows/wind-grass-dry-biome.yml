@@ -1,0 +1,62 @@
+name: Wind Grass Dry Biome
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/windGrass.js'
+      - 'src/3d/world/windGrassBiomeClimate.js'
+      - 'src/3d/world/worldReferenceAlignment.js'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'scripts/checkWindGrassDryBiomeDistribution.mjs'
+      - '.github/workflows/wind-grass-dry-biome.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-dry-grass:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify exact head and syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          node --check src/3d/world/windGrassBiomeClimate.js
+          node --check src/3d/world/windGrass.js
+          node --check scripts/checkWindGrassDryBiomeDistribution.mjs
+          node scripts/setupNodeThreeShim.mjs
+
+      - name: Canonical dry-biome production distribution
+        run: node scripts/checkWindGrassDryBiomeDistribution.mjs
+
+      - name: Existing ground-cover and wind-grass regressions
+        run: |
+          node scripts/checkNorthGroundCoverClimate.mjs
+          node scripts/checkWindGrassClimateModule.mjs
+
+      - name: Shared Material Placement Contract
+        run: |
+          node scripts/checkSharedMaterialPlacementContract.js
+          test ! -e src/3d/world/EditorMaterialStudio.js
+
+      - name: Final exact-main freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          test "$(git rev-parse origin/main)" = "${{ github.event.pull_request.base.sha || github.event.before }}"

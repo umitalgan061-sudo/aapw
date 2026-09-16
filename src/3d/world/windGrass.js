@@ -14,6 +14,10 @@ import {
 	NORTH_GROUND_COVER_POLICY,
 } from './northGroundCoverClimate.js';
 import { resolveTerrainSnowCoverage } from './terrainBiomeShading.js';
+import {
+	WIND_GRASS_DRY_BIOME_POLICY,
+	windGrassDryBiomeProfileAtWorldXZ,
+} from './windGrassBiomeClimate.js';
 
 export const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	desktop: Object.freeze({ radiusMeters: 350, maxPatches: 4000 }),
@@ -153,6 +157,8 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 	let placed = 0;
 	let climateRejected = 0;
 	let snowRejected = 0;
+	let dryBiomeCandidateCount = 0;
+	let dryBiomeCoreRejected = 0;
 
 	for (let i = 0; i < config.maxPatches; i++) {
 		for (let attempt = 0; attempt < RUN180_WIND_GRASS_CONFIG.maxPlacementAttempts; attempt++) {
@@ -167,6 +173,12 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 				climateRejected++;
 				continue;
 			}
+			const dryBiome = windGrassDryBiomeProfileAtWorldXZ(x, z);
+			if (dryBiome.dryAmount > 0) dryBiomeCandidateCount++;
+			if (dryBiome.densityMultiplier <= 0) {
+				dryBiomeCoreRejected++;
+				continue;
+			}
 			const snowDensity = windGrassSnowDensityMultiplier({
 				heightAboveSeaMeters: surface.heightMeters - params.seaLevelMeters,
 				slopeDegrees: surface.slopeDegrees,
@@ -177,20 +189,26 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 				snowRejected++;
 				continue;
 			}
-			const grassDensity = cover.grassDensity * snowDensity;
+			const grassDensity = cover.grassDensity * snowDensity * dryBiome.densityMultiplier;
 			if (grassDensity < 1 && random() >= grassDensity) {
-				if (snowDensity < 1) snowRejected++;
+				if (dryBiome.densityMultiplier < Math.min(cover.grassDensity, snowDensity)) dryBiomeCoreRejected++;
+				else if (snowDensity < 1) snowRejected++;
 				else climateRejected++;
 				continue;
 			}
 
 			position.set(x, surface.heightMeters + 0.03, z);
 			quaternion.setFromAxisAngle(up, random() * Math.PI * 2);
-			const uniformScale = (0.78 + random() * 0.47) * cover.heightScale;
+			const uniformScale = (0.78 + random() * 0.47) * cover.heightScale * dryBiome.heightMultiplier;
 			scale.set(uniformScale, uniformScale, uniformScale);
 			matrix.compose(position, quaternion, scale);
 			mesh.setMatrixAt(placed, matrix);
-			color.setRGB(cover.rgb.r, cover.rgb.g, cover.rgb.b);
+			const dryMix = dryBiome.dryAmount * 0.72;
+			color.setRGB(
+				cover.rgb.r + (dryBiome.dryRgb.r - cover.rgb.r) * dryMix,
+				cover.rgb.g + (dryBiome.dryRgb.g - cover.rgb.g) * dryMix,
+				cover.rgb.b + (dryBiome.dryRgb.b - cover.rgb.b) * dryMix,
+			);
 			mesh.setColorAt(placed, color);
 			placed++;
 			break;
@@ -206,8 +224,12 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 		policyId: NORTH_GROUND_COVER_POLICY.id,
 		climateRejected,
 		snowRejected,
+		dryBiomePolicyId: WIND_GRASS_DRY_BIOME_POLICY.id,
+		dryBiomeCandidateCount,
+		dryBiomeCoreRejected,
 		mapAlignedClimate: true,
 		mapAlignedSnowAuthority: true,
+		mapAlignedDryBiome: true,
 		snowAware: true,
 	};
 	return placed;
@@ -221,13 +243,15 @@ function createWindGrassMaterial(config) {
 		side: THREE.DoubleSide,
 	});
 	material.userData.run180WindGrass = Object.freeze({
-		key: 'run180-wind-grass-v7-multiscale-surface-fabric',
+		key: 'run180-wind-grass-v8-canonical-dry-biome',
 		radiusMeters: config.radiusMeters,
 		maxPatches: config.maxPatches,
 		bladesPerPatch: RUN180_WIND_GRASS_CONFIG.bladesPerPatch,
 		climatePolicyId: NORTH_GROUND_COVER_POLICY.id,
+		dryBiomePolicyId: WIND_GRASS_DRY_BIOME_POLICY.id,
 		mapAlignedClimate: true,
 		mapAlignedSnowAuthority: true,
+		mapAlignedDryBiome: true,
 		snowAware: true,
 		worldSpaceMultiscaleVariation: true,
 		variableRoughness: true,
@@ -243,7 +267,7 @@ function createWindGrassMaterial(config) {
 			.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor*=vRun180GrassRoughness;');
 		material.userData.run180Shader = shader;
 	};
-	material.customProgramCacheKey = () => 'run180-wind-grass-v7-multiscale-surface-fabric';
+	material.customProgramCacheKey = () => 'run180-wind-grass-v8-canonical-dry-biome';
 	return material;
 }
 
@@ -281,6 +305,8 @@ export function createWindGrassRun180({
 			group.userData.run180WindGrass.centerCell = { x: cellX, z: cellZ };
 			group.userData.run180WindGrass.climateRejected = mesh.userData.northGroundCover?.climateRejected ?? 0;
 			group.userData.run180WindGrass.snowRejected = mesh.userData.northGroundCover?.snowRejected ?? 0;
+			group.userData.run180WindGrass.dryBiomeCandidateCount = mesh.userData.northGroundCover?.dryBiomeCandidateCount ?? 0;
+			group.userData.run180WindGrass.dryBiomeCoreRejected = mesh.userData.northGroundCover?.dryBiomeCoreRejected ?? 0;
 		}
 	};
 
@@ -293,10 +319,14 @@ export function createWindGrassRun180({
 		radiusMeters: config.radiusMeters,
 		centerCell: { x: initialX, z: initialZ },
 		climatePolicyId: NORTH_GROUND_COVER_POLICY.id,
+		dryBiomePolicyId: WIND_GRASS_DRY_BIOME_POLICY.id,
 		climateRejected: mesh.userData.northGroundCover?.climateRejected ?? 0,
 		snowRejected: mesh.userData.northGroundCover?.snowRejected ?? 0,
+		dryBiomeCandidateCount: mesh.userData.northGroundCover?.dryBiomeCandidateCount ?? 0,
+		dryBiomeCoreRejected: mesh.userData.northGroundCover?.dryBiomeCoreRejected ?? 0,
 		mapAlignedClimate: true,
 		mapAlignedSnowAuthority: true,
+		mapAlignedDryBiome: true,
 		snowAware: true,
 	};
 	return { group, mesh };
