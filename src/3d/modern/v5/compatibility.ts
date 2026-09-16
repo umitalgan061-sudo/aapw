@@ -1,4 +1,4 @@
-import { ComponentKind, EntityId, EntityRecord, NetworkSnapshot, RuntimeSnapshot, Tick, asEntityId, asTick, cloneEntity } from './domain.ts';
+import { Component, ComponentKind, EntityId, EntityRecord, NetworkSnapshot, RuntimeSnapshot, Tick, asEntityId, asTick, cloneEntity } from './domain.ts';
 import { EcsWorldV5 } from './ecs.ts';
 
 export interface LegacyEntityLike {
@@ -15,11 +15,7 @@ export interface LegacyEntityLike {
 }
 
 export interface CompatibilityWarning { readonly path: string; readonly code: string; readonly message: string; }
-
-export interface CompatibilityResult {
-  readonly entity: EntityRecord | null;
-  readonly warnings: readonly CompatibilityWarning[];
-}
+export interface CompatibilityResult { readonly entity: EntityRecord | null; readonly warnings: readonly CompatibilityWarning[]; }
 
 const numberOr = (value: unknown, fallback: number): number => typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 
@@ -27,8 +23,8 @@ export const importLegacyEntity = (input: LegacyEntityLike): CompatibilityResult
   const warnings: CompatibilityWarning[] = [];
   const rawId = typeof input.id === 'number' ? input.id : Number(input.id);
   const id = Number.isSafeInteger(rawId) && rawId >= 0 ? asEntityId(rawId) : asEntityId(1);
-  if (!(typeof input.id === 'number' || Number.isSafeInteger(rawId))) warnings.push({ path: 'id', code: 'coerce', message: 'legacy id was coerced to a safe entity id' });
-  const components = new Map<ComponentKind, any>();
+  if (!(typeof input.id === 'number' && Number.isSafeInteger(input.id))) warnings.push({ path: 'id', code: 'coerce', message: 'legacy id was coerced to a safe entity id' });
+  const components = new Map<ComponentKind, Component>();
   components.set('transform', {
     kind: 'transform',
     position: { x: numberOr(input.position?.x, 0), y: numberOr(input.position?.y, 0), z: numberOr(input.position?.z, 0) },
@@ -67,7 +63,6 @@ export const exportLegacyEntity = (entity: EntityRecord): LegacyEntityLike => {
 
 export class LegacyWorldAdapterV5 {
   constructor(private readonly world: EcsWorldV5) {}
-
   import(input: LegacyEntityLike): CompatibilityResult {
     const result = importLegacyEntity(input);
     if (result.entity) {
@@ -76,22 +71,11 @@ export class LegacyWorldAdapterV5 {
     }
     return result;
   }
-
-  export(id: EntityId): LegacyEntityLike | null {
-    const entity = this.world.get(id);
-    return entity ? exportLegacyEntity(entity) : null;
-  }
-
+  export(id: EntityId): LegacyEntityLike | null { const entity = this.world.get(id); return entity ? exportLegacyEntity(entity) : null; }
   snapshot(): readonly LegacyEntityLike[] { return this.world.snapshot().map(exportLegacyEntity); }
 }
 
 export const networkToRuntimeSnapshot = (snapshot: NetworkSnapshot): RuntimeSnapshot => {
   const entities = snapshot.entities.map(cloneEntity);
-  return {
-    version: 5,
-    tick: asTick(Number(snapshot.tick)),
-    digest: { tick: asTick(Number(snapshot.tick)), entityCount: entities.length, commandCount: 0, eventCount: 0, checksum: String(entities.length) },
-    entities,
-    metadata: { authoritative: snapshot.authoritative, sequence: snapshot.sequence },
-  };
+  return { version: 5, tick: asTick(Number(snapshot.tick)), digest: { tick: asTick(Number(snapshot.tick)), entityCount: entities.length, commandCount: 0, eventCount: 0, checksum: String(entities.length) }, entities, metadata: { authoritative: snapshot.authoritative, sequence: snapshot.sequence } };
 };
