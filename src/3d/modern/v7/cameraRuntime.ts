@@ -1,0 +1,25 @@
+import { clamp, distanceSq, normalize, stableSort, vec3, type Disposable, type EntityId, type Vec3 } from './primitives.js';
+
+export type CameraMode = 'free' | 'follow' | 'orbit' | 'combat' | 'first-person' | 'cinematic';
+export interface CameraTarget { readonly id: EntityId; readonly position: Vec3; readonly velocity: Vec3; readonly radius: number; readonly priority: number; }
+export interface CameraConstraint { readonly minDistance: number; readonly maxDistance: number; readonly minPitch: number; readonly maxPitch: number; readonly collisionRadius: number; readonly shoulder: number; }
+export interface CameraState { readonly mode: CameraMode; readonly position: Vec3; readonly target: Vec3; readonly yaw: number; readonly pitch: number; readonly distance: number; readonly fov: number; readonly shake: number; readonly revision: number; }
+export interface CameraUpdate { readonly mode?: CameraMode; readonly focus?: Vec3; readonly target?: CameraTarget | null; readonly yaw?: number; readonly pitch?: number; readonly distance?: number; readonly fov?: number; readonly shake?: number; readonly deltaTime?: number; }
+
+const DEFAULT_CONSTRAINT: CameraConstraint = Object.freeze({ minDistance: .8, maxDistance: 12, minPitch: -1.2, maxPitch: 1.2, collisionRadius: .35, shoulder: .8 });
+function smooth(current: number, target: number, speed: number, dt: number): number { const factor = 1 - Math.exp(-Math.max(0, speed) * Math.max(0, dt)); return current + (target - current) * factor; }
+
+export class DeterministicCameraRuntime implements Disposable {
+  readonly constraint: CameraConstraint; #state: CameraState; #disposed = false; #targets = new Map<EntityId, CameraTarget>(); #revision = 0;
+  constructor(constraint: Partial<CameraConstraint> = {}) { this.constraint = Object.freeze({ ...DEFAULT_CONSTRAINT, ...constraint, minDistance: Math.max(.1, constraint.minDistance ?? DEFAULT_CONSTRAINT.minDistance), maxDistance: Math.max(constraint.minDistance ?? DEFAULT_CONSTRAINT.minDistance, constraint.maxDistance ?? DEFAULT_CONSTRAINT.maxDistance) }); this.#state = Object.freeze({ mode: 'follow', position: vec3(0, 2, -4), target: vec3(0, 1, 0), yaw: 0, pitch: .15, distance: 4, fov: 58, shake: 0, revision: 0 }); }
+  registerTarget(target: Omit<CameraTarget, 'id'> & { id: string }): boolean { if (this.#disposed || this.#targets.has(target.id)) return false; this.#targets.set(target.id as EntityId, Object.freeze({ ...target, id: target.id as EntityId, radius: Math.max(.1, target.radius), priority: clamp(target.priority, -1000, 1000) })); return true; }
+  removeTarget(id: EntityId): boolean { return this.#targets.delete(id); }
+  chooseTarget(origin: Vec3): CameraTarget | null { const candidates = stableSort([...this.#targets.values()], (a, b) => b.priority - a.priority || distanceSq(origin, a.position) - distanceSq(origin, b.position) || String(a.id).localeCompare(String(b.id))); return candidates[0] ?? null; }
+  update(input: CameraUpdate = {}): CameraState {
+    if (this.#disposed) return this.#state; const dt = clamp(input.deltaTime ?? 1 / 60, 1 / 1000, .25); const target = input.target ?? (input.target === null ? null : this.chooseTarget(this.#state.position)); const focus = target?.position ?? input.focus ?? this.#state.target; const mode = input.mode ?? this.#state.mode; const yaw = input.yaw === undefined ? this.#state.yaw : input.yaw; const pitch = clamp(input.pitch === undefined ? this.#state.pitch : input.pitch, this.constraint.minPitch, this.constraint.maxPitch); const distance = clamp(input.distance === undefined ? this.#state.distance : input.distance, this.constraint.minDistance, this.constraint.maxDistance); const fov = clamp(input.fov === undefined ? this.#state.fov : input.fov, 40, 100); const forward = vec3(Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw)); const desiredTarget = vec3(focus.x, focus.y + (mode === 'first-person' ? 1.55 : 1.25), focus.z); const desiredPosition = mode === 'first-person' ? desiredTarget : vec3(desiredTarget.x - forward.x * distance, desiredTarget.y - forward.y * distance, desiredTarget.z - forward.z * distance + this.constraint.shoulder); const position = vec3(smooth(this.#state.position.x, desiredPosition.x, 14, dt), smooth(this.#state.position.y, desiredPosition.y, 14, dt), smooth(this.#state.position.z, desiredPosition.z, 14, dt)); const next = Object.freeze({ mode, position, target: desiredTarget, yaw, pitch, distance, fov, shake: smooth(this.#state.shake, clamp(input.shake ?? 0, 0, 1), 18, dt), revision: ++this.#revision }); this.#state = next; return next;
+  }
+  state(): CameraState { return this.#state; }
+  targets(): readonly CameraTarget[] { return Object.freeze(stableSort([...this.#targets.values()], (a, b) => String(a.id).localeCompare(String(b.id)))); }
+  reset(): void { this.#state = Object.freeze({ ...this.#state, position: vec3(0, 2, -4), target: vec3(), yaw: 0, pitch: .15, distance: 4, shake: 0, revision: ++this.#revision }); }
+  dispose(): void { this.#disposed = true; this.#targets.clear(); }
+}
