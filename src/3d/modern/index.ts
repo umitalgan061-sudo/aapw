@@ -114,3 +114,4 @@ export * from './runtimeOrchestratorV4';
 export * from './runtimeV4Facade';
 export * from './migrationV4';
 export * from './releaseGateV4';
+export * from './runtimeDiagnosticsV4';
