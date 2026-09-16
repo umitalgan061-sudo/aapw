@@ -13,6 +13,11 @@ export interface WorldPolicy { maxEntities: number; maxActiveEntities: number; m
 export interface WorldTickResult { tick: number; spawned: number[]; activated: number[]; slept: number[]; despawned: number[]; }
 
 const DEFAULT_POLICY: WorldPolicy = { maxEntities: 10000, maxActiveEntities: 3000, maxSpawnsPerTick: 64, despawnGraceTicks: 90 };
+const VIEW_RADIUSES = {
+  tight: [20, 60, 120],
+  standard: [35, 100, 220],
+  large: [50, 160, 320],
+} as const satisfies Record<'tight' | 'standard' | 'large', readonly [number, number, number]>;
 
 function cloneEntity(entity: WorldEntity): WorldEntity { return { ...entity, position: { ...entity.position } }; }
 
@@ -108,6 +113,6 @@ export class WorldAuthorityV3 {
 }
 
 export function createWorldViewer(id: number, position: Vec3, preset: 'tight' | 'standard' | 'large' = 'standard'): InterestViewer {
-  const radii = { tight: [20, 60, 120], standard: [35, 100, 220], large: [50, 160, 320] }[preset];
+  const radii = VIEW_RADIUSES[preset];
   return { id, position: { ...position }, highRadius: radii[0], mediumRadius: radii[1], lowRadius: radii[2] };
 }
