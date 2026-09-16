@@ -48,8 +48,7 @@ export class RuntimeLoopV3 {
     const deltaSeconds = Math.max(0, (now - previous) / 1000);
     this.#lastNow = now;
     let stepCount = 0;
-    const result = this.fixedStep.consume(deltaSeconds, (delta) => {
-      void delta;
+    const result = this.fixedStep.consume(deltaSeconds, () => {
       const nextTick = this.runtime.kernel.clock.tick + 1;
       try {
         this.hooks.beforeStep?.(nextTick);
@@ -75,7 +74,7 @@ export class RuntimeLoopV3 {
     this.#raf = requestAnimationFrame((timestamp) => { void this.frame(timestamp).catch((error) => this.hooks.onError?.(error)).finally(() => this.schedule()); });
   }
 
-  private now(): number { return typeof performance !== 'undefined' ? performance.now() : Date.now(); }
+  private now(): number { return typeof performance !== 'undefined' ? performance.now() : 0; }
 }
 
 export function attachRuntimeLoop(runtime: NextGenRuntimeV3, hooks?: RuntimeLoopHooks): RuntimeLoopV3 { return new RuntimeLoopV3(runtime, undefined, hooks); }
