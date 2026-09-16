@@ -5,10 +5,12 @@ import { DeterministicSimulationV5, MovementIntent } from './simulation.ts';
 import { LegacyWorldAdapterV5, LegacyEntityLike } from './compatibility.ts';
 import { AnimationGraphV5, AnimationGraphDefinition } from './animationGraph.ts';
 import { SaveRuntimeV5, snapshotFromWorld, restoreWorld } from './persistence.ts';
+import { SpatialIndexV5, WorldQueryV5 } from './worldQuery.ts';
 
 export interface ServiceOptions {
   readonly save?: SaveRuntimeV5;
   readonly animationGraph?: AnimationGraphDefinition;
+  readonly terrain?: Parameters<WorldQueryV5['terrainAt']>[0] extends never ? never : (x: number, z: number) => ReturnType<WorldQueryV5['terrainAt']>;
 }
 
 export interface ServiceStatus {
@@ -18,6 +20,8 @@ export interface ServiceStatus {
   readonly digest: string;
 }
 
+const defaultTerrain = (x: number, z: number) => ({ height: 0, normal: { x: 0, y: 1, z: 0 }, material: `${Math.trunc(x)}:${Math.trunc(z)}` });
+
 export class GameServiceV5 {
   readonly runtime: ModernRuntimeV5;
   readonly simulation: DeterministicSimulationV5;
@@ -26,15 +30,11 @@ export class GameServiceV5 {
   readonly #save: SaveRuntimeV5;
 
   constructor(runtime: ModernRuntimeV5 = new ModernRuntimeV5(), options: ServiceOptions = {}) {
+    const spatial = new SpatialIndexV5();
+    const query = new WorldQueryV5(runtime.world, spatial, options.terrain ?? defaultTerrain);
     this.runtime = runtime;
-    this.simulation = new DeterministicSimulationV5(this.runtime.world, {
-      entitiesNear: () => [],
-      terrainAt: (x, z) => ({ height: 0, normal: { x: 0, y: 1, z: 0 }, material: `${Math.trunc(x)}:${Math.trunc(z)}` }),
-      groundedPosition: (position) => position,
-      lineOfSight: () => true,
-      nearestEntity: () => undefined,
-    } as never);
-    this.legacy = new LegacyWorldAdapterV5(this.runtime.world);
+    this.simulation = new DeterministicSimulationV5(runtime.world, query);
+    this.legacy = new LegacyWorldAdapterV5(runtime.world);
     this.animation = options.animationGraph ? new AnimationGraphV5(options.animationGraph) : null;
     this.#save = options.save ?? new SaveRuntimeV5();
   }
@@ -60,9 +60,7 @@ export class GameServiceV5 {
 
   importLegacy(entity: LegacyEntityLike): EntityId | null { return this.legacy.import(entity).entity?.id ?? null; }
   exportLegacy(id: EntityId): LegacyEntityLike | null { return this.legacy.export(id); }
-
   snapshot(): RuntimeSnapshot { return snapshotFromWorld(this.runtime.world, { service: 'game-service-v5' }); }
-
   async save(): Promise<void> { await this.#save.save(this.snapshot()); }
 
   async load(): Promise<boolean> {
@@ -73,11 +71,7 @@ export class GameServiceV5 {
   }
 
   entities(): readonly EntityRecord[] { return this.runtime.world.snapshot(); }
-
-  status(): ServiceStatus {
-    const entities = this.runtime.world.snapshot();
-    return { ready: this.runtime.running, tick: asTick(Number(this.runtime.tick)), entities: entities.length, digest: checksumObject(entities) };
-  }
+  status(): ServiceStatus { const entities = this.runtime.world.snapshot(); return { ready: this.runtime.running, tick: asTick(Number(this.runtime.tick)), entities: entities.length, digest: checksumObject(entities) }; }
 }
 
 export const createGameService = (options: ServiceOptions = {}): GameServiceV5 => new GameServiceV5(new ModernRuntimeV5(), options);
