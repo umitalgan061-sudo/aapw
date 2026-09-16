@@ -1,0 +1,83 @@
+name: typed-runtime-modernization-r1
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'src/engine-ts/**'
+      - 'src/3d/modern/typedMigrationV5.ts'
+      - 'scripts/generateTypedRuntimeMatrixR1.mjs'
+      - 'scripts/checkTypedRuntimeModernization.mjs'
+      - 'scripts/checkTypedRuntimeBehavior.mjs'
+      - 'package.json'
+  push:
+    branches:
+      - agent/typed-runtime-modernization-r2-20260916
+    paths:
+      - 'src/engine-ts/**'
+      - 'src/3d/modern/typedMigrationV5.ts'
+      - 'scripts/generateTypedRuntimeMatrixR1.mjs'
+      - 'scripts/checkTypedRuntimeModernization.mjs'
+      - 'scripts/checkTypedRuntimeBehavior.mjs'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: typed-runtime-modernization-r1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Regenerate compatibility matrix
+        run: node scripts/generateTypedRuntimeMatrixR1.mjs
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Modernization gate
+        run: npm run verify:typed-runtime
+
+      - name: Typed runtime unit gate
+        run: npm run test:typed-runtime
+
+      - name: Deterministic repeat gate
+        shell: bash
+        run: |
+          cp artifacts/typed-runtime-r1/runtime-compatibility.matrix /tmp/runtime-compatibility.matrix.before
+          node scripts/generateTypedRuntimeMatrixR1.mjs
+          diff -u /tmp/runtime-compatibility.matrix.before artifacts/typed-runtime-r1/runtime-compatibility.matrix
+
+      - name: Materialize generated matrix
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+        shell: bash
+        run: |
+          git config user.name 'aapw-automation'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f artifacts/typed-runtime-r1/runtime-compatibility.matrix
+          if git diff --cached --quiet; then
+            echo 'No generated matrix changes.'
+          else
+            git commit -m 'ci(typed-runtime): materialize compatibility matrix [skip ci]'
+            git push origin HEAD:${{ github.head_ref || github.ref_name }}
+          fi
