@@ -73,6 +73,11 @@ export class TypedCommandBus {
     return command;
   }
 
+  /** Compatibility alias used by the kernel scheduler boundary. */
+  dispatch<T>(kind: string, payload: T, tick?: Tick, source = this.#config.sourceId): CommandEnvelope<T> {
+    return this.enqueue(kind, payload, tick ?? tickValue(0), source);
+  }
+
   publish<T>(kind: string, payload: T, tick: Tick, source = this.#config.sourceId): EventEnvelope<T> {
     if (this.#events.length >= this.#config.maxEventsPerTick) throw new Error('Event queue capacity exceeded');
     const event: EventEnvelope<T> = {
