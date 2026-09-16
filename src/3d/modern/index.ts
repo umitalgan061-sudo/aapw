@@ -117,6 +117,7 @@ export * from './migrationV4';
 export * from './replayRuntimeV4';
 export * from './releaseGateV4';
 export * from './runtimeDiagnosticsV4';
+export * from './runtimeInspectionV4';
 
 // Modern runtime v2 gameplay authorities and hardening surfaces.
 export * from './aiAuthority';
