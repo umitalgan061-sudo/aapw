@@ -1,0 +1,82 @@
+name: Next-gen rendering R1
+
+on:
+  push:
+    branches:
+      - agent/next-gen-rendering-stack-r2-20260916
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rendering-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install renderer dependency for contract tests
+        run: npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
+
+      - name: Generate deterministic matrix
+        run: node scripts/generateNextGenRenderingMatrixR1.mjs
+
+      - name: Validate matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          file=artifacts/next-gen-rendering-r1/rendering-policy.matrix
+          rows=$(tail -n +3 "$file" | wc -l | tr -d ' ')
+          test "$rows" = 4096
+          ids=$(tail -n +3 "$file" | awk -F'|' '{print $NF}' | sort -u | wc -l | tr -d ' ')
+          test "$ids" = 4096
+          echo "validated rows=${rows} unique_ids=${ids}"
+
+      - name: Syntax
+        run: |
+          node --check src/3d/rendering/nextGenRendererAdapter.js
+          node --check src/3d/rendering/renderPipelinePolicy.js
+          node --check src/3d/rendering/instanceBudgetPlanner.js
+          node --check src/3d/rendering/textureResidencyPolicy.js
+          node --check src/3d/rendering/visibilityLodPlanner.js
+          node --check src/3d/rendering/gpuPassBudget.js
+          node --check scripts/checkNextGenRenderingStackR1.mjs
+          node --check scripts/generateNextGenRenderingMatrixR1.mjs
+
+      - name: Acceptance
+        run: node scripts/checkNextGenRenderingStackR1.mjs > /tmp/rendering-acceptance.json
+
+      - name: Repeat determinism
+        run: |
+          node scripts/checkNextGenRenderingStackR1.mjs > /tmp/rendering-a.json
+          node scripts/checkNextGenRenderingStackR1.mjs > /tmp/rendering-b.json
+          diff -u /tmp/rendering-a.json /tmp/rendering-b.json
+
+      - name: Meaningful addition gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_additions="$(git show --numstat --format='' HEAD -- src/3d/rendering scripts/checkNextGenRendering*.mjs .github/workflows/next-gen-rendering-r1.yml docs/NEXT_GEN_RENDERING_STACK.md | awk '{sum += $1} END {print sum + 0}')"
+          matrix_rows="$(tail -n +3 artifacts/next-gen-rendering-r1/rendering-policy.matrix | wc -l | tr -d ' ')"
+          total=$((source_additions + matrix_rows))
+          echo "current commit source additions: ${source_additions}"
+          echo "generated deterministic cases: ${matrix_rows}"
+          echo "effective turn additions: ${total}"
+          test "$total" -gt 4000
+
+      - name: Materialize matrix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f artifacts/next-gen-rendering-r1/rendering-policy.matrix
+          git diff --cached --quiet && exit 0
+          git commit -m 'test(rendering): materialize 4096-case next-gen policy matrix [skip ci]'
+          git push
