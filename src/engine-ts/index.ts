@@ -21,6 +21,7 @@ export * from './clock.js';
 export * from './workerBridge.js';
 export * from './replay.js';
 export * from './diagnostics.js';
+export * from './resourceScheduler.js';
 
 import { RuntimeKernel } from './runtime.js';
 import { TelemetryRegistry } from './telemetry.js';
