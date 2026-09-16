@@ -7,7 +7,6 @@ const DIST = resolve(ROOT, 'dist/engine-ts');
 const MATRIX = resolve(ROOT, 'artifacts/typescript-cutover-r1/cutover-policy.matrix');
 
 const engine = await import(resolve(DIST, 'index.js'));
-const quality = await import(resolve(DIST, 'quality.js'));
 const input = await import(resolve(DIST, 'inputRouter.js'));
 const saves = await import(resolve(DIST, 'saveSystem.js'));
 const streaming = await import(resolve(DIST, 'streaming.js'));
@@ -42,7 +41,10 @@ const recorder = router.startRecording(100);
 router.ingest({ device: 'keyboard', code: 'KeyW', phase: 'pressed', value: true, tick: 13 });
 const recorded = router.stopRecording(120);
 assert.equal(recorded?.events.length, 1, 'recorder captures events');
-assert.equal(new input.ReplaySession(router, recorded ?? { version: 2, startedAt: 0, stoppedAt: 0, events: [], checksum: '' }).cursor.finished, false, 'replay cursor begins before completion');
+const replay = new input.ReplaySession(router, recorded ?? { version: 2, startedAt: 0, stoppedAt: 0, events: [], checksum: '' });
+assert.equal(replay.cursor.finished, false, 'replay cursor begins before completion');
+assert.equal(replay.step(1), 1, 'replay emits the recorded event');
+replay.dispose();
 void recorder;
 
 const saveBackend = new saves.MemorySaveBackend();
@@ -65,6 +67,7 @@ const chunks = ['terrain-a', 'fauna-b', 'vegetation-c', 'props-d', 'audio-e'].ma
 const planA = stream.plan(chunks, { x: 0, y: 2, z: 0, velocityX: 4, velocityZ: 0 }, 32);
 const planB = stream.plan([...chunks].reverse(), { x: 0, y: 2, z: 0, velocityX: 4, velocityZ: 0 }, 32);
 assert.deepEqual(planA.loads, planB.loads, 'streaming decisions are input-order invariant');
+assert.ok(planA.memoryBytes <= 8 * 1024 * 1024, 'streaming respects byte budget');
 
 const registry = new assets.AssetRegistry({ baseUrl: 'https://example.com/', sameOriginOnly: false, budget: { maxBytes: 2 * 1024 * 1024 } });
 assert.equal(registry.validateUrl('/asset.bin').ok, true, 'relative asset URL is valid');
@@ -73,7 +76,8 @@ registry.installAdapter('binary', { load: async descriptor => new TextEncoder().
 const loaded = await registry.load<ArrayBuffer>('bytes');
 assert.equal(loaded.ok, true, 'asset adapter loads a binary resource');
 assert.equal(registry.stats.resident, 1, 'asset becomes resident');
-assert.equal(registry.release('bytes'), true, 'asset ref release contract works only after acquire');
+assert.ok(registry.acquire('bytes'), 'asset acquire increments ownership');
+assert.equal(registry.release('bytes'), true, 'asset release decrements ownership');
 
 const camera = render.normalizeCameraPacket({ position: { x: 0, y: 2, z: 0 }, forward: { x: 0, y: 0, z: -1 }, up: { x: 0, y: 1, z: 0 }, near: 0.1, far: 1000, fovDegrees: 60, aspect: 16 / 9, viewportWidth: 1920, viewportHeight: 1080, pixelRatio: 2 });
 const builder = new render.RenderFrameBuilder({ maxDraws: 100, maxShadows: 10, maxAnimated: 20, maxTransparent: 5, maxDistance: 500 });
@@ -81,18 +85,20 @@ builder.setFrame(10, 20);
 for (let i = 0; i < 32; i += 1) builder.add(render.createDrawPacket({ id: `tree-${i}`, meshId: 'tree', materialId: 'foliage', material: { id: 'foliage', class: 'opaque', variant: 'leaf', transparent: false, depthWrite: true, doubleSided: true }, layer: 'vegetation', pass: 'opaque', bounds: { center: { x: (i % 8) * 8 - 28, y: 0, z: -30 - Math.floor(i / 8) * 8 }, radius: 3 }, distance: 0, screenCoverage: 0, importance: 10, castShadow: i < 16, receiveShadow: true, animated: false, instanceGroup: 'trees' }));
 const packet = builder.build(camera);
 assert.equal(packet.version, 2, 'render packet version is explicit');
-assert.ok(packet.checksum.length === 8, 'render packet checksum is bounded');
+assert.equal(packet.checksum.length, 8, 'render packet checksum is bounded');
 assert.ok(packet.stats.visible <= packet.stats.submitted, 'visibility accounting is sane');
+assert.equal(packet.passes.opaque.length, packet.stats.visible, 'opaque pass contains visible opaque draws');
 
 const manifest = migration.defaultMigrationManifest();
 assert.ok(manifest.report().total >= 8, 'migration manifest contains real platform surfaces');
+assert.equal(manifest.assertCutOverReady('input').ok, false, 'shadow modules are not cutover-ready');
 for (const module of manifest.all()) {
   const ready = manifest.canTransition(module, 'cut-over');
   if (module.status === 'shadow') assert.equal(ready.ok, false, 'shadow modules cannot skip ready gate');
 }
 
 const canonicalRuntimeFrame = facade.runtime.advance({ deltaSeconds: 1 / 60 });
-assert.ok(canonicalRuntimeFrame.frame.checksum.length === 8, 'runtime frame checksum remains deterministic');
+assert.equal(canonicalRuntimeFrame.frame.checksum.length, 8, 'runtime frame checksum remains deterministic');
 facade.dispose();
 
 console.log('TypeScript cut-over acceptance checks passed');
