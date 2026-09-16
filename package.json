@@ -3,16 +3,15 @@
   "private": true,
   "version": "1.0.0-modernization",
   "type": "module",
-  "engines": {
-    "node": ">=24.21.0"
-  },
+  "engines": { "node": ">=24.21.0" },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "build:modern": "vite build",
     "check": "npm run typecheck && npm test -- --passWithNoTests",
-    "verify:modern": "node scripts/checkModernPlatform.mjs"
+    "verify:modern": "node scripts/checkModernPlatform.mjs",
+    "verify:modern:v2": "node scripts/checkModernRuntimeIntegrationV2.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
