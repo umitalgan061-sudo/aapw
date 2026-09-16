@@ -1,0 +1,79 @@
+name: Named Rivers Exact Head
+
+on:
+  push:
+    branches:
+      - codex/named-river-runtime-20260831
+    paths:
+      - 'src/3d/world/worldReferenceRivers.js'
+      - 'src/3d/world/riverMouth.js'
+      - 'src/3d/world/namedRiverRuntime.js'
+      - 'src/3d/world/terrainNamedRiverValleys.js'
+      - 'scripts/checkNamedRiverAuthority.mjs'
+      - 'scripts/checkNamedRiverSourceContract.mjs'
+      - '.github/workflows/named-rivers-exact-head.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/worldReferenceRivers.js'
+      - 'src/3d/world/riverMouth.js'
+      - 'src/3d/world/namedRiverRuntime.js'
+      - 'src/3d/world/terrainNamedRiverValleys.js'
+      - 'scripts/checkNamedRiverAuthority.mjs'
+      - 'scripts/checkNamedRiverSourceContract.mjs'
+      - '.github/workflows/named-rivers-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  named-river-authority:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify exact head and syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          node --check src/3d/world/worldReferenceRivers.js
+          node --check src/3d/world/riverMouth.js
+          node --check src/3d/world/namedRiverRuntime.js
+          node --check src/3d/world/terrainNamedRiverValleys.js
+          node --check scripts/checkNamedRiverAuthority.mjs
+          node --check scripts/checkNamedRiverSourceContract.mjs
+
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Source and ownership contract
+        run: node scripts/checkNamedRiverSourceContract.mjs
+
+      - name: Canonical named-river geometry and terrain contract
+        run: node scripts/checkNamedRiverAuthority.mjs
+
+      - name: Record exact head
+        if: always()
+        run: |
+          mkdir -p artifacts/named-rivers-exact-head
+          printf '%s\n' "$(git rev-parse HEAD)" > artifacts/named-rivers-exact-head/head-sha.txt
+
+      - name: Upload named-river exact-head proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: named-rivers-exact-head-${{ github.event.pull_request.head.sha || github.sha }}
+          path: artifacts/named-rivers-exact-head/
+          if-no-files-found: warn
+          retention-days: 14
