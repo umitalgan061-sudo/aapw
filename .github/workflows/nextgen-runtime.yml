@@ -8,6 +8,7 @@ on:
       - 'scripts/checkNextGenRuntimeV3.mjs'
       - 'package.json'
       - 'tsconfig.json'
+      - 'tsconfig.nextgen.json'
       - '.github/workflows/nextgen-runtime.yml'
   push:
     branches: [main]
@@ -17,6 +18,7 @@ on:
       - 'scripts/checkNextGenRuntimeV3.mjs'
       - 'package.json'
       - 'tsconfig.json'
+      - 'tsconfig.nextgen.json'
       - '.github/workflows/nextgen-runtime.yml'
 
 permissions:
@@ -37,7 +39,7 @@ jobs:
           node-version: 24.21.0
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run verify:nextgen
-      - run: npm run typecheck
+      - run: npm run typecheck:nextgen
       - run: npm test -- --passWithNoTests
       - run: npm run build:modern
 
