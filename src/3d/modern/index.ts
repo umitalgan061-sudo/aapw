@@ -57,3 +57,6 @@ export * from './runtimeCommandBus';
 export * from './runtimeAudit';
 export * from './runtimeIntegration';
 export * from './runtimeSession';
+export * from './replayCodec';
+export * from './assetStreamingCoordinator';
+export * from './telemetryStore';
