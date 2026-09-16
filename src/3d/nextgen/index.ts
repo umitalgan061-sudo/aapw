@@ -78,3 +78,4 @@ export * from './runtimeLoopV3';
 export * from './worldAuthorityV3';
 export * from './runtimeFacadeV3';
 export * from './legacyInteropV3';
+export * from './cameraRuntimeV3';
