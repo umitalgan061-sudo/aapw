@@ -23,7 +23,7 @@ function validateSlot(slot: number, maxSlots: number): void {
   if (!Number.isInteger(slot) || slot < 0 || slot >= maxSlots) throw new RangeError('Invalid save slot');
 }
 
-function createStorageAdapter<T>(maxSlots: number): PersistenceAdapter<T> {
+function createStorageAdapter<T>(maxSlots: number, now: () => UnixMillis): PersistenceAdapter<T> {
   const local = typeof localStorage !== 'undefined' ? localStorage : null;
   return {
     async save(slot, envelope) {
@@ -39,7 +39,9 @@ function createStorageAdapter<T>(maxSlots: number): PersistenceAdapter<T> {
       const parsed: unknown = JSON.parse(raw);
       if (!parsed || typeof parsed !== 'object') throw new Error('Corrupt save envelope');
       const envelope = parsed as SaveEnvelope<T>;
-      if (typeof envelope.checksum !== 'string' || checksum(envelope.payload) !== envelope.checksum) throw new Error('Save checksum mismatch');
+      if (typeof envelope.checksum !== 'string' || checksum(envelope.payload) !== envelope.checksum) {
+        throw new Error('Save checksum mismatch');
+      }
       return envelope;
     },
     async list() {
@@ -52,7 +54,7 @@ function createStorageAdapter<T>(maxSlots: number): PersistenceAdapter<T> {
           const envelope = JSON.parse(raw) as SaveEnvelope<T>;
           entries.push({ slot, updatedAt: envelope.createdAt, playtimeMs: 0, checksum: envelope.checksum, summary: `${envelope.schema} v${envelope.version}` });
         } catch {
-          // Corrupt slots remain addressable through load(), but do not pollute the picker.
+          // Corrupt slots are hidden from the picker; load() reports corruption explicitly.
         }
       }
       return entries.sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt));
@@ -60,11 +62,12 @@ function createStorageAdapter<T>(maxSlots: number): PersistenceAdapter<T> {
     async remove(slot) {
       validateSlot(slot, maxSlots);
       local?.removeItem(KEY_PREFIX + slot);
+      void now;
     },
   };
 }
 
-/** Versioned, checksummed persistence layer with schema migration hooks and atomic memory commit. */
+/** Versioned, checksummed persistence layer with schema migration hooks and bounded slot access. */
 export class SaveSystem<T> {
   readonly schema: string;
   readonly version: number;
@@ -78,7 +81,7 @@ export class SaveSystem<T> {
     this.version = options.version;
     this.maxSlots = Math.max(1, Math.min(99, Math.floor(options.maxSlots ?? DEFAULT_MAX_SLOTS)));
     this.#now = options.now ?? (() => Date.now() as UnixMillis);
-    this.#adapter = options.adapter ?? createStorageAdapter(this.maxSlots);
+    this.#adapter = options.adapter ?? createStorageAdapter(this.maxSlots, this.#now);
   }
 
   registerMigration(fromVersion: number, migrate: (payload: unknown) => unknown): this {
@@ -123,7 +126,16 @@ export class SaveSystem<T> {
     }
   }
 
-  async list(): Promise<readonly SaveSlot[]> { return this.#adapter.list(); }
-  async remove(slot: number): Promise<void> { validateSlot(slot, this.maxSlots); await this.#adapter.remove(slot); }
-  static jsonSize(value: unknown): number { return new TextEncoder().encode(stableStringify(value)).byteLength; }
+  async list(): Promise<readonly SaveSlot[]> {
+    return this.#adapter.list();
+  }
+
+  async remove(slot: number): Promise<void> {
+    validateSlot(slot, this.maxSlots);
+    await this.#adapter.remove(slot);
+  }
+
+  static jsonSize(value: unknown): number {
+    return new TextEncoder().encode(stableStringify(value)).byteLength;
+  }
 }
