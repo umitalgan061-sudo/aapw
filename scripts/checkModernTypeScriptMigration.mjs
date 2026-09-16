@@ -46,6 +46,8 @@ const jsFiles = files.filter((path) => extname(path) === '.js' || extname(path) 
 assert(tsFiles.length >= 20, `Expected at least 20 TypeScript core modules; found ${tsFiles.length}.`);
 assert(jsFiles.length === 0, `The new core must not introduce JavaScript modules; found ${jsFiles.length}.`);
 
+const allowedDomFiles = ['accessibility.ts', 'browserLifecycle.ts', 'capabilities.ts'];
+const boundaryTimeFiles = ['legacyBridge.ts', 'browserLifecycle.ts', 'runtimeConfig.ts', 'worldStore.ts'];
 const forbiddenPatterns = [
   { regex: /\bany\b/g, message: 'explicit any is forbidden in the modern core.' },
   { regex: /\b(?:eval|Function)\s*\(/g, message: 'dynamic code execution is forbidden in the modern core.' },
@@ -60,11 +62,9 @@ for (const file of tsFiles) {
     if (pattern.regex.test(source)) failures.push(`${rel}: ${pattern.message}`);
     pattern.regex.lastIndex = 0;
   }
-  if (source.includes('Math.random(') && !rel.endsWith('legacyBridge.ts')) failures.push(`${rel}: Math.random is not allowed in deterministic core code.`);
-  if (source.includes('Date.now(') && !['legacyBridge.ts', 'browserLifecycle.ts', 'runtimeConfig.ts'].some((name) => rel.endsWith(name))) notes.push(`${rel}: Date.now is present; confirm it is boundary-only.`);
-  if (source.includes('document.') && !['accessibility.ts', 'browserLifecycle.ts', 'capabilities.ts', 'modern']).some(() => false)) {
-    if (!rel.endsWith('accessibility.ts') && !rel.endsWith('browserLifecycle.ts') && !rel.endsWith('capabilities.ts')) notes.push(`${rel}: direct DOM access exists; keep presentation ownership explicit.`);
-  }
+  if (source.includes('Math.random(')) failures.push(`${rel}: Math.random is not allowed in deterministic core code.`);
+  if (source.includes('Date.now(') && !boundaryTimeFiles.some((name) => rel.endsWith(name))) notes.push(`${rel}: Date.now is present; confirm it is boundary-only.`);
+  if (source.includes('document.') && !allowedDomFiles.some((name) => rel.endsWith(name))) notes.push(`${rel}: direct DOM access exists; keep presentation ownership explicit.`);
 }
 
 const requiredFiles = [
