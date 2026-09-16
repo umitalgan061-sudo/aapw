@@ -80,3 +80,4 @@ export * from './productionSimulation';
 export * from './runtimeLifecycleController';
 export * from './legacyStateBridge';
 export * from './runtimeFacadeAdapter';
+export * from './productionBridge';
