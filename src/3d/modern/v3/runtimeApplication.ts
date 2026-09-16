@@ -1,5 +1,5 @@
 import { createModernRuntime, tickModernRuntime, type RuntimeServices } from '../runtime';
-import type { CameraState, RuntimeSnapshot } from '../types';
+import type { CameraState } from '../types';
 import { createBrowserFrameSource, type BrowserFrameSource } from './browserFrameSource.js';
 import { createTypeSafeLegacyGameAdapter, type TypeSafeLegacyGameAdapter } from './legacyGameAdapter.js';
 import {
@@ -10,7 +10,6 @@ import {
   type V3RuntimeConfig,
   type V3RuntimeDependencies,
   type V3RuntimeSnapshot,
-  type V3Viewport,
   normalizeV3Action,
 } from './runtimeContracts.js';
 import { createV3RuntimeKernel, type V3RuntimeKernel } from './runtimeKernel.js';
@@ -68,9 +67,10 @@ const cameraFromLegacy = (): V3CameraState => {
 function number(value: number | undefined, fallback = 0): number { return typeof value === 'number' && Number.isFinite(value) ? value : fallback; }
 
 export async function createV3Application(options: V3ApplicationOptions): Promise<V3Application> {
+  let applicationKernel: V3RuntimeKernel | undefined;
   const browser = createBrowserFrameSource(options.canvas, { maxDpr: options.maxDpr, cameraProvider: cameraFromLegacy });
   const legacy = options.enableLegacyAdapter === false ? undefined : createTypeSafeLegacyGameAdapter({
-    onBridgeEvent: event => { applicationKernel?.emit('runtime/legacy-bridge', event); },
+    onBridgeEvent: event => applicationKernel?.emit('runtime/legacy-bridge', event),
   });
   const config: V3RuntimeConfig = Object.freeze({
     worldId: makeWorldId(options.worldId) as V3RuntimeConfig['worldId'],
@@ -79,7 +79,6 @@ export async function createV3Application(options: V3ApplicationOptions): Promis
     maxDeltaMs: 250, maxCatchUpSteps: 6, budget: DEFAULT_V3_BUDGET,
     enableLegacyAdapter: options.enableLegacyAdapter !== false, enablePersistence: true, enableWorkers: true,
   });
-  let applicationKernel: V3RuntimeKernel | undefined;
   const deps: V3RuntimeDependencies = Object.freeze({ now: () => browser.now(), frameSource: browser, legacy });
   applicationKernel = createV3RuntimeKernel({ config, dependencies: deps });
   let modernMetrics: RuntimeServices | undefined;
@@ -90,26 +89,26 @@ export async function createV3Application(options: V3ApplicationOptions): Promis
     legacy,
     browser,
     modernMetrics,
-    start: () => applicationKernel.start(),
-    pause: reason => applicationKernel.pause(reason),
-    resume: reason => applicationKernel.resume(reason),
-    stop: reason => applicationKernel.stop(reason),
+    start: () => applicationKernel!.start(),
+    pause: reason => applicationKernel!.pause(reason),
+    resume: reason => applicationKernel!.resume(reason),
+    stop: reason => applicationKernel!.stop(reason),
     frame: now => {
-      const snapshot = applicationKernel.tick(now ?? browser.now());
+      const snapshot = applicationKernel!.tick(now ?? browser.now());
       if (modernMetrics) {
         const camera: CameraState = Object.freeze({ position: snapshot.camera.position, target: snapshot.camera.target, fov: snapshot.camera.fov, near: snapshot.camera.near, far: snapshot.camera.far, viewportWidth: snapshot.viewport.width, viewportHeight: snapshot.viewport.height, dpr: snapshot.viewport.dpr });
-        tickModernRuntime(modernMetrics, { frame: snapshot.frame as never, frameMs: snapshot.health.frameMs, cpuMs: snapshot.health.frameMs, drawCalls: applicationKernel.renderPacket().visibleIds.length, triangles: 0, visibleObjects: applicationKernel.renderPacket().visibleIds.length, textureBytes: 0, camera });
+        tickModernRuntime(modernMetrics, { frame: snapshot.frame as never, frameMs: snapshot.health.frameMs, cpuMs: snapshot.health.frameMs, drawCalls: applicationKernel!.renderPacket().visibleIds.length, triangles: 0, visibleObjects: applicationKernel!.renderPacket().visibleIds.length, textureBytes: 0, camera });
       }
       return snapshot;
     },
     dispatch: action => {
       const now = browser.now();
-      const frame = applicationKernel.snapshot().frame;
-      return applicationKernel.dispatch(normalizeV3Action(action, now, frame));
+      const frame = applicationKernel!.snapshot().frame;
+      return applicationKernel!.dispatch(normalizeV3Action(action, now, frame));
     },
-    renderPacket: () => applicationKernel.renderPacket(),
-    diagnostics: () => Object.freeze({ schema: 'aapw.runtime.v3', config, snapshot: applicationKernel.snapshot(), health: applicationKernel.health(), legacyLoaded: legacy?.isLoaded() ?? false, modernMetricsReady: Boolean(modernMetrics) }),
-    dispose: () => applicationKernel.dispose(),
+    renderPacket: () => applicationKernel!.renderPacket(),
+    diagnostics: () => Object.freeze({ schema: 'aapw.runtime.v3', config, snapshot: applicationKernel!.snapshot(), health: applicationKernel!.health(), legacyLoaded: legacy?.isLoaded() ?? false, modernMetricsReady: Boolean(modernMetrics) }),
+    dispose: () => applicationKernel!.dispose(),
   };
   return Object.freeze(app);
 }
