@@ -34,6 +34,9 @@ export * from './modernEngine.js';
 export * from './legacyAdapters.js';
 export * from './worker.js';
 export * from './network.js';
+export * from './wasmHotPath.js';
+export * from './workerSimulation.js';
+export * from './wasmHotPathVectors.js';
 
 import { RuntimeKernel } from './runtime.js';
 import { TelemetryRegistry } from './telemetry.js';

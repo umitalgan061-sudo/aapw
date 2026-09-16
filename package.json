@@ -8,7 +8,8 @@
     "typecheck":"tsc --noEmit",
     "test":"vitest run",
     "test:watch":"vitest",
-    "build:modern":"vite build",
+    "build:wasm":"node scripts/buildWasmHotPath.mjs",
+    "build:modern":"npm run build:wasm && vite build",
     "check":"npm run typecheck && npm test -- --passWithNoTests",
     "verify:modern":"node scripts/checkModernPlatform.mjs",
     "verify:modern:v3":"node scripts/checkModernPlatformV3.mjs",
@@ -17,7 +18,9 @@
     "verify:all-modern":"npm run verify:modern && npm run verify:modern:v3 && npm run verify:typed && npm run test:typed",
     "verify:nextgen":"node scripts/checkNextGenRuntimeV2.mjs",
     "check:nextgen":"npm run verify:nextgen && npm run typecheck && npm test -- --passWithNoTests",
-    "verify:modern:v2":"node scripts/checkModernRuntimeIntegrationV2.mjs"
+    "verify:modern:v2":"node scripts/checkModernRuntimeIntegrationV2.mjs",
+    "verify:wasm-hotpath":"node --experimental-strip-types scripts/checkWasmHotPath.mjs",
+    "check:wasm-hotpath":"npm run verify:wasm-hotpath && npm run typecheck"
   },
   "devDependencies":{"@types/node":"^26.5.1","typescript":"^7.0.2","vite":"^8.3.0","vitest":"^5.0.1"}
 }
