@@ -10,6 +10,15 @@ on:
       - 'scripts/generateWasmHotPathMatrix.mjs'
       - 'artifacts/wasm-hotpath/**'
       - '.github/workflows/rust-wasm-hotpath.yml'
+  pull_request:
+    paths:
+      - 'wasm/**'
+      - 'src/engine-ts/wasmHotPath.ts'
+      - 'src/engine-ts/workerSimulation.ts'
+      - 'scripts/checkWasmHotPath.mjs'
+      - 'scripts/generateWasmHotPathMatrix.mjs'
+      - 'artifacts/wasm-hotpath/**'
+      - '.github/workflows/rust-wasm-hotpath.yml'
   workflow_dispatch:
 
 permissions:
@@ -37,6 +46,7 @@ jobs:
       - name: Validate parity contract
         run: node scripts/checkWasmHotPath.mjs
       - name: Materialize generated corpus
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
