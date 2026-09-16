@@ -1,0 +1,24 @@
+{
+  "name": "westeros-aapw",
+  "private": true,
+  "version": "1.0.0-modernized",
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "typecheck:build": "tsc -p tsconfig.build.json",
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "quality": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.1.0",
+    "vitest": "^4.0.0"
+  }
+}
