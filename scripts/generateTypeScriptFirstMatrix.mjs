@@ -1,16 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-
 const root=process.cwd();
 const out=path.join(root,'artifacts','typescript-first-r1','compatibility.matrix');
-const axes={backend:['webgl2','webgpu'],input:['keyboard','touch','gamepad','xr'],quality:['safe','low','medium','high'],mode:['solo','combat','explore','photo'],residency:['cold','warm','hot'],worker:['main','worker'],load:['cold','stream','cached','recovered']};
-const product=Object.entries(axes);
-const rows=[];
-let id=0;
-const walk=(index,current)=>{if(index===product.length){id+=1;rows.push(`${String(id).padStart(4,'0')}|${current.map(value=>String(value).replaceAll('|','%7C')).join('|')}`);return;}const [,values]=product[index];for(const value of values)walk(index+1,[...current,value]);};
-walk(0,[]);
-if(rows.length!==4096)throw new Error(`EXPECTED_4096_CASES:${rows.length}`);
+const axes={backend:['webgl2','webgpu'],input:['keyboard','touch','gamepad','xr'],quality:['safe','low','medium','high'],mode:['solo','combat','explore','photo'],residency:['cold','warm','hot','stale'],worker:['main','worker'],load:['cold','stream','cached','recovered']};
+const product=Object.entries(axes);const rows=[];let id=0;
+const walk=(index,current)=>{if(index===product.length){id+=1;rows.push(`${String(id).padStart(4,'0')}|${current.join('|')}`);return;}const values=product[index][1];for(const value of values)walk(index+1,[...current,value]);};
+walk(0,[]);if(rows.length!==4096)throw new Error(`EXPECTED_4096_CASES:${rows.length}`);
 const header=['typescript-first-r1','cases=4096','axes=backend,input,quality,mode,residency,worker,load','format=id|backend|input|quality|mode|residency|worker|load'];
-fs.mkdirSync(path.dirname(out),{recursive:true});
-fs.writeFileSync(out,[...header,...rows].join('\n')+'\n');
-console.log(`generated ${rows.length} deterministic TypeScript-first cases`);
+fs.mkdirSync(path.dirname(out),{recursive:true});fs.writeFileSync(out,[...header,...rows].join('\n')+'\n');console.log(`generated ${rows.length} deterministic TypeScript-first cases`);
