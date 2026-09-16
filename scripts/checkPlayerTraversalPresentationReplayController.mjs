@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { createTraversalPresentationReplayController, replayControllerDeterminism, validateTraversalReplayControllerSnapshot } from '../src/3d/gameplay/playerTraversalPresentationReplayController.js';
+import { generateTraversalStressSequence } from '../src/3d/gameplay/playerTraversalPresentationStress.js';
+const cues=generateTraversalStressSequence(120).map((cue,index)=>({cue,clockSeconds:index/60}));
+const controller=createTraversalPresentationReplayController(cues);
+assert.equal(controller.snapshot().cursor,0);
+for(let i=0;i<15;i+=1)assert.ok(controller.step());
+assert.equal(controller.snapshot().cursor,15);
+assert.equal(validateTraversalReplayControllerSnapshot(controller.snapshot()).valid,true);
+controller.seek(5);assert.equal(controller.snapshot().cursor,5);
+controller.play();assert.ok(controller.snapshot().cursor>=6);
+controller.pause();assert.equal(controller.snapshot().playing,false);
+assert.equal(replayControllerDeterminism(cues).same,true);
+controller.reset();assert.equal(controller.snapshot().cursor,0);
+console.log('traversal replay controller passed');

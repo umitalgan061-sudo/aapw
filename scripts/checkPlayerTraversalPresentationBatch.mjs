@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { processTraversalPresentationBatch, compareTraversalBatches, summarizeTraversalBatch } from '../src/3d/gameplay/playerTraversalPresentationBatch.js';
+import { generateTraversalStressSequence } from '../src/3d/gameplay/playerTraversalPresentationStress.js';
+const cues=generateTraversalStressSequence(240);
+const first=processTraversalPresentationBatch(cues);
+const second=processTraversalPresentationBatch(cues);
+assert.equal(first.count,240);
+assert.equal(first.timelineValid,true);
+assert.equal(compareTraversalBatches(first,second),true);
+assert.equal(summarizeTraversalBatch(first).healthy,true);
+console.log('traversal presentation batch: deterministic 240-sample analysis passed');
