@@ -158,10 +158,10 @@ export class DynamicResolutionController {
   private readonly hysteresisFrames: number;
 
   constructor(initialScale = 1, options: DynamicResolutionControllerOptions = {}) {
-    this.scaleValue = clamp(initialScale, options.minimumScale ?? 0.55, options.maximumScale ?? 1);
-    this.targetFrameMs = Math.max(4, options.targetFrameMs ?? 16.6);
     this.minimumScale = clamp(options.minimumScale ?? 0.55, 0.25, 1);
     this.maximumScale = clamp(options.maximumScale ?? 1, this.minimumScale, 1.5);
+    this.scaleValue = clamp(initialScale, this.minimumScale, this.maximumScale);
+    this.targetFrameMs = Math.max(4, options.targetFrameMs ?? 16.6);
     this.downStep = clamp(options.downStep ?? 0.035, 0.005, 0.2);
     this.upStep = clamp(options.upStep ?? 0.018, 0.002, 0.1);
     this.hysteresisFrames = Math.max(2, Math.trunc(options.hysteresisFrames ?? 8));
@@ -173,23 +173,11 @@ export class DynamicResolutionController {
     if (!Number.isFinite(frameMs)) return this.scaleValue;
     const over = frameMs > this.targetFrameMs * 1.08;
     const under = frameMs < this.targetFrameMs * 0.88;
-    if (over) {
-      this.slowFrames += 1;
-      this.fastFrames = 0;
-    } else if (under) {
-      this.fastFrames += 1;
-      this.slowFrames = 0;
-    } else {
-      this.slowFrames = Math.max(0, this.slowFrames - 1);
-      this.fastFrames = Math.max(0, this.fastFrames - 1);
-    }
-    if (this.slowFrames >= this.hysteresisFrames) {
-      this.scaleValue = clamp(this.scaleValue - this.downStep, this.minimumScale, this.maximumScale);
-      this.slowFrames = 0;
-    } else if (this.fastFrames >= this.hysteresisFrames * 2) {
-      this.scaleValue = clamp(this.scaleValue + this.upStep, this.minimumScale, this.maximumScale);
-      this.fastFrames = 0;
-    }
+    if (over) { this.slowFrames += 1; this.fastFrames = 0; }
+    else if (under) { this.fastFrames += 1; this.slowFrames = 0; }
+    else { this.slowFrames = Math.max(0, this.slowFrames - 1); this.fastFrames = Math.max(0, this.fastFrames - 1); }
+    if (this.slowFrames >= this.hysteresisFrames) { this.scaleValue = clamp(this.scaleValue - this.downStep, this.minimumScale, this.maximumScale); this.slowFrames = 0; }
+    else if (this.fastFrames >= this.hysteresisFrames * 2) { this.scaleValue = clamp(this.scaleValue + this.upStep, this.minimumScale, this.maximumScale); this.fastFrames = 0; }
     return this.scaleValue;
   }
 
@@ -258,21 +246,17 @@ export interface FramePresenter extends Disposable {
 export class BudgetAwarePresenter implements FramePresenter {
   private lastFrameMs = 0;
   private readonly scaleController: DynamicResolutionController;
-  constructor(private readonly renderer: RendererLike, initialScale = 1) {
-    this.scaleController = new DynamicResolutionController(initialScale);
-  }
-
+  constructor(private readonly renderer: RendererLike, initialScale = 1) { this.scaleController = new DynamicResolutionController(initialScale); }
   begin(_context: FrameContext): void { this.lastFrameMs = typeof performance !== 'undefined' ? performance.now() : Date.now(); }
-
   async render(scene: unknown, camera: unknown): Promise<void> {
     const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
     await this.renderer.render(scene, camera);
     const end = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const elapsed = end - start;
+    const previousScale = this.scaleController.scale;
     const nextScale = this.scaleController.update(elapsed);
-    if (Math.abs(nextScale - this.scaleController.scale) > 0.0001) this.renderer.setPixelRatio(nextScale);
+    if (Math.abs(nextScale - previousScale) > 0.0001) this.renderer.setPixelRatio(nextScale);
   }
-
   end(): void { this.lastFrameMs = 0; }
   dispose(): void { this.renderer.dispose(); }
 }
@@ -284,6 +268,7 @@ export const cssPixelSize = (canvas: HTMLCanvasElement | OffscreenCanvas): { wid
 
 export const resizeRenderer = (renderer: RendererLike, canvas: HTMLCanvasElement | OffscreenCanvas, pixelRatio: number): void => {
   const size = cssPixelSize(canvas);
-  renderer.setPixelRatio(clamp(pixelRatio, 0.5, 2.5));
-  renderer.setSize(size.width, size.height, pixelRatio);
+  const clampedRatio = clamp(pixelRatio, 0.5, 2.5);
+  renderer.setPixelRatio(clampedRatio);
+  renderer.setSize(size.width, size.height, clampedRatio);
 };
