@@ -1,0 +1,13 @@
+{
+  "name": "aapw-engine-core",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck:engine": "tsc -p tsconfig.engine.json --noEmit",
+    "build:engine": "tsc -p tsconfig.engine.json",
+    "test:engine": "node scripts/checkTypeScriptEngineCore.mjs"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}
