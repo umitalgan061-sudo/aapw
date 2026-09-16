@@ -1,0 +1,61 @@
+name: nextgen-runtime
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/nextgen/**'
+      - 'tests/nextgen/**'
+      - 'scripts/checkNextGenRuntimeV3.mjs'
+      - 'package.json'
+      - 'tsconfig.json'
+      - 'tsconfig.nextgen.json'
+      - '.github/workflows/nextgen-runtime.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/nextgen/**'
+      - 'tests/nextgen/**'
+      - 'scripts/checkNextGenRuntimeV3.mjs'
+      - 'package.json'
+      - 'tsconfig.json'
+      - 'tsconfig.nextgen.json'
+      - '.github/workflows/nextgen-runtime.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nextgen-runtime-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:nextgen
+      - run: npm run typecheck:nextgen
+      - run: npm test -- --passWithNoTests
+      - run: npm run build:modern
+
+  deterministic-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject unsafe or ambient nondeterminism in nextgen
+        run: |
+          set -eu
+          if grep -R -nE '\beval\s*\(|\bnew Function\s*\(|\bDate\.now\s*\(' src/3d/nextgen; then
+            echo 'Unsafe or wall-clock primitive detected in nextgen runtime.'
+            exit 1
+          fi
+          if grep -R -nE 'Math\.random\s*\(' src/3d/nextgen; then
+            echo 'Ambient randomness detected in nextgen runtime.'
+            exit 1
+          fi
