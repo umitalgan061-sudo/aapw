@@ -61,11 +61,19 @@ export class RuntimeGuard {
   canEval(): boolean { return this.#policy.allowDynamicCode; }
 
   resetFrame(): void { this.#domMutations = 0; }
+
   release(resource: 'listeners' | 'timers' | 'fetches', delta = 1): void {
-    this[resource] = Math.max(0, this[resource] - Math.max(0, Math.floor(delta)));
+    const amount = Math.max(0, Math.floor(delta));
+    switch (resource) {
+      case 'listeners': this.#listeners = Math.max(0, this.#listeners - amount); break;
+      case 'timers': this.#timers = Math.max(0, this.#timers - amount); break;
+      case 'fetches': this.#fetches = Math.max(0, this.#fetches - amount); break;
+    }
   }
 
-  metrics(): GuardMetrics { return freeze({ listeners: this.#listeners, timers: this.#timers, fetches: this.#fetches, domMutations: this.#domMutations, assetBytes: this.#assetBytes, violations: this.#violations }); }
+  metrics(): GuardMetrics {
+    return freeze({ listeners: this.#listeners, timers: this.#timers, fetches: this.#fetches, domMutations: this.#domMutations, assetBytes: this.#assetBytes, violations: this.#violations });
+  }
 
   audit(): readonly GuardViolation[] {
     const metrics = this.metrics();
@@ -79,12 +87,40 @@ export class RuntimeGuard {
     return checks.filter(([, limit, observed]) => observed > limit).map(([resource, limit, observed]) => freeze({ code: 'RESOURCE_LIMIT', message: `${resource} exceeded its runtime limit.`, resource, limit, observed }));
   }
 
-  #reserve(resource: keyof GuardMetrics, delta: number, limit: number): boolean {
+  #reserve(resource: 'listeners' | 'timers' | 'fetches' | 'domMutations' | 'assetBytes', delta: number, limit: number): boolean {
     const amount = Math.max(0, Math.floor(delta));
-    const observed = Number(this[resource]) + amount;
-    if (observed > limit) { this.#violations += 1; return false; }
-    this[resource] = observed as never;
-    return true;
+    switch (resource) {
+      case 'listeners': {
+        const observed = this.#listeners + amount;
+        if (observed > limit) { this.#violations += 1; return false; }
+        this.#listeners = observed;
+        return true;
+      }
+      case 'timers': {
+        const observed = this.#timers + amount;
+        if (observed > limit) { this.#violations += 1; return false; }
+        this.#timers = observed;
+        return true;
+      }
+      case 'fetches': {
+        const observed = this.#fetches + amount;
+        if (observed > limit) { this.#violations += 1; return false; }
+        this.#fetches = observed;
+        return true;
+      }
+      case 'domMutations': {
+        const observed = this.#domMutations + amount;
+        if (observed > limit) { this.#violations += 1; return false; }
+        this.#domMutations = observed;
+        return true;
+      }
+      case 'assetBytes': {
+        const observed = this.#assetBytes + amount;
+        if (observed > limit) { this.#violations += 1; return false; }
+        this.#assetBytes = observed;
+        return true;
+      }
+    }
   }
 }
 
