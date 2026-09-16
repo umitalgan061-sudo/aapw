@@ -11,6 +11,7 @@ on:
       - 'src/3d/world/terrainMacroWeathering.js'
       - 'src/3d/world/terrainMicroSurface.js'
       - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/geographicReferencePalette.js'
       - 'src/3d/world/northReferenceCryosphere.js'
       - 'src/3d/world/worldReferenceSurfacePindexes.js'
       - 'src/3d/world/worldReferenceMountainRelief.js'
@@ -22,6 +23,7 @@ on:
       - 'src/3d/world/westernReferenceSurfaceFabric.js'
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
+      - 'scripts/checkGeographicReferencePalette.mjs'
       - 'scripts/checkTerrainMicroSurface.mjs'
       - 'scripts/checkTerrainMacroWeathering.mjs'
       - 'scripts/checkTerrainMacroWeatheringStatistics.mjs'
@@ -69,6 +71,7 @@ jobs:
           node --check src/3d/sky.js
           node --check src/3d/world/terrainMacroWeathering.js
           node --check src/3d/world/terrainReliefDetail.js
+          node --check src/3d/world/geographicReferencePalette.js
           node --check src/3d/world/worldReferenceMountainRelief.js
           node --check src/3d/world/westernMarineShelfTone.js
           node --check src/3d/world/westernReferenceSurfaceFabric.js
@@ -79,6 +82,7 @@ jobs:
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
           node --check scripts/checkMountainLakeBasinTaper.mjs
+          node scripts/checkGeographicReferencePalette.mjs
           node scripts/checkTerrainMacroWeathering.mjs
           node scripts/checkTerrainMacroWeatheringStatistics.mjs
           node scripts/checkTerrainMacroWeatheringIntegration.mjs

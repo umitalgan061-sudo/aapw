@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: true
+          lfs: false
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
@@ -34,7 +34,10 @@ jobs:
           git fetch origin main
           BASE_SHA="$(git rev-parse origin/main)"
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
-          git lfs fsck
+          # Governance needs canonical LFS pointers in the proposed commit range; downloading every
+          # historical binary is unnecessary and makes source-only PRs depend on the account's LFS
+          # transfer quota. Asset-specific workflows selectively hydrate the blobs they actually use.
+          git lfs fsck --pointers "$BASE_SHA..HEAD"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"

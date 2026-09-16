@@ -33,6 +33,7 @@ async function main() {
 				disposeWater,
 				WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 			} = await import('/src/3d/world/water.js');
+			const { GEOGRAPHIC_REFERENCE_PALETTE } = await import('/src/3d/world/geographicReferencePalette.js');
 			const { publishCelestialLightState } = await import('/src/3d/celestialLightState.js');
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
 			const close = (a, b, tolerance = 1e-6) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
@@ -75,8 +76,10 @@ async function main() {
 				'uNightFactor', 'uCameraPosition', 'uDepthMap', 'uDepthFieldExtentMeters', 'uSwellStrength', 'uFarLayerMask',
 			]) fail(Boolean(uniforms?.[name]), `water uniform ${name} is missing`);
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
-			fail(uniforms.uShallowColor.value.getHex() === 0x6aa39c, 'reference clear-shore hue drifted');
-			fail(uniforms.uDeepColor.value.getHex() === 0x092941, 'reference deep-sea hue drifted');
+			fail(uniforms.uShallowColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.shoreClear,
+				'reference clear-shore hue drifted from shared geographic palette');
+			fail(uniforms.uDeepColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.deepSea,
+				'reference deep-sea hue drifted from shared geographic palette');
 
 			const optical = water.userData.opticalProfile;
 			fail(optical?.shallowAlpha === 0.14 && optical?.deepAlpha === 0.90, 'depth-clear optical alpha profile drifted');
@@ -97,8 +100,6 @@ async function main() {
 			fail(fragmentShader.includes('nearLayerDistance < 1999.5') && fragmentShader.includes('discard'), 'near/far double-alpha mask disappeared');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
-			// Custom-shader key follows the same published celestial state as lighting.js. First prove a
-			// daylight key, then a stronger moon key, without reaching into water internals.
 			publishCelestialLightState({
 				sunPosition: new THREE.Vector3(30, 40, 0),
 				sunColor: new THREE.Color(0xffb366),

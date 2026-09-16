@@ -57,6 +57,7 @@ async function main() {
 			const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
 			const { createHeightSampler } = await import('/src/3d/world/terrain.js');
 			const { buildRoadNetwork, disposeRoadNetwork } = await import('/src/3d/world/roads.js');
+			const { GEOGRAPHIC_REFERENCE_PALETTE } = await import('/src/3d/world/geographicReferencePalette.js');
 
 			const fail = (condition, message) => {
 				if (!condition) throw new Error(message);
@@ -186,14 +187,14 @@ async function main() {
 				expectedName: 'roads',
 				edges: network.edges,
 				expectedWidth,
-				expectedColorHex: 0x8b6849,
+				expectedColorHex: GEOGRAPHIC_REFERENCE_PALETTE.road.compacted,
 			});
 			const footpathResult = network.footpathEdges.length > 0
 				? checkTierMesh(network.group.children[1], {
 					expectedName: 'patika',
 					edges: network.footpathEdges,
 					expectedWidth: expectedFootpathWidth,
-					expectedColorHex: 0xb0926d,
+					expectedColorHex: GEOGRAPHIC_REFERENCE_PALETTE.road.dust,
 				})
 				: null;
 
