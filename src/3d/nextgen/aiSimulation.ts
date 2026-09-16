@@ -2,7 +2,7 @@
 
 import { clamp, distance3, normalize3, sub3, type Vec3 } from './deterministicMath';
 
-export type AiMode = 'idle' | 'patrol' | 'investigate' | 'combat' | 'flee' | 'dead';
+export type AiMode = 'idle' | 'patrol' | 'investigate' | 'combat' | 'flee' | 'social' | 'dead';
 export type StimulusType = 'visual' | 'audio' | 'damage' | 'threat' | 'goal' | 'social';
 
 export interface AiStimulus {
