@@ -7,6 +7,7 @@ on:
     paths:
       - 'src/3d/persistence/**'
       - 'scripts/checkSaveGameRepositoryR1.mjs'
+      - 'scripts/checkSaveGameSnapshotAdapterR1.mjs'
       - 'scripts/generateSaveRepositoryContractMatrixR1.mjs'
       - '.github/workflows/save-repository-r1.yml'
   workflow_dispatch:
@@ -31,10 +32,14 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/persistence/saveGameRepository.js
+          node --check src/3d/persistence/saveGameSnapshotAdapter.js
           node --check scripts/checkSaveGameRepositoryR1.mjs
+          node --check scripts/checkSaveGameSnapshotAdapterR1.mjs
           node --check scripts/generateSaveRepositoryContractMatrixR1.mjs
-      - name: Acceptance
+      - name: Repository acceptance
         run: node scripts/checkSaveGameRepositoryR1.mjs
+      - name: Snapshot adapter acceptance
+        run: node scripts/checkSaveGameSnapshotAdapterR1.mjs
       - name: Generate corpus
         run: node scripts/generateSaveRepositoryContractMatrixR1.mjs
       - name: Validate corpus
@@ -57,7 +62,7 @@ jobs:
       - name: Meaningful addition gate
         run: |
           set -euo pipefail
-          source_additions=$(git diff --numstat HEAD^ HEAD -- 'src/3d/persistence' scripts/checkSaveGameRepositoryR1.mjs scripts/generateSaveRepositoryContractMatrixR1.mjs '.github/workflows/save-repository-r1.yml' | awk '{sum += $1} END {print sum+0}')
+          source_additions=$(git diff --numstat HEAD^ HEAD -- 'src/3d/persistence' scripts/checkSaveGameRepositoryR1.mjs scripts/checkSaveGameSnapshotAdapterR1.mjs scripts/generateSaveRepositoryContractMatrixR1.mjs '.github/workflows/save-repository-r1.yml' | awk '{sum += $1} END {print sum+0}')
           generated_rows=$(grep -vc '^#' artifacts/persistence/save-repository-contract.matrix)
           total=$((source_additions + generated_rows))
           echo "source additions: $source_additions"
