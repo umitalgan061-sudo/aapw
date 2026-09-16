@@ -2,6 +2,8 @@
 
 use core::slice;
 
+mod simulation_v2;
+
 const SCRATCH_CAP: usize = 65_536;
 static mut SCRATCH: [f32; SCRATCH_CAP] = [0.0; SCRATCH_CAP];
 
@@ -40,9 +42,7 @@ pub extern "C" fn lod_factor(distance_m: f32, near_m: f32, far_m: f32) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn distance_sq(ax: f32, ay: f32, az: f32, bx: f32, by: f32, bz: f32) -> f32 {
-    let dx = ax - bx; let dy = ay - by; let dz = az - bz; dx * dx + dy * dy + dz * dz
-}
+pub extern "C" fn distance_sq(ax: f32, ay: f32, az: f32, bx: f32, by: f32, bz: f32) -> f32 { simulation_v2::distance_sq(ax, ay, az, bx, by, bz) }
 
 #[no_mangle]
 pub extern "C" fn spatial_key(cell_x: i32, cell_z: i32) -> u32 { hash2(cell_x, cell_z, 0xB529_7A4D) }
@@ -54,9 +54,7 @@ pub extern "C" fn aabb_visible(min_x: f32, min_y: f32, min_z: f32, max_x: f32, m
 }
 
 #[no_mangle]
-pub extern "C" fn bilinear_sample(h00: f32, h10: f32, h01: f32, h11: f32, tx: f32, tz: f32) -> f32 {
-    let x = clamp01(tx); let z = clamp01(tz); mix(mix(h00, h10, x), mix(h01, h11, x), z)
-}
+pub extern "C" fn bilinear_sample(h00: f32, h10: f32, h01: f32, h11: f32, tx: f32, tz: f32) -> f32 { let x = clamp01(tx); let z = clamp01(tz); mix(mix(h00, h10, x), mix(h01, h11, x), z) }
 
 #[no_mangle]
 pub extern "C" fn quantize(value: f32, step: f32) -> i32 { if step <= 0.0 { 0 } else { (value / step).round() as i32 } }
@@ -65,9 +63,7 @@ pub extern "C" fn quantize(value: f32, step: f32) -> i32 { if step <= 0.0 { 0 } 
 pub extern "C" fn fnv1a_u32(values_ptr: *const u32, len: usize) -> u32 {
     if values_ptr.is_null() || len == 0 { return 0x811c_9dc5; }
     let values = unsafe { slice::from_raw_parts(values_ptr, len.min(SCRATCH_CAP)) };
-    let mut hash = 0x811c_9dc5_u32; let mut index = 0;
-    while index < values.len() { let mut value = values[index]; let mut byte = 0; while byte < 4 { hash ^= value & 0xff; hash = hash.wrapping_mul(0x0100_0193); value >>= 8; byte += 1; } index += 1; }
-    hash
+    simulation_v2::hash_sequence(values)
 }
 
 #[no_mangle]
@@ -88,5 +84,67 @@ pub extern "C" fn sample_height_batch(input_ptr: *const f32, count: usize, seed:
 
 #[no_mangle]
 pub extern "C" fn scratch_ptr() -> *const f32 { unsafe { SCRATCH.as_ptr() } }
+
 #[no_mangle]
-pub extern "C" fn version() -> u32 { 1 }
+pub extern "C" fn version() -> u32 { 2 }
+
+#[no_mangle]
+pub extern "C" fn simulation_normalize3(x: f32, y: f32, z: f32, out_ptr: *mut f32) -> u32 {
+    if out_ptr.is_null() { return 0; }
+    let (nx, ny, nz) = simulation_v2::normalize3(x, y, z);
+    unsafe { let out = slice::from_raw_parts_mut(out_ptr, 3); out[0] = nx; out[1] = ny; out[2] = nz; }
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn simulation_steer_to_target(px: f32, py: f32, pz: f32, vx: f32, vy: f32, vz: f32, tx: f32, ty: f32, tz: f32, max_speed: f32, max_acceleration: f32, out_ptr: *mut f32) -> u32 {
+    if out_ptr.is_null() { return 0; }
+    let (ax, ay, az) = simulation_v2::steering_to_target(px, py, pz, vx, vy, vz, tx, ty, tz, max_speed, max_acceleration);
+    unsafe { let out = slice::from_raw_parts_mut(out_ptr, 3); out[0] = ax; out[1] = ay; out[2] = az; }
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn simulation_integrate_velocity(px: f32, py: f32, pz: f32, vx: f32, vy: f32, vz: f32, ax: f32, ay: f32, az: f32, dt: f32, drag: f32, max_speed: f32, out_ptr: *mut f32) -> u32 {
+    if out_ptr.is_null() { return 0; }
+    let result = simulation_v2::integrate_velocity(px, py, pz, vx, vy, vz, ax, ay, az, dt, drag, max_speed);
+    unsafe { let out = slice::from_raw_parts_mut(out_ptr, 6); out.copy_from_slice(&[result.0, result.1, result.2, result.3, result.4, result.5]); }
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn simulation_boids(px: f32, py: f32, pz: f32, vx: f32, vy: f32, vz: f32, cx: f32, cy: f32, cz: f32, avx: f32, avy: f32, avz: f32, separation_radius: f32, alignment_weight: f32, cohesion_weight: f32, separation_weight: f32, max_acceleration: f32, out_ptr: *mut f32) -> u32 {
+    if out_ptr.is_null() { return 0; }
+    let (ax, ay, az) = simulation_v2::boids_acceleration(px, py, pz, vx, vy, vz, cx, cy, cz, avx, avy, avz, separation_radius, alignment_weight, cohesion_weight, separation_weight, max_acceleration);
+    unsafe { let out = slice::from_raw_parts_mut(out_ptr, 3); out[0] = ax; out[1] = ay; out[2] = az; }
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn simulation_culling_distance(px: f32, py: f32, pz: f32, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32) -> f32 { simulation_v2::aabb_distance_sq(px, py, pz, min_x, min_y, min_z, max_x, max_y, max_z) }
+
+#[no_mangle]
+pub extern "C" fn simulation_lod(distance: f32, near: f32, far: f32, bias: f32) -> f32 { simulation_v2::stable_lod(distance, near, far, bias) }
+
+#[no_mangle]
+pub extern "C" fn simulation_spawn(index: u32, seed: u32, min_x: f32, max_x: f32, min_z: f32, max_z: f32, out_ptr: *mut f32) -> u32 {
+    if out_ptr.is_null() { return 0; }
+    let (x, z) = simulation_v2::deterministic_spawn(index, seed, min_x, max_x, min_z, max_z);
+    unsafe { let out = slice::from_raw_parts_mut(out_ptr, 2); out[0] = x; out[1] = z; }
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn simulation_fixed_steps(accumulator: f32, step: f32, max_steps: u32, out_ptr: *mut f32) -> u32 {
+    if out_ptr.is_null() { return 0; }
+    let (steps, remainder) = simulation_v2::fixed_step_count(accumulator, step, max_steps);
+    unsafe { let out = slice::from_raw_parts_mut(out_ptr, 2); out[0] = steps as f32; out[1] = remainder; }
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn simulation_hash_sequence(values_ptr: *const u32, len: usize) -> u32 {
+    if values_ptr.is_null() || len == 0 { return 0x811c_9dc5; }
+    let values = unsafe { slice::from_raw_parts(values_ptr, len.min(SCRATCH_CAP)) };
+    simulation_v2::hash_sequence(values)
+}
