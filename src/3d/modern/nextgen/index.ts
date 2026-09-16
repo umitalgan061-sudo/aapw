@@ -18,3 +18,5 @@ export * from './replay.ts';
 export * from './transaction.ts';
 export * from './math3d.ts';
 export * from './pathfinding.ts';
+export * from './validation.ts';
+export * from './assertions.ts';
