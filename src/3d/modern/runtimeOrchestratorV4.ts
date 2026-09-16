@@ -11,13 +11,13 @@ import {
   type RenderViewV4,
   runtimeId,
   tickId,
+  traceId,
   createRuntimeErrorV4,
   type OutcomeV4,
   okV4,
   failV4,
   defaultBudgetV4,
   type QualityTierV4,
-  vec3V4,
 } from './runtimeContractsV4';
 import { CommandBusV4 } from './commandBusV4';
 import { SchedulerV4, type SchedulerContextV4 } from './schedulerV4';
@@ -48,7 +48,7 @@ export interface RuntimeHooksV4 {
   readonly onPhase?: (phase: RuntimePhaseV4) => void;
   readonly onError?: (error: Error) => void;
   readonly onFrame?: (result: RuntimeFrameResultV4) => void;
-  readonly onSnapshot?: (snapshot: RuntimeSnapshotV4) => void;
+  readonly onSnapshot?: (snapshot: RuntimeSnapshotV4<RuntimeSnapshotStateV4>) => void;
 }
 
 export interface RuntimeSnapshotStateV4 {
@@ -178,40 +178,29 @@ export class RuntimeOrchestratorV4 {
       const delta = Math.max(0, Math.min(250, now - this.#lastTime));
       this.#lastTime = now;
       const beforeTick = this.#tick;
-      const executions = await this.scheduler.advance(
-        (context) => context,
-        delta,
-      );
+      const executions = await this.scheduler.advance((context) => context, delta);
       this.#tick = Number(this.scheduler.tick);
       this.#frame += 1;
       const simulationSteps = Math.max(0, this.#tick - beforeTick);
       await this.commandBus.drain(128);
+      const base = defaultBudgetV4(this.render.quality());
       const budgets: BudgetUsageV4 = {
         frameMs: delta,
         cpuMs: this.scheduler.metrics().averageTickMs,
-        gpuMs: 0,
-        networkBytes: this.network.metrics().bytesEstimated,
-        assetBytes: this.assets.metrics().bytesLoaded,
-        drawCalls: executions.filter((entry) => entry.lane === 'render' && !entry.skipped).length,
-        triangles: 0,
-        activeEntities: this.spatial.metrics().items,
-        visibleEntities: 0,
-        queuedAssets: this.assets.metrics().queued,
+        gpuMs: usage?.gpuMs ?? 0,
+        networkBytes: usage?.networkBytes ?? this.network.metrics().bytesEstimated,
+        assetBytes: usage?.assetBytes ?? this.assets.metrics().bytesLoaded,
+        drawCalls: usage?.drawCalls ?? executions.filter((entry) => entry.lane === 'render' && !entry.skipped).length,
+        triangles: usage?.triangles ?? 0,
+        activeEntities: usage?.activeEntities ?? this.spatial.metrics().items,
+        visibleEntities: usage?.visibleEntities ?? 0,
+        queuedAssets: usage?.queuedAssets ?? this.assets.metrics().queued,
       };
       const packet = this.render.build(view, budgets);
       const health = this.health();
-      const stats: RuntimeStatsV4 = {
-        frame: this.#frame,
-        tick: tickId(this.#tick),
-        deltaMs: delta,
-        cpuMs: budgets.cpuMs,
-        gpuMs: budgets.gpuMs,
-        entityCount: budgets.activeEntities,
-        visibleCount: packet.items.length,
-        queuedCommands: this.commandBus.size,
-        queuedAssets: budgets.queuedAssets,
-      };
-      this.render.evaluate({ frameMs: delta, cpuMs: budgets.cpuMs, gpuMs: 0, drawCalls: packet.items.length, triangles: 0, visibleEntities: packet.items.length, memoryPressure: 0, thermalPressure: 0 });
+      const stats: RuntimeStatsV4 = { frame: this.#frame, tick: tickId(this.#tick), deltaMs: delta, cpuMs: budgets.cpuMs, gpuMs: budgets.gpuMs, entityCount: budgets.activeEntities, visibleCount: packet.items.length, queuedCommands: this.commandBus.size, queuedAssets: budgets.queuedAssets };
+      this.render.evaluate({ frameMs: delta, cpuMs: budgets.cpuMs, gpuMs: budgets.gpuMs, drawCalls: packet.items.length, triangles: budgets.triangles, visibleEntities: packet.items.length, memoryPressure: 0, thermalPressure: 0 });
+      void base;
       const result: RuntimeFrameResultV4 = Object.freeze({ frame: this.#frame, tick: tickId(this.#tick), simulationSteps, render: packet, stats, health });
       this.#hooks.onFrame?.(result);
       return okV4(result);
@@ -266,6 +255,7 @@ export class RuntimeOrchestratorV4 {
     this.input.setMode(snapshot.state.inputMode);
     if (snapshot.state.phase === 'paused') this.#setPhase('paused');
     else if (snapshot.state.phase === 'running') this.#setPhase('running');
+    this.#running = this.#phase === 'running';
     this.#lastSnapshot = snapshot;
     return okV4(true);
   }
@@ -279,6 +269,7 @@ export class RuntimeOrchestratorV4 {
     this.assets.abortAll();
     this.#lastTime = this.#now();
     this.#setPhase('running');
+    this.#running = true;
     return true;
   }
 
@@ -299,8 +290,8 @@ export class RuntimeOrchestratorV4 {
     this.input.setMode(mode);
   }
 
-  #trace(): ReturnType<typeof import('./runtimeContractsV4').traceId> {
-    return import('./runtimeContractsV4').traceId(`${String(this.id)}:${this.#frame}:${this.#tick}`);
+  #trace() {
+    return traceId(`${String(this.id)}:${this.#frame}:${this.#tick}`);
   }
 
   #setPhase(phase: RuntimePhaseV4): void {
