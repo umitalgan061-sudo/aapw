@@ -8,11 +8,13 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "typecheck:nextgen": "tsc --noEmit -p tsconfig.nextgen.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "build:modern": "vite build",
     "check": "npm run typecheck && npm test -- --passWithNoTests",
-    "verify:modern": "node scripts/checkModernPlatform.mjs"
+    "verify:modern": "node scripts/checkModernPlatform.mjs",
+    "verify:nextgen": "node scripts/checkNextGenRuntimeV3.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
