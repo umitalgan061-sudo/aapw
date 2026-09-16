@@ -1,1 +1,1 @@
-export { WorldIntelligenceRuntime } from './intelligence/index.js';
+export * from './intelligence/index.js';
