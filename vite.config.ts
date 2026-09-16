@@ -12,6 +12,7 @@ export default defineConfig({
       input: {
         main: 'index.html',
         game3d: 'game3d.html',
+        modern: 'modern.html',
       },
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
