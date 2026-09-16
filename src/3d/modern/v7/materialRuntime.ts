@@ -1,0 +1,22 @@
+import { clamp, stableSort, type Disposable, type ResourceId, type V7Result } from './primitives.js';
+
+export type BlendMode = 'opaque' | 'masked' | 'transparent' | 'additive';
+export interface MaterialDefinition { readonly id: string; readonly blend: BlendMode; readonly baseColor: readonly [number, number, number, number]; readonly metallic: number; readonly roughness: number; readonly emissive: readonly [number, number, number]; readonly textureIds: readonly ResourceId[]; readonly doubleSided: boolean; readonly alphaCutoff: number; }
+export interface MaterialRecord extends MaterialDefinition { readonly revision: number; readonly compiled: boolean; readonly pipelineKey: string; }
+export interface MaterialVariant { readonly id: string; readonly base: string; readonly overrides: Partial<Omit<MaterialDefinition, 'id'>>; }
+
+function color(value: readonly number[], channels: number): number[] { const output = Array.from({ length: channels }, (_, index) => clamp(Number(value[index] ?? (index === 3 ? 1 : 0)), 0, 1)); return output; }
+function key(material: MaterialDefinition): string { return [material.blend, material.metallic.toFixed(3), material.roughness.toFixed(3), Number(material.doubleSided), material.alphaCutoff.toFixed(3), ...material.textureIds].join(':'); }
+
+export class MaterialRuntime implements Disposable {
+  #materials = new Map<string, MaterialRecord>(); #variants = new Map<string, MaterialVariant>(); #disposed = false; #compiles = 0;
+  register(input: MaterialDefinition): V7Result<MaterialRecord> { if (this.#disposed) return this.fail('MATERIAL_DISPOSED'); if (!input.id || this.#materials.has(input.id) || input.textureIds.length > 64) return this.fail('MATERIAL_INVALID'); const normalized: MaterialRecord = Object.freeze({ ...input, baseColor: color(input.baseColor, 4) as MaterialDefinition['baseColor'], emissive: color(input.emissive, 3) as MaterialDefinition['emissive'], metallic: clamp(input.metallic, 0, 1), roughness: clamp(input.roughness, .02, 1), alphaCutoff: clamp(input.alphaCutoff, 0, 1), textureIds: Object.freeze([...new Set(input.textureIds)]), revision: 1, compiled: false, pipelineKey: key(input) }); this.#materials.set(input.id, normalized); return { ok: true, value: normalized }; }
+  update(id: string, patch: Partial<MaterialDefinition>): V7Result<MaterialRecord> { const current = this.#materials.get(id); if (!current) return this.fail('MATERIAL_MISSING'); const merged = { ...current, ...patch, id, revision: current.revision + 1, compiled: false, pipelineKey: key({ ...current, ...patch, id }) } as MaterialDefinition & { revision: number; compiled: boolean; pipelineKey: string }; const record = Object.freeze(merged) as MaterialRecord; this.#materials.set(id, record); return { ok: true, value: record }; }
+  compile(id: string): boolean { const current = this.#materials.get(id); if (!current) return false; this.#materials.set(id, Object.freeze({ ...current, compiled: true })); this.#compiles += 1; return true; }
+  variant(variant: MaterialVariant): boolean { if (this.#disposed || !variant.id || !this.#materials.has(variant.base) || this.#variants.has(variant.id)) return false; this.#variants.set(variant.id, Object.freeze({ ...variant, overrides: Object.freeze({ ...variant.overrides }) })); return true; }
+  resolve(id: string): MaterialRecord | null { const base = this.#materials.get(id); if (base) return base; const variant = this.#variants.get(id); if (!variant) return null; const parent = this.#materials.get(variant.base); if (!parent) return null; return Object.freeze({ ...parent, ...variant.overrides, id, textureIds: Object.freeze([...(variant.overrides.textureIds ?? parent.textureIds)]), compiled: false, revision: parent.revision, pipelineKey: key({ ...parent, ...variant.overrides, id } as MaterialDefinition) }); }
+  all(): readonly MaterialRecord[] { return Object.freeze(stableSort([...this.#materials.values()], (a, b) => a.id.localeCompare(b.id))); }
+  stats(): Readonly<{ materials: number; variants: number; compiled: number; compiles: number }> { return Object.freeze({ materials: this.#materials.size, variants: this.#variants.size, compiled: [...this.#materials.values()].filter((material) => material.compiled).length, compiles: this.#compiles }); }
+  dispose(): void { this.#disposed = true; this.#materials.clear(); this.#variants.clear(); }
+  #fail<T>(code: string): V7Result<T> { return { ok: false, code, message: code, retryable: false }; }
+}
