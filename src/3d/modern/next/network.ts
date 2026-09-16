@@ -1,4 +1,5 @@
-import { deterministicChecksum, quantize, type NetworkEnvelope, type SnapshotEntity, type Tick, type WorldSnapshot } from './determinism.ts';
+import { deterministicChecksum, quantize } from './determinism.ts';
+import type { NetworkEnvelope, SnapshotEntity, Tick, WorldSnapshot } from './types.ts';
 
 export interface SnapshotDelta {
   readonly tick: Tick;
@@ -96,7 +97,7 @@ export class PacketWindow<TPayload> {
     if (target <= this.#lastAck) return { acked: [], rttSamplesMs: [] };
     const acked: number[] = [];
     const rttSamplesMs: number[] = [];
-    for (const [seq, packet] of this.#pending) {
+    for (const [seq] of this.#pending) {
       if (seq > target) break;
       this.#pending.delete(seq);
       acked.push(seq);
@@ -135,7 +136,7 @@ export class NetworkProtocolV2<TPayload = unknown> {
     const normalized = session.trim();
     if (!normalized) throw new TypeError('session is required');
     this.session = normalized;
-    this.maxPayloadBytes = maxPayloadBytes;
+    this.maxPayloadBytes = Math.max(1024, Math.floor(maxPayloadBytes));
   }
 
   encode(type: string, payload: TPayload, tick: Tick, nowMs: number): NetworkEnvelope<TPayload> {
