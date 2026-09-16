@@ -1,0 +1,13 @@
+export { AdaptiveQualityController, FramePacingMonitor } from './adaptiveQuality';
+export { AssetRegistry, createFetchArrayBufferLoader, createFetchJsonLoader, createFetchTextLoader } from './assetRegistry';
+export { EventBus, XorShift32, stableHash, stableHashObject } from './eventBus';
+export { ModernEntityStore, TransformComponent } from './ecs';
+export { FrameScheduler, FixedStepClock } from './frameScheduler';
+export { InputManager, readAccessibilityPreferences } from './input';
+export { RendererKernel } from './rendererKernel';
+export { SaveStore, MemorySaveAdapter, LocalStorageSaveAdapter, gameplaySnapshot } from './saveStore';
+export { SpatialHashGrid, selectLod, sphereInFrustum } from './spatialIndex';
+export { WorkerBridge, WorkerPortTransport, InlineWorkerTransport } from './workerBridge';
+export { ModernGameRuntime, detectDeviceCapabilities } from './runtime';
+export { LegacyRuntimeBridge, DEFAULT_MIGRATION_FLAGS, describeMigration, detectBrowserFeatures, safeCanvasResize, safeDevicePixelRatio } from './compatibility';
+export * from './types';
