@@ -28,6 +28,7 @@ function runEnvelopeContract() {
   assert.equal(validateSaveEnvelope(envelope, { namespace: 'world', expectedSlot: 'primary-save', nowMs: 123 }).valid, true);
   const tampered = { ...envelope, payload: { ...envelope.payload, player: { hp: 1 } } };
   assert.equal(validateSaveEnvelope(tampered, { namespace: 'world', nowMs: 123 }).reason, 'CHECKSUM');
+  assert.equal(validateSaveEnvelope(envelope, { namespace: 'other', nowMs: 123 }).reason, 'NAMESPACE');
 }
 
 function runStorageCrud() {
@@ -48,7 +49,8 @@ function runStorageCrud() {
 function runAgeAndNamespaceGuards() {
   const storage = createMemorySaveStorage();
   saveToStorage({ storage, namespace: 'safe', slot: 'slot', snapshot: { value: 1 }, timestampMs: 100 });
-  assert.equal(loadFromStorage({ storage, namespace: 'wrong', slot: 'slot', nowMs: 100 }).reason, 'NAMESPACE');
+  const envelope = JSON.parse(storage.getItem('safe:save:slot'));
+  assert.equal(validateSaveEnvelope(envelope, { namespace: 'wrong', nowMs: 100 }).reason, 'NAMESPACE');
   assert.equal(loadFromStorage({ storage, namespace: 'safe', slot: 'slot', nowMs: 1000, maxAgeMs: 100 }).reason, 'STALE');
 }
 
