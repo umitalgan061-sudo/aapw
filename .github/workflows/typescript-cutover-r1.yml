@@ -1,0 +1,95 @@
+name: TypeScript Cutover R1
+
+on:
+  push:
+    branches:
+      - agent/typescript-cutover-r1-20260916
+    paths:
+      - 'src/engine-ts/**'
+      - 'src/3d/game3dEntry.ts'
+      - 'scripts/checkTypeScriptCutover.mjs'
+      - 'scripts/generateTypeScriptCutoverMatrix.mjs'
+      - '.github/workflows/typescript-cutover-r1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: typescript-cutover-r1
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install reproducible toolchain
+        run: npm install
+
+      - name: Strict engine typecheck
+        run: npx --yes typescript@7.0.2 tsc -p tsconfig.engine.json --noEmit
+
+      - name: Build strict engine artifacts
+        run: npx --yes typescript@7.0.2 tsc -p tsconfig.engine.json
+
+      - name: Generate deterministic 4,096-case migration corpus
+        run: node scripts/generateTypeScriptCutoverMatrix.mjs
+
+      - name: Run end-to-end TypeScript acceptance
+        run: node scripts/checkTypeScriptCutover.mjs
+
+      - name: Run repository checks
+        run: npm run check
+
+      - name: Check diff quality
+        run: |
+          git diff --check
+          test -s artifacts/typescript-cutover-r1/cutover-policy.matrix
+          test "$(grep -c '^{' artifacts/typescript-cutover-r1/cutover-policy.matrix)" -eq 4096
+
+      - name: Materialize deterministic corpus
+        id: materialize
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f artifacts/typescript-cutover-r1/cutover-policy.matrix
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "test(ts): materialize 4096 cutover cases [skip ci]"
+          git push origin HEAD:agent/typescript-cutover-r1-20260916
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  deterministic-replay:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Install test toolchain
+        run: npm install
+      - name: Rebuild and replay acceptance
+        run: |
+          npx --yes typescript@7.0.2 tsc -p tsconfig.engine.json
+          node scripts/checkTypeScriptCutover.mjs
+          node scripts/checkTypeScriptCutover.mjs
