@@ -1,0 +1,104 @@
+name: modern-typescript-platform
+
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - 'vitest.config.ts'
+      - 'modern.html'
+      - 'src/core/**'
+      - 'src/main.ts'
+      - 'tests/core/**'
+      - 'scripts/checkModernTypeScriptMigration.mjs'
+      - '.github/workflows/modern-typescript-platform.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - 'vitest.config.ts'
+      - 'modern.html'
+      - 'src/core/**'
+      - 'src/main.ts'
+      - 'tests/core/**'
+      - 'scripts/checkModernTypeScriptMigration.mjs'
+      - '.github/workflows/modern-typescript-platform.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modern-typescript-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck-test-build:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.21.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Verify migration policy
+        run: node scripts/checkModernTypeScriptMigration.mjs
+
+      - name: TypeScript strict check
+        run: npm run typecheck
+
+      - name: Unit and contract tests
+        run: npm test -- --reporter=dot
+
+      - name: Production build
+        run: npm run build
+
+      - name: Build artifact smoke
+        run: |
+          test -f dist/modern.html
+          test -n "$(find dist -type f | wc -l)"
+
+      - name: Upload build artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: aapw-modern-build-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  legacy-compatibility:
+    name: Legacy compatibility checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node 24 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.21.0'
+
+      - name: Syntax-check legacy JavaScript entrypoints
+        run: |
+          node --check script.js
+          node --check sw.js
+          node --check service-worker.js
