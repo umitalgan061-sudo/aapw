@@ -1,0 +1,57 @@
+name: Modern runtime envelope R1
+
+on:
+  push:
+    branches:
+      - agent/super-modern-runtime-foundation-20260916
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate runtime envelope
+        run: node scripts/generateModernRuntimeMatrixR1.mjs
+
+      - name: Validate matrix cardinality and uniqueness
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const file = 'artifacts/modern-runtime-r1/modern-runtime-envelope.matrix';
+          const lines = fs.readFileSync(file, 'utf8').trim().split(/\n/);
+          const rows = lines.slice(2);
+          if (rows.length !== 4096) throw new Error(`expected 4096 rows, got ${rows.length}`);
+          if (new Set(rows.map((row) => row.split('|').at(-1))).size !== 4096) throw new Error('case ids are not unique');
+          console.log(`validated ${rows.length} unique runtime envelope cases`);
+          NODE
+
+      - name: Syntax checks
+        run: |
+          node --check src/3d/renderBackendCapability.js
+          node --check src/3d/runtimeFrameGovernor.js
+          node --check src/3d/worldStreamingGovernor.js
+          node --check src/3d/adaptiveQualityController.js
+          node --check src/3d/runtimeTelemetry.js
+          node --check src/3d/runtimeWorkScheduler.js
+
+      - name: Commit generated corpus
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add artifacts/modern-runtime-r1/modern-runtime-envelope.matrix
+          git diff --cached --quiet && exit 0
+          git commit -m 'test(runtime): materialize 4096-case modern runtime envelope [skip ci]'
+          git push
