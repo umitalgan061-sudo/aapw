@@ -5,8 +5,8 @@ on:
     paths:
       - 'src/3d/modern/**'
       - 'scripts/checkModernPlatform.mjs'
+      - 'scripts/checkModernPlatformV3.mjs'
       - 'package.json'
-      - 'package-lock.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
       - 'vitest.config.ts'
@@ -16,8 +16,8 @@ on:
     paths:
       - 'src/3d/modern/**'
       - 'scripts/checkModernPlatform.mjs'
+      - 'scripts/checkModernPlatformV3.mjs'
       - 'package.json'
-      - 'package-lock.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
       - 'vitest.config.ts'
@@ -26,18 +26,22 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: modern-typescript-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   typecheck:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24.21.0
-          cache: npm
-      - run: npm install --ignore-scripts
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run verify:modern
+      - run: npm run verify:modern:v3
       - run: npm run typecheck
       - run: npm test -- --passWithNoTests
       - run: npm run build:modern
@@ -50,8 +54,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - run: node scripts/checkModernPlatform.mjs
-      - name: Guard deterministic core surfaces only
+      - run: node scripts/checkModernPlatformV3.mjs
+      - name: Guard deterministic core surfaces
         run: |
           set -eu
           for file in \
@@ -63,6 +69,20 @@ jobs:
             src/3d/modern/streamingPlanner.ts; do
             if grep -nE 'Math\.random\(|Date\.now\(' "$file"; then
               echo "Deterministic simulation surface must not use wall-clock or ambient random APIs: $file"
+              exit 1
+            fi
+          done
+      - name: Guard v3 deterministic boundaries
+        run: |
+          set -eu
+          for file in \
+            src/3d/modern/ecsRuntimeV3.ts \
+            src/3d/modern/engineKernelV3.ts \
+            src/3d/modern/networkStateV3.ts \
+            src/3d/modern/worldQueryV3.ts \
+            src/3d/modern/securityRuntimeV3.ts; do
+            if grep -nE 'Math\.random\(|eval\(|new Function\(' "$file"; then
+              echo "Unsafe or nondeterministic primitive detected: $file"
               exit 1
             fi
           done
