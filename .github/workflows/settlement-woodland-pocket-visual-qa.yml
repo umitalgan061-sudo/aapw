@@ -1,0 +1,68 @@
+name: Settlement Woodland Pocket Visual QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/vegetation.js'
+      - 'src/3d/world/settlements.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'scripts/checkVegetationEcologicalGroves.mjs'
+      - 'scripts/checkSettlementWoodlandPocketVisualQa.js'
+      - 'scripts/devServerHelper.js'
+      - 'north-snow-pine-crowd-visual-qa.html'
+      - '.github/workflows/settlement-woodland-pocket-visual-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  settlement-woodland-pocket-visual-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Static contracts
+        run: |
+          set -euo pipefail
+          node scripts/setupNodeThreeShim.mjs
+          node --check src/3d/world/vegetation.js
+          node --check scripts/checkVegetationEcologicalGroves.mjs
+          node --check scripts/checkSettlementWoodlandPocketVisualQa.js
+          node scripts/checkVegetationEcologicalGroves.mjs
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Render canonical settlement woodland pockets
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkSettlementWoodlandPocketVisualQa.js
+
+      - name: Upload WebGL proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: settlement-woodland-pocket-visual-qa-${{ github.event.pull_request.head.sha || github.sha }}
+          path: artifacts/settlement-woodland-pocket-visual-qa/
+          if-no-files-found: error
+          retention-days: 14
