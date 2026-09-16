@@ -46,6 +46,8 @@ export * from './networkSnapshot';
 export * from './networkReplication';
 export * from './runtimeConfig';
 export * from './serialization';
+export * from './entryGate';
+export * from './gameEntry';
 export * from './runtimeContracts';
 export * from './saveCoordinator';
 export * from './inputCommandLayer';
