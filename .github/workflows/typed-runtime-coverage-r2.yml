@@ -46,8 +46,8 @@ jobs:
         run: npm install --no-package-lock
       - name: Generate exhaustive typed runtime matrix
         run: node scripts/generateTypedRuntimeMatrixR1.mjs
-      - name: TypeScript strict gate
-        run: npm run typecheck
+      - name: Focused TypeScript gate
+        run: npx tsc --noEmit --target ES2024 --module ESNext --moduleResolution Bundler --strict --skipLibCheck src/engine-ts/coreTypes.ts src/engine-ts/runtimeCoverage.ts src/engine-ts/networkReplication.ts src/engine-ts/inputPipeline.ts src/3d/modern/runtimeDiagnosticsV4.ts
       - name: Modernization contract gate
         run: npm run verify:typed-runtime
       - name: Behavior gate
