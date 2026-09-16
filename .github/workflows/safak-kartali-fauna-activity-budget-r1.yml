@@ -4,6 +4,7 @@ on:
     paths:
       - 'src/3d/gameplay/livingWorldFaunaActivityBudget.js'
       - 'scripts/checkSafakKartaliFaunaActivityBudgetR1.mjs'
+      - 'scripts/runSafakKartaliFaunaActivityBudgetR1.mjs'
       - 'artifacts/safak-kartali-fauna-activity-budget-r1/**'
       - 'src/3d/gameplay/FAUNA_ACTIVITY_BUDGET_R1.md'
       - '.github/workflows/safak-kartali-fauna-activity-budget-r1.yml'
@@ -11,6 +12,7 @@ on:
     paths:
       - 'src/3d/gameplay/livingWorldFaunaActivityBudget.js'
       - 'scripts/checkSafakKartaliFaunaActivityBudgetR1.mjs'
+      - 'scripts/runSafakKartaliFaunaActivityBudgetR1.mjs'
       - 'artifacts/safak-kartali-fauna-activity-budget-r1/**'
       - 'src/3d/gameplay/FAUNA_ACTIVITY_BUDGET_R1.md'
       - '.github/workflows/safak-kartali-fauna-activity-budget-r1.yml'
@@ -24,9 +26,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check changed-line scope
         run: |
-          count=$(git diff --numstat "${{ github.event.before || github.event.repository.default_branch }}" "${{ github.sha }}" -- src/3d/gameplay/livingWorldFaunaActivityBudget.js scripts/checkSafakKartaliFaunaActivityBudgetR1.mjs artifacts/safak-kartali-fauna-activity-budget-r1 src/3d/gameplay/FAUNA_ACTIVITY_BUDGET_R1.md .github/workflows/safak-kartali-fauna-activity-budget-r1.yml | awk '{add+=$1; del+=$2} END {print add+del}')
+          count=$(git diff --numstat HEAD^ HEAD -- src/3d/gameplay/livingWorldFaunaActivityBudget.js scripts/checkSafakKartaliFaunaActivityBudgetR1.mjs scripts/runSafakKartaliFaunaActivityBudgetR1.mjs artifacts/safak-kartali-fauna-activity-budget-r1 src/3d/gameplay/FAUNA_ACTIVITY_BUDGET_R1.md .github/workflows/safak-kartali-fauna-activity-budget-r1.yml | awk '{add+=$1; del+=$2} END {print add+del}')
           test "${count:-0}" -gt 4000
       - name: Syntax check
-        run: node --check src/3d/gameplay/livingWorldFaunaActivityBudget.js && node --check scripts/checkSafakKartaliFaunaActivityBudgetR1.mjs
+        run: node --check src/3d/gameplay/livingWorldFaunaActivityBudget.js && node --check scripts/checkSafakKartaliFaunaActivityBudgetR1.mjs && node --check scripts/runSafakKartaliFaunaActivityBudgetR1.mjs
       - name: Execute contract
-        run: node scripts/checkSafakKartaliFaunaActivityBudgetR1.mjs
+        run: node scripts/runSafakKartaliFaunaActivityBudgetR1.mjs
