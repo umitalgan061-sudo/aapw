@@ -3,3 +3,7 @@ export * from './runtimeKernel.js';
 export * from './legacyGameAdapter.js';
 export * from './browserFrameSource.js';
 export * from './runtimeApplication.js';
+export * from './workerProtocol.js';
+export * from './workerHost.js';
+export * from './workerRuntime.js';
+export * from './migrationGate.js';
