@@ -6,7 +6,6 @@ on:
       - 'src/3d/modern/**'
       - 'scripts/checkModernPlatform.mjs'
       - 'package.json'
-      - 'package-lock.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
       - 'vitest.config.ts'
@@ -17,7 +16,6 @@ on:
       - 'src/3d/modern/**'
       - 'scripts/checkModernPlatform.mjs'
       - 'package.json'
-      - 'package-lock.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
       - 'vitest.config.ts'
@@ -26,17 +24,20 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: modern-typescript-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   typecheck:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24.21.0
-          cache: npm
-      - run: npm install --ignore-scripts
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run verify:modern
       - run: npm run typecheck
       - run: npm test -- --passWithNoTests
@@ -50,6 +51,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - run: node scripts/checkModernPlatform.mjs
       - name: Guard deterministic core surfaces only
         run: |
@@ -63,6 +65,19 @@ jobs:
             src/3d/modern/streamingPlanner.ts; do
             if grep -nE 'Math\.random\(|Date\.now\(' "$file"; then
               echo "Deterministic simulation surface must not use wall-clock or ambient random APIs: $file"
+              exit 1
+            fi
+          done
+      - name: Guard v2 deterministic boundaries
+        run: |
+          set -eu
+          for file in \
+            src/3d/modern/replayVerifierV2.ts \
+            src/3d/modern/rollbackControllerV2.ts \
+            src/3d/modern/runtimeContractMatrixV2.ts \
+            src/3d/modern/worldInvariantV2.ts; do
+            if grep -nE 'Math\.random\(|eval\(|new Function\(' "$file"; then
+              echo "Unsafe or nondeterministic primitive detected: $file"
               exit 1
             fi
           done
