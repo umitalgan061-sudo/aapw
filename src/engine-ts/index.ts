@@ -22,11 +22,22 @@ export * from './workerBridge.js';
 export * from './replay.js';
 export * from './diagnostics.js';
 export * from './resourceScheduler.js';
+export * from './coreTypes.js';
+export * from './runtimeContracts.js';
+export * from './persistence.js';
+export * from './renderBridge.js';
+export * from './assets.js';
+export * from './input.js';
+export * from './world.js';
+export * from './ecsRuntime.js';
+export * from './modernEngine.js';
+export * from './legacyAdapters.js';
 
 import { RuntimeKernel } from './runtime.js';
 import { TelemetryRegistry } from './telemetry.js';
 import { RuntimeConfig, booleanRule, numericRule, stringRule } from './config.js';
 import { buildPlatformProfile, probeCapabilities, choosePreferredBackend } from './capabilities.js';
+import { ModernEngine } from './modernEngine.js';
 
 export interface ModernEngineFacade {
   readonly runtime: RuntimeKernel;
@@ -34,6 +45,7 @@ export interface ModernEngineFacade {
   readonly config: RuntimeConfig;
   readonly platform: ReturnType<typeof buildPlatformProfile>;
   readonly backend: ReturnType<typeof choosePreferredBackend>;
+  readonly typed: ModernEngine;
   dispose(): void;
 }
 
@@ -51,6 +63,7 @@ export const createModernEngineFacade = (): ModernEngineFacade => {
   ]);
   const runtime = new RuntimeKernel({ telemetrySamples: 4096, eventQueue: 4096, commandHistory: 4096 });
   const telemetry = new TelemetryRegistry(8192);
+  const typed = new ModernEngine();
   runtime.initialize();
   return {
     runtime,
@@ -58,6 +71,7 @@ export const createModernEngineFacade = (): ModernEngineFacade => {
     config,
     platform,
     backend: choosePreferredBackend(platform),
-    dispose: () => { runtime.dispose(); telemetry.dispose(); },
+    typed,
+    dispose: () => { runtime.dispose(); telemetry.dispose(); typed.dispose(); },
   };
 };
