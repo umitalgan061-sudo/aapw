@@ -46,12 +46,21 @@ jobs:
           node --check src/3d/adaptiveQualityController.js
           node --check src/3d/runtimeTelemetry.js
           node --check src/3d/runtimeWorkScheduler.js
+          node --check src/3d/runtimeCoordinator.js
+          node --check src/3d/assetResidencyCache.js
+          node --check src/3d/worldInterestGrid.js
+          node --check src/3d/deviceRuntimeModel.js
+          node --check src/3d/runtimeFaultContainment.js
+          node --check scripts/checkModernRuntimeFoundationR1.mjs
+
+      - name: Acceptance runner
+        run: node scripts/checkModernRuntimeFoundationR1.mjs
 
       - name: Commit generated corpus
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add artifacts/modern-runtime-r1/modern-runtime-envelope.matrix
+          git add -f artifacts/modern-runtime-r1/modern-runtime-envelope.matrix
           git diff --cached --quiet && exit 0
           git commit -m 'test(runtime): materialize 4096-case modern runtime envelope [skip ci]'
           git push
