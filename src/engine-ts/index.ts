@@ -29,6 +29,7 @@ export * from './inputRouter.js';
 export * from './assetRegistry.js';
 export * from './renderPacket.js';
 export * from './migrationManifest.js';
+export * from './modernGameRuntime.js';
 
 import { RuntimeKernel } from './runtime.js';
 import { TelemetryRegistry } from './telemetry.js';
@@ -39,7 +40,7 @@ import { AssetRegistry } from './assetRegistry.js';
 import { InputRouter, createDefaultInputRouter } from './inputRouter.js';
 import { MigrationManifest, defaultMigrationManifest } from './migrationManifest.js';
 import { ResourceScheduler } from './resourceScheduler.js';
-import { SaveSystem, MemorySaveBackend } from './saveSystem.js';
+import { SaveSystem, MemorySaveBackend, LocalStorageBackend } from './saveSystem.js';
 import { StreamingPlanner } from './streaming.js';
 
 export interface ModernEngineFacade {
@@ -83,23 +84,10 @@ export const createModernEngineFacade = (): ModernEngineFacade => {
   const saves = new SaveSystem(createDurableSaveBackend());
   const migration = defaultMigrationManifest();
   runtime.initialize();
-  return { runtime, telemetry, config, platform, backend, resources, assets, input, streaming, quality, saves, migration, dispose: () => { runtime.dispose(); telemetry.dispose(); assets.dispose(); input.dispose(); streaming.dispose(); saves.remove('slot-0'); resources.dispose(); } };
+  return { runtime, telemetry, config, platform, backend, resources, assets, input, streaming, quality, saves, migration, dispose: () => { runtime.dispose(); telemetry.dispose(); assets.dispose(); input.dispose(); streaming.dispose(); resources.dispose(); } };
 };
 
 const createDurableSaveBackend = () => {
-  if (typeof globalThis !== 'undefined' && 'indexedDB' in globalThis) return createIndexedDbFallbackAdapter();
-  if (typeof globalThis !== 'undefined' && 'localStorage' in globalThis) { try { return new StorageBackend(globalThis.localStorage); } catch { /* fallback */ } }
+  if (typeof globalThis !== 'undefined' && 'localStorage' in globalThis) { try { return new LocalStorageBackend(globalThis.localStorage); } catch { /* fallback */ } }
   return new MemorySaveBackend();
-};
-
-class StorageBackend {
-  public constructor(private readonly storage: Storage) {}
-  public get(key: string): string | null { return this.storage.getItem(key); }
-  public set(key: string, value: string): void { this.storage.setItem(key, value); }
-  public remove(key: string): void { this.storage.removeItem(key); }
-  public keys(): readonly string[] { const result: string[] = []; for (let index = 0; index < this.storage.length; index += 1) { const key = this.storage.key(index); if (key) result.push(key); } return result; }
-}
-
-const createIndexedDbFallbackAdapter = () => {
-  try { return new StorageBackend(globalThis.localStorage); } catch { return new MemorySaveBackend(); }
 };
