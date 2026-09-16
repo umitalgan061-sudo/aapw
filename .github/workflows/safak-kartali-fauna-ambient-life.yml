@@ -1,0 +1,27 @@
+name: safak-kartali-fauna-ambient-life
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js'
+      - 'scripts/checkSafakKartaliFaunaAmbientLifePolicy.mjs'
+      - '.github/workflows/safak-kartali-fauna-ambient-life.yml'
+  workflow_dispatch:
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Syntax gate
+        run: node --check src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js && node --check scripts/checkSafakKartaliFaunaAmbientLifePolicy.mjs
+      - name: Runtime proof
+        run: node scripts/checkSafakKartaliFaunaAmbientLifePolicy.mjs
+      - name: Runtime boundary guard
+        run: '! grep -R "EditorMaterialStudio" src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js scripts/checkSafakKartaliFaunaAmbientLifePolicy.mjs'
