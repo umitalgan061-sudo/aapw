@@ -1,0 +1,66 @@
+name: living-world-stimulus-orchestration
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldStimulus*.js'
+      - 'scripts/checkLivingWorldStimulus*.mjs'
+      - 'scripts/benchmarkLivingWorldStimulus*.mjs'
+      - 'docs/LIVING_WORLD_STIMULUS_ORCHESTRATION.md'
+      - '.github/workflows/living-world-stimulus-orchestration.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify syntax
+        run: |
+          set -euo pipefail
+          for file in src/3d/gameplay/livingWorldStimulus*.js; do
+            node --check "$file"
+          done
+      - name: Core contract
+        run: node scripts/checkLivingWorldStimulusOrchestration.mjs
+      - name: Extended contract
+        run: node scripts/checkLivingWorldStimulusOrchestrationExtended.mjs
+      - name: Fuzz and deterministic replay contract
+        run: node scripts/checkLivingWorldStimulusOrchestrationFuzz.mjs
+      - name: Integration matrix
+        run: node scripts/checkLivingWorldStimulusIntegrationMatrix.mjs
+      - name: Benchmark smoke
+        run: node scripts/benchmarkLivingWorldStimulusOrchestration.mjs
+      - name: Repeatability
+        run: |
+          set -euo pipefail
+          first="$(node scripts/checkLivingWorldStimulusOrchestrationFuzz.mjs)"
+          second="$(node scripts/checkLivingWorldStimulusOrchestrationFuzz.mjs)"
+          test "$first" = "$second"
+      - name: Ownership scan
+        run: |
+          set -euo pipefail
+          if grep -RInE "(three|THREE|AnimationMixer|requestAnimationFrame|Date\.now|Math\.random|fetch\()" src/3d/gameplay/livingWorldStimulus*.js; then
+            echo 'Stimulus orchestration must remain DOM/renderer/network/random-clock independent.'
+            exit 1
+          fi
+      - name: Meaningful addition gate
+        run: |
+          set -euo pipefail
+          base="$(git merge-base origin/main HEAD)"
+          additions="$(git diff --numstat "$base"...HEAD | awk '{sum += $1} END {print sum + 0}')"
+          echo "meaningful additions: $additions"
+          test "$additions" -gt 4000
+      - name: Deterministic repository files
+        run: |
+          set -euo pipefail
+          git diff --check
+          git status --short
