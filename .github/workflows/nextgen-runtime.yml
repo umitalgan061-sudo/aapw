@@ -40,7 +40,7 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run verify:nextgen
       - run: npm run typecheck:nextgen
-      - run: npm test -- --passWithNoTests
+      - run: npx vitest run tests/nextgen --passWithNoTests
       - run: npm run build:modern
 
   deterministic-boundary:
