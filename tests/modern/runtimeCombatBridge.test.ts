@@ -23,7 +23,7 @@ describe('RuntimeIntegrationV2 combat bridge', () => {
     const second = b.tick({ deltaMs: 200, combatAction: 'heavy' });
     expect(first.digest).toBe(second.digest);
     expect(first.combatDecision?.action).toBe('heavy');
-    expect(first.combatDecision?.phase).toBe('active');
+    expect(first.combatDecision?.phase).toBe('windup');
     a.dispose();
     b.dispose();
   });
