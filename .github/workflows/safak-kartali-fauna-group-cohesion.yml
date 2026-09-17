@@ -1,0 +1,59 @@
+name: safak-kartali-fauna-group-cohesion
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js'
+      - 'src/3d/gameplay/livingWorldFaunaGroupCohesionPolicy.js'
+      - 'scripts/checkSafakKartaliFaunaGroupCohesionPolicy.mjs'
+      - '.github/workflows/safak-kartali-fauna-group-cohesion.yml'
+  push:
+    branches:
+      - 'agent/safak-kartali-ambient-life'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Verify exact main ancestry
+        run: |
+          git fetch origin main --depth=1
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+
+      - name: Verify bounded additive scope
+        run: |
+          changed=$(git diff --numstat origin/main...HEAD -- \
+            src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js \
+            src/3d/gameplay/livingWorldFaunaGroupCohesionPolicy.js \
+            scripts/checkSafakKartaliFaunaGroupCohesionPolicy.mjs \
+            .github/workflows/safak-kartali-fauna-group-cohesion.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+
+      - name: Syntax check
+        run: |
+          node --check src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js
+          node --check src/3d/gameplay/livingWorldFaunaGroupCohesionPolicy.js
+          node --check scripts/checkSafakKartaliFaunaGroupCohesionPolicy.mjs
+
+      - name: Shared runtime boundary guard
+        run: |
+          ! grep -R "EditorMaterialStudio" -n src/3d/gameplay/livingWorldFaunaGroupCohesionPolicy.js scripts/checkSafakKartaliFaunaGroupCohesionPolicy.mjs
+
+      - name: Execute deterministic group proof twice
+        run: |
+          first=$(node scripts/checkSafakKartaliFaunaGroupCohesionPolicy.mjs)
+          second=$(node scripts/checkSafakKartaliFaunaGroupCohesionPolicy.mjs)
+          test "$first" = "$second"
+          printf '%s\n' "$first"
