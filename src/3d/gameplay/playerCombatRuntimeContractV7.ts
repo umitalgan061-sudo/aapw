@@ -2,6 +2,8 @@ import type { TickId } from '../modern/runtimeContractsV4';
 import type { PlayerStateV6 } from '../modern/typedSceneContractsV6';
 import {
   PlayerCombatDecisionV6,
+  PLAYER_COMBAT_ACTIONS_V6,
+  type PlayerCombatActionV6,
   type PlayerCombatContextV6,
   type PlayerCombatDecisionReceiptV6,
   type PlayerCombatPhaseV6,
@@ -33,6 +35,12 @@ const digest = (value: unknown): string => {
   return (hash >>> 0).toString(16).padStart(8, '0');
 };
 const frameDigest = (frame: PlayerCombatRuntimeFrameV7): string => digest({ ...frame, checksum: undefined });
+const isCombatAction = (value: unknown): value is PlayerCombatActionV6 => (
+  typeof value === 'string' && (PLAYER_COMBAT_ACTIONS_V6 as readonly string[]).includes(value)
+);
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+);
 
 const freeze = <T extends object>(value: T): Readonly<T> => Object.freeze(value);
 
@@ -71,8 +79,8 @@ export function validatePlayerCombatRuntimeFrameV7(frame: PlayerCombatRuntimeFra
     || frame.phase === 'windup'
     || frame.phase === 'active'
     || frame.phase === 'recovery';
-  const actionIsValid = frame.action === null || typeof frame.action === 'string';
-  const feedbackIsValid = frame.feedback === null || typeof frame.feedback === 'object';
+  const actionIsValid = frame.action === null || isCombatAction(frame.action);
+  const feedbackIsValid = frame.feedback === null || isRecord(frame.feedback);
   const lockOnTargetIsValid = frame.lockOnTargetId === null || typeof frame.lockOnTargetId === 'string';
   const readyShapeIsValid = frame.phase !== 'ready'
     || (frame.action === null
