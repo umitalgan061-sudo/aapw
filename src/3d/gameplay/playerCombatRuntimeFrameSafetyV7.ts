@@ -20,6 +20,21 @@ export function freezePlayerCombatRuntimeFrameV7(
   return deepFreeze(frame);
 }
 
+/**
+ * Idempotent projection boundary for consumers that should never receive a
+ * shallow-frozen frame. It validates the existing contract first, then applies
+ * the transitive freeze without taking ownership of combat state.
+ */
+export function freezeValidatedPlayerCombatRuntimeFrameV7(
+  frame: PlayerCombatRuntimeFrameV7,
+): Readonly<PlayerCombatRuntimeFrameV7> {
+  const { validatePlayerCombatRuntimeFrameV7 } = require('./playerCombatRuntimeContractV7') as typeof import('./playerCombatRuntimeContractV7');
+  if (!validatePlayerCombatRuntimeFrameV7(frame)) {
+    throw new Error('Invalid player combat runtime frame');
+  }
+  return freezePlayerCombatRuntimeFrameV7(frame);
+}
+
 export function isPlayerCombatRuntimeFrameDeeplyFrozenV7(
   frame: PlayerCombatRuntimeFrameV7,
 ): boolean {
