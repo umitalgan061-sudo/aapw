@@ -25,6 +25,7 @@ on:
       - 'src/3d/modern/rendererPresentationBridge.ts'
       - 'src/3d/modern/rendererRegistry.ts'
       - 'src/3d/modern/game3dEntry.ts'
+      - 'src/3d/modern/gameEntry.ts'
       - 'scripts/checkTerrainMicroSurface.mjs'
       - 'scripts/checkTerrainMacroWeathering.mjs'
       - 'scripts/checkTerrainMacroWeatheringStatistics.mjs'
@@ -49,11 +50,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - name: Checkout exact requested head
+      - name: Checkout exact requested head branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: refs/heads/${{ github.head_ref || github.ref_name }}
           lfs: false
+
+      - name: Verify checked out commit is the requested head
+        run: |
+          set -euo pipefail
+          expected='${{ github.event.pull_request.head.sha || github.sha }}'
+          actual="$(git rev-parse HEAD)"
+          echo "expected=$expected"
+          echo "actual=$actual"
+          test "$actual" = "$expected"
 
       - name: Setup Node
         uses: actions/setup-node@v4
