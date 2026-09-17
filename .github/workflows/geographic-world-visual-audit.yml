@@ -57,7 +57,24 @@ jobs:
         run: npx --yes http-server . -p 4173 > /tmp/aapw-http.log 2>&1 &
 
       - name: Boot exact production 3D scene and run visual smoke audit
+        id: browser_audit
+        continue-on-error: true
         run: node scripts/checkGeographicWorldVisualAuditBrowser.mjs
+
+      - name: Upload geographic visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geographic-world-visual-audit
+          path: artifacts/geographic-world-visual-audit/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Fail browser visual gate after saving proof
+        if: steps.browser_audit.outcome != 'success'
+        run: |
+          echo 'Geographic browser visual audit failed; render proof was preserved as an artifact.'
+          exit 1
 
       - if: failure()
         run: cat /tmp/aapw-http.log || true
