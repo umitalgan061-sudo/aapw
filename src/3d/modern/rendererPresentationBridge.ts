@@ -1,4 +1,5 @@
 import type { QualityTier, RuntimeSnapshot } from './types';
+import { RendererGpuTimer } from './rendererGpuTimer';
 
 export interface RendererInfoLike {
   readonly render?: { readonly calls?: number; readonly triangles?: number };
@@ -37,17 +38,24 @@ export interface RendererPresentationDiagnostics {
   readonly shadowBaseline: boolean;
   readonly shadowsActive: boolean | null;
   readonly changes: number;
+  readonly gpuTimingSupported: boolean;
+  readonly gpuSamples: number;
+  readonly lastGpuMs: number | null;
 }
 
 export type PresentationPressure = number | RuntimeSnapshot['pressure'];
+type RenderMethod = (...args: unknown[]) => unknown;
+type InstrumentableRenderer = RendererPresentationLike & { render?: RenderMethod };
 
-const QUALITY_SCALE: Readonly<Record<QualityTier, number>> = Object.freeze({
-  minimal: 0.62,
-  balanced: 0.78,
-  high: 0.91,
-  ultra: 1,
-});
+interface RendererInstrumentation {
+  readonly timer: RendererGpuTimer;
+  readonly originalRender: RenderMethod;
+  references: number;
+}
 
+const RENDERER_INSTRUMENTATION = new WeakMap<object, RendererInstrumentation>();
+
+const QUALITY_SCALE: Readonly<Record<QualityTier, number>> = Object.freeze({ minimal: 0.62, balanced: 0.78, high: 0.91, ultra: 1 });
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const finiteNonNegativeInt = (value: unknown): number => {
   const numeric = Number(value);
@@ -79,6 +87,7 @@ export class RendererPresentationBridge {
   #cooldown = 0;
   #changes = 0;
   #shadowBaseline = false;
+  #instrumentation: RendererInstrumentation | null = null;
 
   constructor(options: RendererPresentationBridgeOptions = {}) {
     const fixedRenderer = options.renderer ?? null;
@@ -88,12 +97,19 @@ export class RendererPresentationBridge {
     this.#minPixelRatio = clamp(Number(options.minPixelRatio ?? 0.6) || 0.6, 0.5, this.#maxPixelRatio);
     this.#minFramesBetweenChanges = Math.max(4, Math.trunc(options.minFramesBetweenChanges ?? 18));
     this.#baseDevicePixelRatio = this.#readDevicePixelRatio();
-    this.#shadowBaseline = Boolean(this.#rendererProvider()?.shadowMap?.enabled);
+    const renderer = this.#rendererProvider();
+    this.#shadowBaseline = Boolean(renderer?.shadowMap?.enabled);
+    this.#instrumentation = acquireRendererInstrumentation(renderer);
   }
 
   refreshDevicePixelRatio(): void {
     this.#baseDevicePixelRatio = this.#readDevicePixelRatio();
     this.#applyPixelRatio(this.#appliedScale);
+  }
+
+  gpuMs(): number | undefined {
+    const value = this.#instrumentation?.timer.lastGpuMs;
+    return value === null || value === undefined ? undefined : value;
   }
 
   apply(snapshot: { readonly quality: QualityTier; readonly pressure: PresentationPressure }): void {
@@ -134,6 +150,7 @@ export class RendererPresentationBridge {
 
   diagnostics(): RendererPresentationDiagnostics {
     const renderer = this.#rendererProvider();
+    const timing = this.#instrumentation?.timer.diagnostics();
     return Object.freeze({
       initialized: Boolean(renderer),
       quality: this.#lastQuality,
@@ -143,10 +160,15 @@ export class RendererPresentationBridge {
       shadowBaseline: this.#shadowBaseline,
       shadowsActive: renderer?.shadowMap ? Boolean(renderer.shadowMap.enabled) : null,
       changes: this.#changes,
+      gpuTimingSupported: timing?.supported ?? false,
+      gpuSamples: timing?.samples ?? 0,
+      lastGpuMs: timing?.lastGpuMs ?? null,
     });
   }
 
   dispose(): void {
+    releaseRendererInstrumentation(this.#rendererProvider(), this.#instrumentation);
+    this.#instrumentation = null;
     const renderer = this.#rendererProvider();
     if (renderer?.shadowMap) renderer.shadowMap.enabled = this.#shadowBaseline;
     this.#lastQuality = null;
@@ -180,4 +202,41 @@ export class RendererPresentationBridge {
     const t = clamp(factor, 0.05, 1);
     return current + (target - current) * t;
   }
+}
+
+function acquireRendererInstrumentation(renderer: RendererPresentationLike | null): RendererInstrumentation | null {
+  const target = renderer as InstrumentableRenderer | null;
+  if (!target?.render || typeof target.render !== 'function') return null;
+  const existing = RENDERER_INSTRUMENTATION.get(target);
+  if (existing) {
+    existing.references += 1;
+    return existing;
+  }
+  const originalRender = target.render.bind(target) as RenderMethod;
+  const timer = new RendererGpuTimer(target);
+  if (!timer.supported) return null;
+  const instrumentation: RendererInstrumentation = { timer, originalRender, references: 1 };
+  target.render = (...args: unknown[]) => {
+    timer.poll();
+    timer.begin();
+    try {
+      return originalRender(...args);
+    } finally {
+      timer.end();
+    }
+  };
+  RENDERER_INSTRUMENTATION.set(target, instrumentation);
+  return instrumentation;
+}
+
+function releaseRendererInstrumentation(renderer: RendererPresentationLike | null, instrumentation: RendererInstrumentation | null): void {
+  const target = renderer as InstrumentableRenderer | null;
+  if (!target || !instrumentation) return;
+  const current = RENDERER_INSTRUMENTATION.get(target);
+  if (!current || current !== instrumentation) return;
+  current.references -= 1;
+  if (current.references > 0) return;
+  target.render = current.originalRender;
+  current.timer.dispose();
+  RENDERER_INSTRUMENTATION.delete(target);
 }
