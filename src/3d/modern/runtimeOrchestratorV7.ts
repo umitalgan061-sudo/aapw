@@ -14,7 +14,6 @@ import {
   type RuntimeUsageV7,
   type RuntimeBudgetV7,
   type Vec3V7,
-  type RenderItemV7,
 } from './runtimeContractsV7';
 import { AdaptiveDirectorV7, type DirectorSignalV7 } from './adaptiveDirectorV7';
 import { WorldStreamingV7 } from './worldStreamingV7';
@@ -62,7 +61,16 @@ export interface RuntimeFrameResultV7 {
   readonly checksum: string;
 }
 
-const DEFAULT_BUDGET: RuntimeBudgetV7 = Object.freeze({ cpuMs: 7, gpuMs: 8, networkBytes: 256 * 1024, assetBytes: 64 * 1024 * 1024, drawCalls: 900, triangles: 1_500_000, visibleEntities: 2400, simulationSteps: 2 });
+const DEFAULT_BUDGET: RuntimeBudgetV7 = Object.freeze({
+  cpuMs: 7,
+  gpuMs: 8,
+  networkBytes: 256 * 1024,
+  assetBytes: 64 * 1024 * 1024,
+  drawCalls: 900,
+  triangles: 1_500_000,
+  visibleEntities: 2400,
+  simulationSteps: 2,
+});
 
 export class RuntimeOrchestratorV7 {
   readonly identity: RuntimeIdentityV7;
@@ -82,10 +90,12 @@ export class RuntimeOrchestratorV7 {
   #now: () => number;
   #startedAt: number;
   #errors: string[] = [];
+  #hooks: RuntimeHooksV7 | undefined;
 
   constructor(options: RuntimeOrchestratorOptionsV7 = {}) {
     this.#now = options.now ?? (() => Date.now());
     this.#startedAt = this.#now();
+    this.#hooks = options.hooks;
     this.identity = Object.freeze({ id: runtimeIdV7(options.id ?? `runtime-v7-${this.#startedAt}`), build: options.build ?? 'modern-v7', protocol: 7, startedAt: this.#startedAt });
     this.fixedStepMs = Math.max(4, options.fixedStepMs ?? 16.6666667);
     this.maxCatchUpSteps = Math.max(1, Math.trunc(options.maxCatchUpSteps ?? 4));
@@ -130,14 +140,20 @@ export class RuntimeOrchestratorV7 {
       }
       if (simulationSteps === this.maxCatchUpSteps && this.#accumulatorMs >= this.fixedStepMs) this.#accumulatorMs = 0;
       const alpha = this.#accumulatorMs / this.fixedStepMs;
+      let inputAccepted = true;
       if (input.input) {
         const decision = this.input.decide(input.input);
+        inputAccepted = decision.accepted;
         this.telemetry.counter(decision.accepted ? 'input.accepted' : 'input.rejected', 1, this.#tick);
       }
       const center = input.center ?? input.camera.position;
       const streamActions = this.streaming.plan(center, input.centerVelocity ?? { x: 0, y: 0, z: 0 });
       const signal = input.signal ?? {
-        cpuMs: 0, gpuMs: 0, frameMs: delta, memoryBytes: 0, networkKbps: 0,
+        cpuMs: 0,
+        gpuMs: 0,
+        frameMs: delta,
+        memoryBytes: 0,
+        networkKbps: 0,
         loadedAssets: this.streaming.cells().filter((cell) => cell.loaded).length,
         visibleEntities: input.candidates?.length ?? 0,
         simulationDebtMs: Math.max(0, this.#accumulatorMs - this.fixedStepMs),
@@ -146,8 +162,19 @@ export class RuntimeOrchestratorV7 {
       const packet = this.renderer.compile(this.#frame, this.#tick, decision.quality, { ...input.camera, renderScale: decision.renderScale }, input.candidates ?? []);
       this.telemetry.sample('render.items', packet.items.length, 'count', this.#tick);
       this.telemetry.sample('render.batches', packet.batches, 'count', this.#tick);
-      const result = Object.freeze({ frame: frameV7(this.#frame), tick: tickV7(this.#tick), simulationSteps, alpha, quality: decision.quality, packet, phase: this.#phase, inputAccepted: !input.input || true, streamActions: streamActions.length, checksum: checksumV7({ frame: this.#frame, tick: this.#tick, packet, quality: decision.quality }) });
-      this.telemetry.event('runtime.frame', this.#tick, 'engine', { frame: this.#frame, steps: simulationSteps, quality: decision.quality });
+      const result = Object.freeze({
+        frame: frameV7(this.#frame),
+        tick: tickV7(this.#tick),
+        simulationSteps,
+        alpha,
+        quality: decision.quality,
+        packet,
+        phase: this.#phase,
+        inputAccepted,
+        streamActions: streamActions.length,
+        checksum: checksumV7({ frame: this.#frame, tick: this.#tick, packet, quality: decision.quality, inputAccepted }),
+      });
+      this.telemetry.event('runtime.frame', this.#tick, 'engine', { frame: this.#frame, steps: simulationSteps, quality: decision.quality, inputAccepted });
       this.#hooks?.onFrame?.(packet);
       return result;
     } catch (cause) {
@@ -159,8 +186,6 @@ export class RuntimeOrchestratorV7 {
       throw error;
     }
   }
-
-  #hooks: RuntimeHooksV7 | undefined;
 
   diagnostics(): RuntimeDiagnosticsV7 {
     const usage: RuntimeUsageV7 = {
