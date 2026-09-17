@@ -6,6 +6,7 @@ on:
       - 'src/3d/config.js'
       - 'src/3d/fog.js'
       - 'src/3d/sky.js'
+      - 'src/3d/sceneManager.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/terrainReliefDetail.js'
       - 'src/3d/world/terrainMacroWeathering.js'
@@ -24,6 +25,7 @@ on:
       - 'src/3d/world/waterDepthField.js'
       - 'src/3d/modern/rendererPresentationBridge.ts'
       - 'src/3d/modern/rendererRegistry.ts'
+      - 'src/3d/modern/rendererRegistry.js'
       - 'src/3d/modern/game3dEntry.ts'
       - 'src/3d/modern/gameEntry.ts'
       - 'scripts/checkTerrainMicroSurface.mjs'
@@ -80,6 +82,7 @@ jobs:
           set -euo pipefail
           node --check src/3d/fog.js
           node --check src/3d/sky.js
+          node --check src/3d/sceneManager.js
           node --check src/3d/world/terrainMacroWeathering.js
           node --check src/3d/world/terrainReliefDetail.js
           node --check src/3d/world/worldReferenceMountainRelief.js
