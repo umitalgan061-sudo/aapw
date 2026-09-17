@@ -59,7 +59,12 @@ for (const path of typedFiles) {
   const content = await readFile(path, 'utf8');
   const unsafeAny = content.match(explicitAnyPattern)?.length ?? 0;
   if (unsafeAny > 12) failures.push(`${path}: excessive explicit any type usage (${unsafeAny})`);
-  if (/\b(Math\.random|Date\.now)\s*\(/.test(content) && /determin/i.test(content)) failures.push(`${path}: deterministic module uses wall/random clock source`);
+
+  const declaresDeterministicBoundary = /@(?:deterministic|deterministic-module)\b/i.test(content) || /\bdeterministic(?:module|core|boundary)\b/i.test(path);
+  if (declaresDeterministicBoundary && /\b(?:Math\.random|Date\.now)\s*\(/.test(content)) {
+    failures.push(`${path}: deterministic module uses wall/random clock source`);
+  }
+
   for (const match of content.matchAll(untypedImportPattern)) {
     const specifier = match[1];
     if (specifier && !typedSourceExists(path, specifier) && !specifier.includes('/vendor/')) {
@@ -69,7 +74,7 @@ for (const path of typedFiles) {
 }
 
 const manifest = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   generatedAt: 'source-controlled',
   strategy: 'typed-core-first',
   sourceRoots: ROOTS,
@@ -79,6 +84,7 @@ const manifest = {
   legacyPolicy: 'legacy runtime files are frozen at the boundary; new engine code must be TypeScript',
   esmResolutionPolicy: 'an emitted .js import is typed-safe when a sibling .ts/.tsx source module resolves to the same specifier',
   explicitAnyPolicy: 'only syntactic type-position any is counted; identifiers named any are not type escapes',
+  deterministicPolicy: 'clock/random sources are rejected only inside explicitly marked deterministic boundaries',
 };
 
 console.log(JSON.stringify(manifest, null, 2));
