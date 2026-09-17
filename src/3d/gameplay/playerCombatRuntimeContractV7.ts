@@ -32,6 +32,7 @@ const digest = (value: unknown): string => {
   }
   return (hash >>> 0).toString(16).padStart(8, '0');
 };
+const frameDigest = (frame: PlayerCombatRuntimeFrameV7): string => digest({ ...frame, checksum: undefined });
 
 const freeze = <T extends object>(value: T): Readonly<T> => Object.freeze(value);
 
@@ -61,7 +62,7 @@ export function projectPlayerCombatRuntimeFrameV7(
     health01: clamp01(player.maxHealth > 0 ? player.health / player.maxHealth : 0),
     checksum: '',
   };
-  frame.checksum = digest({ ...frame, checksum: undefined });
+  frame.checksum = frameDigest(frame);
   return freeze(frame);
 }
 
@@ -79,7 +80,8 @@ export function validatePlayerCombatRuntimeFrameV7(frame: PlayerCombatRuntimeFra
     && frame.health01 >= 0
     && frame.health01 <= 1
     && typeof frame.checksum === 'string'
-    && /^[0-9a-f]{8}$/.test(frame.checksum);
+    && /^[0-9a-f]{8}$/.test(frame.checksum)
+    && frame.checksum === frameDigest(frame);
 }
 
 export function advancePlayerCombatRuntimeFrameV7(
