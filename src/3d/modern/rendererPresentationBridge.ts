@@ -39,6 +39,8 @@ export interface RendererPresentationDiagnostics {
   readonly changes: number;
 }
 
+export type PresentationPressure = number | RuntimeSnapshot['pressure'];
+
 const QUALITY_SCALE: Readonly<Record<QualityTier, number>> = Object.freeze({ minimal: 0.62, balanced: 0.78, high: 0.91, ultra: 1 });
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const finiteNonNegativeInt = (value: unknown): number => {
@@ -58,7 +60,6 @@ export function readLegacyRenderMetrics(state: unknown): LegacyRenderMetrics {
   });
 }
 
-/** Applies the TypeScript runtime's quality decisions to the real Three.js renderer. */
 export class RendererPresentationBridge {
   #rendererProvider: () => RendererPresentationLike | null;
   #devicePixelRatio: () => number;
@@ -90,12 +91,12 @@ export class RendererPresentationBridge {
     this.#applyPixelRatio(this.#appliedScale);
   }
 
-  apply(snapshot: Pick<RuntimeSnapshot, 'quality' | 'pressure'>): void {
+  apply(snapshot: { readonly quality: QualityTier; readonly pressure: PresentationPressure }): void {
     const renderer = this.#rendererProvider();
     if (!renderer) return;
     if (this.#cooldown > 0) this.#cooldown -= 1;
 
-    const pressure = clamp(Number(snapshot.pressure.combined) || 0, 0, 1);
+    const pressure = this.#pressureValue(snapshot.pressure);
     const tierScale = QUALITY_SCALE[snapshot.quality];
     const pressurePenalty = pressure >= 0.86 ? 0.16 : pressure >= 0.72 ? 0.10 : pressure >= 0.58 ? 0.05 : pressure <= 0.12 ? -0.035 : 0;
     const targetScale = clamp(tierScale - pressurePenalty, 0.55, 1);
@@ -148,6 +149,11 @@ export class RendererPresentationBridge {
   #applyShadowBudget(renderer: RendererPresentationLike, quality: QualityTier, pressure: number): void {
     if (!renderer.shadowMap || !this.#shadowBaseline) return;
     renderer.shadowMap.enabled = quality !== 'minimal' && pressure < 0.90;
+  }
+
+  #pressureValue(value: PresentationPressure): number {
+    if (typeof value === 'number') return clamp(value, 0, 1);
+    return clamp(Number(value.combined) || 0, 0, 1);
   }
 
   #smoothStep(current: number, target: number, factor: number): number {
