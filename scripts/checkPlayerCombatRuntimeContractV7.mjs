@@ -54,10 +54,12 @@ assert.deepEqual(firstFrame, secondFrame);
 
 const invalidFrame = { ...readyFrame, locomotionWeight: 2 };
 assert.equal(validatePlayerCombatRuntimeFrameV7(invalidFrame), false);
+const tamperedChecksum = { ...readyFrame, checksum: readyFrame.checksum === '00000000' ? 'ffffffff' : '00000000' };
+assert.equal(validatePlayerCombatRuntimeFrameV7(tamperedChecksum), false);
 
 console.log(JSON.stringify({
   contract: 'player-combat-runtime-v7',
-  checks: 20,
+  checks: 21,
   ready: readyFrame,
   initial: firstFrame,
   active: activeFrame,
