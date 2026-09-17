@@ -1,0 +1,43 @@
+name: AAPW Modern Runtime Gate
+
+on:
+  push:
+    branches: ['main', 'agent/**']
+  pull_request:
+    branches: ['main']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aapw-modern-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Combat determinism guard
+        run: npm run check:combat-determinism
+
+      - name: Existing modern architecture guards
+        run: npm run verify:modern && npm run verify:modern:v3 && npm run verify:typed
+
+      - name: Typed runtime behavior
+        run: npm run check:typed-runtime
+
+      - name: Full TypeScript + unit suite
+        run: npm run check
