@@ -1,0 +1,44 @@
+name: Kizil Ufuk Player Combo Window Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatComboWindowDirector.js'
+      - 'scripts/checkPlayerCombatComboWindowDirector.mjs'
+      - '.github/workflows/kizil-ufuk-player-combo-window-director.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-combo-window-director-20260916-r11'
+
+jobs:
+  combo-window:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact main ancestry
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main "$GITHUB_SHA"
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerCombatComboWindowDirector.js
+          node --check scripts/checkPlayerCombatComboWindowDirector.mjs
+      - name: Runtime proof
+        run: node scripts/checkPlayerCombatComboWindowDirector.mjs
+      - name: Shared material/editor boundary
+        run: |
+          if grep -R "EditorMaterialStudio\\.js" src/3d/gameplay/playerCombatComboWindowDirector.js scripts/checkPlayerCombatComboWindowDirector.mjs; then
+            echo 'EditorMaterialStudio runtime import is forbidden'; exit 1
+          fi
+          if grep -R "MaterialAssignmentCore\\|WorldAssetPlacementPipeline" src/3d/gameplay/playerCombatComboWindowDirector.js; then
+            echo 'No model-bearing work is expected in this adapter'; exit 1
+          fi
+      - name: Changed-line guard
+        run: |
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
