@@ -1,0 +1,47 @@
+name: Kızıl Ufuk Player Equipment Condition Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentConditionDirector.js'
+      - 'scripts/checkKizilUfukPlayerEquipmentConditionDirector.mjs'
+      - '.github/workflows/kizil-ufuk-player-equipment-condition-director.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify exact PR head ancestry
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          git merge-base --is-ancestor "${{ github.event.pull_request.base.sha }}" HEAD
+      - name: Verify allowed paths and changed-line cap
+        shell: bash
+        run: |
+          files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}...HEAD")
+          test -n "$files"
+          while IFS= read -r file; do
+            case "$file" in
+              src/3d/gameplay/playerEquipmentConditionDirector.js|scripts/checkKizilUfukPlayerEquipmentConditionDirector.mjs|.github/workflows/kizil-ufuk-player-equipment-condition-director.yml) ;;
+              *) echo "Unexpected path: $file"; exit 1 ;;
+            esac
+          done <<< "$files"
+          changed=$(git diff --numstat "${{ github.event.pull_request.base.sha }}...HEAD" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+      - name: Verify runtime/editor boundary
+        shell: bash
+        run: |
+          ! grep -R "EditorMaterialStudio" src/3d/gameplay/playerEquipmentConditionDirector.js scripts/checkKizilUfukPlayerEquipmentConditionDirector.mjs
+      - name: Syntax and deterministic contract
+        run: |
+          node --check src/3d/gameplay/playerEquipmentConditionDirector.js
+          node --check scripts/checkKizilUfukPlayerEquipmentConditionDirector.mjs
+          node scripts/checkKizilUfukPlayerEquipmentConditionDirector.mjs
+          node scripts/checkKizilUfukPlayerEquipmentConditionDirector.mjs
