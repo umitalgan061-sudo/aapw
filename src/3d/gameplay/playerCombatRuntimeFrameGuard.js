@@ -39,7 +39,7 @@ export function createPlayerCombatRuntimeFrameGuard({
 
   function reject(reason, frame) {
     rejected += 1;
-    return Object.freeze({ ok: false, reason, frame: frame ?? null, accepted, rejected });
+    return Object.freeze({ ok: false, reason, frame: frame == null ? null : cloneAndFreeze(frame), accepted, rejected });
   }
 
   function accept(frame) {
