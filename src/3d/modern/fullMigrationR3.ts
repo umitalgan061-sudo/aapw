@@ -1,5 +1,3 @@
-import type { RuntimeEnvelope, RuntimeEvent, RuntimeTick } from './types.ts';
-
 export interface MigrationModuleRecord {
   readonly id: string;
   readonly legacyPath: string;
@@ -18,6 +16,14 @@ export interface MigrationLedgerSnapshot {
   readonly coveragePercent: number;
 }
 
+export interface MigrationEvent {
+  readonly version: 3;
+  readonly kind: 'migration-ledger';
+  readonly tick: number;
+  readonly sequence: number;
+  readonly payload: MigrationLedgerSnapshot;
+}
+
 export const R3_MIGRATION_MODULES = [
   { id: 'scene', legacyPath: 'src/3d/sceneManager.js', modernPath: 'src/3d/modern/sceneRuntime.ts', owner: 'rendering', status: 'facaded', risk: 'high' },
   { id: 'game-loop', legacyPath: 'src/3d/game3d.js', modernPath: 'src/3d/modern/applicationRuntime.ts', owner: 'runtime', status: 'facaded', risk: 'high' },
@@ -33,7 +39,7 @@ export const R3_MIGRATION_MODULES = [
   { id: 'service-worker', legacyPath: 'service-worker.js', modernPath: 'service-worker.ts', owner: 'runtime', status: 'facaded', risk: 'medium' },
 ] as const satisfies readonly MigrationModuleRecord[];
 
-export function createMigrationLedger(tick: RuntimeTick = 0): MigrationLedgerSnapshot {
+export function createMigrationLedger(tick = 0): MigrationLedgerSnapshot {
   const legacyCount = R3_MIGRATION_MODULES.filter((module) => module.status !== 'retired').length;
   const migratedCount = R3_MIGRATION_MODULES.filter((module) => module.status === 'migrated' || module.status === 'retired').length;
   const coveragePercent = legacyCount === 0 ? 100 : Number(((migratedCount / legacyCount) * 100).toFixed(2));
@@ -47,13 +53,12 @@ export function createMigrationLedger(tick: RuntimeTick = 0): MigrationLedgerSna
   };
 }
 
-export function createMigrationEvent(ledger: MigrationLedgerSnapshot, tick: number): RuntimeEvent {
-  const payload: RuntimeEnvelope = {
+export function createMigrationEvent(ledger: MigrationLedgerSnapshot, tick: number): MigrationEvent {
+  return {
     version: 3,
     kind: 'migration-ledger',
     tick,
     sequence: tick,
     payload: ledger,
   };
-  return payload as RuntimeEvent;
 }
