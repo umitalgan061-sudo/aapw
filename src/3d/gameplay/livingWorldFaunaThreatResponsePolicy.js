@@ -23,7 +23,7 @@ export const LIVING_WORLD_FAUNA_THREAT_RESPONSE_POLICY = freeze({
 
 function distance(a, b) {
   if (!a || !b) return Infinity;
-  return Math.hypot(finite(a.x) - finite(b.x), finite(a.x) * 0 + finite(a.z) - finite(b.z));
+  return Math.hypot(finite(a.x) - finite(b.x), finite(a.z) - finite(b.z));
 }
 
 function threatScore(actor, input) {
