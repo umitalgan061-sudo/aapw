@@ -54,12 +54,14 @@ export interface PlayerState {
   readonly jumpBufferMs: number;
   readonly coyoteRemainingMs: number;
   readonly dodgeRemainingMs: number;
+  /** Simulation-time timestamp in milliseconds, never a wall-clock timestamp. */
   readonly lastAttackAt: number;
   readonly revision: number;
 }
 
 export interface PlayerAuthorityOptions {
   readonly id?: string;
+  /** Retained for API compatibility; simulation state does not depend on it. */
   readonly now?: () => number;
   readonly collision?: (x: number, y: number, z: number) => { readonly grounded: boolean; readonly y: number };
 }
@@ -119,14 +121,13 @@ export type PlayerEvent =
   | { readonly type: 'dead'; readonly id: string };
 
 export class PlayerAuthority {
-  readonly #now: () => number;
   readonly #collision: NonNullable<PlayerAuthorityOptions['collision']>;
   #state: PlayerState;
   #elapsedMs = 0;
 
   constructor(options: PlayerAuthorityOptions = {}) {
-    this.#now = options.now ?? (() => performance.now());
-    this.#collision = options.collision ?? ((x, y, z) => ({ grounded: y <= 0, y: Math.max(0, y) }));
+    void options.now;
+    this.#collision = options.collision ?? ((_x, y, _z) => ({ grounded: y <= 0, y: Math.max(0, y) }));
     this.#state = defaultPlayerState(options.id);
   }
 
@@ -136,6 +137,36 @@ export class PlayerAuthority {
     const base = defaultPlayerState(state.id ?? 'player-1');
     this.#state = Object.freeze({ ...base, ...state, stats: Object.freeze({ ...DEFAULT_STATS, ...(state.stats ?? {}) }) });
     this.#elapsedMs = 0;
+  }
+
+  spendStamina(amount: number): boolean {
+    const cost = Math.max(0, Number.isFinite(amount) ? amount : 0);
+    if (cost > this.#state.stats.stamina) return false;
+    this.#state = Object.freeze({
+      ...this.#state,
+      stats: Object.freeze({ ...this.#state.stats, stamina: Number((this.#state.stats.stamina - cost).toFixed(4)) }),
+      revision: this.#state.revision + 1,
+    });
+    return true;
+  }
+
+  restoreStamina(amount: number): number {
+    if (this.#state.locomotion === 'dead') return 0;
+    const gain = Math.max(0, Number.isFinite(amount) ? amount : 0);
+    const next = clamp(this.#state.stats.stamina + gain, 0, this.#state.stats.maxStamina);
+    const delta = next - this.#state.stats.stamina;
+    if (delta === 0) return 0;
+    this.#state = Object.freeze({
+      ...this.#state,
+      stats: Object.freeze({ ...this.#state.stats, stamina: Number(next.toFixed(4)) }),
+      revision: this.#state.revision + 1,
+    });
+    return delta;
+  }
+
+  setStance(stance: PlayerStance): void {
+    if (this.#state.locomotion === 'dead') return;
+    this.#state = Object.freeze({ ...this.#state, stance, revision: this.#state.revision + 1 });
   }
 
   step(input: PlayerInput, deltaMs: number): PlayerStepResult {
@@ -233,7 +264,8 @@ export class PlayerAuthority {
     }
     if (health <= 0 && locomotion !== 'dead') {
       locomotion = 'dead';
-      vx = 0; vz = 0;
+      vx = 0;
+      vz = 0;
       events.push({ type: 'dead', id: current.id });
     }
 
@@ -248,7 +280,7 @@ export class PlayerAuthority {
       jumpBufferMs: jumpBuffer,
       coyoteRemainingMs: coyote,
       dodgeRemainingMs,
-      lastAttackAt: events.some((event) => event.type === 'attack') ? this.#now() : current.lastAttackAt,
+      lastAttackAt: events.some((event) => event.type === 'attack') ? this.#elapsedMs : current.lastAttackAt,
       revision: current.revision + 1,
     });
     this.#state = next;
