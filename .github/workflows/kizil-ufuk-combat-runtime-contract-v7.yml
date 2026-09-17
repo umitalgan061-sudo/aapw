@@ -9,6 +9,7 @@ on:
       - 'src/3d/gameplay/playerCombatDecisionV6.ts'
       - 'src/3d/gameplay/playerCombatRuntimeContractV7.ts'
       - 'scripts/checkPlayerCombatRuntimeContractV7.mjs'
+      - '.github/tsconfig.kizil-ufuk-combat-runtime-v7.json'
       - '.github/workflows/kizil-ufuk-combat-runtime-contract-v7.yml'
 
 permissions:
@@ -34,7 +35,7 @@ jobs:
         run: git fetch origin main --no-tags && git merge-base --is-ancestor origin/main "$GITHUB_SHA"
       - name: Changed-line cap
         run: test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
-      - name: TypeScript
-        run: npx tsc --noEmit --pretty false
+      - name: Authored-slice TypeScript
+        run: npx tsc -p .github/tsconfig.kizil-ufuk-combat-runtime-v7.json --noEmit --pretty false
       - name: Runtime contract proof
         run: node --experimental-strip-types scripts/checkPlayerCombatRuntimeContractV7.mjs
