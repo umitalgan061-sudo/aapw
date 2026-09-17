@@ -16,13 +16,13 @@ describe('RendererPresentationBridge', () => {
 
   it('applies the quality scale to the real renderer', () => {
     const setPixelRatio = vi.fn();
-    const renderer = { setPixelRatio, getPixelRatio: () => 1.82, shadowMap: { enabled: true } };
+    const renderer = { setPixelRatio, getPixelRatio: () => 1.89, shadowMap: { enabled: true } };
     const bridge = new RendererPresentationBridge({ renderer, devicePixelRatio: () => 2, minFramesBetweenChanges: 4 });
 
     bridge.apply(snapshot('high', 0.05));
 
     expect(setPixelRatio).toHaveBeenCalledTimes(1);
-    expect(setPixelRatio.mock.calls[0]?.[0]).toBeCloseTo(1.82, 2);
+    expect(setPixelRatio.mock.calls[0]?.[0]).toBeCloseTo(1.89, 2);
     expect(renderer.shadowMap.enabled).toBe(true);
     expect(bridge.diagnostics().quality).toBe('high');
   });
