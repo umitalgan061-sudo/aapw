@@ -1,0 +1,35 @@
+name: Safak Kartali Director Runtime Budget
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/checkSafakKartaliDirectorRuntimeBudget.mjs'
+      - 'src/3d/gameplay/livingWorldDirectorRuntimeAdapter.js'
+      - 'src/3d/gameplay/livingWorldOccupationSchedule.js'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.js'
+      - 'src/3d/gameplay/livingWorldEventDirectorAdapter.js'
+      - '.github/workflows/safak-kartali-director-runtime-budget.yml'
+
+jobs:
+  runtime-budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Verify runtime budget proof
+        run: node scripts/checkSafakKartaliDirectorRuntimeBudget.mjs
+      - name: Enforce changed-line cap
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          additions=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" -- . | awk '{a+=$1} END {print a+0}')
+          deletions=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" -- . | awk '{d+=$2} END {print d+0}')
+          total=$((additions + deletions))
+          test "$total" -le 3000
+          echo "changed-lines=$total additions=$additions deletions=$deletions"
