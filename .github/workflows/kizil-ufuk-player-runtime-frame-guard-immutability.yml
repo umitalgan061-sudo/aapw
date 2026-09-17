@@ -1,0 +1,24 @@
+name: Kızıl Ufuk Player Runtime Frame Guard Immutability
+
+on:
+  push:
+    branches:
+      - agent/kizil-ufuk-runtime-frame-guard-20260917-r9
+  pull_request:
+    paths:
+      - src/3d/gameplay/playerCombatRuntimeFrameGuard.js
+      - scripts/checkPlayerCombatRuntimeFrameGuard.mjs
+      - scripts/checkPlayerCombatRuntimeFrameGuardImmutability.mjs
+      - .github/workflows/kizil-ufuk-player-runtime-frame-guard-immutability.yml
+
+jobs:
+  guard-immutability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --check src/3d/gameplay/playerCombatRuntimeFrameGuard.js
+      - run: node scripts/checkPlayerCombatRuntimeFrameGuard.mjs
+      - run: node scripts/checkPlayerCombatRuntimeFrameGuardImmutability.mjs
