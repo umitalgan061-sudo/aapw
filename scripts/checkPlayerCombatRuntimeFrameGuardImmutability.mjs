@@ -24,6 +24,21 @@ assert.equal(accepted.frame.feedback.payload.intensity, 0.4);
 assert.equal(accepted.frame.attack.metadata.phase, 'windup');
 assert.notEqual(accepted.frame, nested);
 
+const rejectedInput = {
+  version: 1,
+  revision: 3,
+  timestamp: 0.032,
+  attack: { serial: 3 },
+  feedback: { payload: { intensity: 0.9 } },
+};
+const rejected = guard.inspect(rejectedInput);
+assert.equal(rejected.reason, 'revision-gap');
+assert.equal(Object.isFrozen(rejected), true);
+assert.equal(Object.isFrozen(rejected.frame), true);
+assert.equal(Object.isFrozen(rejected.frame.feedback.payload), true);
+rejectedInput.feedback.payload.intensity = 0.1;
+assert.equal(rejected.frame.feedback.payload.intensity, 0.9);
+
 const followUp = guard.inspect({
   version: 1,
   revision: 1,
@@ -33,5 +48,6 @@ const followUp = guard.inspect({
 assert.equal(followUp.ok, true);
 assert.equal(Object.isFrozen(followUp.frame), true);
 assert.equal(guard.readState().accepted, 2);
+assert.equal(guard.readState().rejected, 1);
 
-console.log('player combat runtime frame guard immutability: 10 checks passed');
+console.log('player combat runtime frame guard immutability: 16 checks passed');
