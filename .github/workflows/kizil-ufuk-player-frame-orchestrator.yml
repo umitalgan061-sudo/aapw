@@ -1,0 +1,37 @@
+name: Kizil Ufuk Player Frame Orchestrator
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerFrameOrchestrator.js'
+      - 'scripts/checkKizilUfukPlayerFrameOrchestrator.mjs'
+      - '.github/workflows/kizil-ufuk-player-frame-orchestrator.yml'
+  push:
+    branches:
+      - main
+      - 'agent/kizil-ufuk-player-frame-orchestrator-*'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact changed scope
+        shell: bash
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          count=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$count" -le 3000
+          test -z "$(printf '%s\n' "$files" | grep -E 'EditorMaterialStudio.js|^assets/')"
+          printf '%s\n' "$files" | grep -qx 'src/3d/gameplay/playerFrameOrchestrator.js'
+          printf '%s\n' "$files" | grep -qx 'scripts/checkKizilUfukPlayerFrameOrchestrator.mjs'
+          printf '%s\n' "$files" | grep -qx '.github/workflows/kizil-ufuk-player-frame-orchestrator.yml'
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerFrameOrchestrator.js
+          node --check scripts/checkKizilUfukPlayerFrameOrchestrator.mjs
+      - name: Deterministic runtime proof
+        run: node scripts/checkKizilUfukPlayerFrameOrchestrator.mjs
