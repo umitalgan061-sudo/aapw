@@ -87,6 +87,7 @@ function sceneAdapter(): RuntimeSceneAdapter {
       return {
         drawCalls: metrics.drawCalls,
         triangles: metrics.triangles,
+        gpuMs: presentationBridge?.gpuMs(),
         // Three.js does not expose an aggregate GPU-memory byte count here; leave it unknown rather
         // than manufacturing a byte estimate from the texture count.
         visibleObjects: 0,
