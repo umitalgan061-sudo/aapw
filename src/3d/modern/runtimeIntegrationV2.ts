@@ -1,5 +1,8 @@
 import { CombatAuthority, makeCombatActor, makeCombatTarget, type CombatEvent, type CombatTarget } from './combatAuthority.ts';
 import { PlayerAuthority, defaultPlayerState, type PlayerInput, type PlayerEvent, type PlayerState } from './playerAuthority.ts';
+import { PlayerCombatDecisionV6, type PlayerCombatDecisionReceiptV6 } from '../gameplay/playerCombatDecisionV6.ts';
+import { worldObjectId, type InputSnapshotV6, type PlayerStateV6 } from './typedSceneContractsV6.ts';
+import { tickId } from './runtimeContractsV4.ts';
 import { WorldChunkRuntime, type ChunkFramePlan } from './worldChunkRuntime.ts';
 import { SpatialHash2D, type SpatialItem } from './worldSpatialIndex.ts';
 import { WorldClock, type WorldClockState } from './worldSimulation.ts';
@@ -20,6 +23,8 @@ export interface RuntimeFrameInput {
   readonly player?: PlayerInput;
   readonly deltaMs: number;
   readonly camera?: Vec2;
+  /** Optional semantic combat command. Legacy player booleans remain supported. */
+  readonly combatAction?: string;
 }
 
 export interface RuntimeFrameResult {
@@ -28,6 +33,7 @@ export interface RuntimeFrameResult {
   readonly player: PlayerState;
   readonly playerEvents: readonly PlayerEvent[];
   readonly combatEvents: readonly CombatEvent[];
+  readonly combatDecision: PlayerCombatDecisionReceiptV6 | null;
   readonly chunks: ChunkFramePlan;
   readonly nearby: readonly string[];
   readonly digest: string;
@@ -43,29 +49,48 @@ export interface RuntimeIntegrationMetrics {
   readonly chunkActive: number;
   readonly combatActors: number;
   readonly combatTargets: number;
+  readonly combatDecisionSerial: number;
   readonly digest: string;
 }
 
 const noopLoader = async (_id: { key: string }, _signal: AbortSignal): Promise<{ bytes: number }> => ({ bytes: 0 });
 
+const toTypedPlayerState = (player: PlayerState): PlayerStateV6 => Object.freeze({
+  id: player.id as PlayerStateV6['id'],
+  objectId: worldObjectId(`player:${player.id}`),
+  position: Object.freeze({ x: player.transform.x, y: player.transform.y, z: player.transform.z }),
+  velocity: Object.freeze({ ...player.velocity }),
+  yaw: player.transform.yaw,
+  grounded: player.transform.grounded,
+  health: player.stats.health,
+  maxHealth: player.stats.maxHealth,
+  stamina: player.stats.stamina,
+  maxStamina: player.stats.maxStamina,
+  sprinting: player.locomotion === 'sprint',
+  alive: player.locomotion !== 'dead' && player.stats.health > 0,
+});
+
 export class RuntimeIntegrationV2 {
   readonly clock: WorldClock;
   readonly player: PlayerAuthority;
   readonly combat: CombatAuthority;
-  readonly spatial: SpatialHash2D<{ kind: string; team?: string }>; 
+  readonly combatDecision: PlayerCombatDecisionV6;
+  readonly spatial: SpatialHash2D<{ kind: string; team?: string }>;
   readonly chunks: WorldChunkRuntime;
   readonly #now: () => number;
   #frame = 0;
   #elapsedMs = 0;
   #nearbyQueries = 0;
   #lastDigest = '';
+  #lastCombatDecision: PlayerCombatDecisionReceiptV6 | null = null;
 
   constructor(options: RuntimeIntegrationOptions = {}, chunkLoader = noopLoader) {
     this.#now = options.now ?? (() => performance.now());
     this.clock = new WorldClock({ seed: options.worldSeed ?? 0x57455354 });
     this.player = new PlayerAuthority({ id: options.playerId ?? 'player-1', now: this.#now });
     this.combat = new CombatAuthority(undefined, { now: this.#now });
-    this.spatial = new SpatialHash2D( Math.max(8, options.chunkSize ?? 32) );
+    this.combatDecision = new PlayerCombatDecisionV6();
+    this.spatial = new SpatialHash2D(Math.max(8, options.chunkSize ?? 32));
     this.chunks = new WorldChunkRuntime({
       loadRadius: options.chunkLoadRadius ?? 4,
       unloadRadius: options.chunkUnloadRadius ?? 6,
@@ -75,8 +100,7 @@ export class RuntimeIntegrationV2 {
       maxResidentBytes: options.maxChunkBytes ?? 512 * 1024 * 1024,
       now: this.#now,
     }, chunkLoader);
-    const actor = makeCombatActor(this.player.state.id, 'player');
-    this.combat.registerActor(actor);
+    this.combat.registerActor(makeCombatActor(this.player.state.id, 'player'));
   }
 
   registerWorldActor(item: SpatialItem<{ kind: string; team?: string }>, combatTarget?: CombatTarget): void {
@@ -95,9 +119,15 @@ export class RuntimeIntegrationV2 {
     this.#elapsedMs += deltaMs;
     const time = this.clock.update(deltaMs / 1000);
     const playerResult = this.player.step(input.player ?? {
-      moveX: 0, moveZ: 0, sprint: false, jumpPressed: false, dodgePressed: false,
-      attackPressed: false, heavyPressed: false, block: false,
+      moveX: 0, moveZ: 0, sprint: false, jumpPressed: false, dodgePressed: false, attackPressed: false, heavyPressed: false, block: false,
     }, deltaMs);
+    const typedPlayer = toTypedPlayerState(playerResult.state);
+    const typedTick = tickId(this.#frame);
+    const semanticAction = input.combatAction ?? playerResult.events.find((event) => event.type === 'attack')?.heavy ? 'heavy' : playerResult.events.some((event) => event.type === 'attack') ? 'light' : null;
+    if (semanticAction) this.#lastCombatDecision = this.combatDecision.submit(semanticAction, typedPlayer, typedTick);
+    const decisionTick = this.combatDecision.tick(typedPlayer, deltaMs / 1000, typedTick);
+    if (decisionTick) this.#lastCombatDecision = decisionTick;
+
     const actor = this.combat.actor(this.player.state.id);
     if (actor) {
       this.combat.registerActor({ ...actor, x: this.player.state.transform.x, z: this.player.state.transform.z, yaw: this.player.state.transform.yaw, health: this.player.state.stats.health, stamina: this.player.state.stats.stamina, state: this.player.state.locomotion === 'dead' ? 'dead' : actor.state });
@@ -119,10 +149,11 @@ export class RuntimeIntegrationV2 {
       player: this.player.state,
       nearby,
       chunkKeys: this.chunks.loadedKeys(),
-      combatEvents: combatEvents.map((event) => ({ type: event.type, actorId: event.actorId, attackId: event.attackId, targetId: event.hit?.targetId, damage: event.hit?.damage })),
+      combatDecision: this.#lastCombatDecision ? { action: this.#lastCombatDecision.action, outcome: this.#lastCombatDecision.outcome, phase: this.#lastCombatDecision.phase, checksum: this.#lastCombatDecision.checksum } : null,
+      combatEvents: combatEvents.map((event) => ({ type: event.type, actorId: event.actorId, attackId: event.attackId, attackInstanceId: event.attackInstanceId, targetId: event.hit?.targetId, damage: event.hit?.damage })),
     };
     this.#lastDigest = deterministicStateHash(digestPayload);
-    return Object.freeze({ frame: this.#frame, time, player: this.player.state, playerEvents: playerResult.events, combatEvents, chunks, nearby, digest: this.#lastDigest });
+    return Object.freeze({ frame: this.#frame, time, player: this.player.state, playerEvents: playerResult.events, combatEvents, combatDecision: this.#lastCombatDecision, chunks, nearby, digest: this.#lastDigest });
   }
 
   snapshot(): RuntimeIntegrationMetrics {
@@ -137,6 +168,7 @@ export class RuntimeIntegrationV2 {
       chunkActive: chunkMetrics.active,
       combatActors: [...this.combatActors()].length,
       combatTargets: [...this.combatTargets()].length,
+      combatDecisionSerial: this.#lastCombatDecision?.serial ?? 0,
       digest: this.#lastDigest,
     });
   }
@@ -149,12 +181,18 @@ export class RuntimeIntegrationV2 {
     this.#elapsedMs = 0;
     this.#nearbyQueries = 0;
     this.#lastDigest = '';
+    this.#lastCombatDecision = null;
+    this.combatDecision.reset();
     this.player.reset(defaultPlayerState(this.player.state.id));
     this.spatial.clear();
     this.chunks.dispose();
   }
 
-  dispose(): void { this.chunks.dispose(); this.spatial.clear(); }
+  dispose(): void {
+    this.combatDecision.dispose();
+    this.chunks.dispose();
+    this.spatial.clear();
+  }
 }
 
 export const copyVec3 = (value: Vec3): Vec3 => Object.freeze({ x: value.x, y: value.y, z: value.z });
