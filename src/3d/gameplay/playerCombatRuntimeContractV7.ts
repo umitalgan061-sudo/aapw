@@ -65,6 +65,23 @@ export function projectPlayerCombatRuntimeFrameV7(
   return freeze(frame);
 }
 
+export function validatePlayerCombatRuntimeFrameV7(frame: PlayerCombatRuntimeFrameV7): boolean {
+  return frame.version === 7
+    && Number.isInteger(frame.tick)
+    && frame.tick >= 0
+    && Number.isFinite(frame.locomotionWeight)
+    && frame.locomotionWeight >= 0
+    && frame.locomotionWeight <= 1
+    && Number.isFinite(frame.stamina01)
+    && frame.stamina01 >= 0
+    && frame.stamina01 <= 1
+    && Number.isFinite(frame.health01)
+    && frame.health01 >= 0
+    && frame.health01 <= 1
+    && typeof frame.checksum === 'string'
+    && /^[0-9a-f]{8}$/.test(frame.checksum);
+}
+
 export function advancePlayerCombatRuntimeFrameV7(
   decision: PlayerCombatDecisionV6,
   player: PlayerStateV6,
