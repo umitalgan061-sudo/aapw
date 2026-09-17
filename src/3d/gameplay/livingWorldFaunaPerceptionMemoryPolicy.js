@@ -42,6 +42,10 @@ function responseFor(score, options) {
   return 'ignore';
 }
 
+function compareActive(a, b) {
+  return b.score - a.score || b.seenAtSeconds - a.seenAtSeconds || a.actorId.localeCompare(b.actorId) || a.stimulusId.localeCompare(b.stimulusId);
+}
+
 export function createLivingWorldFaunaPerceptionMemoryPolicy(config = {}) {
   const options = Object.freeze({ ...DEFAULTS, ...config });
   if (options.maxMemories <= 0 || options.retentionSeconds <= 0 || options.decayPerSecond < 0) {
@@ -64,32 +68,42 @@ export function createLivingWorldFaunaPerceptionMemoryPolicy(config = {}) {
         }
       }
 
-      const active = [];
+      const activeEntries = [];
       for (const [key, memory] of memories) {
-        const age = now - memory.seenAtSeconds;
+        const age = Math.max(0, now - memory.seenAtSeconds);
         if (age > options.retentionSeconds) {
           memories.delete(key);
           continue;
         }
-        const score = decayScore(memory.score, age, options);
-        active.push({
-          actorId: memory.actorId,
-          stimulusId: memory.stimulusId,
-          sourceId: memory.sourceId,
-          type: memory.type,
-          channel: memory.channel,
-          distance: Number(memory.distance.toFixed(4)),
-          ageSeconds: Number(Math.max(0, age).toFixed(4)),
-          score: Number(score.toFixed(6)),
-          response: responseFor(score, options),
-        });
+        activeEntries.push({ memory, age, score: decayScore(memory.score, age, options) });
       }
 
-      active.sort((a, b) => b.score - a.score || a.actorId.localeCompare(b.actorId) || a.stimulusId.localeCompare(b.stimulusId));
-      const bounded = active.slice(0, options.maxMemories);
+      activeEntries.sort((a, b) => compareActive(
+        { ...a.memory, score: a.score, seenAtSeconds: a.memory.seenAtSeconds },
+        { ...b.memory, score: b.score, seenAtSeconds: b.memory.seenAtSeconds },
+      ));
+
+      const retained = activeEntries.slice(0, options.maxMemories);
+      const retainedKeys = new Set(retained.map(({ memory }) => memory.key));
+      for (const key of memories.keys()) {
+        if (!retainedKeys.has(key)) memories.delete(key);
+      }
+
+      const active = retained.map(({ memory, age, score }) => ({
+        actorId: memory.actorId,
+        stimulusId: memory.stimulusId,
+        sourceId: memory.sourceId,
+        type: memory.type,
+        channel: memory.channel,
+        distance: Number(memory.distance.toFixed(4)),
+        ageSeconds: Number(age.toFixed(4)),
+        score: Number(score.toFixed(6)),
+        response: responseFor(score, options),
+      }));
+
       return Object.freeze({
         budget: Object.freeze({ maxMemories: options.maxMemories, retentionSeconds: options.retentionSeconds }),
-        memories: Object.freeze(bounded.map((entry) => Object.freeze(entry))),
+        memories: Object.freeze(active.map((entry) => Object.freeze(entry))),
       });
     },
     reset() {
