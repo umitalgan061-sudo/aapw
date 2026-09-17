@@ -63,10 +63,17 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
   try {
     const canvas = options.canvas ?? resolveCanvas(options.canvasId ?? 'game3d-canvas');
     if (!canvas) throw new Error('GAME3D_CANVAS_MISSING');
-    const runtime = await createModernRuntime({ canvas, initialQuality: options.initialQuality, maxTelemetrySamples: options.maxTelemetrySamples });
     const gate = options.installGate === false ? undefined : installEntryGate(options.gateOptions);
     const legacyLoaded = options.legacyLoader ? await options.legacyLoader() : await loadLegacyGame();
     bridgeLegacyEvents();
+    // The current sceneManager constructs THREE.WebGLRenderer. Do not let a browser-level WebGPU
+    // capability masquerade as the backend actually driving this scene.
+    const runtime = await createModernRuntime({
+      canvas,
+      backendHint: 'webgl2',
+      initialQuality: options.initialQuality,
+      maxTelemetrySamples: options.maxTelemetrySamples,
+    });
     const presentationBridge = new RendererPresentationBridge({
       rendererProvider: () => getLegacyGameState()?.renderer ?? null,
       minFramesBetweenChanges: 18,
@@ -95,7 +102,6 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
         drawCalls: input.drawCalls ?? legacyMetrics.drawCalls,
         triangles: input.triangles ?? legacyMetrics.triangles,
         visibleObjects: input.visibleObjects ?? 0,
-        // Three.js exposes counts here but not a portable aggregate texture-byte budget.
         textureBytes: input.textureBytes ?? 0,
         memoryPressure: input.memoryPressure,
         thermalPressure: input.thermalPressure,
@@ -104,12 +110,7 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
       presentationBridge.apply(snapshot);
       state.lastTime = now;
       state.lastSnapshot = snapshot;
-      modernState.patch({
-        isLoading: false,
-        loadProgress: 1,
-        fps: frameMs > 0 ? 1000 / frameMs : 0,
-        frameMs,
-      });
+      modernState.patch({ isLoading: false, loadProgress: 1, fps: frameMs > 0 ? 1000 / frameMs : 0, frameMs });
       options.onFrame?.(snapshot);
       return snapshot;
     };
