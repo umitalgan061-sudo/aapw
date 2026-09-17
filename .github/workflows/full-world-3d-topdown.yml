@@ -78,6 +78,8 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Verify production terrain geomorphology, soil fabric, marine shelf, offshore water and atmosphere contracts
+        id: terrain_contracts
+        continue-on-error: true
         run: |
           set -euo pipefail
           node --check src/3d/fog.js
@@ -107,6 +109,7 @@ jobs:
           node scripts/checkPindex05NaturalSoilVariation.mjs
 
       - name: Render authoritative full-world 3D topdown
+        if: always()
         run: |
           node scripts/captureFullWorld3DTopdown.mjs \
             --width=1600 \
@@ -122,3 +125,9 @@ jobs:
           path: artifacts/full-world-3d-topdown/
           if-no-files-found: warn
           retention-days: 7
+
+      - name: Fail production contract gate after visual proof
+        if: steps.terrain_contracts.outcome != 'success'
+        run: |
+          echo 'Terrain production contract gate failed; visual artifact was still generated for inspection.'
+          exit 1
