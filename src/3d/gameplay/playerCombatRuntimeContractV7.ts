@@ -67,18 +67,44 @@ export function projectPlayerCombatRuntimeFrameV7(
 }
 
 export function validatePlayerCombatRuntimeFrameV7(frame: PlayerCombatRuntimeFrameV7): boolean {
+  const phaseIsValid = frame.phase === 'ready'
+    || frame.phase === 'windup'
+    || frame.phase === 'active'
+    || frame.phase === 'recovery';
+  const actionIsValid = frame.action === null || typeof frame.action === 'string';
+  const feedbackIsValid = frame.feedback === null || typeof frame.feedback === 'object';
+  const lockOnTargetIsValid = frame.lockOnTargetId === null || typeof frame.lockOnTargetId === 'string';
+  const readyShapeIsValid = frame.phase !== 'ready'
+    || (frame.action === null
+      && frame.animationLocked === false
+      && frame.hitboxActive === false
+      && frame.locomotionWeight === 1);
+  const activeShapeIsValid = frame.phase !== 'active'
+    || (frame.action !== null
+      && frame.animationLocked === true
+      && frame.hitboxActive === true
+      && frame.locomotionWeight === 0.1);
+
   return frame.version === 7
     && Number.isInteger(frame.tick)
     && frame.tick >= 0
+    && phaseIsValid
+    && actionIsValid
+    && typeof frame.animationLocked === 'boolean'
     && Number.isFinite(frame.locomotionWeight)
     && frame.locomotionWeight >= 0
     && frame.locomotionWeight <= 1
+    && typeof frame.hitboxActive === 'boolean'
+    && feedbackIsValid
+    && lockOnTargetIsValid
     && Number.isFinite(frame.stamina01)
     && frame.stamina01 >= 0
     && frame.stamina01 <= 1
     && Number.isFinite(frame.health01)
     && frame.health01 >= 0
     && frame.health01 <= 1
+    && readyShapeIsValid
+    && activeShapeIsValid
     && typeof frame.checksum === 'string'
     && /^[0-9a-f]{8}$/.test(frame.checksum)
     && frame.checksum === frameDigest(frame);
