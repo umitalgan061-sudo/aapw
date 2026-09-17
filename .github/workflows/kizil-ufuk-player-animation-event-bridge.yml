@@ -1,0 +1,37 @@
+name: Kızıl Ufuk Player Animation Event Bridge
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerAnimationEventBridge.js'
+      - 'scripts/checkKizilUfukPlayerAnimationEventBridge.mjs'
+      - '.github/workflows/kizil-ufuk-player-animation-event-bridge.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact main ancestry
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor "$(git rev-parse origin/main)" "$GITHUB_SHA"
+      - name: Scope guard
+        run: |
+          total=$(git diff --numstat "$(git rev-parse origin/main)...$GITHUB_SHA" -- src/3d/gameplay/playerAnimationEventBridge.js scripts/checkKizilUfukPlayerAnimationEventBridge.mjs .github/workflows/kizil-ufuk-player-animation-event-bridge.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$total" -le 3000
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerAnimationEventBridge.js
+          node --check scripts/checkKizilUfukPlayerAnimationEventBridge.mjs
+      - name: Deterministic contract
+        run: node scripts/checkKizilUfukPlayerAnimationEventBridge.mjs
+      - name: Runtime/editor boundary
+        run: |
+          ! grep -R "EditorMaterialStudio\.js" -n src/3d/gameplay/playerAnimationEventBridge.js scripts/checkKizilUfukPlayerAnimationEventBridge.mjs
+          ! grep -R "MaterialAssignmentCore\|WorldAssetPlacementPipeline" -n src/3d/gameplay/playerAnimationEventBridge.js
