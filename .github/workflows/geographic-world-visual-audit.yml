@@ -1,34 +1,63 @@
 name: Geographic World Visual Audit
+
 on:
   pull_request:
     paths:
       - 'src/3d/world/**'
       - 'src/3d/sceneManager.js'
+      - 'src/3d/modern/**'
       - 'assets/models/**'
       - 'scripts/geographic-world-visual-audit-harness.html'
       - 'scripts/checkGeographicWorldVisualAuditBrowser.mjs'
       - '.github/workflows/geographic-world-visual-audit.yml'
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   browser-runtime:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-        with: { lfs: true }
-      - run: git lfs pull --include="assets/models/settlements/**,assets/models/vegetation/**,assets/models/props/**"
+      - name: Checkout exact requested head branch
+        uses: actions/checkout@v4
+        with:
+          ref: refs/heads/${{ github.head_ref || github.ref_name }}
+          lfs: true
+
+      - name: Verify checked out commit is the requested head
+        run: |
+          set -euo pipefail
+          expected='${{ github.event.pull_request.head.sha || github.sha }}'
+          actual="$(git rev-parse HEAD)"
+          echo "expected=$expected"
+          echo "actual=$actual"
+          test "$actual" = "$expected"
+
+      - name: Pull required LFS assets
+        run: git lfs pull --include="assets/models/settlements/**,assets/models/vegetation/**,assets/models/props/**"
+
       - name: Reject unresolved model pointers
         run: |
           set -euo pipefail
           if grep -R -a -q 'version https://git-lfs.github.com/spec/v1' assets/models; then
             echo 'Unresolved Git LFS pointer remains under assets/models'; exit 1
           fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - run: npm install --no-package-lock --ignore-scripts
       - run: npx playwright install --with-deps chromium
+
       - name: Serve repository
         run: npx --yes http-server . -p 4173 > /tmp/aapw-http.log 2>&1 &
+
       - name: Boot exact production 3D scene and run visual smoke audit
         run: node scripts/checkGeographicWorldVisualAuditBrowser.mjs
+
       - if: failure()
         run: cat /tmp/aapw-http.log || true
