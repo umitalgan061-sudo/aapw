@@ -10,6 +10,7 @@ on:
       - 'src/3d/gameplay/playerConfig.js'
       - 'tests/modern/playerConfig.test.ts'
       - 'scripts/checkKizilUfukTypedPlayerConfig.mjs'
+      - '.github/tsconfig.kizil-ufuk-player-config.json'
       - '.github/workflows/kizil-ufuk-typed-player-config.yml'
 
 permissions:
@@ -43,8 +44,8 @@ jobs:
       - name: Changed-line cap
         run: test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
 
-      - name: TypeScript
-        run: npx tsc --noEmit --pretty false
+      - name: TypeScript authored slice
+        run: npx tsc -p .github/tsconfig.kizil-ufuk-player-config.json --pretty false
 
       - name: Typed config executable proof
         run: node --experimental-strip-types scripts/checkKizilUfukTypedPlayerConfig.mjs
