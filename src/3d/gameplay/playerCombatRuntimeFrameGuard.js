@@ -13,6 +13,16 @@ const bounded = (value, min, max) => finite(value) && Number(value) >= min && Nu
 
 export const PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION = 1;
 
+function cloneAndFreeze(value, seen = new WeakMap()) {
+  if (value === null || typeof value !== 'object') return value;
+  if (seen.has(value)) return seen.get(value);
+
+  const clone = Array.isArray(value) ? [] : {};
+  seen.set(value, clone);
+  for (const [key, child] of Object.entries(value)) clone[key] = cloneAndFreeze(child, seen);
+  return Object.freeze(clone);
+}
+
 export function createPlayerCombatRuntimeFrameGuard({
   maxTimestampRegression = 0,
   maxRevisionGap = 1,
@@ -40,7 +50,7 @@ export function createPlayerCombatRuntimeFrameGuard({
       timestamp: Number(frame.timestamp),
       attackSerial: Number(frame.attack?.serial ?? 0),
     });
-    return Object.freeze({ ok: true, frame, accepted, rejected });
+    return Object.freeze({ ok: true, frame: cloneAndFreeze(frame), accepted, rejected });
   }
 
   function inspect(frame) {
