@@ -1,0 +1,66 @@
+name: Safak Kartali Fauna Population LOD Budget
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/checkSafakKartaliFaunaPopulationLodBudget.mjs'
+      - 'src/3d/gameplay/livingWorldFaunaPopulationDirector.js'
+      - 'src/3d/gameplay/livingWorldFaunaRuntimeBridge.js'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.js'
+      - '.github/workflows/safak-kartali-fauna-population-lod-budget.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fauna-population-lod-budget:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main entry gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+      - name: Syntax gate
+        run: |
+          node --check scripts/checkSafakKartaliFaunaPopulationLodBudget.mjs
+          node --check src/3d/gameplay/livingWorldFaunaPopulationDirector.js
+          node --check src/3d/gameplay/livingWorldFaunaRuntimeBridge.js
+          node --check src/3d/gameplay/livingWorldEcologyPolicy.js
+      - name: Existing fauna population contract
+        run: node scripts/checkLivingWorldFaunaPopulationDirector.mjs
+      - name: LOD and budget proof
+        run: node scripts/checkSafakKartaliFaunaPopulationLodBudget.mjs
+      - name: Shared material and placement boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio" -n scripts/checkSafakKartaliFaunaPopulationLodBudget.mjs .github/workflows/safak-kartali-fauna-population-lod-budget.yml
+          grep -F "src/3d/materials/MaterialAssignmentCore.js" scripts/checkSafakKartaliFaunaPopulationLodBudget.mjs >/dev/null
+          grep -F "src/3d/world/WorldAssetPlacementPipeline.js" scripts/checkSafakKartaliFaunaPopulationLodBudget.mjs >/dev/null
+      - name: Additive changed-line cap
+        shell: bash
+        run: |
+          set -euo pipefail
+          additions=$(git diff --numstat "$BASE_SHA" HEAD -- . | awk '{a+=$1} END {print a+0}')
+          deletions=$(git diff --numstat "$BASE_SHA" HEAD -- . | awk '{d+=$2} END {print d+0}')
+          total=$((additions + deletions))
+          test "$total" -le 3000
+          echo "changed-lines=$total additions=$additions deletions=$deletions"
+      - name: Final exact-main gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
