@@ -2,9 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 const ROOTS = ['src/3d', 'src/engine-ts'];
-const LEGACY_ALLOWLIST = new Set([
-  'src/3d/vendor/',
-]);
+const LEGACY_ALLOWLIST = new Set(['src/3d/vendor/']);
 const MUST_EXIST = [
   'src/engine-ts/coreTypes.ts',
   'src/engine-ts/runtimeContracts.ts',
@@ -46,6 +44,9 @@ const legacyFiles = sourceFiles.filter(path => /\.(js|jsx)$/.test(path) && ![...
 const typedFiles = sourceFiles.filter(path => /\.(ts|tsx)$/.test(path));
 const migrationCandidates = legacyFiles.filter(path => !path.includes('/vendor/'));
 const untypedImportPattern = /from\s+['"](\.\.?\/[^'"]+\.js)['"]/g;
+// Count TypeScript type-position `any`; ordinary identifiers such as an ECS query variable named
+// `any` are valid code and must not be treated as unsafe type escapes.
+const explicitAnyPattern = /(?:\bas\s+any\b|[:=<]\s*any\b|,\s*any\s*(?=[>,])|\bany\s*\[\])/g;
 
 function typedSourceExists(ownerPath, specifier) {
   const ownerDir = dirname(ownerPath);
@@ -56,13 +57,11 @@ function typedSourceExists(ownerPath, specifier) {
 
 for (const path of typedFiles) {
   const content = await readFile(path, 'utf8');
-  const unsafeAny = (content.match(/\bany\b/g) ?? []).length;
-  if (unsafeAny > 12) failures.push(`${path}: excessive explicit any (${unsafeAny})`);
+  const unsafeAny = content.match(explicitAnyPattern)?.length ?? 0;
+  if (unsafeAny > 12) failures.push(`${path}: excessive explicit any type usage (${unsafeAny})`);
   if (/\b(Math\.random|Date\.now)\s*\(/.test(content) && /determin/i.test(content)) failures.push(`${path}: deterministic module uses wall/random clock source`);
   for (const match of content.matchAll(untypedImportPattern)) {
     const specifier = match[1];
-    // TypeScript-first ESM commonly keeps the emitted `.js` specifier while the source file is
-    // `.ts`. Only reject the dependency when that specifier does not resolve to a typed source file.
     if (specifier && !typedSourceExists(path, specifier) && !specifier.includes('/vendor/')) {
       failures.push(`${path}: typed module imports legacy .js dependency ${specifier}`);
     }
@@ -70,7 +69,7 @@ for (const path of typedFiles) {
 }
 
 const manifest = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   generatedAt: 'source-controlled',
   strategy: 'typed-core-first',
   sourceRoots: ROOTS,
@@ -79,6 +78,7 @@ const manifest = {
   legacyRuntimeFiles: migrationCandidates.length,
   legacyPolicy: 'legacy runtime files are frozen at the boundary; new engine code must be TypeScript',
   esmResolutionPolicy: 'an emitted .js import is typed-safe when a sibling .ts/.tsx source module resolves to the same specifier',
+  explicitAnyPolicy: 'only syntactic type-position any is counted; identifiers named any are not type escapes',
 };
 
 console.log(JSON.stringify(manifest, null, 2));
