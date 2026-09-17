@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { auditFaunaAmbientLifePlan, planFaunaAmbientLife } from '../src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js';
+
+const policySource = readFileSync(new URL('../src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js', import.meta.url), 'utf8');
+assert.equal(policySource.includes('Math.random('), false, 'ambient fauna policy must remain seeded/deterministic');
+
 const input={seed:'ambient-proof',world:{tick:42,hour:19,weatherPressure:0.22},playerPosition:{x:0,z:0},actors:[
 {id:'wolf-2',species:'wolf',role:'predator',position:{x:38,z:4},threatLevel:0.7,groundValid:true,navReachable:true},
 {id:'deer-1',species:'deer',role:'grazer',activity:'drink',position:{x:96,z:10},nearWater:true,groundValid:true,navReachable:true},
