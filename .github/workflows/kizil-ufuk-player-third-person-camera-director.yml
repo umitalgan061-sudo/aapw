@@ -1,0 +1,39 @@
+name: Kizil Ufuk Player Third-Person Camera Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerThirdPersonCameraDirector.js'
+      - 'scripts/checkKizilUfukPlayerThirdPersonCameraDirector.mjs'
+      - '.github/workflows/kizil-ufuk-player-third-person-camera-director.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-third-person-camera-director-20260917-r11'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify exact ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          test "$(git merge-base origin/main HEAD)" = "$(git rev-parse origin/main)"
+          changed="$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$changed" -le 3000
+          git diff --name-only origin/main...HEAD | grep -Ev '^(src/3d/gameplay/playerThirdPersonCameraDirector\.js|scripts/checkKizilUfukPlayerThirdPersonCameraDirector\.mjs|\.github/workflows/kizil-ufuk-player-third-person-camera-director\.yml)$' && exit 1 || true
+      - name: Check runtime/editor boundary and syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio\.js" src/3d/gameplay/playerThirdPersonCameraDirector.js
+          ! grep -R "Math\.random" src/3d/gameplay/playerThirdPersonCameraDirector.js
+          node --check src/3d/gameplay/playerThirdPersonCameraDirector.js
+          node --check scripts/checkKizilUfukPlayerThirdPersonCameraDirector.mjs
+      - name: Execute deterministic proof
+        run: node scripts/checkKizilUfukPlayerThirdPersonCameraDirector.mjs
