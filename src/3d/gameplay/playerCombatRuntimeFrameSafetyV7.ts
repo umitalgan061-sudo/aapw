@@ -1,4 +1,7 @@
-import type { PlayerCombatRuntimeFrameV7 } from './playerCombatRuntimeContractV7';
+import {
+  validatePlayerCombatRuntimeFrameV7,
+  type PlayerCombatRuntimeFrameV7,
+} from './playerCombatRuntimeContractV7';
 
 const deepFreeze = <T>(value: T): T => {
   if (value === null || typeof value !== 'object' || Object.isFrozen(value)) return value;
@@ -28,7 +31,6 @@ export function freezePlayerCombatRuntimeFrameV7(
 export function freezeValidatedPlayerCombatRuntimeFrameV7(
   frame: PlayerCombatRuntimeFrameV7,
 ): Readonly<PlayerCombatRuntimeFrameV7> {
-  const { validatePlayerCombatRuntimeFrameV7 } = require('./playerCombatRuntimeContractV7') as typeof import('./playerCombatRuntimeContractV7');
   if (!validatePlayerCombatRuntimeFrameV7(frame)) {
     throw new Error('Invalid player combat runtime frame');
   }
