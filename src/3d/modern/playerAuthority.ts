@@ -138,6 +138,36 @@ export class PlayerAuthority {
     this.#elapsedMs = 0;
   }
 
+  spendStamina(amount: number): boolean {
+    const cost = Math.max(0, Number.isFinite(amount) ? amount : 0);
+    if (cost > this.#state.stats.stamina) return false;
+    this.#state = Object.freeze({
+      ...this.#state,
+      stats: Object.freeze({ ...this.#state.stats, stamina: Number((this.#state.stats.stamina - cost).toFixed(4)) }),
+      revision: this.#state.revision + 1,
+    });
+    return true;
+  }
+
+  restoreStamina(amount: number): number {
+    if (this.#state.locomotion === 'dead') return 0;
+    const gain = Math.max(0, Number.isFinite(amount) ? amount : 0);
+    const next = clamp(this.#state.stats.stamina + gain, 0, this.#state.stats.maxStamina);
+    const delta = next - this.#state.stats.stamina;
+    if (delta === 0) return 0;
+    this.#state = Object.freeze({
+      ...this.#state,
+      stats: Object.freeze({ ...this.#state.stats, stamina: Number(next.toFixed(4)) }),
+      revision: this.#state.revision + 1,
+    });
+    return delta;
+  }
+
+  setStance(stance: PlayerStance): void {
+    if (this.#state.locomotion === 'dead') return;
+    this.#state = Object.freeze({ ...this.#state, stance, revision: this.#state.revision + 1 });
+  }
+
   step(input: PlayerInput, deltaMs: number): PlayerStepResult {
     const dtMs = clamp(deltaMs, 0, 100);
     const dt = dtMs / 1000;
