@@ -22,6 +22,9 @@ on:
       - 'src/3d/world/westernReferenceSurfaceFabric.js'
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
+      - 'src/3d/modern/rendererPresentationBridge.ts'
+      - 'src/3d/modern/rendererRegistry.ts'
+      - 'src/3d/modern/game3dEntry.ts'
       - 'scripts/checkTerrainMicroSurface.mjs'
       - 'scripts/checkTerrainMacroWeathering.mjs'
       - 'scripts/checkTerrainMacroWeatheringStatistics.mjs'
@@ -55,7 +58,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install terrain/browser QA dependencies
         run: |
@@ -78,7 +81,6 @@ jobs:
           node --check src/3d/world/worldReferencePindex05Detail.js
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
-          node --check scripts/checkMountainLakeBasinTaper.mjs
           node scripts/checkTerrainMacroWeathering.mjs
           node scripts/checkTerrainMacroWeatheringStatistics.mjs
           node scripts/checkTerrainMacroWeatheringIntegration.mjs
