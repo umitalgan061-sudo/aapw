@@ -10,6 +10,8 @@ on:
       - 'src/3d/gameplay/**Config.js'
       - 'tests/modern/gameplayConfigContracts.test.ts'
       - 'scripts/checkKizilUfukGameplayConfig.mjs'
+      - 'scripts/checkKizilUfukGameplayAssets.mjs'
+      - 'assets_manifest.json'
       - '.github/workflows/kizil-ufuk-gameplay-config-contract.yml'
 
 permissions:
@@ -48,6 +50,9 @@ jobs:
 
       - name: Gameplay contract executable proof
         run: node --experimental-strip-types scripts/checkKizilUfukGameplayConfig.mjs
+
+      - name: Gameplay asset manifest proof
+        run: node --experimental-strip-types scripts/checkKizilUfukGameplayAssets.mjs
 
       - name: Gameplay contract Vitest
         run: npx vitest run tests/modern/gameplayConfigContracts.test.ts
