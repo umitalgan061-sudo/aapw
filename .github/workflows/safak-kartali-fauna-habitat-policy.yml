@@ -19,11 +19,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Exact-main ancestry gate
+        run: |
+          git fetch origin main --depth=1
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
       - name: Syntax gate
         run: node --check src/3d/gameplay/livingWorldFaunaHabitatPolicy.js && node --check scripts/checkSafakKartaliFaunaHabitatPolicy.mjs
       - name: Runtime proof
         run: node scripts/checkSafakKartaliFaunaHabitatPolicy.mjs
-      - name: Runtime boundary guard
-        run: '! grep -R "EditorMaterialStudio" src/3d/gameplay/livingWorldFaunaHabitatPolicy.js scripts/checkSafakKartaliFaunaHabitatPolicy.mjs'
+      - name: Runtime boundary and determinism guard
+        run: |
+          ! grep -R "EditorMaterialStudio" src/3d/gameplay/livingWorldFaunaHabitatPolicy.js scripts/checkSafakKartaliFaunaHabitatPolicy.mjs
+          ! grep -R "Math\.random(" src/3d/gameplay/livingWorldFaunaHabitatPolicy.js
       - name: Scope guard
-        run: test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+        run: |
+          changed=$(git diff --numstat origin/main...HEAD -- \
+            src/3d/gameplay/livingWorldFaunaHabitatPolicy.js \
+            scripts/checkSafakKartaliFaunaHabitatPolicy.mjs \
+            .github/workflows/safak-kartali-fauna-habitat-policy.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
