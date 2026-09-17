@@ -12,6 +12,7 @@ describe('RuntimeIntegrationV2 combat bridge', () => {
     const result = runtime.tick({ deltaMs: 200, combatAction: 'light' });
     expect(result.combatDecision?.action).toBe('light');
     expect(result.combatDecision?.checksum).toMatch(/^[0-9a-f]+$/);
+    expect(result.combatDecision?.phase).toBe('active');
     runtime.dispose();
   });
 
@@ -22,6 +23,7 @@ describe('RuntimeIntegrationV2 combat bridge', () => {
     const second = b.tick({ deltaMs: 200, combatAction: 'heavy' });
     expect(first.digest).toBe(second.digest);
     expect(first.combatDecision?.action).toBe('heavy');
+    expect(first.combatDecision?.phase).toBe('active');
     a.dispose();
     b.dispose();
   });
