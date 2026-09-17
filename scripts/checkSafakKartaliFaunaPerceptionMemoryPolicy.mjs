@@ -20,6 +20,25 @@ assert.equal(retained.memories[0].ageSeconds, 2);
 assert.equal(retained.memories[0].score < acquired.memories[0].score, true);
 assert.equal(retained.memories[0].response, 'investigate');
 
+const capped = createLivingWorldFaunaPerceptionMemoryPolicy({ maxMemories: 2, retentionSeconds: 10, decayPerSecond: 0 });
+const cappedResult = capped.project({
+  perception: {
+    observations: [{
+      actorId: 'wolf-1',
+      observations: [
+        { id: 'low', type: 'actor', score: 0.4, distance: 12, channel: 'vision' },
+        { id: 'high', type: 'actor', score: 0.9, distance: 8, channel: 'vision' },
+        { id: 'mid', type: 'actor', score: 0.7, distance: 10, channel: 'vision' },
+      ],
+    }],
+  },
+  nowSeconds: 1,
+});
+assert.equal(cappedResult.memories.length, 2);
+assert.deepEqual(cappedResult.memories.map(({ stimulusId }) => stimulusId), ['high', 'mid']);
+assert.equal(cappedResult.budget.maxMemories, 2);
+capped.dispose();
+
 const expired = memory.project({ perception: { observations: [] }, nowSeconds: 8 });
 assert.equal(expired.memories.length, 0);
 
