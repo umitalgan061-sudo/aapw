@@ -34,6 +34,7 @@ export interface RendererPresentationDiagnostics {
   readonly quality: QualityTier | null;
   readonly targetScale: number;
   readonly appliedScale: number;
+  readonly baselinePixelRatio: number | null;
   readonly pixelRatio: number | null;
   readonly shadowBaseline: boolean;
   readonly shadowsActive: boolean | null;
@@ -54,7 +55,6 @@ interface RendererInstrumentation {
 }
 
 const RENDERER_INSTRUMENTATION = new WeakMap<object, RendererInstrumentation>();
-
 const QUALITY_SCALE: Readonly<Record<QualityTier, number>> = Object.freeze({ minimal: 0.62, balanced: 0.78, high: 0.91, ultra: 1 });
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const finiteNonNegativeInt = (value: unknown): number => {
@@ -81,6 +81,7 @@ export class RendererPresentationBridge {
   #minPixelRatio: number;
   #minFramesBetweenChanges: number;
   #baseDevicePixelRatio: number;
+  #baselinePixelRatio: number | null;
   #lastQuality: QualityTier | null = null;
   #targetScale = 1;
   #appliedScale = 1;
@@ -98,6 +99,11 @@ export class RendererPresentationBridge {
     this.#minFramesBetweenChanges = Math.max(4, Math.trunc(options.minFramesBetweenChanges ?? 18));
     this.#baseDevicePixelRatio = this.#readDevicePixelRatio();
     const renderer = this.#rendererProvider();
+    this.#baselinePixelRatio = renderer?.getPixelRatio?.() ?? null;
+    if (this.#baselinePixelRatio !== null) {
+      this.#appliedScale = clamp(this.#baselinePixelRatio / this.#baseDevicePixelRatio, 0.5, this.#maxPixelRatio / this.#baseDevicePixelRatio);
+      this.#targetScale = this.#appliedScale;
+    }
     this.#shadowBaseline = Boolean(renderer?.shadowMap?.enabled);
     this.#instrumentation = acquireRendererInstrumentation(renderer);
   }
@@ -156,6 +162,7 @@ export class RendererPresentationBridge {
       quality: this.#lastQuality,
       targetScale: this.#targetScale,
       appliedScale: this.#appliedScale,
+      baselinePixelRatio: this.#baselinePixelRatio,
       pixelRatio: renderer?.getPixelRatio?.() ?? null,
       shadowBaseline: this.#shadowBaseline,
       shadowsActive: renderer?.shadowMap ? Boolean(renderer.shadowMap.enabled) : null,
@@ -171,6 +178,7 @@ export class RendererPresentationBridge {
     this.#instrumentation = null;
     const renderer = this.#rendererProvider();
     if (renderer?.shadowMap) renderer.shadowMap.enabled = this.#shadowBaseline;
+    if (renderer?.setPixelRatio && this.#baselinePixelRatio !== null) renderer.setPixelRatio(this.#baselinePixelRatio);
     this.#lastQuality = null;
     this.#cooldown = 0;
     this.#targetScale = 1;
