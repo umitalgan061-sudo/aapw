@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
-import { createPlayerCombatActionRouter, PLAYER_COMBAT_INPUT_EVENT } from '../src/3d/gameplay/playerCombatActionRouter.js';
+import { createPlayerCombatActionRouter, PLAYER_COMBAT_INPUT_EVENT } from '../src/3d/gameplay/playerCombatActionRouter.ts';
 
 const emitted = [];
-const target = { CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init.detail; } }, dispatchEvent(event) { emitted.push(event); return true; } };
+const target = {
+  CustomEvent: class {
+    constructor(type, init) { this.type = type; this.detail = init.detail; }
+  },
+  dispatchEvent(event) { emitted.push(event); return true; },
+};
 let clock = 1000;
 const router = createPlayerCombatActionRouter({ target, now: () => clock });
 
@@ -20,5 +25,6 @@ router.enqueue('heavy', 'keyboard', 2001);
 assert.deepEqual(router.drain({ max: 1 }).map(({ kind }) => kind), ['light']);
 assert.deepEqual(router.drain().map(({ kind }) => kind), ['heavy']);
 router.reset();
+assert.equal(router.size(), 0);
 assert.deepEqual(router.drain(), []);
-console.log('player combat action router contract: PASS');
+console.log('typed player combat action router contract: PASS');
