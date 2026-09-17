@@ -1,0 +1,33 @@
+name: Kizil Ufuk Player Combat Action Buffer
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatActionBuffer.js'
+      - 'scripts/checkPlayerCombatActionBuffer.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-action-buffer.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-combat-action-buffer-20260916-r11'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact head and additive scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git diff --name-only origin/main...HEAD | sort | tr '\n' ' ')" = ".github/workflows/kizil-ufuk-player-combat-action-buffer.yml scripts/checkPlayerCombatActionBuffer.mjs src/3d/gameplay/playerCombatActionBuffer.js "
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a "," d}')" = "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a "," d}')"
+          additions=$(git diff --numstat origin/main...HEAD | awk '{a+=$1} END {print a+0}')
+          deletions=$(git diff --numstat origin/main...HEAD | awk '{d+=$2} END {print d+0}')
+          test "$deletions" -eq 0
+          test "$((additions + deletions))" -le 3000
+      - name: Runtime syntax
+        run: node --check src/3d/gameplay/playerCombatActionBuffer.js
+      - name: Executable contract
+        run: node scripts/checkPlayerCombatActionBuffer.mjs
