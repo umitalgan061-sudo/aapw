@@ -1,7 +1,11 @@
 import process from 'node:process';
+import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 const url = process.argv[2] || 'http://127.0.0.1:4173/scripts/geographic-world-visual-audit-harness.html';
+const artifactDir = 'artifacts/geographic-world-visual-audit';
+await mkdir(artifactDir, { recursive: true });
+
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
 const consoleErrors = [];
@@ -14,6 +18,11 @@ page.on('pageerror', (error) => pageErrors.push(String(error)));
 await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
 await page.waitForFunction(() => Boolean(window.__GEOGRAPHIC_WORLD_VISUAL_AUDIT__), null, { timeout: 120000 });
 const proof = await page.evaluate(() => window.__GEOGRAPHIC_WORLD_VISUAL_AUDIT__);
+await page.screenshot({ path: `${artifactDir}/browser-world-viewport.png`, fullPage: false });
+const canvas = page.locator('#game3d-canvas');
+if (await canvas.count()) {
+  await canvas.screenshot({ path: `${artifactDir}/world-canvas.png` });
+}
 await browser.close();
 
 const failures = [...(proof?.failures || [])];
@@ -21,8 +30,18 @@ if (consoleErrors.length) failures.push('browser-console-errors');
 if (pageErrors.length) failures.push('browser-page-errors');
 if (!proof?.ok) failures.push('harness-not-ok');
 
+const finalProof = {
+  ...proof,
+  artifactPaths: [
+    `${artifactDir}/browser-world-viewport.png`,
+    `${artifactDir}/world-canvas.png`,
+  ],
+  consoleErrors,
+  pageErrors,
+};
+
 if (failures.length) {
-  console.error(JSON.stringify({ ok: false, failures, proof, consoleErrors, pageErrors }, null, 2));
+  console.error(JSON.stringify({ ok: false, failures, proof: finalProof }, null, 2));
   process.exit(1);
 }
 
@@ -31,4 +50,5 @@ console.log(JSON.stringify({
   checks: proof.checks,
   gpu: proof.gpu,
   settlement: proof.settlement,
+  artifactPaths: finalProof.artifactPaths,
 }, null, 2));
