@@ -19,7 +19,7 @@ describe('CombatAuthority deterministic attack lifecycle', () => {
 
     const actor = combat.actor('hero');
     expect(actor?.currentAttackId).toBe('heavy');
-    expect(actor?.phase).toBe('active');
+    expect(actor?.phase).toBe('recovery');
 
     const finished = combat.step(700);
     expect(finished.some((event) => event.type === 'attackFinished' && event.attackId === 'heavy')).toBe(true);
