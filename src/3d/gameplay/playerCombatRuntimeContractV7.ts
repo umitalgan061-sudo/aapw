@@ -19,7 +19,6 @@ export interface PlayerCombatRuntimeFrameV7 {
   readonly lockOnTargetId: string | null;
   readonly stamina01: number;
   readonly health01: number;
-  readonly poise01: number;
   readonly checksum: string;
 }
 
@@ -36,6 +35,10 @@ const digest = (value: unknown): string => {
 
 const freeze = <T extends object>(value: T): Readonly<T> => Object.freeze(value);
 
+/**
+ * Render/input-facing projection over the existing PlayerCombatDecisionV6 authority.
+ * It does not own stamina, health, locomotion or hit detection state.
+ */
 export function projectPlayerCombatRuntimeFrameV7(
   player: PlayerStateV6,
   tick: TickId,
@@ -56,7 +59,6 @@ export function projectPlayerCombatRuntimeFrameV7(
     lockOnTargetId: receipt?.lockOn?.targetId ?? receipt?.targetId ?? null,
     stamina01: clamp01(player.maxStamina > 0 ? player.stamina / player.maxStamina : 0),
     health01: clamp01(player.maxHealth > 0 ? player.health / player.maxHealth : 0),
-    poise01: clamp01(player.maxPoise > 0 ? player.poise / player.maxPoise : 0),
     checksum: '',
   };
   frame.checksum = digest({ ...frame, checksum: undefined });
