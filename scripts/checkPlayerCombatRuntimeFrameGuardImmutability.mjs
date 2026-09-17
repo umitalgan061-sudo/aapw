@@ -13,10 +13,16 @@ const guard = createPlayerCombatRuntimeFrameGuard();
 const accepted = guard.inspect(nested);
 assert.equal(accepted.ok, true);
 assert.equal(Object.isFrozen(accepted), true);
-assert.equal(Object.isFrozen(accepted.frame), false);
+assert.equal(Object.isFrozen(accepted.frame), true);
+assert.equal(Object.isFrozen(accepted.frame.attack), true);
+assert.equal(Object.isFrozen(accepted.frame.attack.metadata), true);
+assert.equal(Object.isFrozen(accepted.frame.feedback.payload), true);
 
 nested.feedback.payload.intensity = 1;
-assert.equal(accepted.frame.feedback.payload.intensity, 1);
+nested.attack.metadata.phase = 'active';
+assert.equal(accepted.frame.feedback.payload.intensity, 0.4);
+assert.equal(accepted.frame.attack.metadata.phase, 'windup');
+assert.notEqual(accepted.frame, nested);
 
 const followUp = guard.inspect({
   version: 1,
@@ -25,6 +31,7 @@ const followUp = guard.inspect({
   attack: { serial: 1, metadata: { phase: 'active' } },
 });
 assert.equal(followUp.ok, true);
+assert.equal(Object.isFrozen(followUp.frame), true);
 assert.equal(guard.readState().accepted, 2);
 
-console.log('player combat runtime frame guard immutability baseline: 6 checks passed');
+console.log('player combat runtime frame guard immutability: 10 checks passed');
