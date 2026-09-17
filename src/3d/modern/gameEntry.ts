@@ -96,6 +96,8 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
         drawCalls: input.drawCalls ?? legacyMetrics.drawCalls,
         triangles: input.triangles ?? legacyMetrics.triangles,
         visibleObjects: input.visibleObjects ?? 0,
+        // Three.js exposes texture/geometry counts, not aggregate texture bytes. Keep this metric
+        // honest instead of manufacturing a byte estimate from a count.
         textureBytes: input.textureBytes ?? 0,
         memoryPressure: input.memoryPressure,
         thermalPressure: input.thermalPressure,
