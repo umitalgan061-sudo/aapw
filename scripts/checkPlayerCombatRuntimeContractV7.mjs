@@ -56,6 +56,10 @@ const invalidFrame = { ...readyFrame, locomotionWeight: 2 };
 assert.equal(validatePlayerCombatRuntimeFrameV7(invalidFrame), false);
 const invalidReadyAction = { ...readyFrame, action: 'light', checksum: readyFrame.checksum };
 assert.equal(validatePlayerCombatRuntimeFrameV7(invalidReadyAction), false);
+const invalidUnknownAction = { ...firstFrame, action: 'teleport', checksum: firstFrame.checksum };
+assert.equal(validatePlayerCombatRuntimeFrameV7(invalidUnknownAction), false);
+const invalidFeedbackPayload = { ...readyFrame, feedback: [] };
+assert.equal(validatePlayerCombatRuntimeFrameV7(invalidFeedbackPayload), false);
 const invalidActiveShape = { ...activeFrame, hitboxActive: false };
 assert.equal(validatePlayerCombatRuntimeFrameV7(invalidActiveShape), false);
 const tamperedChecksum = { ...readyFrame, checksum: readyFrame.checksum === '00000000' ? 'ffffffff' : '00000000' };
@@ -63,7 +67,7 @@ assert.equal(validatePlayerCombatRuntimeFrameV7(tamperedChecksum), false);
 
 console.log(JSON.stringify({
   contract: 'player-combat-runtime-v7',
-  checks: 24,
+  checks: 26,
   ready: readyFrame,
   initial: firstFrame,
   active: activeFrame,
