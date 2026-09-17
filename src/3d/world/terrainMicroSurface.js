@@ -15,6 +15,7 @@ import { TERRAIN_TRANSITION_POLICY, installTerrainTransitionField } from './terr
 import { TERRAIN_ROCK_FABRIC_POLICY, installTerrainRockFabric } from './terrainSurfaceRockFabric.js';
 import { TERRAIN_LOWINLAND_FABRIC_POLICY, installTerrainLowlandFabric } from './terrainSurfaceLowlandFabric.js';
 import { TERRAIN_CRYOSPHERE_POLICY, installTerrainCryosphere } from './terrainSurfaceCryosphere.js';
+import { TERRAIN_STOCHASTIC_DETAIL_POLICY, installTerrainStochasticDetail } from './terrainStochasticDetail.js';
 import { WORLD_DEFAULTS } from '../config.js';
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
@@ -66,6 +67,7 @@ export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
 	terrainRockFabricPolicyId: TERRAIN_ROCK_FABRIC_POLICY.id,
 	terrainLowlandFabricPolicyId: TERRAIN_LOWINLAND_FABRIC_POLICY.id,
 	terrainCryospherePolicyId: TERRAIN_CRYOSPHERE_POLICY.id,
+	terrainStochasticDetailPolicyId: TERRAIN_STOCHASTIC_DETAIL_POLICY.id,	stochasticWorldDetail: true,
 	renderOnly: true,
 	canonicalHeightUnchanged: true,
 	canonicalHydrologyUnchanged: true,
@@ -245,6 +247,7 @@ export function applyTerrainMicroSurface(material) {
 	installTerrainRockFabric(material);
 	installTerrainLowlandFabric(material);
 	installTerrainCryosphere(material);
+	installTerrainStochasticDetail(material);
 	material.userData.terrainMicroSurface = Object.freeze({
 		policyId: TERRAIN_MICRO_SURFACE_POLICY.id,
 		detailRepeatMeters: TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters,
@@ -286,6 +289,8 @@ export function applyTerrainMicroSurface(material) {
 		terrainCryosphereWindPackedSnow: true,
 		terrainCryosphereSastrugi: true,
 		terrainCryosphereScourVsDeposition: true,
+		terrainStochasticDetailPolicyId: TERRAIN_STOCHASTIC_DETAIL_POLICY.id,
+		stochasticWorldDetail: true,
 		canonicalHeightUnchanged: true,
 		canonicalHydrologyUnchanged: true,
 		canonicalColliderUnchanged: true,

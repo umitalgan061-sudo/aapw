@@ -3,6 +3,7 @@ import { createModernRuntime, tickModernRuntime, type RuntimeFrameInput, type Ru
 import { installEntryGate, type EntryGateController } from './entryGate';
 import { platformEvents } from './eventBus';
 import { modernState } from './stateStore';
+import { readLegacyRenderMetrics, RendererPresentationBridge, type RendererPresentationLike } from './rendererPresentationBridge';
 
 export interface Game3DEntryOptions {
   readonly canvas?: HTMLCanvasElement;
@@ -28,6 +29,12 @@ export interface LegacyEventBusModule {
   readonly gameEvents?: { readonly on?: (event: string, handler: (payload: unknown) => void) => void };
   readonly EVENTS?: Readonly<Record<string, string>>;
 }
+
+interface LegacyGameStateLike {
+  readonly renderer?: RendererPresentationLike;
+}
+
+let activeSession: ModernGame3DSession | undefined;
 
 export interface ModernGame3DSession {
   readonly runtime: RuntimeServices;
@@ -60,6 +67,15 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
     const gate = options.installGate === false ? undefined : installEntryGate(options.gateOptions);
     const legacyLoaded = options.legacyLoader ? await options.legacyLoader() : await loadLegacyGame();
     bridgeLegacyEvents();
+    const presentationBridge = new RendererPresentationBridge({
+      rendererProvider: () => getLegacyGameState()?.renderer ?? null,
+      minFramesBetweenChanges: 18,
+      maxPixelRatio: 2.5,
+      minPixelRatio: 0.6,
+    });
+    const refreshPresentationDpr = () => presentationBridge.refreshDevicePixelRatio();
+    window.addEventListener('resize', refreshPresentationDpr, { passive: true });
+
     const state: { running: boolean; raf: number | undefined; lastTime: number | undefined; lastSnapshot: RuntimeSnapshot | undefined } = { running: false, raf: undefined, lastTime: undefined, lastSnapshot: undefined };
     const getCamera = (): CameraState => options.camera?.() ?? viewportCamera(canvas);
 
@@ -68,19 +84,21 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
       const previous = state.lastTime ?? now;
       const frame = Number(runtime.clock.frame()) as FrameId;
       const metrics = collectFrameMetrics(now - previous);
+      const legacyMetrics = readLegacyRenderMetrics(getLegacyGameState());
       const snapshot = tickModernRuntime(runtime, {
         frame,
-        frameMs: metrics.frameMs,
+        frameMs: input.frameMs ?? metrics.frameMs,
         cpuMs: input.cpuMs ?? metrics.frameMs,
         gpuMs: input.gpuMs,
-        drawCalls: input.drawCalls ?? 0,
-        triangles: input.triangles ?? 0,
+        drawCalls: input.drawCalls ?? legacyMetrics.drawCalls,
+        triangles: input.triangles ?? legacyMetrics.triangles,
         visibleObjects: input.visibleObjects ?? 0,
         textureBytes: input.textureBytes ?? 0,
         memoryPressure: input.memoryPressure,
         thermalPressure: input.thermalPressure,
         camera: input.camera ?? getCamera(),
       });
+      presentationBridge.apply(snapshot);
       state.lastTime = now;
       state.lastSnapshot = snapshot;
       modernState.patch({ isLoading: false, loadProgress: 1, fps: metrics.frameMs > 0 ? 1000 / metrics.frameMs : 0, frameMs: metrics.frameMs });
@@ -109,8 +127,15 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
       state.raf = undefined;
       platformEvents.emit('runtime:loop', { action: 'stop' });
     };
-    const dispose = (): void => { stop(); gate?.dispose(); };
+    const dispose = (): void => {
+      stop();
+      gate?.dispose();
+      window.removeEventListener('resize', refreshPresentationDpr);
+      presentationBridge.dispose();
+      if (activeSession?.runtime === runtime) activeSession = undefined;
+    };
     const session: ModernGame3DSession = Object.freeze({ runtime, gate, snapshot: () => state.lastSnapshot, frame: () => Number(runtime.clock.frame()) as FrameId, tick, start, stop, dispose });
+    activeSession = session;
     tick({ frameMs: 0, cpuMs: 0, camera: getCamera() });
     loading?.classList.add('g3d-loading-hidden');
     platformEvents.emit('runtime:session', { backend: runtime.capabilities.backend, legacyLoaded: Boolean(legacyLoaded) });
@@ -125,6 +150,8 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
 }
 
 export const bootModernGame3D = bootstrapModernGame3D;
+
+export function getActiveModernGame3DSession(): ModernGame3DSession | undefined { return activeSession; }
 
 async function loadLegacyGame(): Promise<boolean> {
   const module = await import('../game3d.js') as unknown as LegacyGameModule;
@@ -144,6 +171,11 @@ async function bridgeLegacyEvents(): Promise<void> {
   } catch (error) {
     platformEvents.emit('legacy:bridge-error', { error: String(error) });
   }
+}
+
+function getLegacyGameState(): LegacyGameStateLike | null {
+  const candidate = globalThis as typeof globalThis & { __AapwGame3DState?: LegacyGameStateLike };
+  return candidate.__AapwGame3DState ?? null;
 }
 
 function resolveCanvas(id: string): HTMLCanvasElement | undefined {
