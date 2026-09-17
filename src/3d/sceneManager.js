@@ -46,7 +46,7 @@ import { createStarfield } from './stars.js';
 import { createDayNightLighting } from './lighting.js';
 import { createFog } from './fog.js';
 import { resolveRenderQuality, configureRendererRealism, configureSunShadow, applyShadowRoles } from './renderQuality.js';
-import { registerRenderer } from './modern/rendererRegistry.ts';
+import { registerRenderer } from './modern/rendererRegistry.js';
 
 // Compatibility export: existing Run-180 browser contracts and any external callers import this
 // factory from sceneManager. The implementation itself now belongs to world/windGrass.js.
