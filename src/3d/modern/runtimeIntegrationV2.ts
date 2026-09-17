@@ -1,7 +1,7 @@
-import { CombatAuthority, makeCombatActor, makeCombatTarget, type CombatEvent, type CombatTarget } from './combatAuthority.ts';
+import { CombatAuthority, makeCombatActor, type CombatEvent, type CombatTarget } from './combatAuthority.ts';
 import { PlayerAuthority, defaultPlayerState, type PlayerInput, type PlayerEvent, type PlayerState } from './playerAuthority.ts';
 import { PlayerCombatDecisionV6, type PlayerCombatDecisionReceiptV6 } from '../gameplay/playerCombatDecisionV6.ts';
-import { worldObjectId, type InputSnapshotV6, type PlayerStateV6 } from './typedSceneContractsV6.ts';
+import { playerId, sceneObjectId, type InputSnapshotV6, type PlayerStateV6 } from './typedSceneContractsV6.ts';
 import { tickId } from './runtimeContractsV4.ts';
 import { WorldChunkRuntime, type ChunkFramePlan } from './worldChunkRuntime.ts';
 import { SpatialHash2D, type SpatialItem } from './worldSpatialIndex.ts';
@@ -23,7 +23,6 @@ export interface RuntimeFrameInput {
   readonly player?: PlayerInput;
   readonly deltaMs: number;
   readonly camera?: Vec2;
-  /** Optional semantic combat command. Legacy player booleans remain supported. */
   readonly combatAction?: string;
 }
 
@@ -56,8 +55,8 @@ export interface RuntimeIntegrationMetrics {
 const noopLoader = async (_id: { key: string }, _signal: AbortSignal): Promise<{ bytes: number }> => ({ bytes: 0 });
 
 const toTypedPlayerState = (player: PlayerState): PlayerStateV6 => Object.freeze({
-  id: player.id as PlayerStateV6['id'],
-  objectId: worldObjectId(`player:${player.id}`),
+  id: playerId(player.id),
+  objectId: sceneObjectId(`player:${player.id}`),
   position: Object.freeze({ x: player.transform.x, y: player.transform.y, z: player.transform.z }),
   velocity: Object.freeze({ ...player.velocity }),
   yaw: player.transform.yaw,
@@ -123,7 +122,9 @@ export class RuntimeIntegrationV2 {
     }, deltaMs);
     const typedPlayer = toTypedPlayerState(playerResult.state);
     const typedTick = tickId(this.#frame);
-    const semanticAction = input.combatAction ?? playerResult.events.find((event) => event.type === 'attack')?.heavy ? 'heavy' : playerResult.events.some((event) => event.type === 'attack') ? 'light' : null;
+    const attackEvent = playerResult.events.find((event) => event.type === 'attack');
+    const inferredAction = attackEvent ? (attackEvent.heavy ? 'heavy' : 'light') : null;
+    const semanticAction = input.combatAction ?? inferredAction;
     if (semanticAction) this.#lastCombatDecision = this.combatDecision.submit(semanticAction, typedPlayer, typedTick);
     const decisionTick = this.combatDecision.tick(typedPlayer, deltaMs / 1000, typedTick);
     if (decisionTick) this.#lastCombatDecision = decisionTick;
@@ -132,10 +133,7 @@ export class RuntimeIntegrationV2 {
     if (actor) {
       this.combat.registerActor({ ...actor, x: this.player.state.transform.x, z: this.player.state.transform.z, yaw: this.player.state.transform.yaw, health: this.player.state.stats.health, stamina: this.player.state.stats.stamina, state: this.player.state.locomotion === 'dead' ? 'dead' : actor.state });
     }
-    if (playerResult.events.some((event) => event.type === 'attack')) {
-      const heavy = playerResult.events.some((event) => event.type === 'attack' && event.heavy);
-      this.combat.startAttack(this.player.state.id, heavy);
-    }
+    if (attackEvent) this.combat.startAttack(this.player.state.id, attackEvent.heavy);
     const combatEvents = this.combat.step(deltaMs);
     this.combat.recover(deltaMs);
     const chunkCenter = input.camera ?? { x: Math.floor(this.player.state.transform.x / 32), y: Math.floor(this.player.state.transform.z / 32) };
