@@ -19,6 +19,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Exact-main ancestry gate
+        run: |
+          git fetch origin main --depth=1
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Changed-line scope gate
+        run: test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
       - name: Syntax gate
         run: node --check src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js && node --check scripts/checkSafakKartaliFaunaAmbientLifePolicy.mjs
       - name: Runtime proof
