@@ -1,4 +1,3 @@
-import { initGame3D } from '../game3d.js';
 import { gameEvents } from '../eventBus.js';
 import { EVENTS } from '../config.js';
 import { createProductionRuntime, type ProductionRuntime } from './productionRuntime';
@@ -40,6 +39,14 @@ function vec3(position: { x: number; y: number; z: number }): { x: number; y: nu
 function getState(): LegacyGameStateLike | null {
   const candidate = globalThis as unknown as { __AapwGame3DState?: LegacyGameStateLike };
   return candidate.__AapwGame3DState ?? null;
+}
+
+async function initLegacyGame3D(): Promise<void> {
+  // Explicit lazy boundary: the legacy renderer remains authoritative for world construction,
+  // while TypeScript-first entry/runtime code avoids statically importing the JS implementation.
+  const legacy = await import('../game3d.js');
+  if (typeof legacy.initGame3D !== 'function') throw new Error('AAPW_LEGACY_GAME_INIT_MISSING');
+  await legacy.initGame3D();
 }
 
 function sceneAdapter(): RuntimeSceneAdapter {
@@ -128,7 +135,7 @@ export async function bootGame3D(options: Game3DEntryOptions = {}): Promise<Prod
   if (bootPromise) return bootPromise;
   bootPromise = (async () => {
     ensureRendererRegistry();
-    await initGame3D();
+    await initLegacyGame3D();
     if (options.enableProductionRuntime === false) {
       options.onReady?.(null);
       return null;
