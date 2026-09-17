@@ -30,4 +30,6 @@ jobs:
       - name: Runtime proof
         run: node scripts/checkSafakKartaliFaunaAmbientLifePolicy.mjs
       - name: Runtime boundary guard
-        run: '! grep -R "EditorMaterialStudio" src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js scripts/checkSafakKartaliFaunaAmbientLifePolicy.mjs'
+        run: |
+          ! grep -R "EditorMaterialStudio" src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js scripts/checkSafakKartaliFaunaAmbientLifePolicy.mjs
+          ! grep -R -E "(^|[^A-Za-z])(document|window)\." src/3d/gameplay/livingWorldFaunaAmbientLifePolicy.js scripts/checkSafakKartaliFaunaAmbientLifePolicy.mjs
