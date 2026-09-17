@@ -4,6 +4,7 @@ import { installEntryGate, type EntryGateController } from './entryGate';
 import { platformEvents } from './eventBus';
 import { modernState } from './stateStore';
 import { readLegacyRenderMetrics, RendererPresentationBridge, type RendererPresentationLike } from './rendererPresentationBridge';
+import { ensureRendererRegistry, getRegisteredRenderer } from './rendererRegistry';
 
 export interface Game3DEntryOptions {
   readonly canvas?: HTMLCanvasElement;
@@ -63,12 +64,13 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
   try {
     const canvas = options.canvas ?? resolveCanvas(options.canvasId ?? 'game3d-canvas');
     if (!canvas) throw new Error('GAME3D_CANVAS_MISSING');
+    ensureRendererRegistry();
     const runtime = await createModernRuntime({ canvas, initialQuality: options.initialQuality, maxTelemetrySamples: options.maxTelemetrySamples });
     const gate = options.installGate === false ? undefined : installEntryGate(options.gateOptions);
     const legacyLoaded = options.legacyLoader ? await options.legacyLoader() : await loadLegacyGame();
     bridgeLegacyEvents();
     const presentationBridge = new RendererPresentationBridge({
-      rendererProvider: () => getLegacyGameState()?.renderer ?? null,
+      rendererProvider: () => getRegisteredRenderer() ?? getLegacyGameState()?.renderer ?? null,
       minFramesBetweenChanges: 18,
       maxPixelRatio: 2.5,
       minPixelRatio: 0.6,
@@ -84,7 +86,8 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
       const previous = state.lastTime ?? now;
       const frame = Number(runtime.clock.frame()) as FrameId;
       const metrics = collectFrameMetrics(now - previous);
-      const legacyMetrics = readLegacyRenderMetrics(getLegacyGameState());
+      const renderState = getRegisteredRenderer() ?? getLegacyGameState()?.renderer ?? null;
+      const legacyMetrics = readLegacyRenderMetrics({ renderer: renderState });
       const snapshot = tickModernRuntime(runtime, {
         frame,
         frameMs: input.frameMs ?? metrics.frameMs,
