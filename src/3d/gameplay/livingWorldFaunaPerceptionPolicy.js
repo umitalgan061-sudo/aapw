@@ -40,6 +40,7 @@ function normalizeStimulus(stimulus, index) {
     sourceId: stimulus?.sourceId == null ? null : String(stimulus.sourceId),
     position: normalizePosition(stimulus?.position),
     intensity: clamp(finite(stimulus?.intensity, 0), 0, 1),
+    stealth: clamp(finite(stimulus?.stealth, 0), 0, 1),
     channel: stimulus?.channel === 'hearing' ? 'hearing' : 'vision',
   };
 }
@@ -63,7 +64,7 @@ function withinFieldOfView(actor, stimulus, fovDegrees) {
 function visibilityMultiplier(actor, stimulus) {
   if (stimulus.channel === 'hearing') return 1;
   if (actor?.lineOfSight === false) return 0;
-  return 1;
+  return 1 - stimulus.stealth * 0.75;
 }
 
 function scoreStimulus(actor, stimulus, options) {
