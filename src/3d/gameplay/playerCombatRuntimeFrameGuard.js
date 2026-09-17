@@ -17,7 +17,7 @@ function cloneAndFreeze(value, seen = new WeakMap()) {
   if (value === null || typeof value !== 'object') return value;
   if (seen.has(value)) return seen.get(value);
 
-  const clone = Array.isArray(value) ? [] : {};
+  const clone = Array.isArray(value) ? [] : Object.create(null);
   seen.set(value, clone);
   for (const [key, child] of Object.entries(value)) clone[key] = cloneAndFreeze(child, seen);
   return Object.freeze(clone);
