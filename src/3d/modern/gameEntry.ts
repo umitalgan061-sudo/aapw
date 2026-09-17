@@ -66,8 +66,6 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
     const gate = options.installGate === false ? undefined : installEntryGate(options.gateOptions);
     const legacyLoaded = options.legacyLoader ? await options.legacyLoader() : await loadLegacyGame();
     bridgeLegacyEvents();
-    // The current sceneManager constructs THREE.WebGLRenderer. Do not let a browser-level WebGPU
-    // capability masquerade as the backend actually driving this scene.
     const runtime = await createModernRuntime({
       canvas,
       backendHint: 'webgl2',
@@ -98,7 +96,7 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
         frame,
         frameMs,
         cpuMs: input.cpuMs ?? frameMs,
-        gpuMs: input.gpuMs,
+        gpuMs: input.gpuMs ?? presentationBridge.gpuMs(),
         drawCalls: input.drawCalls ?? legacyMetrics.drawCalls,
         triangles: input.triangles ?? legacyMetrics.triangles,
         visibleObjects: input.visibleObjects ?? 0,
