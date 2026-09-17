@@ -54,12 +54,14 @@ export interface PlayerState {
   readonly jumpBufferMs: number;
   readonly coyoteRemainingMs: number;
   readonly dodgeRemainingMs: number;
+  /** Simulation-time timestamp in milliseconds, never a wall-clock timestamp. */
   readonly lastAttackAt: number;
   readonly revision: number;
 }
 
 export interface PlayerAuthorityOptions {
   readonly id?: string;
+  /** Retained for API compatibility; simulation state does not depend on it. */
   readonly now?: () => number;
   readonly collision?: (x: number, y: number, z: number) => { readonly grounded: boolean; readonly y: number };
 }
@@ -119,14 +121,13 @@ export type PlayerEvent =
   | { readonly type: 'dead'; readonly id: string };
 
 export class PlayerAuthority {
-  readonly #now: () => number;
   readonly #collision: NonNullable<PlayerAuthorityOptions['collision']>;
   #state: PlayerState;
   #elapsedMs = 0;
 
   constructor(options: PlayerAuthorityOptions = {}) {
-    this.#now = options.now ?? (() => performance.now());
-    this.#collision = options.collision ?? ((x, y, z) => ({ grounded: y <= 0, y: Math.max(0, y) }));
+    void options.now;
+    this.#collision = options.collision ?? ((_x, y, _z) => ({ grounded: y <= 0, y: Math.max(0, y) }));
     this.#state = defaultPlayerState(options.id);
   }
 
@@ -263,7 +264,8 @@ export class PlayerAuthority {
     }
     if (health <= 0 && locomotion !== 'dead') {
       locomotion = 'dead';
-      vx = 0; vz = 0;
+      vx = 0;
+      vz = 0;
       events.push({ type: 'dead', id: current.id });
     }
 
@@ -278,7 +280,7 @@ export class PlayerAuthority {
       jumpBufferMs: jumpBuffer,
       coyoteRemainingMs: coyote,
       dodgeRemainingMs,
-      lastAttackAt: events.some((event) => event.type === 'attack') ? this.#now() : current.lastAttackAt,
+      lastAttackAt: events.some((event) => event.type === 'attack') ? this.#elapsedMs : current.lastAttackAt,
       revision: current.revision + 1,
     });
     this.#state = next;
