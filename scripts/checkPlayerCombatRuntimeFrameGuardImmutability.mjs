@@ -18,6 +18,7 @@ assert.equal(Object.getPrototypeOf(accepted.frame), null);
 assert.equal(Object.isFrozen(accepted.frame.attack), true);
 assert.equal(Object.isFrozen(accepted.frame.attack.metadata), true);
 assert.equal(Object.isFrozen(accepted.frame.feedback.payload), true);
+assert.equal(guard.readLastFrame(), accepted.frame);
 
 nested.feedback.payload.intensity = 1;
 nested.attack.metadata.phase = 'active';
@@ -37,6 +38,7 @@ const cycleResult = guard.inspect({
 assert.equal(cycleResult.ok, true);
 assert.equal(cycleResult.frame.metadata.self, cycleResult.frame.metadata);
 assert.equal(Object.isFrozen(cycleResult.frame.metadata), true);
+assert.equal(guard.readLastFrame(), cycleResult.frame);
 
 const rejectedInput = {
   version: 1,
@@ -52,6 +54,7 @@ assert.equal(Object.isFrozen(rejected.frame), true);
 assert.equal(Object.isFrozen(rejected.frame.feedback.payload), true);
 rejectedInput.feedback.payload.intensity = 0.1;
 assert.equal(rejected.frame.feedback.payload.intensity, 0.9);
+assert.equal(guard.readLastFrame(), cycleResult.frame);
 
 const followUp = guard.inspect({
   version: 1,
@@ -61,6 +64,7 @@ const followUp = guard.inspect({
 });
 assert.equal(followUp.ok, true);
 assert.equal(Object.isFrozen(followUp.frame), true);
+assert.equal(guard.readLastFrame(), followUp.frame);
 assert.equal(guard.readState().accepted, 3);
 assert.equal(guard.readState().rejected, 1);
 
@@ -69,4 +73,9 @@ assert.equal(guard.inspect({ version: 1, revision: '2', timestamp: 0.032, attack
 assert.equal(guard.inspect({ version: 1, revision: 2, timestamp: '0.032', attack: { serial: 2 } }).reason, 'invalid-timestamp');
 assert.equal(guard.inspect({ version: 1, revision: 2, timestamp: 0.032, attack: { serial: '2' } }).reason, 'invalid-attack-serial');
 
-console.log('player combat runtime frame guard immutability: 24 checks passed');
+assert.equal(guard.dispose().disposed, true);
+assert.equal(guard.readLastFrame(), null);
+assert.equal(guard.reset().last, null);
+assert.equal(guard.readLastFrame(), null);
+
+console.log('player combat runtime frame guard immutability: 31 checks passed');
