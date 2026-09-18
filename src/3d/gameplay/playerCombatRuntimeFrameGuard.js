@@ -18,10 +18,20 @@ const isPlainRecord = (value) => {
 
 export const PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION = 1;
 
-function inspectPayloadBudget(value, maxDepth, maxNodes, maxKeys, depth = 0, seen = new WeakSet(), state = { nodes: 0, keys: 0 }) {
+function inspectPayloadBudget(
+  value,
+  maxDepth,
+  maxNodes,
+  maxKeys,
+  maxArrayLength,
+  depth = 0,
+  seen = new WeakSet(),
+  state = { nodes: 0, keys: 0 },
+) {
   if (value === null || typeof value !== 'object') return null;
   if (Array.isArray(value) === false && !isPlainRecord(value)) return 'payload-object-type-unsupported';
   if (depth > maxDepth) return 'payload-depth-exceeded';
+  if (Array.isArray(value) && value.length > maxArrayLength) return 'payload-array-length-exceeded';
   if (seen.has(value)) return null;
   seen.add(value);
   state.nodes += 1;
@@ -30,7 +40,7 @@ function inspectPayloadBudget(value, maxDepth, maxNodes, maxKeys, depth = 0, see
   state.keys += entries.length;
   if (state.keys > maxKeys) return 'payload-key-budget-exceeded';
   for (const [, child] of entries) {
-    const failure = inspectPayloadBudget(child, maxDepth, maxNodes, maxKeys, depth + 1, seen, state);
+    const failure = inspectPayloadBudget(child, maxDepth, maxNodes, maxKeys, maxArrayLength, depth + 1, seen, state);
     if (failure) return failure;
   }
   return null;
@@ -52,6 +62,7 @@ export function createPlayerCombatRuntimeFrameGuard({
   maxPayloadDepth = 12,
   maxPayloadNodes = 256,
   maxPayloadKeys = 1024,
+  maxPayloadArrayLength = 1024,
 } = {}) {
   if (!bounded(maxTimestampRegression, 0, 60)) throw new RangeError('maxTimestampRegression must be between 0 and 60');
   if (!integer(maxRevisionGap) || maxRevisionGap < 0 || maxRevisionGap > 1024) {
@@ -65,6 +76,9 @@ export function createPlayerCombatRuntimeFrameGuard({
   }
   if (!integer(maxPayloadKeys) || maxPayloadKeys < 1 || maxPayloadKeys > 32768) {
     throw new RangeError('maxPayloadKeys must be an integer between 1 and 32768');
+  }
+  if (!integer(maxPayloadArrayLength) || maxPayloadArrayLength < 1 || maxPayloadArrayLength > 65536) {
+    throw new RangeError('maxPayloadArrayLength must be an integer between 1 and 65536');
   }
 
   let disposed = false;
@@ -93,7 +107,7 @@ export function createPlayerCombatRuntimeFrameGuard({
   function inspect(frame) {
     if (disposed) return reject('disposed', frame);
     if (!frame || typeof frame !== 'object') return reject('missing-frame', frame);
-    const payloadFailure = inspectPayloadBudget(frame, maxPayloadDepth, maxPayloadNodes, maxPayloadKeys);
+    const payloadFailure = inspectPayloadBudget(frame, maxPayloadDepth, maxPayloadNodes, maxPayloadKeys, maxPayloadArrayLength);
     if (payloadFailure) return reject(payloadFailure, frame);
     if (frame.version !== PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION) return reject('unsupported-version', frame);
     if (!integer(frame.revision) || frame.revision < 0) return reject('invalid-revision', frame);
