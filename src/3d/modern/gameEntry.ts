@@ -60,10 +60,14 @@ const DEFAULT_CAMERA: CameraState = Object.freeze({
 
 export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): Promise<ModernGame3DSession | undefined> {
   const loading = resolveElement(options.loadingId ?? 'game3d-loading');
+  let gate: EntryGateController | undefined;
+  let presentationBridge: RendererPresentationBridge | undefined;
+  let removePresentationDprListener: (() => void) | undefined;
+
   try {
     const canvas = options.canvas ?? resolveCanvas(options.canvasId ?? 'game3d-canvas');
     if (!canvas) throw new Error('GAME3D_CANVAS_MISSING');
-    const gate = options.installGate === false ? undefined : installEntryGate(options.gateOptions);
+    gate = options.installGate === false ? undefined : installEntryGate(options.gateOptions);
     const legacyLoaded = options.legacyLoader ? await options.legacyLoader() : await loadLegacyGame();
     bridgeLegacyEvents();
     const runtime = await createModernRuntime({
@@ -72,14 +76,17 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
       initialQuality: options.initialQuality,
       maxTelemetrySamples: options.maxTelemetrySamples,
     });
-    const presentationBridge = new RendererPresentationBridge({
+    presentationBridge = new RendererPresentationBridge({
       rendererProvider: () => getLegacyGameState()?.renderer ?? null,
       minFramesBetweenChanges: 18,
       maxPixelRatio: 2.5,
       minPixelRatio: 0.6,
     });
-    const refreshPresentationDpr = () => presentationBridge.refreshDevicePixelRatio();
-    if (typeof window !== 'undefined') window.addEventListener('resize', refreshPresentationDpr, { passive: true });
+    const refreshPresentationDpr = () => presentationBridge?.refreshDevicePixelRatio();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', refreshPresentationDpr, { passive: true });
+      removePresentationDprListener = () => window.removeEventListener('resize', refreshPresentationDpr);
+    }
 
     const state: { running: boolean; raf: number | undefined; lastTime: number | undefined; lastSnapshot: RuntimeSnapshot | undefined } = { running: false, raf: undefined, lastTime: undefined, lastSnapshot: undefined };
     const getCamera = (): CameraState => options.camera?.() ?? viewportCamera(canvas);
@@ -105,7 +112,7 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
         thermalPressure: input.thermalPressure,
         camera: input.camera ?? getCamera(),
       });
-      presentationBridge.apply(snapshot);
+      presentationBridge?.apply(snapshot);
       state.lastTime = now;
       state.lastSnapshot = snapshot;
       modernState.patch({ isLoading: false, loadProgress: 1, fps: frameMs > 0 ? 1000 / frameMs : 0, frameMs });
@@ -140,8 +147,10 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
     const dispose = (): void => {
       stop();
       gate?.dispose();
-      if (typeof window !== 'undefined') window.removeEventListener('resize', refreshPresentationDpr);
-      presentationBridge.dispose();
+      removePresentationDprListener?.();
+      removePresentationDprListener = undefined;
+      presentationBridge?.dispose();
+      presentationBridge = undefined;
       if (activeSession?.runtime === runtime) activeSession = undefined;
     };
 
@@ -163,6 +172,11 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
     if (options.startLoop !== false && typeof requestAnimationFrame === 'function') start();
     return session;
   } catch (error) {
+    removePresentationDprListener?.();
+    presentationBridge?.dispose();
+    presentationBridge = undefined;
+    gate?.dispose();
+    gate = undefined;
     showEntryError(loading, error);
     options.onError?.(error);
     return undefined;
