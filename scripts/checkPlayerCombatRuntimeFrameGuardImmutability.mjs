@@ -88,6 +88,11 @@ assert.equal(wideGuard.inspect(tooWide).reason, 'payload-node-budget-exceeded');
 const arrayGuard = createPlayerCombatRuntimeFrameGuard({ maxPayloadArrayLength: 2 });
 const tooLong = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, feedback: { samples: [0, 1, 2] } };
 assert.equal(arrayGuard.inspect(tooLong).reason, 'payload-array-length-exceeded');
+assert.equal(arrayGuard.inspect(tooLong).frame, null);
+const stringGuard = createPlayerCombatRuntimeFrameGuard({ maxPayloadStringLength: 3 });
+const tooLongString = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, label: 'long' };
+assert.equal(stringGuard.inspect(tooLongString).reason, 'payload-string-length-exceeded');
+assert.equal(stringGuard.inspect(tooLongString).frame, null);
 let getterExecuted = false;
 const accessorFrame = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 } };
 Object.defineProperty(accessorFrame, 'payload', { enumerable: true, get() { getterExecuted = true; throw new Error('getter should not execute'); } });
@@ -120,4 +125,4 @@ assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 54 checks passed');
+console.log('player combat runtime frame guard immutability: 58 checks passed');
