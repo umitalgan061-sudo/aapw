@@ -79,9 +79,12 @@ assert.equal(guard.inspect({ version: 1, revision: '2', timestamp: 0.032, attack
 assert.equal(guard.inspect({ version: 1, revision: 2, timestamp: '0.032', attack: { serial: 2 } }).reason, 'invalid-timestamp');
 assert.equal(guard.inspect({ version: 1, revision: 2, timestamp: 0.032, attack: { serial: '2' } }).reason, 'invalid-attack-serial');
 
-assert.equal(guard.dispose().disposed, true);
+const disposed = guard.dispose();
+assert.equal(disposed.disposed, true);
+assert.equal(disposed.last, null);
 assert.equal(guard.readLastFrame(), null);
+assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 32 checks passed');
+console.log('player combat runtime frame guard immutability: 35 checks passed');
