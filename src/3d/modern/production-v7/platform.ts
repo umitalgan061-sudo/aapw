@@ -1,4 +1,5 @@
-import { PlatformProfileV7, RuntimeModeV7 } from './types.ts';
+import type { PlatformProfileV7, RuntimeModeV7 } from './types.ts';
+
 
 const numberOr = (value: unknown, fallback: number): number =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback;
