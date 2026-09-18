@@ -99,6 +99,7 @@ export class FixedClockV7 {
     return steps;
   }
   consumeTick(): TickV7 { this.#tick = tickV7(Number(this.#tick) + 1); return this.#tick; }
+  reset(): void { this.#accumulator = 0; this.#tick = tickV7(0); }
 }
 
 export class SequenceWindowV7 {
