@@ -93,6 +93,10 @@ const stringGuard = createPlayerCombatRuntimeFrameGuard({ maxPayloadStringLength
 const tooLongString = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, label: 'long' };
 assert.equal(stringGuard.inspect(tooLongString).reason, 'payload-string-length-exceeded');
 assert.equal(stringGuard.inspect(tooLongString).frame, null);
+const totalStringGuard = createPlayerCombatRuntimeFrameGuard({ maxPayloadStringLength: 8, maxPayloadTotalStringLength: 5 });
+const tooMuchText = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, labels: ['ab', 'cd', 'ef'] };
+assert.equal(totalStringGuard.inspect(tooMuchText).reason, 'payload-total-string-length-exceeded');
+assert.equal(totalStringGuard.inspect(tooMuchText).frame, null);
 let getterExecuted = false;
 const accessorFrame = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 } };
 Object.defineProperty(accessorFrame, 'payload', { enumerable: true, get() { getterExecuted = true; throw new Error('getter should not execute'); } });
@@ -130,6 +134,7 @@ assert.equal(unstableResult.frame, null);
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadDepth: -1 }), /maxPayloadDepth/);
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadNodes: 0 }), /maxPayloadNodes/);
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadArrayLength: 0 }), /maxPayloadArrayLength/);
+assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadTotalStringLength: 0 }), /maxPayloadTotalStringLength/);
 
 const disposed = guard.dispose();
 assert.equal(disposed.disposed, true);
@@ -139,4 +144,4 @@ assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 61 checks passed');
+console.log('player combat runtime frame guard immutability: 65 checks passed');
