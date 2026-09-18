@@ -16,6 +16,11 @@
 
 import * as THREE from 'three';
 
+export interface DayNightFogState {
+	readonly horizonColor: THREE.Color;
+	readonly nightFactor: number;
+}
+
 /** Exponential-squared falloff (`THREE.FogExp2`) reads more natural than linear fog at this world's
  * scale. Tuned so nearby terrain stays readable while kilometre-scale views retain atmospheric
  * perspective instead of ending in a hard, uniformly clear horizon. */
@@ -91,7 +96,7 @@ const FOG_BLUE_HOUR_DENSITY_GAIN = 0.000032;
  * afterward — the color/density below are placeholders, immediately overwritten on first update.
  * @returns {THREE.FogExp2}
  */
-export function createFog() {
+export function createFog(): THREE.FogExp2 {
 	return new THREE.FogExp2(0x000000, FOG_DENSITY_DAY);
 }
 
@@ -127,7 +132,7 @@ export function createFog() {
  * @param {THREE.FogExp2} fog
  * @param {{horizonColor: THREE.Color, nightFactor: number}} dayNight - `lighting.js`'s per-frame output.
  */
-export function updateFog(fog, dayNight) {
+export function updateFog(fog: THREE.FogExp2, dayNight: DayNightFogState): void {
 	const nightFactor = THREE.MathUtils.clamp(dayNight.nightFactor, 0, 1);
 	const twilight = Math.pow(Math.sin(Math.PI * nightFactor), FOG_TWILIGHT_CURVE_POWER);
 	const fullDay = 1 - THREE.MathUtils.smoothstep(nightFactor, 0.08, 0.42);
