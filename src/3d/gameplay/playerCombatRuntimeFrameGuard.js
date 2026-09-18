@@ -79,15 +79,19 @@ function cloneAndFreeze(value, seen = new WeakMap()) {
 
 function cloneRejectionFrame(frame, limits) {
   if (frame == null || typeof frame !== 'object') return frame;
-  const failure = inspectPayloadBudget(
-    frame,
-    limits.maxPayloadDepth,
-    limits.maxPayloadNodes,
-    limits.maxPayloadKeys,
-    limits.maxPayloadArrayLength,
-    limits.maxPayloadStringLength,
-  );
-  return failure ? null : cloneAndFreeze(frame);
+  try {
+    const failure = inspectPayloadBudget(
+      frame,
+      limits.maxPayloadDepth,
+      limits.maxPayloadNodes,
+      limits.maxPayloadKeys,
+      limits.maxPayloadArrayLength,
+      limits.maxPayloadStringLength,
+    );
+    return failure ? null : cloneAndFreeze(frame);
+  } catch {
+    return null;
+  }
 }
 
 export function createPlayerCombatRuntimeFrameGuard({
