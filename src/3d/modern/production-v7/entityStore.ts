@@ -1,4 +1,5 @@
-import { ActorComponentSetV7, EntityIdV7, EntityRecordV7, InterestComponentV7, KinematicsComponentV7, NetworkComponentV7, TickV7, TransformComponentV7, VitalComponentV7, clampV7, tickV7 } from './types.ts';
+import type { ActorComponentSetV7, EntityIdV7, EntityRecordV7, InterestComponentV7, KinematicsComponentV7, NetworkComponentV7, TickV7, TransformComponentV7, VitalComponentV7 } from './types.ts';
+import { clampV7, tickV7 } from './types.ts';
 
 const cloneVec = (v: { x: number; y: number; z: number }) => Object.freeze({ x: v.x, y: v.y, z: v.z });
 
