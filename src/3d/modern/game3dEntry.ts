@@ -1,5 +1,5 @@
-import { gameEvents } from '../eventBus.js';
-import { EVENTS } from '../config.js';
+import { gameEvents } from '../eventBus.ts';
+import { EVENTS } from '../config.ts';
 import { createProductionRuntime, type ProductionRuntime } from './productionRuntime';
 import type { RuntimeSceneAdapter } from './runtimeSession';
 import type { CameraFrameState, PlayerFrameState, WorldFrameState } from './runtimeContracts';
