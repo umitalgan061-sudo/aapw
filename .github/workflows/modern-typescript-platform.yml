@@ -15,6 +15,7 @@ on:
       - 'scripts/checkNextGenRuntimeV2.mjs'
       - 'scripts/checkModernRuntimeIntegrationV2.mjs'
       - 'scripts/checkModernRuntimeR2.mjs'
+      - 'scripts/checkProductionRuntimeV7.mjs'
       - 'package.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
@@ -71,6 +72,7 @@ jobs:
       - run: npm run verify:nextgen
       - run: npm run verify:modern:v2
       - run: npm run verify:runtime-r2
+      - run: npm run verify:production-v7
       - run: npm run typecheck
       - run: npm test -- --passWithNoTests
       - run: npm run test:typed
@@ -93,6 +95,7 @@ jobs:
       - run: node scripts/checkNextGenRuntimeV2.mjs
       - run: node scripts/checkModernRuntimeIntegrationV2.mjs
       - run: node scripts/checkModernRuntimeR2.mjs
+      - run: node scripts/checkProductionRuntimeV7.mjs
       - name: Guard deterministic core surfaces
         run: |
           set -eu
@@ -164,6 +167,13 @@ jobs:
               exit 1
             fi
           done
+      - name: Guard production-v7 deterministic boundaries
+        run: |
+          set -eu
+          if grep -nE 'Math\\.random\\(|Date\\.now\\(|eval\\(|new Function\\(' src/3d/modern/production-v7/*.ts; then
+            echo "Unsafe or ambient nondeterministic primitive detected in production-v7"
+            exit 1
+          fi
       - name: Guard typed deterministic boundaries
         run: |
           set -eu
