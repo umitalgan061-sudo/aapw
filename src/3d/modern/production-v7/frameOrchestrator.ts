@@ -1,4 +1,5 @@
-import { RuntimeModeV7, RuntimePhaseV7, TickV7, RuntimeBudgetsV7 } from './types.ts';
+import type { RuntimeModeV7, RuntimePhaseV7, TickV7, RuntimeBudgetsV7 } from './types.ts';
+
 import { BudgetSchedulerV7 } from './scheduler.ts';
 import { RuntimeTelemetryV7 } from './observability.ts';
 import { RuntimeDiagnosticsV7 } from './diagnostics.ts';
