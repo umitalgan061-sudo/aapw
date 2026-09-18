@@ -160,3 +160,4 @@ export * from './typedRuntimeVerificationV6';
 export * from './typedSceneCoordinatorV6';
 export * from './v3/index.ts';
 export * from './next/index.ts';
+export * from './production-v7/index.ts';
