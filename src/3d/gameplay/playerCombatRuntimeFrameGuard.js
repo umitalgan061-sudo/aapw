@@ -24,10 +24,12 @@ function inspectPayloadBudget(
   maxNodes,
   maxKeys,
   maxArrayLength,
+  maxStringLength,
   depth = 0,
   seen = new WeakSet(),
   state = { nodes: 0, keys: 0 },
 ) {
+  if (typeof value === 'string') return value.length > maxStringLength ? 'payload-string-length-exceeded' : null;
   if (value === null || typeof value !== 'object') return null;
   if (Array.isArray(value) === false && !isPlainRecord(value)) return 'payload-object-type-unsupported';
   if (depth > maxDepth) return 'payload-depth-exceeded';
@@ -48,7 +50,7 @@ function inspectPayloadBudget(
   state.keys += entries.length;
   if (state.keys > maxKeys) return 'payload-key-budget-exceeded';
   for (const [, child] of entries) {
-    const failure = inspectPayloadBudget(child, maxDepth, maxNodes, maxKeys, maxArrayLength, depth + 1, seen, state);
+    const failure = inspectPayloadBudget(child, maxDepth, maxNodes, maxKeys, maxArrayLength, maxStringLength, depth + 1, seen, state);
     if (failure) return failure;
   }
   return null;
@@ -67,7 +69,7 @@ function cloneAndFreeze(value, seen = new WeakMap()) {
 
 function cloneRejectionFrame(frame) {
   if (frame == null || typeof frame !== 'object') return frame;
-  const failure = inspectPayloadBudget(frame, 64, 8192, 32768, 65536);
+  const failure = inspectPayloadBudget(frame, 64, 8192, 32768, 65536, 8192);
   return failure ? null : cloneAndFreeze(frame);
 }
 
@@ -78,6 +80,7 @@ export function createPlayerCombatRuntimeFrameGuard({
   maxPayloadNodes = 256,
   maxPayloadKeys = 1024,
   maxPayloadArrayLength = 1024,
+  maxPayloadStringLength = 8192,
 } = {}) {
   if (!bounded(maxTimestampRegression, 0, 60)) throw new RangeError('maxTimestampRegression must be between 0 and 60');
   if (!integer(maxRevisionGap) || maxRevisionGap < 0 || maxRevisionGap > 1024) {
@@ -94,6 +97,9 @@ export function createPlayerCombatRuntimeFrameGuard({
   }
   if (!integer(maxPayloadArrayLength) || maxPayloadArrayLength < 1 || maxPayloadArrayLength > 65536) {
     throw new RangeError('maxPayloadArrayLength must be an integer between 1 and 65536');
+  }
+  if (!integer(maxPayloadStringLength) || maxPayloadStringLength < 1 || maxPayloadStringLength > 1048576) {
+    throw new RangeError('maxPayloadStringLength must be an integer between 1 and 1048576');
   }
 
   let disposed = false;
@@ -122,7 +128,14 @@ export function createPlayerCombatRuntimeFrameGuard({
   function inspect(frame) {
     if (disposed) return reject('disposed', frame);
     if (!frame || typeof frame !== 'object') return reject('missing-frame', frame);
-    const payloadFailure = inspectPayloadBudget(frame, maxPayloadDepth, maxPayloadNodes, maxPayloadKeys, maxPayloadArrayLength);
+    const payloadFailure = inspectPayloadBudget(
+      frame,
+      maxPayloadDepth,
+      maxPayloadNodes,
+      maxPayloadKeys,
+      maxPayloadArrayLength,
+      maxPayloadStringLength,
+    );
     if (payloadFailure) return reject(payloadFailure, frame);
     if (frame.version !== PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION) return reject('unsupported-version', frame);
     if (!integer(frame.revision) || frame.revision < 0) return reject('invalid-revision', frame);
