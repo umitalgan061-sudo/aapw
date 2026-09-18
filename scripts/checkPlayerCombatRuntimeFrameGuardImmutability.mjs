@@ -85,8 +85,12 @@ assert.equal(deepGuard.inspect(tooDeep).reason, 'payload-depth-exceeded');
 const wideGuard = createPlayerCombatRuntimeFrameGuard({ maxPayloadNodes: 3 });
 const tooWide = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, a: {}, b: {} };
 assert.equal(wideGuard.inspect(tooWide).reason, 'payload-node-budget-exceeded');
+const arrayGuard = createPlayerCombatRuntimeFrameGuard({ maxPayloadArrayLength: 2 });
+const tooLong = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, feedback: { samples: [0, 1, 2] } };
+assert.equal(arrayGuard.inspect(tooLong).reason, 'payload-array-length-exceeded');
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadDepth: -1 }), /maxPayloadDepth/);
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadNodes: 0 }), /maxPayloadNodes/);
+assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadArrayLength: 0 }), /maxPayloadArrayLength/);
 
 const disposed = guard.dispose();
 assert.equal(disposed.disposed, true);
@@ -96,4 +100,4 @@ assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 41 checks passed');
+console.log('player combat runtime frame guard immutability: 44 checks passed');
