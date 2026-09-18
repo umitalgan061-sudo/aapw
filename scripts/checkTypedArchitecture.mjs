@@ -45,7 +45,7 @@ for (const path of MUST_EXIST) {
 const legacyFiles = sourceFiles.filter(path => /\.(js|jsx)$/.test(path) && ![...LEGACY_ALLOWLIST].some(prefix => path.startsWith(prefix)));
 const typedFiles = sourceFiles.filter(path => /\.(ts|tsx)$/.test(path));
 const migrationCandidates = legacyFiles.filter(path => !path.includes('/vendor/'));
-const untypedImportPattern = /from\s+['"](.\.?\\/[^'"]+\\.js)['"]/g;
+const untypedImportPattern = /from\s+['"](\.\.?\/[^'"]+\.js)['"]/g;
 
 // ESM TypeScript commonly imports the emitted .js specifier. This is safe when a sibling .ts/.tsx
 // source resolves to the same module. Only a true legacy-only dependency is a migration violation.
@@ -63,19 +63,19 @@ function typedSourceExists(ownerPath, specifier) {
 
 // Count only type-position any; identifiers or prose containing the token do not count as unsafe
 // type escapes.
-const explicitAnyPattern = /(?:\\bas\\s+any\\b|[:=<]\\s*any\\b|,\\s*any\\s*(?=[>,])|\\bany\\s*\\[\\])/g;
+const explicitAnyPattern = /(?:\bas\s+any\b|[:=<]\s*any\b|,\s*any\s*(?=[>,])|\bany\s*\[\])/g;
 
 // A deterministic boundary must be explicitly declared. Instrumentation, persistence and
 // diagnostics modules are allowed to use their clock for observation while the simulation core
 // remains deterministic.
-const deterministicBoundaryPattern = /@(?:deterministic|deterministic-module|deterministic-boundary)\\b/i;
+const deterministicBoundaryPattern = /@(?:deterministic|deterministic-module|deterministic-boundary)\b/i;
 
 for (const path of typedFiles) {
   const content = await readFile(path, 'utf8');
   const unsafeAny = content.match(explicitAnyPattern)?.length ?? 0;
   if (unsafeAny > 12) failures.push(`${path}: excessive explicit any type usage (${unsafeAny})`);
 
-  if (deterministicBoundaryPattern.test(content) && /\\b(?:Math\\.random|Date\\.now)\\s*\\(/.test(content)) {
+  if (deterministicBoundaryPattern.test(content) && /\b(?:Math\.random|Date\.now)\s*\(/.test(content)) {
     failures.push(`${path}: deterministic boundary uses wall/random clock source`);
   }
 
