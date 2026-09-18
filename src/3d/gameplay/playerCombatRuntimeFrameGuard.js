@@ -77,9 +77,16 @@ function cloneAndFreeze(value, seen = new WeakMap()) {
   return Object.freeze(clone);
 }
 
-function cloneRejectionFrame(frame) {
+function cloneRejectionFrame(frame, limits) {
   if (frame == null || typeof frame !== 'object') return frame;
-  const failure = inspectPayloadBudget(frame, 64, 8192, 32768, 65536, 8192);
+  const failure = inspectPayloadBudget(
+    frame,
+    limits.maxPayloadDepth,
+    limits.maxPayloadNodes,
+    limits.maxPayloadKeys,
+    limits.maxPayloadArrayLength,
+    limits.maxPayloadStringLength,
+  );
   return failure ? null : cloneAndFreeze(frame);
 }
 
@@ -112,6 +119,14 @@ export function createPlayerCombatRuntimeFrameGuard({
     throw new RangeError('maxPayloadStringLength must be an integer between 1 and 1048576');
   }
 
+  const payloadLimits = {
+    maxPayloadDepth,
+    maxPayloadNodes,
+    maxPayloadKeys,
+    maxPayloadArrayLength,
+    maxPayloadStringLength,
+  };
+
   let disposed = false;
   let accepted = 0;
   let rejected = 0;
@@ -120,7 +135,7 @@ export function createPlayerCombatRuntimeFrameGuard({
 
   function reject(reason, frame) {
     rejected += 1;
-    return Object.freeze({ ok: false, reason, frame: cloneRejectionFrame(frame), accepted, rejected });
+    return Object.freeze({ ok: false, reason, frame: cloneRejectionFrame(frame, payloadLimits), accepted, rejected });
   }
 
   function accept(frame) {
@@ -129,10 +144,10 @@ export function createPlayerCombatRuntimeFrameGuard({
       accepted += 1;
       lastFrame = snapshot;
       last = Object.freeze({
-        version: frame.version,
-        revision: frame.revision,
-        timestamp: frame.timestamp,
-        attackSerial: frame.attack.serial,
+        version: snapshot.version,
+        revision: snapshot.revision,
+        timestamp: snapshot.timestamp,
+        attackSerial: snapshot.attack.serial,
       });
       return Object.freeze({ ok: true, frame: lastFrame, accepted, rejected });
     } catch {
