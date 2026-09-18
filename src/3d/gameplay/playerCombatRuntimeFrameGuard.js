@@ -125,8 +125,9 @@ export function createPlayerCombatRuntimeFrameGuard({
 
   function accept(frame) {
     try {
+      const snapshot = cloneAndFreeze(frame);
       accepted += 1;
-      lastFrame = cloneAndFreeze(frame);
+      lastFrame = snapshot;
       last = Object.freeze({
         version: frame.version,
         revision: frame.revision,
