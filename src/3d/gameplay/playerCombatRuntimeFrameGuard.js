@@ -65,6 +65,12 @@ function cloneAndFreeze(value, seen = new WeakMap()) {
   return Object.freeze(clone);
 }
 
+function cloneRejectionFrame(frame) {
+  if (frame == null || typeof frame !== 'object') return frame;
+  const failure = inspectPayloadBudget(frame, 64, 8192, 32768, 65536);
+  return failure ? null : cloneAndFreeze(frame);
+}
+
 export function createPlayerCombatRuntimeFrameGuard({
   maxTimestampRegression = 0,
   maxRevisionGap = 1,
@@ -98,7 +104,7 @@ export function createPlayerCombatRuntimeFrameGuard({
 
   function reject(reason, frame) {
     rejected += 1;
-    return Object.freeze({ ok: false, reason, frame: frame == null ? null : cloneAndFreeze(frame), accepted, rejected });
+    return Object.freeze({ ok: false, reason, frame: cloneRejectionFrame(frame), accepted, rejected });
   }
 
   function accept(frame) {
