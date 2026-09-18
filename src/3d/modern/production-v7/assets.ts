@@ -1,4 +1,5 @@
-import { AssetBudgetV7, AssetDescriptorV7, AssetRecordV7, ContentHashV7, TickV7, hashV7, tickV7 } from './types.ts';
+import type { AssetBudgetV7, AssetDescriptorV7, AssetRecordV7, ContentHashV7, TickV7 } from './types.ts';
+import { hashV7, tickV7 } from './types.ts';
 import { checksumV7 } from './deterministic.ts';
 
 interface CacheEntry extends AssetRecordV7 {
