@@ -13,15 +13,18 @@ const bounded = (value, min, max) => finite(value) && value >= min && value <= m
 
 export const PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION = 1;
 
-function inspectPayloadBudget(value, maxDepth, maxNodes, depth = 0, seen = new WeakSet(), state = { nodes: 0 }) {
+function inspectPayloadBudget(value, maxDepth, maxNodes, maxKeys, depth = 0, seen = new WeakSet(), state = { nodes: 0, keys: 0 }) {
   if (value === null || typeof value !== 'object') return null;
   if (depth > maxDepth) return 'payload-depth-exceeded';
   if (seen.has(value)) return null;
   seen.add(value);
   state.nodes += 1;
   if (state.nodes > maxNodes) return 'payload-node-budget-exceeded';
-  for (const child of Object.values(value)) {
-    const failure = inspectPayloadBudget(child, maxDepth, maxNodes, depth + 1, seen, state);
+  const entries = Object.entries(value);
+  state.keys += entries.length;
+  if (state.keys > maxKeys) return 'payload-key-budget-exceeded';
+  for (const [, child] of entries) {
+    const failure = inspectPayloadBudget(child, maxDepth, maxNodes, maxKeys, depth + 1, seen, state);
     if (failure) return failure;
   }
   return null;
@@ -42,6 +45,7 @@ export function createPlayerCombatRuntimeFrameGuard({
   maxRevisionGap = 1,
   maxPayloadDepth = 12,
   maxPayloadNodes = 256,
+  maxPayloadKeys = 1024,
 } = {}) {
   if (!bounded(maxTimestampRegression, 0, 60)) throw new RangeError('maxTimestampRegression must be between 0 and 60');
   if (!integer(maxRevisionGap) || maxRevisionGap < 0 || maxRevisionGap > 1024) {
@@ -52,6 +56,9 @@ export function createPlayerCombatRuntimeFrameGuard({
   }
   if (!integer(maxPayloadNodes) || maxPayloadNodes < 1 || maxPayloadNodes > 8192) {
     throw new RangeError('maxPayloadNodes must be an integer between 1 and 8192');
+  }
+  if (!integer(maxPayloadKeys) || maxPayloadKeys < 1 || maxPayloadKeys > 32768) {
+    throw new RangeError('maxPayloadKeys must be an integer between 1 and 32768');
   }
 
   let disposed = false;
@@ -80,7 +87,7 @@ export function createPlayerCombatRuntimeFrameGuard({
   function inspect(frame) {
     if (disposed) return reject('disposed', frame);
     if (!frame || typeof frame !== 'object') return reject('missing-frame', frame);
-    const payloadFailure = inspectPayloadBudget(frame, maxPayloadDepth, maxPayloadNodes);
+    const payloadFailure = inspectPayloadBudget(frame, maxPayloadDepth, maxPayloadNodes, maxPayloadKeys);
     if (payloadFailure) return reject(payloadFailure, frame);
     if (frame.version !== PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION) return reject('unsupported-version', frame);
     if (!integer(frame.revision) || frame.revision < 0) return reject('invalid-revision', frame);
