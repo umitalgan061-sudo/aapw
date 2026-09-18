@@ -99,14 +99,14 @@ export class RendererGpuTimer {
     if (!gl || !extension || !query) return this.#lastGpuMs;
 
     try {
+      const available = Boolean(gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE));
+      if (!available) return this.#lastGpuMs;
       const disjoint = Boolean(gl.getParameter(extension.GPU_DISJOINT_EXT));
       if (disjoint) {
         gl.deleteQuery(query);
         this.#pendingQuery = null;
         return this.#lastGpuMs;
       }
-      const available = Boolean(gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE));
-      if (!available) return this.#lastGpuMs;
       const nanoseconds = Number(gl.getQueryParameter(query, gl.QUERY_RESULT));
       gl.deleteQuery(query);
       this.#pendingQuery = null;
