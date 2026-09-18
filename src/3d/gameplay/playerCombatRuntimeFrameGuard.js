@@ -90,6 +90,7 @@ export function createPlayerCombatRuntimeFrameGuard({
 
   function dispose() {
     disposed = true;
+    last = null;
     lastFrame = null;
     return readState();
   }
