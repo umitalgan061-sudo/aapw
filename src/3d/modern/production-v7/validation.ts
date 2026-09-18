@@ -1,4 +1,5 @@
-import { ActorComponentSetV7, InputCommandV7, RuntimeCommandV7, WorldSnapshotV7, clampV7, isFiniteVec3V7 } from './types.ts';
+import type { ActorComponentSetV7, InputCommandV7, RuntimeCommandV7, WorldSnapshotV7 } from './types.ts';
+import { clampV7, isFiniteVec3V7 } from './types.ts';
 
 export interface ValidationLimitsV7 {
   readonly maxStringLength: number;
