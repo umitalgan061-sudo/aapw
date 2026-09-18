@@ -136,7 +136,7 @@ export function createPlayerCombatRuntimeFrameGuard({
       disposed,
       accepted,
       rejected,
-      last: last ? Object.freeze({ ...last }) : null,
+      last: last ? cloneAndFreeze(last) : null,
     });
   }
 
