@@ -10,11 +10,17 @@
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
 const integer = (value) => typeof value === 'number' && Number.isInteger(value);
 const bounded = (value, min, max) => finite(value) && value >= min && value <= max;
+const isPlainRecord = (value) => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
 
 export const PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION = 1;
 
 function inspectPayloadBudget(value, maxDepth, maxNodes, maxKeys, depth = 0, seen = new WeakSet(), state = { nodes: 0, keys: 0 }) {
   if (value === null || typeof value !== 'object') return null;
+  if (Array.isArray(value) === false && !isPlainRecord(value)) return 'payload-object-type-unsupported';
   if (depth > maxDepth) return 'payload-depth-exceeded';
   if (seen.has(value)) return null;
   seen.add(value);
