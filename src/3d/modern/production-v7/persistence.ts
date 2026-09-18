@@ -1,4 +1,5 @@
-import { SaveEnvelopeV7, SaveSlotSummaryV7, ContentHashV7, RevisionV7, TickV7, hashV7, revisionV7, tickV7 } from './types.ts';
+import type { SaveEnvelopeV7, SaveSlotSummaryV7, ContentHashV7, RevisionV7, TickV7 } from './types.ts';
+import { hashV7, revisionV7, tickV7 } from './types.ts';
 import { checksumV7, stableStringifyV7 } from './deterministic.ts';
 
 export interface SaveMigrationV7 {
