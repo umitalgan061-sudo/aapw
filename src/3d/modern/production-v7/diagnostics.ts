@@ -1,4 +1,5 @@
-import { ContentHashV7, RuntimeHealthV7, RuntimeModeV7, TickV7, hashV7 } from './types.ts';
+import type { ContentHashV7, RuntimeHealthV7, RuntimeModeV7, TickV7 } from './types.ts';
+import { hashV7 } from './types.ts';
 import { checksumV7 } from './deterministic.ts';
 import { RuntimeTelemetryV7 } from './observability.ts';
 
