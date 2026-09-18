@@ -36,6 +36,22 @@ describe('RendererGpuTimer', () => {
     expect(timer.diagnostics()).toMatchObject({ supported: true, samples: 1, lastGpuMs: 5, pending: false });
   });
 
+  it('does not inspect disjoint state until the query is available', () => {
+    const context = createFakeGpuContext();
+    const timer = new RendererGpuTimer({ getContext: () => context });
+
+    expect(timer.begin()).toBe(true);
+    timer.end();
+    context.setDisjoint(true);
+
+    expect(timer.poll()).toBeNull();
+    expect(context.deleteQuery).not.toHaveBeenCalled();
+
+    context.setAvailable(true);
+    expect(timer.poll()).toBeNull();
+    expect(context.deleteQuery).toHaveBeenCalledTimes(1);
+  });
+
   it('drops disjoint GPU samples instead of feeding corrupt timing into adaptive quality', () => {
     const context = createFakeGpuContext();
     const timer = new RendererGpuTimer({ getContext: () => context });
