@@ -1,4 +1,5 @@
-import { InputCommandV7, RuntimeCommandV7, SequenceV7, TickV7, clampV7 } from './types.ts';
+import type { InputCommandV7, RuntimeCommandV7, SequenceV7, TickV7, clampV7 } from './types.ts';
+
 import { hashStringV7 } from './deterministic.ts';
 
 export interface SecurityLimitsV7 {
