@@ -1,4 +1,5 @@
-import { ContentHashV7, TickV7, hashV7, tickV7 } from './types.ts';
+import type { ContentHashV7, TickV7 } from './types.ts';
+import { hashV7, tickV7 } from './types.ts';
 
 export class DeterministicRngV7 {
   #state: number;
