@@ -103,7 +103,7 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
         frame,
         frameMs,
         cpuMs: input.cpuMs ?? frameMs,
-        gpuMs: input.gpuMs ?? presentationBridge.gpuMs(),
+        gpuMs: input.gpuMs ?? presentationBridge?.gpuMs(),
         drawCalls: input.drawCalls ?? legacyMetrics.drawCalls,
         triangles: input.triangles ?? legacyMetrics.triangles,
         visibleObjects: input.visibleObjects ?? 0,
