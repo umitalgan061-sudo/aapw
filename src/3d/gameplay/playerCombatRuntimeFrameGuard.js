@@ -29,31 +29,35 @@ function inspectPayloadBudget(
   seen = new WeakSet(),
   state = { nodes: 0, keys: 0 },
 ) {
-  if (typeof value === 'string') return value.length > maxStringLength ? 'payload-string-length-exceeded' : null;
-  if (value === null || typeof value !== 'object') return null;
-  if (Array.isArray(value) === false && !isPlainRecord(value)) return 'payload-object-type-unsupported';
-  if (depth > maxDepth) return 'payload-depth-exceeded';
-  if (Array.isArray(value) && value.length > maxArrayLength) return 'payload-array-length-exceeded';
-  if (seen.has(value)) return null;
-  seen.add(value);
-  state.nodes += 1;
-  if (state.nodes > maxNodes) return 'payload-node-budget-exceeded';
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  for (const key of Object.keys(descriptors)) {
-    const descriptor = descriptors[key];
-    if (descriptor.enumerable && !('value' in descriptor)) return 'payload-accessor-unsupported';
+  try {
+    if (typeof value === 'string') return value.length > maxStringLength ? 'payload-string-length-exceeded' : null;
+    if (value === null || typeof value !== 'object') return null;
+    if (Array.isArray(value) === false && !isPlainRecord(value)) return 'payload-object-type-unsupported';
+    if (depth > maxDepth) return 'payload-depth-exceeded';
+    if (Array.isArray(value) && value.length > maxArrayLength) return 'payload-array-length-exceeded';
+    if (seen.has(value)) return null;
+    seen.add(value);
+    state.nodes += 1;
+    if (state.nodes > maxNodes) return 'payload-node-budget-exceeded';
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    for (const key of Object.keys(descriptors)) {
+      const descriptor = descriptors[key];
+      if (descriptor.enumerable && !('value' in descriptor)) return 'payload-accessor-unsupported';
+    }
+    for (const symbol of Object.getOwnPropertySymbols(value)) {
+      if (Object.prototype.propertyIsEnumerable.call(value, symbol)) return 'payload-symbol-key-unsupported';
+    }
+    const entries = Object.entries(value);
+    state.keys += entries.length;
+    if (state.keys > maxKeys) return 'payload-key-budget-exceeded';
+    for (const [, child] of entries) {
+      const failure = inspectPayloadBudget(child, maxDepth, maxNodes, maxKeys, maxArrayLength, maxStringLength, depth + 1, seen, state);
+      if (failure) return failure;
+    }
+    return null;
+  } catch {
+    return 'payload-inspection-failed';
   }
-  for (const symbol of Object.getOwnPropertySymbols(value)) {
-    if (Object.prototype.propertyIsEnumerable.call(value, symbol)) return 'payload-symbol-key-unsupported';
-  }
-  const entries = Object.entries(value);
-  state.keys += entries.length;
-  if (state.keys > maxKeys) return 'payload-key-budget-exceeded';
-  for (const [, child] of entries) {
-    const failure = inspectPayloadBudget(child, maxDepth, maxNodes, maxKeys, maxArrayLength, maxStringLength, depth + 1, seen, state);
-    if (failure) return failure;
-  }
-  return null;
 }
 
 function cloneAndFreeze(value, seen = new WeakMap()) {
@@ -114,15 +118,19 @@ export function createPlayerCombatRuntimeFrameGuard({
   }
 
   function accept(frame) {
-    accepted += 1;
-    lastFrame = cloneAndFreeze(frame);
-    last = Object.freeze({
-      version: frame.version,
-      revision: frame.revision,
-      timestamp: frame.timestamp,
-      attackSerial: frame.attack.serial,
-    });
-    return Object.freeze({ ok: true, frame: lastFrame, accepted, rejected });
+    try {
+      accepted += 1;
+      lastFrame = cloneAndFreeze(frame);
+      last = Object.freeze({
+        version: frame.version,
+        revision: frame.revision,
+        timestamp: frame.timestamp,
+        attackSerial: frame.attack.serial,
+      });
+      return Object.freeze({ ok: true, frame: lastFrame, accepted, rejected });
+    } catch {
+      return reject('payload-clone-failed', frame);
+    }
   }
 
   function inspect(frame) {
