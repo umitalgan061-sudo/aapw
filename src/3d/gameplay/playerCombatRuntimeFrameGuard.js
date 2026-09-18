@@ -56,9 +56,9 @@ export function createPlayerCombatRuntimeFrameGuard({
   function inspect(frame) {
     if (disposed) return reject('disposed', frame);
     if (!frame || typeof frame !== 'object') return reject('missing-frame', frame);
-    if (frame.version !== 1) return reject('unsupported-version', frame);
+    if (frame.version !== PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION) return reject('unsupported-version', frame);
     if (!integer(frame.revision) || frame.revision < 0) return reject('invalid-revision', frame);
-    if (!finite(frame.timestamp)) return reject('invalid-timestamp', frame);
+    if (!finite(frame.timestamp) || frame.timestamp < 0) return reject('invalid-timestamp', frame);
     if (!frame.attack || typeof frame.attack !== 'object' || !integer(frame.attack.serial) || frame.attack.serial < 0) {
       return reject('invalid-attack-serial', frame);
     }
