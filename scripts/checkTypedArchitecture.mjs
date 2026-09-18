@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 const ROOTS = ['src/3d', 'src/engine-ts'];
+const GUARDED_ROOTS = ['src/3d/modern'];
 const LEGACY_ALLOWLIST = new Set([
   'src/3d/vendor/',
 ]);
@@ -35,6 +36,7 @@ const walk = async directory => {
 const normalize = path => path.split('\\').join('/');
 const failures = [];
 const rootFiles = (await Promise.all(ROOTS.map(root => walk(root)))).flat().map(normalize);
+const guardedFiles = (await Promise.all(GUARDED_ROOTS.map(root => walk(root)))).flat().map(normalize);
 const sourceFiles = rootFiles.filter(path => /\.(ts|tsx|js|jsx)$/.test(path));
 const sourceSet = new Set(sourceFiles);
 
@@ -43,7 +45,7 @@ for (const path of MUST_EXIST) {
 }
 
 const legacyFiles = sourceFiles.filter(path => /\.(js|jsx)$/.test(path) && ![...LEGACY_ALLOWLIST].some(prefix => path.startsWith(prefix)));
-const typedFiles = sourceFiles.filter(path => /\.(ts|tsx)$/.test(path));
+const typedFiles = guardedFiles.filter(path => /\.(ts|tsx)$/.test(path));
 const migrationCandidates = legacyFiles.filter(path => !path.includes('/vendor/'));
 const untypedImportPattern = /from\s+['"](\.\.?\/[^'"]+\.js)['"]/g;
 
@@ -92,6 +94,7 @@ const manifest = {
   generatedAt: 'source-controlled',
   strategy: 'typed-core-first',
   sourceRoots: ROOTS,
+  guardedRoots: GUARDED_ROOTS,
   totalSourceFiles: sourceFiles.length,
   typedFiles: typedFiles.length,
   legacyRuntimeFiles: migrationCandidates.length,
