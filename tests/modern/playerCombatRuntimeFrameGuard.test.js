@@ -31,4 +31,17 @@ describe('player combat runtime frame guard payload contract', () => {
     expect(Object.isFrozen(result.frame.payload)).toBe(true);
     expect(result.frame.payload.combo.step).toBe(1);
   });
+
+  it('fails closed when a proxy throws during payload inspection', () => {
+    const hostile = new Proxy({}, {
+      ownKeys() {
+        throw new Error('hostile ownKeys');
+      },
+    });
+    const guard = createPlayerCombatRuntimeFrameGuard();
+    const result = guard.inspect(frame({ hostile }));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('payload-inspection-failed');
+    expect(result.frame).toBe(null);
+  });
 });
