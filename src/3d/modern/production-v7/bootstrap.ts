@@ -1,6 +1,8 @@
-import { ProductionRuntimeV7, ProductionRuntimeOptionsV7, createProductionRuntimeV7 } from './facade.ts';
+import { ProductionRuntimeV7, createProductionRuntimeV7 } from './facade.ts';
+import type { ProductionRuntimeOptionsV7 } from './facade.ts';
 import { FrameOrchestratorV7 } from './frameOrchestrator.ts';
-import { RuntimePhaseV7, RuntimeModeV7, TickV7, RuntimeBudgetsV7 } from './types.ts';
+import type { RuntimePhaseV7, RuntimeModeV7, TickV7, RuntimeBudgetsV7 } from './types.ts';
+
 import { RuntimeHealthV7 } from './types.ts';
 import { platformProfileForTestsV7 } from './platform.ts';
 import { budgetDefaultsV7 } from './renderPolicy.ts';
