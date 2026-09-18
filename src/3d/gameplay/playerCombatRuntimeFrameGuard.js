@@ -36,7 +36,12 @@ function inspectPayloadBudget(
   seen.add(value);
   state.nodes += 1;
   if (state.nodes > maxNodes) return 'payload-node-budget-exceeded';
+  const descriptors = Object.getOwnPropertyDescriptors(value);
   const entries = Object.entries(value);
+  for (const key of Object.keys(descriptors)) {
+    const descriptor = descriptors[key];
+    if (descriptor.enumerable && !('value' in descriptor)) return 'payload-accessor-unsupported';
+  }
   state.keys += entries.length;
   if (state.keys > maxKeys) return 'payload-key-budget-exceeded';
   for (const [, child] of entries) {
@@ -51,6 +56,7 @@ function cloneAndFreeze(value, seen = new WeakMap()) {
   if (seen.has(value)) return seen.get(value);
 
   const clone = Array.isArray(value) ? [] : Object.create(null);
+  if (Array.isArray(value)) clone.length = value.length;
   seen.set(value, clone);
   for (const [key, child] of Object.entries(value)) clone[key] = cloneAndFreeze(child, seen);
   return Object.freeze(clone);
