@@ -91,6 +91,9 @@ assert.equal(arrayGuard.inspect(tooLong).reason, 'payload-array-length-exceeded'
 const accessorFrame = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 } };
 Object.defineProperty(accessorFrame, 'payload', { enumerable: true, get() { throw new Error('getter should not execute'); } });
 assert.equal(createPlayerCombatRuntimeFrameGuard().inspect(accessorFrame).reason, 'payload-accessor-unsupported');
+const symbolFrame = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 } };
+Object.defineProperty(symbolFrame, Symbol('payload'), { enumerable: true, value: 'hidden' });
+assert.equal(createPlayerCombatRuntimeFrameGuard().inspect(symbolFrame).reason, 'payload-symbol-key-unsupported');
 const sparseFrame = { version: 1, revision: 1, timestamp: 0.016, attack: { serial: 1 }, payload: [] };
 sparseFrame.payload.length = 4;
 sparseFrame.payload[2] = 'sample';
@@ -111,4 +114,4 @@ assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 49 checks passed');
+console.log('player combat runtime frame guard immutability: 51 checks passed');
