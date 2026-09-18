@@ -1,4 +1,5 @@
-import { PlatformProfileV7, RenderBudgetV7, RuntimeHealthV7, RuntimeModeV7, RuntimeBudgetsV7, clampV7 } from './types.ts';
+import type { PlatformProfileV7, RenderBudgetV7, RuntimeHealthV7, RuntimeModeV7, RuntimeBudgetsV7 } from './types.ts';
+import { clampV7 } from './types.ts';
 
 export type RenderFeatureV7 =
   | 'shadows' | 'ssao' | 'reflections' | 'fog' | 'vegetation' | 'particles'
