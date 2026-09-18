@@ -36,6 +36,7 @@ export function createPlayerCombatRuntimeFrameGuard({
   let accepted = 0;
   let rejected = 0;
   let last = null;
+  let lastFrame = null;
 
   function reject(reason, frame) {
     rejected += 1;
@@ -44,13 +45,14 @@ export function createPlayerCombatRuntimeFrameGuard({
 
   function accept(frame) {
     accepted += 1;
+    lastFrame = cloneAndFreeze(frame);
     last = Object.freeze({
       version: frame.version,
       revision: frame.revision,
       timestamp: frame.timestamp,
       attackSerial: frame.attack.serial,
     });
-    return Object.freeze({ ok: true, frame: cloneAndFreeze(frame), accepted, rejected });
+    return Object.freeze({ ok: true, frame: lastFrame, accepted, rejected });
   }
 
   function inspect(frame) {
@@ -79,12 +81,18 @@ export function createPlayerCombatRuntimeFrameGuard({
     accepted = 0;
     rejected = 0;
     last = null;
+    lastFrame = null;
     return readState();
   }
 
   function dispose() {
     disposed = true;
+    lastFrame = null;
     return readState();
+  }
+
+  function readLastFrame() {
+    return lastFrame;
   }
 
   function readState() {
@@ -97,5 +105,5 @@ export function createPlayerCombatRuntimeFrameGuard({
     });
   }
 
-  return Object.freeze({ inspect, reset, dispose, readState });
+  return Object.freeze({ inspect, readLastFrame, reset, dispose, readState });
 }
