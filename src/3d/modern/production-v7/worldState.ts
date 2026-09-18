@@ -1,4 +1,5 @@
-import { ContentHashV7, EntityIdV7, EntityRecordV7, RuntimeModeV7, TickV7, WorldSnapshotV7, hashV7, revisionV7, tickV7 } from './types.ts';
+import type { ContentHashV7, EntityIdV7, EntityRecordV7, RuntimeModeV7, TickV7, WorldSnapshotV7, hashV7 } from './types.ts';
+import { revisionV7, tickV7 } from './types.ts';
 import { checksumV7 } from './deterministic.ts';
 import { EntityStoreV7 } from './entityStore.ts';
 import { RuntimeCodecV7 } from './codec.ts';
