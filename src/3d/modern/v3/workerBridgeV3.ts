@@ -128,7 +128,9 @@ export class LoopbackEndpoint implements MessageEndpoint {
   }
 
   postMessage(message: WorkerMessage): void {
-    for (const listener of this.#peer?.#listeners ?? []) listener({ data: structuredClone(message) });
+    const peer = this.#peer;
+    if (!peer) return;
+    for (const listener of peer.#listeners) listener({ data: structuredClone(message) });
   }
 
   addEventListener(_type: 'message', listener: (event: { data: WorkerMessage }) => void): void {
