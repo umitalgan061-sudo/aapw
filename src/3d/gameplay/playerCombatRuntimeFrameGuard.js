@@ -18,6 +18,17 @@ const isPlainRecord = (value) => {
 
 export const PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION = 1;
 
+function readEnumerableDataEntries(value, descriptors) {
+  const entries = [];
+  for (const key of Object.keys(descriptors)) {
+    const descriptor = descriptors[key];
+    if (!descriptor.enumerable) continue;
+    if (!('value' in descriptor)) return { failure: 'payload-accessor-unsupported', entries: null };
+    entries.push([key, descriptor.value]);
+  }
+  return { failure: null, entries };
+}
+
 function inspectPayloadBudget(
   value,
   maxDepth,
@@ -46,17 +57,14 @@ function inspectPayloadBudget(
     state.nodes += 1;
     if (state.nodes > maxNodes) return 'payload-node-budget-exceeded';
     const descriptors = Object.getOwnPropertyDescriptors(value);
-    for (const key of Object.keys(descriptors)) {
-      const descriptor = descriptors[key];
-      if (descriptor.enumerable && !('value' in descriptor)) return 'payload-accessor-unsupported';
-    }
     for (const symbol of Object.getOwnPropertySymbols(value)) {
       if (Object.prototype.propertyIsEnumerable.call(value, symbol)) return 'payload-symbol-key-unsupported';
     }
-    const entries = Object.entries(value);
-    state.keys += entries.length;
+    const readable = readEnumerableDataEntries(value, descriptors);
+    if (readable.failure) return readable.failure;
+    state.keys += readable.entries.length;
     if (state.keys > maxKeys) return 'payload-key-budget-exceeded';
-    for (const [, child] of entries) {
+    for (const [, child] of readable.entries) {
       const failure = inspectPayloadBudget(
         child,
         maxDepth,
