@@ -19,12 +19,18 @@ import { applyAuroraCurtainRaysV3 } from './auroraRealism.js';
 import { applyAuroraRayCurtainV4 } from './auroraRayCurtainV4.js';
 import { applyAuroraNightAtmosphereV5 } from './auroraNightAtmosphereV5.js';
 
-const clamp01 = (value) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
-const smoothstep01 = (edge0, edge1, value) => {
+export interface DayNightSkyState {
+  readonly horizonColor: THREE.Color;
+  readonly zenithColor: THREE.Color;
+  readonly nightFactor: number;
+}
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+const smoothstep01 = (edge0: number, edge1: number, value: number): number => {
 	const t = clamp01((value - edge0) / (edge1 - edge0));
 	return t * t * (3 - 2 * t);
 };
-const lerp = (a, b, t) => a + (b - a) * t;
+const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 export const SKY_ATMOSPHERE_PROFILE_POLICY = Object.freeze({
 	id: 'world-sky-day-night-atmosphere-profile-v3-upper-air-multiscale-breakup',
@@ -37,7 +43,7 @@ export const SKY_ATMOSPHERE_PROFILE_POLICY = Object.freeze({
 });
 
 /** Bounded atmosphere coefficients driven only by lighting phase, never by map coordinates. */
-export function sampleSkyAtmosphereProfile(nightFactor) {
+export function sampleSkyAtmosphereProfile(nightFactor: number) {
 	const night = clamp01(nightFactor);
 	const day = 1 - night;
 	const twilight = 1 - Math.abs(day - 0.5) * 2;
@@ -184,7 +190,7 @@ const DEFAULT_AURORA_COLOR_A = new THREE.Color(0x2ce8a0);
 const DEFAULT_AURORA_COLOR_B = new THREE.Color(0x6a3fd6);
 const SKY_RADIUS_METERS = 1900;
 
-export function createAuroraSky() {
+export function createAuroraSky(): THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> {
 	const initialProfile = sampleSkyAtmosphereProfile(1);
 	const geometry = new THREE.SphereGeometry(SKY_RADIUS_METERS, 32, 16);
 	const material = new THREE.ShaderMaterial({
@@ -227,7 +233,7 @@ export function createAuroraSky() {
 	return mesh;
 }
 
-export function updateAuroraSky(skyMesh, cameraPosition, elapsedSeconds, dayNight) {
+export function updateAuroraSky(skyMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>, cameraPosition: THREE.Vector3, elapsedSeconds: number, dayNight: DayNightSkyState): void {
 	skyMesh.position.copy(cameraPosition);
 	const uniforms = skyMesh.material.uniforms;
 	const profile = sampleSkyAtmosphereProfile(dayNight.nightFactor);
@@ -243,7 +249,7 @@ export function updateAuroraSky(skyMesh, cameraPosition, elapsedSeconds, dayNigh
 	uniforms.uBandingDitherStrength.value = profile.bandingDitherStrength;
 }
 
-export function disposeAuroraSky(skyMesh) {
+export function disposeAuroraSky(skyMesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>): void {
 	skyMesh.geometry.dispose();
 	skyMesh.material.dispose();
 }
