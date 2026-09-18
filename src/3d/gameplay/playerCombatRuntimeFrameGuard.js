@@ -7,9 +7,9 @@
  * @module gameplay/playerCombatRuntimeFrameGuard
  */
 
-const finite = (value) => Number.isFinite(Number(value));
-const integer = (value) => Number.isInteger(Number(value));
-const bounded = (value, min, max) => finite(value) && Number(value) >= min && Number(value) <= max;
+const finite = (value) => typeof value === 'number' && Number.isFinite(value);
+const integer = (value) => typeof value === 'number' && Number.isInteger(value);
+const bounded = (value, min, max) => finite(value) && value >= min && value <= max;
 
 export const PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION = 1;
 
@@ -28,7 +28,7 @@ export function createPlayerCombatRuntimeFrameGuard({
   maxRevisionGap = 1,
 } = {}) {
   if (!bounded(maxTimestampRegression, 0, 60)) throw new RangeError('maxTimestampRegression must be between 0 and 60');
-  if (!integer(maxRevisionGap) || Number(maxRevisionGap) < 0 || Number(maxRevisionGap) > 1024) {
+  if (!integer(maxRevisionGap) || maxRevisionGap < 0 || maxRevisionGap > 1024) {
     throw new RangeError('maxRevisionGap must be an integer between 0 and 1024');
   }
 
@@ -45,10 +45,10 @@ export function createPlayerCombatRuntimeFrameGuard({
   function accept(frame) {
     accepted += 1;
     last = Object.freeze({
-      version: Number(frame.version),
-      revision: Number(frame.revision),
-      timestamp: Number(frame.timestamp),
-      attackSerial: Number(frame.attack?.serial ?? 0),
+      version: frame.version,
+      revision: frame.revision,
+      timestamp: frame.timestamp,
+      attackSerial: frame.attack.serial,
     });
     return Object.freeze({ ok: true, frame: cloneAndFreeze(frame), accepted, rejected });
   }
@@ -56,19 +56,19 @@ export function createPlayerCombatRuntimeFrameGuard({
   function inspect(frame) {
     if (disposed) return reject('disposed', frame);
     if (!frame || typeof frame !== 'object') return reject('missing-frame', frame);
-    if (Number(frame.version) !== 1) return reject('unsupported-version', frame);
-    if (!integer(frame.revision) || Number(frame.revision) < 0) return reject('invalid-revision', frame);
+    if (frame.version !== 1) return reject('unsupported-version', frame);
+    if (!integer(frame.revision) || frame.revision < 0) return reject('invalid-revision', frame);
     if (!finite(frame.timestamp)) return reject('invalid-timestamp', frame);
-    if (!frame.attack || !integer(frame.attack.serial) || Number(frame.attack.serial) < 0) {
+    if (!frame.attack || typeof frame.attack !== 'object' || !integer(frame.attack.serial) || frame.attack.serial < 0) {
       return reject('invalid-attack-serial', frame);
     }
     if (last) {
-      const revision = Number(frame.revision);
-      const timestamp = Number(frame.timestamp);
-      const attackSerial = Number(frame.attack.serial);
+      const revision = frame.revision;
+      const timestamp = frame.timestamp;
+      const attackSerial = frame.attack.serial;
       if (revision < last.revision) return reject('revision-regressed', frame);
-      if (revision - last.revision > Number(maxRevisionGap)) return reject('revision-gap', frame);
-      if (timestamp + Number(maxTimestampRegression) < last.timestamp) return reject('timestamp-regressed', frame);
+      if (revision - last.revision > maxRevisionGap) return reject('revision-gap', frame);
+      if (timestamp + maxTimestampRegression < last.timestamp) return reject('timestamp-regressed', frame);
       if (attackSerial < last.attackSerial) return reject('attack-serial-regressed', frame);
     }
     return accept(frame);
