@@ -1,4 +1,5 @@
-import { SchedulerLaneV7, SchedulerReportV7, TaskContextV7, TaskResultV7, TaskSpecV7, TickV7, tickV7 } from './types.ts';
+import type { SchedulerLaneV7, SchedulerReportV7, TaskContextV7, TaskResultV7, TaskSpecV7, TickV7, tickV7 } from './types.ts';
+
 import { DeterministicRngV7 } from './deterministic.ts';
 
 interface InternalTask<T> extends TaskSpecV7<T> {
