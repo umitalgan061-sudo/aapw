@@ -64,4 +64,9 @@ assert.equal(Object.isFrozen(followUp.frame), true);
 assert.equal(guard.readState().accepted, 3);
 assert.equal(guard.readState().rejected, 1);
 
-console.log('player combat runtime frame guard immutability: 20 checks passed');
+assert.equal(guard.inspect({ version: '1', revision: 2, timestamp: 0.032, attack: { serial: 2 } }).reason, 'unsupported-version');
+assert.equal(guard.inspect({ version: 1, revision: '2', timestamp: 0.032, attack: { serial: 2 } }).reason, 'invalid-revision');
+assert.equal(guard.inspect({ version: 1, revision: 2, timestamp: '0.032', attack: { serial: 2 } }).reason, 'invalid-timestamp');
+assert.equal(guard.inspect({ version: 1, revision: 2, timestamp: 0.032, attack: { serial: '2' } }).reason, 'invalid-attack-serial');
+
+console.log('player combat runtime frame guard immutability: 24 checks passed');
