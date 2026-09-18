@@ -1,6 +1,7 @@
 import type { NextGenRuntimeFacadeV2, RuntimeFrameSummary } from '../nextgen/index.ts';
-import { ActorState } from '../nextgen/actorSimulationV2.ts';
-import { EntityRecordV7, EntityIdV7, RuntimeCommandV7, TickV7, vec3V7, entityIdV7 } from './types.ts';
+import type { ActorState } from '../nextgen/actorSimulationV2.ts';
+import type { EntityRecordV7, EntityIdV7, RuntimeCommandV7, TickV7 } from './types.ts';
+import { vec3V7, entityIdV7 } from './types.ts';
 import { checksumV7 } from './deterministic.ts';
 
 export interface CompatibilityActorV7 {
