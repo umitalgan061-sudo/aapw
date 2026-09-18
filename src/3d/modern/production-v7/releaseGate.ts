@@ -1,4 +1,5 @@
-import { DEFAULT_RUNTIME_CONFIG_V7, RuntimeConfigV7 } from './types.ts';
+import type { RuntimeConfigV7 } from './types.ts';
+import { DEFAULT_RUNTIME_CONFIG_V7 } from './types.ts';
 import { checksumV7 } from './deterministic.ts';
 import { DEFAULT_CODEC_LIMITS_V7, RuntimeCodecV7 } from './codec.ts';
 
