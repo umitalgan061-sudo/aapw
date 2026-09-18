@@ -1,4 +1,5 @@
-import { RuntimePhaseV7, RuntimeModeV7, RuntimeHealthV7, RuntimeBudgetsV7 } from './types.ts';
+import type { RuntimePhaseV7, RuntimeModeV7, RuntimeHealthV7, RuntimeBudgetsV7 } from './types.ts';
+
 
 export type RecoveryActionV7 =
   | 'flush-streaming' | 'evict-assets' | 'reduce-render-scale' | 'reduce-simulation'
