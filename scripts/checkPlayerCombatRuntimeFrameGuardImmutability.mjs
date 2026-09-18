@@ -113,6 +113,20 @@ assert.equal(sparseResult.ok, true);
 assert.equal(sparseResult.frame.payload.length, 4);
 assert.equal(2 in sparseResult.frame.payload, true);
 assert.equal(1 in sparseResult.frame.payload, false);
+
+let descriptorReads = 0;
+const unstableTarget = { version: 1, revision: 3, timestamp: 0.032, attack: { serial: 3 } };
+const unstableProxy = new Proxy(unstableTarget, {
+  getOwnPropertyDescriptors(target) {
+    descriptorReads += 1;
+    if (descriptorReads >= 3) throw new Error('descriptor changed during rejection clone');
+    return Object.getOwnPropertyDescriptors(target);
+  },
+});
+const unstableResult = createPlayerCombatRuntimeFrameGuard().inspect(unstableProxy);
+assert.equal(unstableResult.reason, 'revision-gap');
+assert.equal(unstableResult.frame, null);
+
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadDepth: -1 }), /maxPayloadDepth/);
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadNodes: 0 }), /maxPayloadNodes/);
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadArrayLength: 0 }), /maxPayloadArrayLength/);
@@ -125,4 +139,4 @@ assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 58 checks passed');
+console.log('player combat runtime frame guard immutability: 61 checks passed');
