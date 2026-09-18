@@ -75,6 +75,7 @@ export function createPlayerCombatRuntimeFrameGuard({
   }
 
   function reset() {
+    disposed = false;
     accepted = 0;
     rejected = 0;
     last = null;
