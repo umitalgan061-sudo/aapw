@@ -1,4 +1,5 @@
-import { EntityRecordV7, RuntimeCommandV7, TickV7, WorldSnapshotV7, hashV7, tickV7 } from './types.ts';
+import type { EntityRecordV7, RuntimeCommandV7, TickV7, WorldSnapshotV7 } from './types.ts';
+import { hashV7, tickV7 } from './types.ts';
 import { checksumV7 } from './deterministic.ts';
 import { RuntimeValidatorV7 } from './validation.ts';
 
