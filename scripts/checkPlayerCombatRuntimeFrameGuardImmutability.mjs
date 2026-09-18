@@ -39,6 +39,12 @@ assert.equal(cycleResult.ok, true);
 assert.equal(cycleResult.frame.metadata.self, cycleResult.frame.metadata);
 assert.equal(Object.isFrozen(cycleResult.frame.metadata), true);
 assert.equal(guard.readLastFrame(), cycleResult.frame);
+assert.equal(guard.inspect({
+  version: 1,
+  revision: 1,
+  timestamp: 0.016,
+  attack: { serial: 1 },
+}).reason, 'duplicate-frame');
 
 const rejectedInput = {
   version: 1,
@@ -60,13 +66,13 @@ const followUp = guard.inspect({
   version: 1,
   revision: 1,
   timestamp: 0.016,
-  attack: { serial: 1, metadata: { phase: 'active' } },
+  attack: { serial: 2, metadata: { phase: 'active' } },
 });
 assert.equal(followUp.ok, true);
 assert.equal(Object.isFrozen(followUp.frame), true);
 assert.equal(guard.readLastFrame(), followUp.frame);
 assert.equal(guard.readState().accepted, 3);
-assert.equal(guard.readState().rejected, 1);
+assert.equal(guard.readState().rejected, 2);
 
 assert.equal(guard.inspect({ version: '1', revision: 2, timestamp: 0.032, attack: { serial: 2 } }).reason, 'unsupported-version');
 assert.equal(guard.inspect({ version: 1, revision: '2', timestamp: 0.032, attack: { serial: 2 } }).reason, 'invalid-revision');
@@ -78,4 +84,4 @@ assert.equal(guard.readLastFrame(), null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 31 checks passed');
+console.log('player combat runtime frame guard immutability: 32 checks passed');

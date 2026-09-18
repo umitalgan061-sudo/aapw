@@ -69,6 +69,9 @@ export function createPlayerCombatRuntimeFrameGuard({
       const timestamp = frame.timestamp;
       const attackSerial = frame.attack.serial;
       if (revision < last.revision) return reject('revision-regressed', frame);
+      if (revision === last.revision && timestamp === last.timestamp && attackSerial === last.attackSerial) {
+        return reject('duplicate-frame', frame);
+      }
       if (revision - last.revision > maxRevisionGap) return reject('revision-gap', frame);
       if (timestamp + maxTimestampRegression < last.timestamp) return reject('timestamp-regressed', frame);
       if (attackSerial < last.attackSerial) return reject('attack-serial-regressed', frame);
