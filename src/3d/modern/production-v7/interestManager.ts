@@ -1,4 +1,5 @@
-import { EntityIdV7, InterestComponentV7, Vec3V7, SpatialQueryResultV7, clampV7, distanceSquaredV7 } from './types.ts';
+import type { EntityIdV7, InterestComponentV7, Vec3V7, SpatialQueryResultV7 } from './types.ts';
+import { clampV7, distanceSquaredV7 } from './types.ts';
 
 export interface InterestSourceV7 {
   readonly id: string;
