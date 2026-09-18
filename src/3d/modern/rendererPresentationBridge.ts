@@ -114,8 +114,10 @@ export class RendererPresentationBridge {
   }
 
   gpuMs(): number | undefined {
-    const value = this.#instrumentation?.timer.lastGpuMs;
-    return value === null || value === undefined ? undefined : value;
+    const timer = this.#instrumentation?.timer;
+    if (!timer) return undefined;
+    timer.poll();
+    return timer.lastGpuMs ?? undefined;
   }
 
   apply(snapshot: { readonly quality: QualityTier; readonly pressure: PresentationPressure }): void {
