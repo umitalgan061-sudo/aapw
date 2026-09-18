@@ -1,4 +1,5 @@
-import { ContentHashV7, EntityDeltaV7, InputCommandV7, NetworkBudgetV7, NetworkConnectionV7, NetworkStatsV7, PacketV7, PredictionStateV7, SequenceV7, TickV7, WorldSnapshotV7, hashV7, sequenceV7, tickV7 } from './types.ts';
+import type { ContentHashV7, EntityDeltaV7, InputCommandV7, NetworkBudgetV7, NetworkConnectionV7, NetworkStatsV7, PacketV7, PredictionStateV7, SequenceV7, TickV7, WorldSnapshotV7, hashV7 } from './types.ts';
+import { sequenceV7, tickV7 } from './types.ts';
 import { SequenceWindowV7, checksumV7, hashNumbersV7 } from './deterministic.ts';
 
 export interface OutboundMessageV7<T> {
