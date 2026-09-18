@@ -26,6 +26,8 @@ const reset = guard.reset();
 assert.equal(reset.last, null);
 assert.equal(reset.disposed, false);
 assert.equal(guard.inspect(frame(0, 0)).ok, true);
+assert.equal(Object.getPrototypeOf(guard.readState().last), null);
+assert.equal(Object.isFrozen(guard.readState().last), true);
 assert.equal(guard.dispose().disposed, true);
 assert.equal(guard.inspect(frame(1, 0.016)).reason, 'disposed');
 const revived = guard.reset();
@@ -36,4 +38,4 @@ assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxRevisionGap: -1 }),
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxTimestampRegression: 61 }), /maxTimestampRegression/);
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadKeys: 0 }), /maxPayloadKeys/);
 
-console.log('player combat runtime frame guard: 19 checks passed');
+console.log('player combat runtime frame guard: 21 checks passed');
