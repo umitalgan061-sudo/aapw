@@ -67,7 +67,13 @@ function cloneAndFreeze(value, seen = new WeakMap()) {
   const clone = Array.isArray(value) ? [] : Object.create(null);
   if (Array.isArray(value)) clone.length = value.length;
   seen.set(value, clone);
-  for (const [key, child] of Object.entries(value)) clone[key] = cloneAndFreeze(child, seen);
+
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  for (const key of Object.keys(descriptors)) {
+    const descriptor = descriptors[key];
+    if (!descriptor.enumerable || !('value' in descriptor)) continue;
+    clone[key] = cloneAndFreeze(descriptor.value, seen);
+  }
   return Object.freeze(clone);
 }
 
