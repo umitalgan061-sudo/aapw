@@ -1,4 +1,5 @@
-import { SchedulerLaneV7, TaskContextV7, TaskOutcomeV7, TaskSpecV7, TickV7, tickV7 } from './types.ts';
+import type { SchedulerLaneV7, TaskContextV7, TaskOutcomeV7, TaskSpecV7, TickV7 } from './types.ts';
+import { tickV7 } from './types.ts';
 import { BudgetSchedulerV7 } from './scheduler.ts';
 
 export interface WorkerJobV7<TPayload, TResult> {
