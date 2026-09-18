@@ -1,9 +1,9 @@
-import { initGame3D } from '../game3d.js';
 import { gameEvents } from '../eventBus.js';
 import { EVENTS } from '../config.js';
 import { createProductionRuntime, type ProductionRuntime } from './productionRuntime';
 import type { RuntimeSceneAdapter } from './runtimeSession';
 import type { CameraFrameState, PlayerFrameState, WorldFrameState } from './runtimeContracts';
+import { readLegacyRenderMetrics, RendererPresentationBridge, type RendererPresentationLike } from './rendererPresentationBridge';
 
 export interface Game3DEntryOptions {
   readonly canvas?: HTMLCanvasElement | null;
@@ -19,7 +19,7 @@ interface LegacyGameStateLike {
   player?: { object3D?: { position: { x: number; y: number; z: number }; rotation?: { y: number } } };
   camera?: { position: { x: number; y: number; z: number }; fov?: number; near?: number; far?: number };
   controls?: { target?: { x: number; y: number; z: number } };
-  renderer?: { info?: { render?: { calls?: number; triangles?: number }; memory?: { textures?: number; geometries?: number } }; getPixelRatio?: () => number };
+  renderer?: RendererPresentationLike;
   settlementDiscovery?: { getDiscovered?: () => readonly string[] };
   settlementSeats?: readonly { id?: string }[];
   chunkManager?: { getLoadedChunkKeys?: () => readonly string[] };
@@ -29,6 +29,7 @@ interface LegacyGameStateLike {
 let activeRuntime: ProductionRuntime | null = null;
 let bootPromise: Promise<ProductionRuntime | null> | null = null;
 let unsubscribers: Array<() => void> = [];
+let presentationBridge: RendererPresentationBridge | null = null;
 
 function vec3(position: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
   return { x: Number.isFinite(position.x) ? position.x : 0, y: Number.isFinite(position.y) ? position.y : 0, z: Number.isFinite(position.z) ? position.z : 0 };
@@ -37,6 +38,13 @@ function vec3(position: { x: number; y: number; z: number }): { x: number; y: nu
 function getState(): LegacyGameStateLike | null {
   const candidate = globalThis as unknown as { __AapwGame3DState?: LegacyGameStateLike };
   return candidate.__AapwGame3DState ?? null;
+}
+
+async function initLegacyGame3D(): Promise<void> {
+  // Keep the JS renderer at an explicit lazy boundary while all orchestration remains typed.
+  const legacy = await import('../game3d.js');
+  if (typeof legacy.initGame3D !== 'function') throw new Error('AAPW_LEGACY_GAME_INIT_MISSING');
+  await legacy.initGame3D();
 }
 
 function sceneAdapter(): RuntimeSceneAdapter {
@@ -75,14 +83,15 @@ function sceneAdapter(): RuntimeSceneAdapter {
       return { width: Math.max(1, Math.trunc(rect?.width ?? innerWidth)), height: Math.max(1, Math.trunc(rect?.height ?? innerHeight)), dpr: Math.max(1, Math.min(3, devicePixelRatio || 1)) };
     },
     getRenderMetrics() {
-      const renderer = getState()?.renderer;
-      const render = renderer?.info?.render;
-      const memory = renderer?.info?.memory;
+      const metrics = readLegacyRenderMetrics(getState());
       return {
-        drawCalls: Math.max(0, Math.trunc(render?.calls ?? 0)),
-        triangles: Math.max(0, Math.trunc(render?.triangles ?? 0)),
-        visibleObjects: Math.max(0, Math.trunc(render?.calls ?? 0)),
-        textureBytes: Math.max(0, Math.trunc((memory?.textures ?? 0) * 1024 * 1024)),
+        drawCalls: metrics.drawCalls,
+        triangles: metrics.triangles,
+        gpuMs: presentationBridge?.gpuMs(),
+        // Three.js does not expose an aggregate GPU-memory byte count here; leave it unknown rather
+        // than manufacturing a byte estimate from the texture count.
+        visibleObjects: 0,
+        textureBytes: 0,
       };
     },
   };
@@ -94,14 +103,27 @@ function publishRuntime(runtime: ProductionRuntime | null): void {
   activeRuntime = runtime;
 }
 
+function runtimePressure(runtime: ProductionRuntime): number {
+  const summary = runtime.performance.summary();
+  const pressure = Number(summary.pressure);
+  return Number.isFinite(pressure) ? Math.max(0, Math.min(1, pressure)) : 0;
+}
+
 export function getProductionRuntime(): ProductionRuntime | null { return activeRuntime; }
 
 export function getProductionRuntimeDiagnostics(): Readonly<Record<string, unknown>> | null {
-  return activeRuntime?.diagnostics() ?? null;
+  const runtime = activeRuntime;
+  if (!runtime) return null;
+  return Object.freeze({
+    ...runtime.diagnostics(),
+    rendererPresentation: presentationBridge?.diagnostics() ?? null,
+  });
 }
 
 export function disposeGame3DEntry(): void {
   for (const unsubscribe of unsubscribers.splice(0)) unsubscribe();
+  presentationBridge?.dispose();
+  presentationBridge = null;
   if (activeRuntime) void activeRuntime.stop();
   publishRuntime(null);
   bootPromise = null;
@@ -110,7 +132,7 @@ export function disposeGame3DEntry(): void {
 export async function bootGame3D(options: Game3DEntryOptions = {}): Promise<ProductionRuntime | null> {
   if (bootPromise) return bootPromise;
   bootPromise = (async () => {
-    await initGame3D();
+    await initLegacyGame3D();
     if (options.enableProductionRuntime === false) {
       options.onReady?.(null);
       return null;
@@ -122,16 +144,38 @@ export async function bootGame3D(options: Game3DEntryOptions = {}): Promise<Prod
       options.onReady?.(null);
       return null;
     }
+    presentationBridge = new RendererPresentationBridge({
+      rendererProvider: () => getState()?.renderer ?? null,
+      devicePixelRatio: () => typeof window !== 'undefined' ? window.devicePixelRatio : 1,
+      maxPixelRatio: 2.5,
+      minPixelRatio: 0.6,
+      minFramesBetweenChanges: 18,
+    });
     publishRuntime(runtime);
-    const frame = () => { if (activeRuntime === runtime) void runtime.frame(); };
+    const frame = () => {
+      if (activeRuntime !== runtime) return;
+      void runtime.frame().then((snapshot) => {
+        presentationBridge?.apply({ quality: snapshot.quality, pressure: runtimePressure(runtime) });
+      }).catch((error) => {
+        console.error('[aapw] presentation frame failed', error);
+      });
+    };
     const handleVisibility = () => { if (document.hidden) void runtime.pause('document-hidden'); else void runtime.resume('document-visible'); };
     window.addEventListener('aapw-runtime-frame', frame);
     document.addEventListener('visibilitychange', handleVisibility);
-    unsubscribers.push(() => window.removeEventListener('aapw-runtime-frame', frame), () => document.removeEventListener('visibilitychange', handleVisibility));
+    const refreshDpr = () => presentationBridge?.refreshDevicePixelRatio();
+    window.addEventListener('resize', refreshDpr, { passive: true });
+    unsubscribers.push(
+      () => window.removeEventListener('aapw-runtime-frame', frame),
+      () => document.removeEventListener('visibilitychange', handleVisibility),
+      () => window.removeEventListener('resize', refreshDpr),
+    );
     options.onReady?.(runtime);
     return runtime;
   })().catch((error) => {
     console.error('[aapw] production runtime bootstrap failed', error);
+    presentationBridge?.dispose();
+    presentationBridge = null;
     publishRuntime(null);
     options.onReady?.(null);
     return null;
