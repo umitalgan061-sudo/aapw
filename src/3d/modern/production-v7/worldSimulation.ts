@@ -73,11 +73,7 @@ export class DeterministicWorldSimulationV7 {
   }
 
   reset(): void {
-    while (Number(this.#clock.tick) > 0) {
-      const delta = this.#clock.accumulatorSeconds;
-      if (delta <= 0) break;
-      this.#clock.advance(delta, 1);
-    }
+    this.#clock.reset();
     this.#lastSpatialTick = -1;
   }
 
