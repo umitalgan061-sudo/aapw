@@ -79,6 +79,15 @@ assert.equal(guard.inspect({ version: 1, revision: '2', timestamp: 0.032, attack
 assert.equal(guard.inspect({ version: 1, revision: 2, timestamp: '0.032', attack: { serial: 2 } }).reason, 'invalid-timestamp');
 assert.equal(guard.inspect({ version: 1, revision: 2, timestamp: 0.032, attack: { serial: '2' } }).reason, 'invalid-attack-serial');
 
+const deepGuard = createPlayerCombatRuntimeFrameGuard({ maxPayloadDepth: 1 });
+const tooDeep = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, metadata: { nested: { value: true } } };
+assert.equal(deepGuard.inspect(tooDeep).reason, 'payload-depth-exceeded');
+const wideGuard = createPlayerCombatRuntimeFrameGuard({ maxPayloadNodes: 3 });
+const tooWide = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, a: {}, b: {} };
+assert.equal(wideGuard.inspect(tooWide).reason, 'payload-node-budget-exceeded');
+assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadDepth: -1 }), /maxPayloadDepth/);
+assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadNodes: 0 }), /maxPayloadNodes/);
+
 const disposed = guard.dispose();
 assert.equal(disposed.disposed, true);
 assert.equal(disposed.last, null);
@@ -87,4 +96,4 @@ assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 35 checks passed');
+console.log('player combat runtime frame guard immutability: 41 checks passed');
