@@ -1,4 +1,5 @@
-import { ContentHashV7, EntityRecordV7, RuntimeCommandV7, WorldSnapshotV7, hashV7, tickV7, revisionV7, TickV7, RevisionV7 } from './types.ts';
+import type { ContentHashV7, EntityRecordV7, RuntimeCommandV7, WorldSnapshotV7, hashV7, tickV7, revisionV7, TickV7, RevisionV7 } from './types.ts';
+
 import { checksumV7, stableStringifyV7 } from './deterministic.ts';
 
 export type CodecErrorCodeV7 = 'invalid-json' | 'invalid-envelope' | 'checksum' | 'size' | 'unsupported-protocol' | 'invalid-command';
