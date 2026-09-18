@@ -1,4 +1,5 @@
-import { EntityIdV7, TickV7, Vec3V7, clampV7, tickV7, vec3V7 } from './types.ts';
+import type { EntityIdV7, TickV7, Vec3V7 } from './types.ts';
+import { clampV7, tickV7, vec3V7 } from './types.ts';
 import { EntityStoreV7 } from './entityStore.ts';
 import { SpatialIndexV7 } from './spatialIndex.ts';
 import { FixedClockV7, checksumV7 } from './deterministic.ts';
