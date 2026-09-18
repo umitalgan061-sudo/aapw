@@ -1,4 +1,5 @@
-import { MetricPointV7, RuntimeHealthV7, RuntimeModeV7, TickV7, clampV7, tickV7 } from './types.ts';
+import type { MetricPointV7, RuntimeHealthV7, RuntimeModeV7, TickV7 } from './types.ts';
+import { clampV7, tickV7 } from './types.ts';
 
 interface Counter { readonly name: string; readonly unit: string; value: number; }
 export interface SpanV7 { readonly name: string; readonly startTick: TickV7; readonly endTick: TickV7; readonly durationMs: number; readonly ok: boolean; readonly attributes: Readonly<Record<string, string>>; }
