@@ -159,7 +159,7 @@ export class BudgetedTaskScheduler {
     const budget = Math.max(0, budgetMs);
     let consumed = 0;
     let executed = 0;
-    const deferred: typeof this.#queue = [];
+    const deferred: Array<{ task: SchedulerTask; priority: number; estimatedCostMs: number; serial: number }> = [];
     while (this.#queue.length) {
       const item = this.#queue.shift()!;
       if (executed > 0 && consumed + item.estimatedCostMs > budget) { deferred.push(item); continue; }
