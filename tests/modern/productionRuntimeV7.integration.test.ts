@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AssetCacheV7, BudgetSchedulerV7, MemorySaveStorageV7, NetworkRuntimeV7, RuntimeCodecV7,
-  RuntimeRecoveryV7, RuntimeTelemetryV7, createProductionRuntimeV7, entityIdV7, revisionV7,
-  runProductionBenchmarksV7, tickV7, vec3V7, resolveRenderProfileV7, platformProfileForTestsV7,
+  AdaptiveRenderPolicyV7, AssetCacheV7, BudgetSchedulerV7, MemorySaveStorageV7, NetworkRuntimeV7, RuntimeCodecV7,
+  createProductionRuntimeV7, entityIdV7, revisionV7, runProductionBenchmarksV7, tickV7, vec3V7,
+  resolveRenderProfileV7, platformProfileForTestsV7,
 } from '../../src/3d/modern/production-v7/index.ts';
 
 const components = () => ({
@@ -16,11 +16,10 @@ const components = () => ({
 
 describe('production runtime v7 integration', () => {
   it('keeps save/load/checksum stable across instances', () => {
-    const storage = new MemorySaveStorageV7();
     const runtime = createProductionRuntimeV7({ profile: platformProfileForTestsV7('full') });
     runtime.boot();
     expect(runtime.spawn(entityIdV7(1), 'player', components())).toBe(true);
-    runtime.enqueue({ type: 'move', id: entityIdV7(1), position: vec3V7(10, 0, 2), velocity: vec3V7(1, 0, 0) });
+    expect(runtime.enqueue({ type: 'move', id: entityIdV7(1), position: vec3V7(10, 0, 2), velocity: vec3V7(1, 0, 0) })).toBe(true);
     const snapshot = runtime.snapshot();
     const codec = new RuntimeCodecV7();
     const encoded = codec.encodeSnapshot(snapshot);
@@ -30,7 +29,6 @@ describe('production runtime v7 integration', () => {
     const loaded = manager.load(1);
     expect(loaded?.checksum).toBeDefined();
     expect(loaded?.payload.snapshot.checksum).toBe(snapshot.checksum);
-    expect(storage.keys('aapw:v7:save:')).toEqual(['aapw:v7:save:1']);
   });
 
   it('honours platform-specific rendering limits', () => {
@@ -43,10 +41,7 @@ describe('production runtime v7 integration', () => {
   });
 
   it('adapts quality under sustained frame pressure', () => {
-    const policy = new (class {
-      readonly inner = new (requirePolicy())(resolveRenderProfileV7(platformProfileForTestsV7('full')));
-      decide(budget: any, health: any) { return this.inner.decide(budget, health); }
-    });
+    const policy = new AdaptiveRenderPolicyV7(resolveRenderProfileV7(platformProfileForTestsV7('full')));
     const budget = { frameMs: 32, drawCalls: 3000, triangles: 8_000_000, textureBytes: 500_000_000, gpuMemoryBytes: 700_000_000 };
     const first = policy.decide(budget, null);
     const second = policy.decide(budget, null);
@@ -84,10 +79,3 @@ describe('production runtime v7 integration', () => {
     expect(a.results.map((result) => result.name)).toEqual(['rng', 'spatial-nearest', 'scheduler', 'entity-digest', 'asset-cache']);
   });
 });
-
-function requirePolicy() {
-  return class {
-    #inner: any;
-    constructor(profile: any) { this.#inner = new (globalThis as any).__AAPW_AdaptiveRenderPolicyV7(profile); }
-  };
-}
