@@ -13,6 +13,20 @@ const bounded = (value, min, max) => finite(value) && value >= min && value <= m
 
 export const PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION = 1;
 
+function inspectPayloadBudget(value, maxDepth, maxNodes, depth = 0, seen = new WeakSet(), state = { nodes: 0 }) {
+  if (value === null || typeof value !== 'object') return null;
+  if (depth > maxDepth) return 'payload-depth-exceeded';
+  if (seen.has(value)) return null;
+  seen.add(value);
+  state.nodes += 1;
+  if (state.nodes > maxNodes) return 'payload-node-budget-exceeded';
+  for (const child of Object.values(value)) {
+    const failure = inspectPayloadBudget(child, maxDepth, maxNodes, depth + 1, seen, state);
+    if (failure) return failure;
+  }
+  return null;
+}
+
 function cloneAndFreeze(value, seen = new WeakMap()) {
   if (value === null || typeof value !== 'object') return value;
   if (seen.has(value)) return seen.get(value);
@@ -26,10 +40,18 @@ function cloneAndFreeze(value, seen = new WeakMap()) {
 export function createPlayerCombatRuntimeFrameGuard({
   maxTimestampRegression = 0,
   maxRevisionGap = 1,
+  maxPayloadDepth = 12,
+  maxPayloadNodes = 256,
 } = {}) {
   if (!bounded(maxTimestampRegression, 0, 60)) throw new RangeError('maxTimestampRegression must be between 0 and 60');
   if (!integer(maxRevisionGap) || maxRevisionGap < 0 || maxRevisionGap > 1024) {
     throw new RangeError('maxRevisionGap must be an integer between 0 and 1024');
+  }
+  if (!integer(maxPayloadDepth) || maxPayloadDepth < 0 || maxPayloadDepth > 64) {
+    throw new RangeError('maxPayloadDepth must be an integer between 0 and 64');
+  }
+  if (!integer(maxPayloadNodes) || maxPayloadNodes < 1 || maxPayloadNodes > 8192) {
+    throw new RangeError('maxPayloadNodes must be an integer between 1 and 8192');
   }
 
   let disposed = false;
@@ -58,6 +80,8 @@ export function createPlayerCombatRuntimeFrameGuard({
   function inspect(frame) {
     if (disposed) return reject('disposed', frame);
     if (!frame || typeof frame !== 'object') return reject('missing-frame', frame);
+    const payloadFailure = inspectPayloadBudget(frame, maxPayloadDepth, maxPayloadNodes);
+    if (payloadFailure) return reject(payloadFailure, frame);
     if (frame.version !== PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION) return reject('unsupported-version', frame);
     if (!integer(frame.revision) || frame.revision < 0) return reject('invalid-revision', frame);
     if (!finite(frame.timestamp) || frame.timestamp < 0) return reject('invalid-timestamp', frame);
