@@ -38,7 +38,8 @@ assert.equal(guard.readLastFrame(), cycleResult.frame);
 const followUp = guard.inspect({ version: 1, revision: 1, timestamp: 0.016, attack: { serial: 2, metadata: { phase: 'active' } } });
 assert.equal(followUp.ok, true);
 const replayState = guard.readState();
-assert.equal(replayState.accepted, 3, 'three accepted frames must survive rejection probes');
+assert.equal(replayState.accepted, 3, 'accepted count must include the initial, cycle, and follow-up snapshots');
+assert.ok(replayState.accepted >= 3, 'accepted snapshot count must not regress after rejection probes');
 assert.equal(replayState.rejected, 2);
 assert.equal(guard.readLastFrame().attack.serial, 2);
 
@@ -101,4 +102,4 @@ assert.equal(disposed.last, null);
 assert.equal(guard.readLastFrame(), null);
 assert.equal(guard.reset().last, null);
 
-console.log('player combat runtime frame guard immutability v2: 31 checks passed');
+console.log('player combat runtime frame guard immutability v2: 32 checks passed');
