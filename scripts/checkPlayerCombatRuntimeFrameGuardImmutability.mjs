@@ -131,6 +131,23 @@ const unstableResult = createPlayerCombatRuntimeFrameGuard().inspect(unstablePro
 assert.equal(unstableResult.reason, 'revision-gap');
 assert.equal(unstableResult.frame, null);
 
+let coreReadCount = 0;
+const unstableCoreTarget = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, payload: { label: 'stable' } };
+const unstableCoreProxy = new Proxy(unstableCoreTarget, {
+  get(target, property, receiver) {
+    if (property === 'revision') {
+      coreReadCount += 1;
+      if (coreReadCount >= 3) return 1;
+    }
+    return Reflect.get(target, property, receiver);
+  },
+});
+const unstableCoreGuard = createPlayerCombatRuntimeFrameGuard();
+const unstableCoreResult = unstableCoreGuard.inspect(unstableCoreProxy);
+assert.equal(unstableCoreResult.reason, 'payload-clone-unstable');
+assert.equal(unstableCoreGuard.readState().accepted, 0);
+assert.equal(unstableCoreGuard.readLastFrame(), null);
+
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadDepth: -1 }), /maxPayloadDepth/);
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadNodes: 0 }), /maxPayloadNodes/);
 assert.throws(() => createPlayerCombatRuntimeFrameGuard({ maxPayloadArrayLength: 0 }), /maxPayloadArrayLength/);
@@ -144,4 +161,4 @@ assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 65 checks passed');
+console.log('player combat runtime frame guard immutability: 71 checks passed');
