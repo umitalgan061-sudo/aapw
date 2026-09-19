@@ -77,6 +77,7 @@ assert.equal(rejectionReads, 2);
 
 let revisionDescriptorReads = 0;
 const unstableAcceptedTarget = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, payload: { label: 'stable' } };
+Object.defineProperty(unstableAcceptedTarget, 'revision', { value: 0, writable: true, enumerable: true, configurable: true });
 const unstableAcceptedProxy = new Proxy(unstableAcceptedTarget, {
   getOwnPropertyDescriptor(target, property) {
     const descriptor = Reflect.getOwnPropertyDescriptor(target, property);
@@ -99,4 +100,4 @@ assert.equal(disposed.last, null);
 assert.equal(guard.readLastFrame(), null);
 assert.equal(guard.reset().last, null);
 
-console.log('player combat runtime frame guard immutability v2: 30 checks passed');
+console.log('player combat runtime frame guard immutability v2: 31 checks passed');
