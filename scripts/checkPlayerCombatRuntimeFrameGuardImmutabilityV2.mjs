@@ -37,8 +37,9 @@ assert.equal(guard.readLastFrame(), cycleResult.frame);
 
 const followUp = guard.inspect({ version: 1, revision: 1, timestamp: 0.016, attack: { serial: 2, metadata: { phase: 'active' } } });
 assert.equal(followUp.ok, true);
-assert.equal(guard.readState().accepted, 3);
-assert.equal(guard.readState().rejected, 2);
+const replayState = guard.readState();
+assert.equal(replayState.accepted, 3, 'three accepted frames must survive rejection probes');
+assert.equal(replayState.rejected, 2);
 assert.equal(guard.readLastFrame().attack.serial, 2);
 
 let getterExecuted = false;
