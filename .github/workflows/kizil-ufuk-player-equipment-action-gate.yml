@@ -1,0 +1,42 @@
+name: kizil-ufuk-player-equipment-action-gate
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentActionGate.js'
+      - 'scripts/checkKizilUfukPlayerEquipmentActionGate.mjs'
+      - '.github/workflows/kizil-ufuk-player-equipment-action-gate.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify exact-main ancestry and bounded scope
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          BASE="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$BASE" HEAD
+          CHANGED="$(git diff --name-only "$BASE"...HEAD)"
+          ALLOW='^(src/3d/gameplay/playerEquipmentActionGate\.js|scripts/checkKizilUfukPlayerEquipmentActionGate\.mjs|\.github/workflows/kizil-ufuk-player-equipment-action-gate\.yml)$'
+          while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+            [[ "$path" =~ $ALLOW ]] || { echo "Unexpected changed path: $path"; exit 1; }
+          done <<< "$CHANGED"
+          TOTAL="$(git diff --numstat "$BASE"...HEAD | awk '{add+=$1; del+=$2} END {print add+del+0}')"
+          test "$TOTAL" -le 3000
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerEquipmentActionGate.js
+      - name: Runtime proof
+        run: node scripts/checkKizilUfukPlayerEquipmentActionGate.mjs
+      - name: Runtime/editor boundary
+        shell: bash
+        run: |
+          ! grep -nE 'EditorMaterialStudio|document\.|window\.|Math\.random\(' src/3d/gameplay/playerEquipmentActionGate.js scripts/checkKizilUfukPlayerEquipmentActionGate.mjs
