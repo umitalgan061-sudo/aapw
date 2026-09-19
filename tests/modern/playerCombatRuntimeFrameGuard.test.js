@@ -21,6 +21,15 @@ describe('player combat runtime frame guard payload contract', () => {
     expect(guard.readState().rejected).toBe(1);
   });
 
+  it('rejects executable and non-data primitive payload values', () => {
+    const guard = createPlayerCombatRuntimeFrameGuard();
+    expect(guard.inspect(frame({ callback: () => true })).reason).toBe('payload-value-type-unsupported');
+    expect(guard.inspect(frame({ token: Symbol('token') })).reason).toBe('payload-value-type-unsupported');
+    expect(guard.inspect(frame({ count: 1n })).reason).toBe('payload-value-type-unsupported');
+    expect(guard.readState().accepted).toBe(0);
+    expect(guard.readState().rejected).toBe(3);
+  });
+
   it('accepts null-prototype records and keeps the accepted snapshot immutable', () => {
     const payload = Object.create(null);
     payload.combo = { step: 1 };
