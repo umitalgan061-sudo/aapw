@@ -173,9 +173,17 @@ export function createPlayerCombatRuntimeFrameGuard({
     return Object.freeze({ ok: false, reason, frame: cloneRejectionFrame(frame, payloadLimits), accepted, rejected });
   }
 
-  function accept(frame) {
+  function accept(frame, expected) {
     try {
       const snapshot = cloneAndFreeze(frame);
+      if (
+        snapshot.version !== expected.version
+        || snapshot.revision !== expected.revision
+        || snapshot.timestamp !== expected.timestamp
+        || snapshot.attack?.serial !== expected.attackSerial
+      ) {
+        return reject('payload-clone-unstable', frame);
+      }
       accepted += 1;
       lastFrame = snapshot;
       last = Object.freeze({
@@ -209,10 +217,16 @@ export function createPlayerCombatRuntimeFrameGuard({
     if (!frame.attack || typeof frame.attack !== 'object' || !integer(frame.attack.serial) || frame.attack.serial < 0) {
       return reject('invalid-attack-serial', frame);
     }
+    const expected = {
+      version: frame.version,
+      revision: frame.revision,
+      timestamp: frame.timestamp,
+      attackSerial: frame.attack.serial,
+    };
     if (last) {
-      const revision = frame.revision;
-      const timestamp = frame.timestamp;
-      const attackSerial = frame.attack.serial;
+      const revision = expected.revision;
+      const timestamp = expected.timestamp;
+      const attackSerial = expected.attackSerial;
       if (revision < last.revision) return reject('revision-regressed', frame);
       if (revision === last.revision && timestamp === last.timestamp && attackSerial === last.attackSerial) {
         return reject('duplicate-frame', frame);
@@ -221,7 +235,7 @@ export function createPlayerCombatRuntimeFrameGuard({
       if (timestamp + maxTimestampRegression < last.timestamp) return reject('timestamp-regressed', frame);
       if (attackSerial < last.attackSerial) return reject('attack-serial-regressed', frame);
     }
-    return accept(frame);
+    return accept(frame, expected);
   }
 
   function reset() {
