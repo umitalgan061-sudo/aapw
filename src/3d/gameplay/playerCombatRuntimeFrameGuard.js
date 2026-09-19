@@ -20,7 +20,7 @@ export const PLAYER_COMBAT_RUNTIME_FRAME_GUARD_VERSION = 1;
 
 function readEnumerableDataEntries(value, descriptors) {
   const entries = [];
-  for (const key of Object.keys(descriptors)) {
+  for (const key of Object.getOwnPropertyNames(descriptors)) {
     const descriptor = descriptors[key];
     if (!('value' in descriptor)) return { failure: 'payload-accessor-unsupported', entries: null };
     if (!descriptor.enumerable) continue;
