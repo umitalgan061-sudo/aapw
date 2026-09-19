@@ -115,6 +115,11 @@ Object.defineProperty(hiddenSymbolFrame, Symbol('hidden-payload'), { enumerable:
 const hiddenSymbolResult = createPlayerCombatRuntimeFrameGuard().inspect(hiddenSymbolFrame);
 assert.equal(hiddenSymbolResult.reason, 'payload-symbol-key-unsupported');
 assert.equal(hiddenSymbolResult.frame, null);
+const nestedHiddenSymbolFrame = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, feedback: { payload: {} } };
+Object.defineProperty(nestedHiddenSymbolFrame.feedback.payload, Symbol('nested-hidden-payload'), { enumerable: false, value: 'hidden' });
+const nestedHiddenSymbolResult = createPlayerCombatRuntimeFrameGuard().inspect(nestedHiddenSymbolFrame);
+assert.equal(nestedHiddenSymbolResult.reason, 'payload-symbol-key-unsupported');
+assert.equal(nestedHiddenSymbolResult.frame, null);
 const sparseFrame = { version: 1, revision: 1, timestamp: 0.016, attack: { serial: 1 }, payload: [] };
 sparseFrame.payload.length = 4;
 sparseFrame.payload[2] = 'sample';
@@ -168,4 +173,4 @@ assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 75 checks passed');
+console.log('player combat runtime frame guard immutability: 78 checks passed');
