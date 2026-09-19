@@ -57,9 +57,7 @@ function inspectPayloadBudget(
     state.nodes += 1;
     if (state.nodes > maxNodes) return 'payload-node-budget-exceeded';
     const descriptors = Object.getOwnPropertyDescriptors(value);
-    for (const symbol of Object.getOwnPropertySymbols(value)) {
-      if (Object.prototype.propertyIsEnumerable.call(value, symbol)) return 'payload-symbol-key-unsupported';
-    }
+    if (Object.getOwnPropertySymbols(value).length > 0) return 'payload-symbol-key-unsupported';
     const readable = readEnumerableDataEntries(value, descriptors);
     if (readable.failure) return readable.failure;
     state.keys += readable.entries.length;
