@@ -105,6 +105,13 @@ const accessorResult = createPlayerCombatRuntimeFrameGuard().inspect(accessorFra
 assert.equal(accessorResult.reason, 'payload-accessor-unsupported');
 assert.equal(accessorResult.frame, null);
 assert.equal(getterExecuted, false);
+let hiddenGetterExecuted = false;
+const hiddenAccessorFrame = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 } };
+Object.defineProperty(hiddenAccessorFrame, 'payload', { enumerable: false, get() { hiddenGetterExecuted = true; throw new Error('hidden getter should not execute'); } });
+const hiddenAccessorResult = createPlayerCombatRuntimeFrameGuard().inspect(hiddenAccessorFrame);
+assert.equal(hiddenAccessorResult.reason, 'payload-accessor-unsupported');
+assert.equal(hiddenAccessorResult.frame, null);
+assert.equal(hiddenGetterExecuted, false);
 const symbolFrame = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 } };
 Object.defineProperty(symbolFrame, Symbol('payload'), { enumerable: true, value: 'hidden' });
 const symbolResult = createPlayerCombatRuntimeFrameGuard().inspect(symbolFrame);
@@ -173,4 +180,4 @@ assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 78 checks passed');
+console.log('player combat runtime frame guard immutability: 79 checks passed');
