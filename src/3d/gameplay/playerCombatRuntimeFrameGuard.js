@@ -22,8 +22,8 @@ function readEnumerableDataEntries(value, descriptors) {
   const entries = [];
   for (const key of Object.keys(descriptors)) {
     const descriptor = descriptors[key];
-    if (!descriptor.enumerable) continue;
     if (!('value' in descriptor)) return { failure: 'payload-accessor-unsupported', entries: null };
+    if (!descriptor.enumerable) continue;
     entries.push([key, descriptor.value]);
   }
   return { failure: null, entries };
