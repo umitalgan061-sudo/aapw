@@ -133,8 +133,9 @@ const unstableProxy = new Proxy(unstableTarget, {
   },
 });
 const unstableResult = createPlayerCombatRuntimeFrameGuard().inspect(unstableProxy);
-assert.equal(unstableResult.reason, 'revision-gap');
+assert.equal(unstableResult.reason, 'payload-inspection-failed');
 assert.equal(unstableResult.frame, null);
+assert.equal(descriptorReads, 2);
 
 let coreReadCount = 0;
 const unstableCoreTarget = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, payload: { label: 'stable' } };
@@ -166,4 +167,4 @@ assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 73 checks passed');
+console.log('player combat runtime frame guard immutability: 74 checks passed');
