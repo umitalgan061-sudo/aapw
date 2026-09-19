@@ -1,0 +1,43 @@
+name: Safak Kartali Fauna Perception Memory
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaPerceptionPolicy.js'
+      - 'src/3d/gameplay/livingWorldFaunaPerceptionMemoryPolicy.js'
+      - 'scripts/checkSafakKartaliFaunaPerceptionPolicy.mjs'
+      - 'scripts/checkSafakKartaliFaunaPerceptionMemoryPolicy.mjs'
+      - '.github/workflows/safak-kartali-fauna-perception-memory.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact main ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          changed="$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$changed" -le 3000
+          git diff --name-only origin/main...HEAD | grep -Ev '^(src/3d/gameplay/livingWorldFaunaPerceptionPolicy\.js|src/3d/gameplay/livingWorldFaunaPerceptionMemoryPolicy\.js|scripts/checkSafakKartaliFaunaPerceptionPolicy\.mjs|scripts/checkSafakKartaliFaunaPerceptionMemoryPolicy\.mjs|\.github/workflows/safak-kartali-fauna-perception-memory\.yml)$' && exit 1 || true
+      - name: Runtime boundary and syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -nE "EditorMaterialStudio|Math\.random\(|document\.|window\." src/3d/gameplay/livingWorldFaunaPerceptionPolicy.js src/3d/gameplay/livingWorldFaunaPerceptionMemoryPolicy.js
+          node --check src/3d/gameplay/livingWorldFaunaPerceptionPolicy.js
+          node --check src/3d/gameplay/livingWorldFaunaPerceptionMemoryPolicy.js
+          node --check scripts/checkSafakKartaliFaunaPerceptionPolicy.mjs
+          node --check scripts/checkSafakKartaliFaunaPerceptionMemoryPolicy.mjs
+      - name: Existing perception proof
+        run: node scripts/checkSafakKartaliFaunaPerceptionPolicy.mjs
+      - name: Memory proof
+        run: node scripts/checkSafakKartaliFaunaPerceptionMemoryPolicy.mjs
