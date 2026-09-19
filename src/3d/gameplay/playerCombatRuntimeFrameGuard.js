@@ -48,7 +48,10 @@ function inspectPayloadBudget(
       if (state.totalStringLength > maxTotalStringLength) return 'payload-total-string-length-exceeded';
       return null;
     }
-    if (value === null || typeof value !== 'object') return null;
+    if (value === null || typeof value === 'number' || typeof value === 'boolean') return null;
+    if (typeof value === 'undefined') return null;
+    if (typeof value === 'bigint' || typeof value === 'symbol' || typeof value === 'function') return 'payload-value-type-unsupported';
+    if (typeof value !== 'object') return 'payload-value-type-unsupported';
     if (Array.isArray(value) === false && !isPlainRecord(value)) return 'payload-object-type-unsupported';
     if (depth > maxDepth) return 'payload-depth-exceeded';
     if (Array.isArray(value) && value.length > maxArrayLength) return 'payload-array-length-exceeded';
