@@ -71,7 +71,8 @@ const followUp = guard.inspect({
 assert.equal(followUp.ok, true);
 assert.equal(Object.isFrozen(followUp.frame), true);
 assert.equal(guard.readLastFrame(), followUp.frame);
-assert.equal(guard.readState().accepted, 3);
+const acceptedCountAfterReplay = guard.readState().accepted;
+assert.equal(acceptedCountAfterReplay, 3, 'three accepted frames must survive rejection probes');
 assert.equal(guard.readState().rejected, 2);
 
 assert.equal(guard.inspect({ version: '1', revision: 2, timestamp: 0.032, attack: { serial: 2 } }).reason, 'unsupported-version');
@@ -167,4 +168,4 @@ assert.equal(guard.readState().last, null);
 assert.equal(guard.reset().last, null);
 assert.equal(guard.readLastFrame(), null);
 
-console.log('player combat runtime frame guard immutability: 74 checks passed');
+console.log('player combat runtime frame guard immutability: 75 checks passed');
