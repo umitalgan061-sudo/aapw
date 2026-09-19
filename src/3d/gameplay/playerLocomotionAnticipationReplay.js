@@ -55,7 +55,7 @@ export function replayPlayerLocomotionAnticipationTape(tape = {}) {
   const frames = [];
   for (let index = 0; index < tape.samples.length; index += 1) {
     const input = tape.samples[index];
-    const profile = resolvePlayerLocomotionAnticipationProfile(input, previous?.semanticState ?? 'idle');
+    const profile = resolvePlayerLocomotionAnticipationProfile(input, previous);
     state = advancePlayerLocomotionAnticipationState(state, input, previous);
     telemetry = advancePlayerLocomotionAnticipationTelemetry(telemetry, input, index);
     frames.push(freeze({ index, input, profile, state, telemetry: createPlayerLocomotionAnticipationTelemetryReadModel(telemetry) }));
