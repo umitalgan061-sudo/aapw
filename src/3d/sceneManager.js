@@ -46,6 +46,7 @@ import { createStarfield } from './stars.js';
 import { createDayNightLighting } from './lighting.js';
 import { createFog } from './fog.js';
 import { resolveRenderQuality, configureRendererRealism, configureSunShadow, applyShadowRoles } from './renderQuality.js';
+import { registerRenderer } from './modern/rendererRegistry.js';
 
 // Compatibility export: existing Run-180 browser contracts and any external callers import this
 // factory from sceneManager. The implementation itself now belongs to world/windGrass.js.
@@ -75,6 +76,7 @@ export function createScene(canvas) {
 	const canonicalMapSurface = installRuntimePindexTerrainPolish();
 	if (!canonicalMapSurface?.installed) throw new Error('[sceneManager] canonical map surface installation failed');
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+	registerRenderer(renderer);
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	const renderQuality = resolveRenderQuality({
 		coarsePointer: isCoarsePointerDevice(),
@@ -233,7 +235,7 @@ export function createScene(canvas) {
 	scene.add(naturalGeologyResult.group);
 	console.info(
 		`[sceneManager] Natural geology: ${naturalGeologyResult.stats.placedCount} outcrop/talus placement(s), ` +
-		`${naturalGeologyResult.stats.valyriaPlacementCount ?? 0} in Valyria.`,
+			`${naturalGeologyResult.stats.valyriaPlacementCount ?? 0} in Valyria.`,
 	);
 	const naturalGeologyAbortController = new AbortController();
 	window.addEventListener('pagehide', () => naturalGeologyAbortController.abort(), { once: true });

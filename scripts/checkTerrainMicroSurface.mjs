@@ -110,7 +110,16 @@ assert(
   standalone.customProgramCacheKey().includes('|terrain-photoreal-world-surface-v7-coastal-weathering-facies-v1'),
   'terrain shader cache key must retain the facies-v1 production suffix',
 );
-const shaderHookSource = standalone.onBeforeCompile.toString();
+
+// The material now uses a layered onBeforeCompile chain. Function#toString() only exposes the
+// final wrapper and therefore cannot prove that earlier shader stages survived. Execute the actual
+// hook chain against a minimal Three.js shader contract and inspect the resulting source instead.
+const shader = {
+  vertexShader: '#include <common>\n#include <beginnormal_vertex>\n#include <begin_vertex>',
+  fragmentShader: '#include <common>\n#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <normal_fragment_maps>',
+};
+standalone.onBeforeCompile(shader, {});
+const shaderHookSource = `${shader.vertexShader}\n${shader.fragmentShader}`;
 for (const marker of [
   'terrainPhotoFbm',
   'terrainPhotoRidgeNoise',

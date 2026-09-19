@@ -23,6 +23,13 @@ interface TaskEntry {
   enabled: boolean;
 }
 
+interface BudgetQueueEntry {
+  readonly task: SchedulerTask;
+  readonly priority: number;
+  readonly estimatedCostMs: number;
+  readonly serial: number;
+}
+
 const DEFAULT_CONFIG: FixedStepConfig = {
   stepSeconds: 1 / 60,
   maxStepsPerFrame: 8,
@@ -147,7 +154,7 @@ export class FixedStepScheduler {
 }
 
 export class BudgetedTaskScheduler {
-  #queue: Array<{ task: SchedulerTask; priority: number; estimatedCostMs: number; serial: number }> = [];
+  #queue: BudgetQueueEntry[] = [];
   #serial = 1;
 
   schedule(task: SchedulerTask, options: { priority?: number; estimatedCostMs?: number } = {}): void {
@@ -159,7 +166,7 @@ export class BudgetedTaskScheduler {
     const budget = Math.max(0, budgetMs);
     let consumed = 0;
     let executed = 0;
-    const deferred: typeof this.#queue = [];
+    const deferred: BudgetQueueEntry[] = [];
     while (this.#queue.length) {
       const item = this.#queue.shift()!;
       if (executed > 0 && consumed + item.estimatedCostMs > budget) { deferred.push(item); continue; }

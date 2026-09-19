@@ -1,10 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const ROOTS = ['src/3d', 'src/engine-ts'];
-const LEGACY_ALLOWLIST = new Set([
-  'src/3d/vendor/',
-]);
+const LEGACY_ALLOWLIST = new Set(['src/3d/vendor/']);
 const MUST_EXIST = [
   'src/engine-ts/coreTypes.ts',
   'src/engine-ts/runtimeContracts.ts',
@@ -36,6 +34,7 @@ const normalize = path => path.split('\\').join('/');
 const failures = [];
 const rootFiles = (await Promise.all(ROOTS.map(root => walk(root)))).flat().map(normalize);
 const sourceFiles = rootFiles.filter(path => /\.(ts|tsx|js|jsx)$/.test(path));
+const sourceSet = new Set(sourceFiles);
 
 for (const path of MUST_EXIST) {
   try { await readFile(path, 'utf8'); } catch { failures.push(`required typed module missing: ${path}`); }
@@ -45,19 +44,37 @@ const legacyFiles = sourceFiles.filter(path => /\.(js|jsx)$/.test(path) && ![...
 const typedFiles = sourceFiles.filter(path => /\.(ts|tsx)$/.test(path));
 const migrationCandidates = legacyFiles.filter(path => !path.includes('/vendor/'));
 const untypedImportPattern = /from\s+['"](\.\.?\/[^'"]+\.js)['"]/g;
+// Count TypeScript type-position `any`; ordinary identifiers such as an ECS query variable named
+// `any` are valid code and must not be treated as unsafe type escapes.
+const explicitAnyPattern = /(?:\bas\s+any\b|[:=<]\s*any\b|,\s*any\s*(?=[>,])|\bany\s*\[\])/g;
+
+function typedSourceExists(ownerPath, specifier) {
+  const ownerDir = dirname(ownerPath);
+  const sourcePath = normalize(join(ownerDir, specifier.slice(0, -3)));
+  const candidates = [`${sourcePath}.ts`, `${sourcePath}.tsx`, `${sourcePath}/index.ts`, `${sourcePath}/index.tsx`];
+  return candidates.some(candidate => sourceSet.has(candidate));
+}
 
 for (const path of typedFiles) {
   const content = await readFile(path, 'utf8');
-  const unsafeAny = (content.match(/\bany\b/g) ?? []).length;
-  if (unsafeAny > 12) failures.push(`${path}: excessive explicit any (${unsafeAny})`);
-  if (/\b(Math\.random|Date\.now)\s*\(/.test(content) && /determin/i.test(content)) failures.push(`${path}: deterministic module uses wall/random clock source`);
+  const unsafeAny = content.match(explicitAnyPattern)?.length ?? 0;
+  if (unsafeAny > 12) failures.push(`${path}: excessive explicit any type usage (${unsafeAny})`);
+
+  const declaresDeterministicBoundary = /@(?:deterministic|deterministic-module)\b/i.test(content) || /\bdeterministic(?:module|core|boundary)\b/i.test(path);
+  if (declaresDeterministicBoundary && /\b(?:Math\.random|Date\.now)\s*\(/.test(content)) {
+    failures.push(`${path}: deterministic module uses wall/random clock source`);
+  }
+
   for (const match of content.matchAll(untypedImportPattern)) {
-    if (!match[1]?.includes('/vendor/')) failures.push(`${path}: typed module imports legacy .js dependency ${match[1]}`);
+    const specifier = match[1];
+    if (specifier && !typedSourceExists(path, specifier) && !specifier.includes('/vendor/')) {
+      failures.push(`${path}: typed module imports legacy .js dependency ${specifier}`);
+    }
   }
 }
 
 const manifest = {
-  schemaVersion: 1,
+  schemaVersion: 4,
   generatedAt: 'source-controlled',
   strategy: 'typed-core-first',
   sourceRoots: ROOTS,
@@ -65,6 +82,9 @@ const manifest = {
   typedFiles: typedFiles.length,
   legacyRuntimeFiles: migrationCandidates.length,
   legacyPolicy: 'legacy runtime files are frozen at the boundary; new engine code must be TypeScript',
+  esmResolutionPolicy: 'an emitted .js import is typed-safe when a sibling .ts/.tsx source module resolves to the same specifier',
+  explicitAnyPolicy: 'only syntactic type-position any is counted; identifiers named any are not type escapes',
+  deterministicPolicy: 'clock/random sources are rejected only inside explicitly marked deterministic boundaries',
 };
 
 console.log(JSON.stringify(manifest, null, 2));
