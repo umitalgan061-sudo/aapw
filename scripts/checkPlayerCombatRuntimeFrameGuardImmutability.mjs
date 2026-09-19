@@ -144,7 +144,7 @@ const unstableCoreProxy = new Proxy(unstableCoreTarget, {
   get(target, property, receiver) {
     if (property === 'revision') {
       coreReadCount += 1;
-      if (coreReadCount >= 3) return 1;
+      if (coreReadCount >= 2) return 1;
     }
     return Reflect.get(target, property, receiver);
   },
