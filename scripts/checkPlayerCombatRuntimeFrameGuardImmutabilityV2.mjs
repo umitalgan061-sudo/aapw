@@ -75,7 +75,7 @@ const unstableRejection = new Proxy({ version: 1, revision: 3, timestamp: 0.032,
 const rejectionResult = createPlayerCombatRuntimeFrameGuard().inspect(unstableRejection);
 assert.equal(rejectionResult.reason, 'payload-inspection-failed');
 assert.equal(rejectionResult.frame, null);
-assert.equal(rejectionReads, 2);
+assert.equal(rejectionReads, 3, 'rejection inspection performs the initial scan plus guarded clone retries');
 
 let revisionDescriptorReads = 0;
 const unstableAcceptedTarget = { version: 1, revision: 0, timestamp: 0, attack: { serial: 0 }, payload: { label: 'stable' } };
@@ -102,4 +102,4 @@ assert.equal(disposed.last, null);
 assert.equal(guard.readLastFrame(), null);
 assert.equal(guard.reset().last, null);
 
-console.log('player combat runtime frame guard immutability v2: 32 checks passed');
+console.log('player combat runtime frame guard immutability v2: 33 checks passed');
