@@ -126,10 +126,10 @@ assert.equal(1 in sparseResult.frame.payload, false);
 let descriptorReads = 0;
 const unstableTarget = { version: 1, revision: 3, timestamp: 0.032, attack: { serial: 3 } };
 const unstableProxy = new Proxy(unstableTarget, {
-  getOwnPropertyDescriptors(target) {
+  ownKeys(target) {
     descriptorReads += 1;
-    if (descriptorReads >= 3) throw new Error('descriptor changed during rejection clone');
-    return Object.getOwnPropertyDescriptors(target);
+    if (descriptorReads >= 2) throw new Error('descriptor changed during rejection clone');
+    return Reflect.ownKeys(target);
   },
 });
 const unstableResult = createPlayerCombatRuntimeFrameGuard().inspect(unstableProxy);
