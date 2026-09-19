@@ -30,6 +30,22 @@ describe('player combat runtime frame guard payload contract', () => {
     expect(guard.readState().rejected).toBe(3);
   });
 
+  it('rejects non-enumerable accessors instead of dropping hidden metadata during cloning', () => {
+    const payload = {};
+    Object.defineProperty(payload, 'hidden', {
+      configurable: true,
+      enumerable: false,
+      get() {
+        return 'unstable';
+      },
+    });
+    const guard = createPlayerCombatRuntimeFrameGuard();
+    const result = guard.inspect(frame(payload));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('payload-accessor-unsupported');
+    expect(result.frame).toBe(null);
+  });
+
   it('accepts null-prototype records and keeps the accepted snapshot immutable', () => {
     const payload = Object.create(null);
     payload.combo = { step: 1 };
