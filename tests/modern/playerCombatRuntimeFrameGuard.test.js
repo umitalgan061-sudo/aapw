@@ -46,6 +46,20 @@ describe('player combat runtime frame guard payload contract', () => {
     expect(result.frame).toBe(null);
   });
 
+  it('rejects non-enumerable symbols at nested payload depth', () => {
+    const payload = { metadata: {} };
+    Object.defineProperty(payload.metadata, Symbol('hidden-nested'), {
+      configurable: true,
+      enumerable: false,
+      value: 'hidden',
+    });
+    const guard = createPlayerCombatRuntimeFrameGuard();
+    const result = guard.inspect(frame(payload));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('payload-symbol-key-unsupported');
+    expect(result.frame).toBe(null);
+  });
+
   it('accepts null-prototype records and keeps the accepted snapshot immutable', () => {
     const payload = Object.create(null);
     payload.combo = { step: 1 };
