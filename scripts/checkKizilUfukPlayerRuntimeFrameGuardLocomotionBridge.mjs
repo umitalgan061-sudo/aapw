@@ -51,8 +51,13 @@ assert.equal(stale.ok, false);
 assert.equal(stale.reason, 'revision-regressed');
 assert.equal(guard.readState().rejected, 2);
 
+const timestampRegression = guard.inspect(frame(2, 0.001, 3, secondProfile));
+assert.equal(timestampRegression.ok, false);
+assert.equal(timestampRegression.reason, 'timestamp-regressed');
+assert.equal(guard.readState().rejected, 3);
+
 const disposed = guard.dispose();
 assert.equal(disposed.disposed, true);
-assert.equal(guard.inspect(frame(2, 0.048, 3, secondProfile)).reason, 'disposed');
+assert.equal(guard.inspect(frame(3, 0.048, 4, secondProfile)).reason, 'disposed');
 
 console.log('KIZIL_UFUK_PLAYER_RUNTIME_FRAME_GUARD_LOCOMOTION_BRIDGE_PASS');
