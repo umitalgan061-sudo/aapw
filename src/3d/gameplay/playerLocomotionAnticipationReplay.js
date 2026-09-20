@@ -102,6 +102,11 @@ export function diffPlayerLocomotionAnticipationFrame(first = {}, second = {}, f
     ['brakeWeight', a.profile?.brakeWeight, b.profile?.brakeWeight],
     ['pivotWeight', a.profile?.pivotWeight, b.profile?.pivotWeight],
     ['phase', a.profile?.phase, b.profile?.phase],
+    ['cadenceBias', a.profile?.cadenceBias, b.profile?.cadenceBias],
+    ['confidence', a.profile?.confidence, b.profile?.confidence],
+    ['slopeClass', a.profile?.slopeClass, b.profile?.slopeClass],
+    ['surfaceConfidence', a.profile?.surfaceConfidence, b.profile?.surfaceConfidence],
+    ['surfaceSlip', a.profile?.surfaceSlip, b.profile?.surfaceSlip],
   ];
   const differences = fields.filter(([, l, r]) => JSON.stringify(l) !== JSON.stringify(r)).map(([name, l, r]) => freeze({ name, left: l, right: r }));
   return freeze({ equal: differences.length === 0, frameIndex, differences: freeze(differences) });
