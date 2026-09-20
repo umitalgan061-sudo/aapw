@@ -3,6 +3,7 @@
  * Windows describe presentation blend timing only; gameplay and clip ownership stay external.
  */
 import { PLAYER_LOCOMOTION_ANTICIPATION_MODES } from './playerLocomotionAnticipationPolicy.js';
+export { PLAYER_LOCOMOTION_ANTICIPATION_MODES } from './playerLocomotionAnticipationPolicy.js';
 
 export const PLAYER_LOCOMOTION_TRANSITION_WINDOW_VERSION = '2026-09-15-v1';
 export const PLAYER_LOCOMOTION_TRANSITION_WINDOW_LIMITS = Object.freeze({ minSeconds: 0.04, maxSeconds: 0.42, maxDamping: 1, minDamping: 0.2, maxHistory: 20 });
