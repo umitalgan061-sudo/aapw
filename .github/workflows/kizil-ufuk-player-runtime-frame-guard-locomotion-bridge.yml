@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -24,6 +26,7 @@ jobs:
         shell: bash
         run: |
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git fetch --no-tags --prune origin main
           git merge-base --is-ancestor "$(git rev-parse origin/main)" HEAD
       - name: Syntax
         run: node --check scripts/checkKizilUfukPlayerRuntimeFrameGuardLocomotionBridge.mjs
