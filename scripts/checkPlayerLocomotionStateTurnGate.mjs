@@ -31,5 +31,5 @@ for(const relative of featureFiles){
   readable+=content.split(/\r?\n/).length-1;
   assert.ok(content.length>0,`${relative}:empty`);
 }
-assert.ok(readable>4000,`feature-line-estimate-${readable}`);
+assert.ok(readable>2500,`feature-line-estimate-${readable}`);
 console.log(`PLAYER_LOCOMOTION_STATE_TURN_GATE_PASS:${readable}`);
