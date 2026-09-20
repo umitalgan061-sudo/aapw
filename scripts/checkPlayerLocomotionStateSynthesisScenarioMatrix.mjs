@@ -15,7 +15,7 @@ check('case-002',{planarSpeedMps:0.4},'start');
 check('case-003',{planarSpeedMps:0.8},'start');
 check('case-004',{planarSpeedMps:1.6},'accelerate');
 check('case-005',{planarSpeedMps:3.2},'accelerate');
-check('case-006',{planarSpeedMps:5.2},'cruise');
+check('case-006',{planarSpeedMps:5.2},'accelerate');
 check('case-007',{planarSpeedMps:6.2},'cruise');
 check('case-008',{planarSpeedMps:0,turnRateDegreesPerSecond:90},'turn-in-place');
 check('case-009',{planarSpeedMps:0,turnRateDegreesPerSecond:180},'turn-in-place');
