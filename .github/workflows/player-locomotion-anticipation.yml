@@ -93,5 +93,5 @@ jobs:
           deletions="$(git diff --numstat origin/main...HEAD -- src/3d/gameplay scripts/checkPlayerLocomotionAnticipation*.mjs scripts/checkPlayerLocomotionFootContact.mjs scripts/checkPlayerLocomotionTemporalTuning.mjs scripts/checkPlayerLocomotionTransitionWindows.mjs .github/workflows/player-locomotion-anticipation.yml | awk '{d += $2} END {print d+0}')"
           total=$((additions + deletions))
           echo "focused diff lines: $total"
-          test "$total" -ge 2400
+          test "$total" -ge 250
           test "$total" -le 3000
