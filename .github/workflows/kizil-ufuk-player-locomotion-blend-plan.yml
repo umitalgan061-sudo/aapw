@@ -1,0 +1,37 @@
+name: Kizil Ufuk Player Locomotion Blend Plan
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerLocomotionBlendPlan.js'
+      - 'scripts/checkPlayerLocomotionBlendPlan.mjs'
+      - '.github/workflows/kizil-ufuk-player-locomotion-blend-plan.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-locomotion-blend-plan-*'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact main ancestry
+        run: |
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerLocomotionBlendPlan.js
+          node --check scripts/checkPlayerLocomotionBlendPlan.mjs
+      - name: Contract
+        run: node scripts/checkPlayerLocomotionBlendPlan.mjs
+      - name: Additive scope
+        run: |
+          git diff --numstat "$(git rev-list --max-parents=0 HEAD | tail -1)" HEAD | awk '{a+=$1; d+=$2} END { if (d != 0 || a + d > 3000) exit 1; print "additions=" a, "deletions=" d }'
+      - name: Runtime/editor boundary
+        run: |
+          ! grep -R "EditorMaterialStudio" -n src/3d/gameplay/playerLocomotionBlendPlan.js scripts/checkPlayerLocomotionBlendPlan.mjs
