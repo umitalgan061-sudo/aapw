@@ -34,7 +34,7 @@ export function classifyPlayerLocomotionTransition(from='idle',to='idle'){
   if(to==='pivot'||from==='pivot')return 'pivot';
   if(to==='brake'||to==='stop')return 'deceleration';
   if(to==='start'||to==='accelerate')return 'acceleration';
-  if(to==='dodge-recover'||to==='stagger-recover'||to==='recover')return 'recovery';
+  if(to==='dodge-recover'||to==='stagger-recover'||to==='recover'||from==='dodge-recover'||from==='stagger-recover'||from==='recover')return 'recovery';
   if(to==='guard-walk'||to==='combat-advance'||from==='guard-walk'||from==='combat-advance')return 'combat';
   return 'redirect';
 }
