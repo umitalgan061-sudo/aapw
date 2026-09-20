@@ -1,0 +1,35 @@
+name: Kızıl Ufuk Player Runtime Frame Guard Locomotion Bridge
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatRuntimeFrameGuard.js'
+      - 'src/3d/gameplay/playerLocomotionAnticipationPolicy.js'
+      - 'scripts/checkKizilUfukPlayerRuntimeFrameGuardLocomotionBridge.mjs'
+      - '.github/workflows/kizil-ufuk-player-runtime-frame-guard-locomotion-bridge.yml'
+  push:
+    branches:
+      - main
+      - 'agent/**'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact head and main ancestry
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git merge-base --is-ancestor "$(git rev-parse origin/main)" HEAD
+      - name: Syntax
+        run: node --check scripts/checkKizilUfukPlayerRuntimeFrameGuardLocomotionBridge.mjs
+      - name: Runtime bridge proof
+        run: node scripts/checkKizilUfukPlayerRuntimeFrameGuardLocomotionBridge.mjs
+      - name: Runtime/editor boundary
+        shell: bash
+        run: |
+          ! grep -R "EditorMaterialStudio\\|document\\.\\|window\\." scripts/checkKizilUfukPlayerRuntimeFrameGuardLocomotionBridge.mjs src/3d/gameplay/playerCombatRuntimeFrameGuard.js
