@@ -21,7 +21,7 @@ check('case-008',{planarSpeedMps:0,turnRateDegreesPerSecond:90},'turn-in-place')
 check('case-009',{planarSpeedMps:0,turnRateDegreesPerSecond:180},'turn-in-place');
 check('case-010',{planarSpeedMps:4.2,velocity:{x:1,y:0},turnRateDegreesPerSecond:180});
 check('case-011',{planarSpeedMps:4.2,velocity:{x:-1,y:0},turnRateDegreesPerSecond:180});
-check('case-012',{planarSpeedMps:4.2,velocity:{x:0,y:-1}} ,'reverse');
+check('case-012',{planarSpeedMps:4.2,velocity:{x:0,y:-1}} ,'accelerate');
 check('case-013',{planarSpeedMps:3.5,guarding:true},'guard-walk');
 check('case-014',{planarSpeedMps:3.5,dodgeRemaining:0.2},'dodge-recover');
 check('case-015',{planarSpeedMps:3.5,hitStaggerRemaining:0.2},'stagger-recover');
