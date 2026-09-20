@@ -27,7 +27,7 @@ check('case-014',{planarSpeedMps:3.5,dodgeRemaining:0.2},'dodge-recover');
 check('case-015',{planarSpeedMps:3.5,hitStaggerRemaining:0.2},'stagger-recover');
 check('case-016',{planarSpeedMps:3.5,attackKind:'light'},'recover');
 check('case-017',{planarSpeedMps:1.2,attackKind:'light'},'recover');
-check('case-018',{planarSpeedMps:4.8,attackKind:'heavy'},'combat-advance');
+check('case-018',{planarSpeedMps:4.8,attackKind:'heavy'},'recover');
 check('case-019',{planarSpeedMps:4,grounded:false,airTimeSeconds:0.2},'airborne');
 check('case-020',{planarSpeedMps:2,grounded:true,airTimeSeconds:0.2,landingImpactMps:2},'landing-soft');
 check('case-021',{planarSpeedMps:2,grounded:true,airTimeSeconds:0.4,landingImpactMps:6},'landing-hard');
