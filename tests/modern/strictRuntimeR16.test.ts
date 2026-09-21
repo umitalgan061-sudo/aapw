@@ -5,8 +5,15 @@ import { resolveRenderQuality, type RenderQuality } from '../../src/3d/renderQua
 import { createFog, updateFog } from '../../src/3d/fog.ts';
 import { updateEntitiesSafely, updateSystemSafely } from '../../src/3d/safeMode.ts';
 import { createHealthState, stageDamageResolution, readDamageResolution } from '../../src/3d/gameplay/health.ts';
+import { getR16StrictRuntimeSnapshot } from '../../src/3d/modern/migrationLedgerR16.ts';
 
 describe('R16 strict runtime contracts', () => {
+  it('records 100% strict ownership for the wave scope', () => {
+    const snapshot = getR16StrictRuntimeSnapshot();
+    expect(snapshot.version).toBe(16);
+    expect(snapshot.coveragePercent).toBe(100);
+    expect(snapshot.strictOwners).toBe(snapshot.tracked);
+  });
   it('resolves bounded renderer quality without breaking the mobile invariant', () => {
     const desktop = resolveRenderQuality({ coarsePointer: false, manualLevel: 'ultra' });
     const mobile = resolveRenderQuality({ coarsePointer: true, manualLevel: 'ultra' });
