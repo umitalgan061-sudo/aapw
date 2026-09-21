@@ -190,7 +190,7 @@ export class ProductionLifecycleSupervisor {
       healthy: state.healthy,
       failures: state.failures,
       recoveries: state.recoveries,
-      lastFault: state.lastFault,
+      ...(state.lastFault === undefined ? {} : { lastFault: state.lastFault }),
     }));
   }
 
