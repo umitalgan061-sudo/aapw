@@ -211,10 +211,10 @@ export class ApplicationKernelV3 {
       throw new Error('Kernel task id must not be empty');
     }
     if (this.#tasks.has(task.id)) {
-      throw new Error(\`Kernel task already registered: \${task.id}\`);
+      throw new Error(`Kernel task already registered: ${task.id}`);
     }
     if (!PHASE_ORDER.includes(task.phase)) {
-      throw new Error(\`Unsupported kernel phase: \${task.phase}\`);
+      throw new Error(`Unsupported kernel phase: ${task.phase}`);
     }
 
     const internal: InternalTask = {
@@ -238,7 +238,7 @@ export class ApplicationKernelV3 {
       throw new Error('Kernel service id must not be empty');
     }
     if (this.#services.has(service.id)) {
-      throw new Error(\`Kernel service already registered: \${service.id}\`);
+      throw new Error(`Kernel service already registered: ${service.id}`);
     }
     this.#services.set(service.id, service);
     return () => {
@@ -251,7 +251,7 @@ export class ApplicationKernelV3 {
   resolveService<T>(id: string): T {
     const service = this.#services.get(id);
     if (!service) {
-      throw new Error(\`Kernel service not found: \${id}\`);
+      throw new Error(`Kernel service not found: ${id}`);
     }
     return service.value as T;
   }
@@ -330,7 +330,7 @@ export class ApplicationKernelV3 {
       return;
     }
     if (this.#state !== 'created' && this.#state !== 'stopped') {
-      throw new Error(\`Kernel cannot start from state \${this.#state}\`);
+      throw new Error(`Kernel cannot start from state ${this.#state}`);
     }
     if (this.#controller.signal.aborted) {
       throw new Error('Kernel signal already aborted');
