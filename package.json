@@ -39,7 +39,10 @@
     "check:all-modern": "npm run verify:all-modern && npm run verify:production-v7 && npm run check:production-v7 && npm run check:production-runtime-r4",
     "verify:typed-gameplay-runtime": "node scripts/checkTypedGameplayRuntimeR6.mjs",
     "test:typed-gameplay-runtime": "npm test -- tests/modern/typedGameplayRuntimeR6.test.ts",
-    "check:typed-gameplay-runtime": "npm run verify:typed-gameplay-runtime && npm run test:typed-gameplay-runtime && npm run typecheck"
+    "check:typed-gameplay-runtime": "npm run verify:typed-gameplay-runtime && npm run test:typed-gameplay-runtime && npm run typecheck",
+    "verify:typed-world-runtime": "node scripts/checkTypedWorldRuntimeR7.mjs",
+    "test:typed-world-runtime": "npm test -- tests/modern/typedWorldRuntimeR7.test.ts",
+    "check:typed-world-runtime": "npm run verify:typed-world-runtime && npm run test:typed-world-runtime && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
