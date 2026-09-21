@@ -19,7 +19,7 @@ export interface StateChange<T extends StateKey = StateKey> { readonly key: T; r
 export type StateListener<K extends StateKey> = (change: StateChange<K>) => void;
 
 export class GameState {
-  private readonly listeners = new Map<StateKey, Set<StateListener<any>>>();
+  private readonly listeners = new Map<StateKey, Set<StateListener>>();
   private readonly events: EventBus;
   private values: GameStateShape;
 
@@ -47,7 +47,8 @@ export class GameState {
     const previous = this.values[key];
     this.values = Object.freeze({ ...this.values, [key]: value });
     const change = Object.freeze({ key, value, previous, changedAt: Date.now() }) as StateChange<K>;
-    this.listeners.get(key)?.forEach(listener => listener(change));
+    const listeners = this.listeners.get(key);
+    listeners?.forEach(listener => listener(change as StateChange));
     this.events.emit(`state:${String(key)}`, change);
     return true;
   }
@@ -62,11 +63,12 @@ export class GameState {
   }
 
   subscribe<K extends StateKey>(key: K, listener: StateListener<K>): () => void {
-    const bucket = this.listeners.get(key) ?? new Set<StateListener<any>>();
-    bucket.add(listener);
+    const bucket = this.listeners.get(key) ?? new Set<StateListener>();
+    const wrapped: StateListener = change => listener(change as StateChange<K>);
+    bucket.add(wrapped);
     this.listeners.set(key, bucket);
     return () => {
-      bucket.delete(listener);
+      bucket.delete(wrapped);
       if (bucket.size === 0) this.listeners.delete(key);
     };
   }
