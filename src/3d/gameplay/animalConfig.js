@@ -1,2 +1,2 @@
-/** Compatibility boundary: production configuration lives in animalConfig.ts. */
+/** Compatibility barrel: production implementation lives in src/3d/gameplay/animalConfig.ts. */
 export * from './animalConfig.ts';

@@ -51,7 +51,7 @@ export class InterestManagerV7 {
 
   setLodDistances(distances: readonly [number, number, number, number]): void {
     if (distances.some((distance, index) => !Number.isFinite(distance) || (index > 0 && distance < distances[index - 1]!))) throw new RangeError('LOD distances must be sorted and finite');
-    this.#distances = Object.freeze([...distances] as typeof this.#distances);
+    this.#distances = Object.freeze([...distances]) as readonly [number, number, number, number];
   }
 
   score(component: InterestComponentV7, distanceSquared: number, sourceWeight = 1): number {

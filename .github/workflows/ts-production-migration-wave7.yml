@@ -1,0 +1,52 @@
+name: ts-production-migration-wave7
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/auroraRealism.js'
+      - 'src/3d/auroraRealism.ts'
+      - 'src/3d/gameplay/**'
+      - 'tests/modern/tsProductionMigrationWave7.test.ts'
+      - 'scripts/checkTsProductionMigrationWave7.mjs'
+      - 'src/3d/modern/production-v7/interestManager.ts'
+      - 'src/3d/modern/combatAuthority.ts'
+      - 'package.json'
+      - '.github/workflows/ts-production-migration-wave7.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/auroraRealism.js'
+      - 'src/3d/auroraRealism.ts'
+      - 'src/3d/gameplay/**'
+      - 'tests/modern/tsProductionMigrationWave7.test.ts'
+      - 'scripts/checkTsProductionMigrationWave7.mjs'
+      - 'src/3d/modern/production-v7/interestManager.ts'
+      - 'src/3d/modern/combatAuthority.ts'
+      - 'package.json'
+      - '.github/workflows/ts-production-migration-wave7.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ts-production-wave7-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: package.json
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:ts-production-wave7
+      - run: npm run test:ts-production-wave7
+      - run: npm run check:combat-determinism
+      - run: npm run check:production-runtime-r4
