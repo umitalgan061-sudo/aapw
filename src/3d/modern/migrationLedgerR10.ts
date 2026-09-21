@@ -1,9 +1,12 @@
-/** R10 production migration ledger for frame helpers and 3D UI runtime surfaces. */
+/** R10 production migration ledger for geographic distribution, roads and settlement-world presentation. */
 export const R10_MIGRATION_MODULES = Object.freeze([
-  { id: 'game-loop-helpers', legacyPath: 'src/3d/gameLoopHelpers.js', modernPath: 'src/3d/gameLoopHelpers.ts', status: 'migrated' },
-  { id: 'safe-mode', legacyPath: 'src/3d/safeMode.js', modernPath: 'src/3d/safeMode.ts', status: 'migrated' },
-  { id: 'pause-menu', legacyPath: 'src/3d/ui/pauseMenu.js', modernPath: 'src/3d/ui/pauseMenu.ts', status: 'migrated' },
-  { id: 'touch-joystick', legacyPath: 'src/3d/ui/touchJoystick.js', modernPath: 'src/3d/ui/touchJoystick.ts', status: 'migrated' },
+  { id:'geographic-distribution', legacyPath:'src/3d/world/geographicAssetDistributionAdapter.js', modernPath:'src/3d/world/geographicAssetDistributionAdapter.ts', status:'migrated' },
+  { id:'geographic-cluster-planner', legacyPath:'src/3d/world/geographicAssetClusterPlanner.js', modernPath:'src/3d/world/geographicAssetClusterPlanner.ts', status:'migrated' },
+  { id:'road-pathfinder', legacyPath:'src/3d/world/roadPathfinder.js', modernPath:'src/3d/world/roadPathfinder.ts', status:'migrated' },
+  { id:'roads', legacyPath:'src/3d/world/roads.js', modernPath:'src/3d/world/roads.ts', status:'migrated' },
+  { id:'villages', legacyPath:'src/3d/world/villages.js', modernPath:'src/3d/world/villages.ts', status:'migrated' },
+  { id:'settlement-prop-quality', legacyPath:'src/3d/world/geographicSettlementPropQuality.js', modernPath:'src/3d/world/geographicSettlementPropQuality.ts', status:'migrated' },
+  { id:'canonical-surface-visual', legacyPath:'src/3d/world/worldReferenceSurfaceTerrainVisual.js', modernPath:'src/3d/world/worldReferenceSurfaceTerrainVisual.ts', status:'migrated' },
 ] as const);
 
 export interface R10MigrationSnapshot {
@@ -15,7 +18,7 @@ export interface R10MigrationSnapshot {
 
 export function getR10MigrationSnapshot(): R10MigrationSnapshot {
   const totalTracked = R10_MIGRATION_MODULES.length;
-  const migratedCount = R10_MIGRATION_MODULES.filter((module) => module.status === 'migrated').length;
+  const migratedCount = R10_MIGRATION_MODULES.filter(m => m.status === 'migrated').length;
   return Object.freeze({
     version: 10,
     migratedCount,
