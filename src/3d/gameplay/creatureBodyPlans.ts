@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/creatureBodyPlans.js; legacy JS path remains compatibility-only. */
-// @ts-nocheck
 /**
  * `CREATURE_BODY_PLANS` — the parametric proportions each species' procedural skeleton and skinned
  * body are built from (`gameplay/creatureRig.js`), plus the gait cadence that drives them
@@ -66,8 +65,33 @@
  * @property {'bound'|'gallop'|'sprint'|'flap'} alertGait Gait used when fleeing/charging/pursuing.
  */
 
+export type CreatureArchetype = 'quadruped' | 'biped' | 'bird';
+export type CreatureGait = 'walk' | 'trot' | 'pace' | 'bound' | 'prowl' | 'stride' | 'hop' | 'flap' | 'gallop' | 'sprint';
+export interface CreatureBodyPlan {
+  readonly id: string;
+  readonly displayNameTr: string;
+  readonly archetype: CreatureArchetype;
+  readonly paletteId: string;
+  readonly bodyLengthMeters: number;
+  readonly shoulderHeightMeters: number;
+  readonly bodyRadiusFactor: number;
+  readonly neckLengthFactor: number;
+  readonly neckPitchRadians: number;
+  readonly headLengthFactor: number;
+  readonly legThicknessFactor: number;
+  readonly hindLegLengthFactor: number;
+  readonly legCrankRadians: number;
+  readonly tailLengthFactor: number;
+  readonly tailThicknessFactor: number;
+  readonly earSizeFactor: number;
+  readonly earPitchRadians: number;
+  readonly strideHz: Readonly<{ walk: number; run: number }>;
+  readonly restGait: CreatureGait;
+  readonly alertGait: CreatureGait;
+}
+
 /** Shared by every four-legged plan; overridden per species where the animal really differs. */
-const QUADRUPED_DEFAULTS = {
+const QUADRUPED_DEFAULTS: Partial<CreatureBodyPlan> = {
 	archetype: 'quadruped',
 	bodyRadiusFactor: 0.17,
 	neckLengthFactor: 0.22,
@@ -84,7 +108,7 @@ const QUADRUPED_DEFAULTS = {
 	alertGait: 'gallop',
 };
 
-const BIRD_DEFAULTS = {
+const BIRD_DEFAULTS: Partial<CreatureBodyPlan> = {
 	archetype: 'bird',
 	bodyRadiusFactor: 0.3,
 	neckLengthFactor: 0.28,
@@ -454,7 +478,7 @@ export const CREATURE_BODY_PLANS = Object.freeze({
 		tailLengthFactor: 0.35,
 		strideHz: Object.freeze({ walk: 3, run: 5.2 }),
 	}),
-});
+}) satisfies Record<string, CreatureBodyPlan>;
 
 /** Every plan id, in declaration order. */
 export const CREATURE_BODY_PLAN_IDS = Object.freeze(Object.keys(CREATURE_BODY_PLANS));
@@ -465,7 +489,7 @@ export const CREATURE_BODY_PLAN_IDS = Object.freeze(Object.keys(CREATURE_BODY_PL
  * @param {string} speciesId
  * @returns {CreatureBodyPlan}
  */
-export function findBodyPlan(speciesId) {
+export function findBodyPlan(speciesId: string): CreatureBodyPlan {
 	const plan = CREATURE_BODY_PLANS[speciesId];
 	if (!plan) {
 		throw new Error(
