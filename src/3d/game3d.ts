@@ -48,13 +48,13 @@ import { AssetLoader } from './assetLoader.ts';
 import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE } from './config.ts';
 import { PLAYER_CONFIG, INTERACTION_CONFIG } from './gameplay/gameplayConfig.ts';
 import { KeyboardInput } from './input.ts';
-import { TouchJoystick } from './ui/touchJoystick.js';
+import { TouchJoystick } from './ui/touchJoystick.ts';
 import { InteractionPrompt } from './ui/interactionPrompt.js';
 import { DialogueBox } from './ui/dialogueBox.js';
 import { WorldEventToast } from './ui/worldEventToast.js';
 import { HealthBar } from './ui/healthBar.js';
 import { ControlsHelp } from './ui/controlsHelp.js';
-import { PauseMenu } from './ui/pauseMenu.js';
+import { PauseMenu } from './ui/pauseMenu.ts';
 import { createAudioManager, readStoredMuted } from './audio/audioManager.js';
 import { SettlementCompass } from './ui/settlementCompass.js';
 import { SettlementDiscovery } from './ui/settlementDiscovery.js';
@@ -84,7 +84,7 @@ import { updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
 import { updateFog } from './fog.js';
 import { updateMobileVegetationDistanceCullingRun141 } from './world/mobileVegetationCulling.js';
 import { createScene, isCoarsePointerDevice } from './sceneManager.ts';
-import { updateEntitiesSafely, updateSystemSafely } from './safeMode.js';
+import { updateEntitiesSafely, updateSystemSafely } from './safeMode.ts';
 import { createPerfPanel } from './debug/perfPanel.js';
 import {
 	computeCameraRelativeMove,
@@ -92,7 +92,7 @@ import {
 	collectCameraCollidables,
 	streamAroundOrbitTarget,
 	bindResize,
-} from './gameLoopHelpers.js';
+} from './gameLoopHelpers.ts';
 
 /** Shared asset loader instance for the whole 3D mode. */
 export const assetLoader = new AssetLoader({ events: gameEvents });
