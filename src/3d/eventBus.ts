@@ -83,7 +83,7 @@ export interface GameEventMap {
   readonly [EVENTS.PLAYER_DIED]: PlayerDiedEvent;
 }
 
-export class EventBus<TEvents extends Record<string, unknown> = Record<string, unknown>> {
+export class EventBus<TEvents = Record<string, unknown>> {
   private readonly listeners = new Map<string, Set<EventHandler>>();
   private dispatching = false;
   private disposed = false;
@@ -125,7 +125,7 @@ export class EventBus<TEvents extends Record<string, unknown> = Record<string, u
 
   emit<K extends keyof TEvents & string>(
     eventName: K,
-    ...payload: TEvents[K] extends void ? [] : [TEvents[K]]
+    ...payload: TEvents[K] extends void ? [payload?: TEvents[K]] : [payload: TEvents[K]]
   ): void {
     if (this.disposed) return;
 
@@ -134,7 +134,7 @@ export class EventBus<TEvents extends Record<string, unknown> = Record<string, u
 
     this.dispatching = true;
     try {
-      const value = payload[0];
+      const value = payload[0] as TEvents[K];
       for (const handler of [...bucket]) {
         try {
           handler(value);
