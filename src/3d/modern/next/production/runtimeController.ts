@@ -9,7 +9,7 @@ import { ProductionEntityRegistry } from './entityRegistry.ts';
 import { ProductionNetworkRuntime } from './networkRuntime.ts';
 import { ProductionPersistenceRuntime, MemoryPersistenceStore, type PersistenceStore } from './persistenceRuntime.ts';
 import { ProductionObservability, buildInitialHealth } from './observability.ts';
-import { ProductionLifecycleSupervisor, createLifecycleIdentity } from './lifecycle.ts';
+import { ProductionLifecycleSupervisor } from './lifecycle.ts';
 import { TypedRuntimeEventRouter } from './eventRouter.ts';
 import {
   inputButtons,
@@ -17,6 +17,7 @@ import {
   normalizeBudget,
   normalizeRuntimeCapabilities,
   normalizeRuntimeIdentity,
+  type EntityRuntimeState,
   type NetworkPeerState,
   type ProductionEntitySeed,
   type ProductionFrameInput,
@@ -72,7 +73,6 @@ export class ProductionRuntimeController {
   #inputSequence = 0;
   #lastInput?: InputFrame;
   #adapters: BrowserRuntimeAdapters;
-  #disposers: Array<() => void> = [];
 
   constructor(options: ProductionRuntimeOptions = {}, adapters: BrowserRuntimeAdapters = {}, persistenceStore?: PersistenceStore) {
     this.identity = normalizeRuntimeIdentity({
@@ -165,7 +165,6 @@ export class ProductionRuntimeController {
 
   async dispose(): Promise<void> {
     await this.stop();
-    for (const dispose of this.#disposers.splice(0)) dispose();
     this.events.clear();
     await this.lifecycle.dispose();
     this.entities.clear();
@@ -174,38 +173,28 @@ export class ProductionRuntimeController {
   }
 
   submitInput(frame: InputFrame): boolean {
-    if (!isInputFrameSafe(frame)) return false;
-    if (this.#mode !== 'running') return false;
+    if (!isInputFrameSafe(frame) || this.#mode !== 'running') return false;
     this.input.setMove(frame.moveX, frame.moveZ);
     this.input.addLook(frame.lookX, frame.lookY);
-    this.input.setButton(InputButton.Jump, (frame.buttons & InputButton.Jump) !== 0);
-    this.input.setButton(InputButton.Sprint, (frame.buttons & InputButton.Sprint) !== 0);
-    this.input.setButton(InputButton.Dodge, (frame.buttons & InputButton.Dodge) !== 0);
-    this.input.setButton(InputButton.Primary, (frame.buttons & InputButton.Primary) !== 0);
-    this.input.setButton(InputButton.Secondary, (frame.buttons & InputButton.Secondary) !== 0);
-    this.input.setButton(InputButton.Interact, (frame.buttons & InputButton.Interact) !== 0);
-    this.input.setButton(InputButton.Inventory, (frame.buttons & InputButton.Inventory) !== 0);
-    this.input.setButton(InputButton.Map, (frame.buttons & InputButton.Map) !== 0);
+    const buttons: InputButton[] = [
+      InputButton.Jump, InputButton.Sprint, InputButton.Dodge, InputButton.Primary,
+      InputButton.Secondary, InputButton.Interact, InputButton.Inventory, InputButton.Map,
+    ];
+    for (const button of buttons) this.input.setButton(button, (frame.buttons & button) !== 0);
     this.#lastInput = frame;
     const command = this.runtime.submitInput(frame);
     this.#inputSequence = command.sequence;
-    this.events.emit('input', {
-      frame,
-      pressed: inputButtons(frame),
-      released: [],
-      source: 'synthetic',
-    });
+    this.events.emit('input', { frame, pressed: inputButtons(frame), released: [], source: 'synthetic' });
     return true;
   }
 
   async frame(input: ProductionFrameInput): Promise<ProductionFrameResult> {
     if (this.#mode === 'booting') await this.start();
-    if (this.#mode !== 'running') return this.#result(input, 0);
+    if (this.#mode !== 'running') return this.#result(0);
     const wall = input.wallTimeMs ?? this.#adapters.nowMs?.() ?? Date.now();
     const delta = Math.max(0, Math.min(0.25, Number.isFinite(input.deltaSeconds) ? input.deltaSeconds : 0));
     this.#wallTimeMs = Math.max(this.#wallTimeMs, wall);
     this.#frame += 1;
-    const clock = this.clock(delta);
     const endFrameScope = this.observability.begin('simulation', 'frame');
     try {
       if (input.input) this.submitInput(input.input);
@@ -214,7 +203,7 @@ export class ProductionRuntimeController {
       const camera = this.#adapters.getCameraPosition?.() ?? { x: 0, y: 0, z: 0 };
       this.entities.frameUpdate(this.#frame, this.runtime.currentTick, camera, this.#lastBudget.render.visibleDistance * 650);
       const renderPlan = this.renderPlanner.plan({
-        tick: runtimeResult.steps >= 0 ? this.runtime.currentTick : tick(0),
+        tick: this.runtime.currentTick,
         alpha: runtimeResult.alpha,
         camera,
         entities: this.entities.all(),
@@ -252,14 +241,14 @@ export class ProductionRuntimeController {
       this.events.emit('fault', fault);
       this.#mode = 'recovering';
       this.#health = this.#healthWithMode('recovering');
-      return this.#result(input, 0);
+      return this.#result(0);
     }
   }
 
   createEntity(seed: ProductionEntitySeed = {}): number {
     const id = this.entities.create(seed);
-    const spatialPosition = this.entities.get(id)?.transform.position;
-    if (spatialPosition) this.runtime.indexEntity(id, spatialPosition.x, spatialPosition.z, this.entities.get(id)?.transform.radiusMeters ?? 0);
+    const entity = this.entities.get(id);
+    if (entity) this.runtime.indexEntity(id, entity.transform.position.x, entity.transform.position.z, entity.transform.radiusMeters);
     return id;
   }
 
@@ -292,8 +281,7 @@ export class ProductionRuntimeController {
   }
 
   createNetworkPacket(peerId: string): ReturnType<ProductionNetworkRuntime['createSnapshotPacket']> {
-    const world = this.worldSnapshot();
-    return this.network.createSnapshotPacket(peerId, world, this.#wallTimeMs);
+    return this.network.createSnapshotPacket(peerId, this.worldSnapshot(), this.#wallTimeMs);
   }
 
   async save(slot: string, kind: 'manual' | 'autosave' | 'checkpoint' | 'recovery'): Promise<ReturnType<ProductionPersistenceRuntime['save']>> {
@@ -321,9 +309,10 @@ export class ProductionRuntimeController {
   }
 
   restore(snapshot: ProductionSnapshot): void {
+    if (snapshot.contractVersion !== 1) throw new Error('unsupported production snapshot contract');
     this.entities.restore(snapshot.entities);
-    if (this.#lastInput && snapshot.inputSequence < this.#inputSequence) this.#lastInput = undefined;
     this.#inputSequence = Math.max(0, snapshot.inputSequence);
+    this.#lastInput = undefined;
   }
 
   worldSnapshot(): import('../types.ts').WorldSnapshot {
@@ -348,7 +337,11 @@ export class ProductionRuntimeController {
     return this.audio.updateListener(listener, right);
   }
 
-  async worker<TPayload, TResult>(kind: Parameters<LocalWorkerPool['enqueue']>[0], payload: TPayload, priority = 0): Promise<ReturnType<LocalWorkerPool['enqueue']>> {
+  async worker<TPayload>(
+    kind: Parameters<LocalWorkerPool['enqueue']>[0],
+    payload: TPayload,
+    priority = 0,
+  ): Promise<Awaited<ReturnType<LocalWorkerPool['enqueue']>>> {
     return this.workers.enqueue(kind, payload, { priority, createdTick: this.runtime.currentTick });
   }
 
@@ -380,7 +373,7 @@ export class ProductionRuntimeController {
     };
   }
 
-  #result(input: ProductionFrameInput, steps: number): ProductionFrameResult {
+  #result(steps: number): ProductionFrameResult {
     const plan = this.renderPlanner.lastPlan() ?? {
       tick: this.runtime.currentTick,
       alpha: 0,
@@ -441,6 +434,10 @@ function readReducedMotionPreference(): boolean {
   }
 }
 
-export function createProductionRuntimeController(options: ProductionRuntimeOptions = {}, adapters: BrowserRuntimeAdapters = {}, persistenceStore?: PersistenceStore): ProductionRuntimeController {
+export function createProductionRuntimeController(
+  options: ProductionRuntimeOptions = {},
+  adapters: BrowserRuntimeAdapters = {},
+  persistenceStore?: PersistenceStore,
+): ProductionRuntimeController {
   return new ProductionRuntimeController(options, adapters, persistenceStore);
 }
