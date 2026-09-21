@@ -36,7 +36,10 @@
     "verify:production-runtime-r4": "node scripts/checkProductionRuntimeR4.mjs",
     "test:production-runtime-r4": "npm test -- tests/modern/productionRuntimeR4.test.ts tests/modern/productionRuntimeR4Acceptance.test.ts",
     "check:production-runtime-r4": "npm run verify:production-runtime-r4 && npm run test:production-runtime-r4 && npm run typecheck",
-    "check:all-modern": "npm run verify:all-modern && npm run verify:production-v7 && npm run check:production-v7 && npm run check:production-runtime-r4"
+    "check:all-modern": "npm run verify:all-modern && npm run verify:production-v7 && npm run check:production-v7 && npm run check:production-runtime-r4",
+    "verify:ts-production-wave7": "node scripts/checkTsProductionMigrationWave7.mjs",
+    "test:ts-production-wave7": "npm test -- tests/modern/tsProductionMigrationWave7.test.ts",
+    "check:ts-production-wave7": "npm run verify:ts-production-wave7 && npm run test:ts-production-wave7 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

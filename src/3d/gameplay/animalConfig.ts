@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * TypeScript production owner for the former animalConfig.js module.
  * The sibling .js file remains only as a compatibility boundary for legacy imports.

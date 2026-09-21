@@ -146,7 +146,7 @@ export class CombatAuthority {
   }
 
   step(deltaMs: number): readonly CombatEvent[] {
-    const dt = clamp(deltaMs, 0, 100);
+    const dt = clamp(deltaMs, 0, 5000);
     const events: CombatEvent[] = [];
     for (const actor of [...this.#actors.values()]) {
       this.#actors.set(actor.id, this.#advanceActor(actor, dt, events));
