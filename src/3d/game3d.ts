@@ -59,10 +59,10 @@ import { createAudioManager, readStoredMuted } from './audio/audioManager.js';
 import { SettlementCompass } from './ui/settlementCompass.js';
 import { SettlementDiscovery } from './ui/settlementDiscovery.js';
 import { DayNightClock } from './ui/dayNightClock.js';
-import { createPlayer } from './gameplay/player.js';
+import { createPlayer } from './gameplay/player.ts';
 import { createHealthState } from './gameplay/health.js';
 import { spawnLivingWorld } from './gameplay/livingWorldSpawner.js';
-import { createInteractionController } from './gameplay/interaction.js';
+import { createInteractionController } from './gameplay/interaction.ts';
 import { focusSunShadow, applyShadowRoles } from './renderQuality.ts';
 import { createWorldEventSystem } from './gameplay/worldEvents.js';
 import { updateWater, disposeWater } from './world/water.ts';
@@ -581,4 +581,3 @@ export async function initGame3D() {
 		console.error('[game3d] initialization failed', error);
 	}
 }
-
