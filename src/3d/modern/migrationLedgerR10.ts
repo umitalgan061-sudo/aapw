@@ -1,25 +1,18 @@
-/** R10 production migration ledger for frame helpers and 3D UI runtime surfaces. */
-export const R10_MIGRATION_MODULES = Object.freeze([
-  { id: 'game-loop-helpers', legacyPath: 'src/3d/gameLoopHelpers.js', modernPath: 'src/3d/gameLoopHelpers.ts', status: 'migrated' },
-  { id: 'safe-mode', legacyPath: 'src/3d/safeMode.js', modernPath: 'src/3d/safeMode.ts', status: 'migrated' },
-  { id: 'pause-menu', legacyPath: 'src/3d/ui/pauseMenu.js', modernPath: 'src/3d/ui/pauseMenu.ts', status: 'migrated' },
-  { id: 'touch-joystick', legacyPath: 'src/3d/ui/touchJoystick.js', modernPath: 'src/3d/ui/touchJoystick.ts', status: 'migrated' },
+/** R10 strict-TypeScript hardening ledger for runtime-facing UI/safety modules. */
+export const R10_STRICT_MODULES = Object.freeze([
+  { id:'interaction-prompt', path:'src/3d/ui/interactionPrompt.ts', status:'strict' },
+  { id:'touch-joystick', path:'src/3d/ui/touchJoystick.ts', status:'strict' },
+  { id:'health-bar', path:'src/3d/ui/healthBar.ts', status:'strict' },
+  { id:'safe-mode', path:'src/3d/safeMode.ts', status:'strict' },
 ] as const);
-
-export interface R10MigrationSnapshot {
-  readonly version: 10;
-  readonly migratedCount: number;
-  readonly totalTracked: number;
-  readonly coveragePercent: number;
+export interface R10StrictSnapshot {
+  readonly version:10;
+  readonly strictCount:number;
+  readonly totalTracked:number;
+  readonly coveragePercent:number;
 }
-
-export function getR10MigrationSnapshot(): R10MigrationSnapshot {
-  const totalTracked = R10_MIGRATION_MODULES.length;
-  const migratedCount = R10_MIGRATION_MODULES.filter((module) => module.status === 'migrated').length;
-  return Object.freeze({
-    version: 10,
-    migratedCount,
-    totalTracked,
-    coveragePercent: totalTracked === 0 ? 100 : Number(((migratedCount / totalTracked) * 100).toFixed(2)),
-  });
+export function getR10StrictSnapshot():R10StrictSnapshot {
+  const totalTracked=R10_STRICT_MODULES.length;
+  const strictCount=R10_STRICT_MODULES.filter((module)=>module.status==='strict').length;
+  return Object.freeze({version:10,strictCount,totalTracked,coveragePercent:totalTracked===0?100:Number(((strictCount/totalTracked)*100).toFixed(2))});
 }
