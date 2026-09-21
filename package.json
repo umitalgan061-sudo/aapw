@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "build:modern": "vite build",
     "check": "npm run typecheck && npm test -- --passWithNoTests",
-    "verify:modern": "node scripts/checkModernPlatform.mjs"
+    "verify:modern": "node scripts/checkModernPlatform.mjs",
+    "verify:runtime:v3": "node scripts/checkModernRuntimeV3.mjs",
+    "check:modern": "npm run verify:modern && npm run verify:runtime:v3 && npm run typecheck && npm test -- --passWithNoTests"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
