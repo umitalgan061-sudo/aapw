@@ -1,0 +1,40 @@
+name: kizil-ufuk-player-locomotion-grounding-director
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerLocomotionGroundingDirector.js'
+      - 'scripts/checkKizilUfukPlayerLocomotionGroundingDirector.mjs'
+      - '.github/workflows/kizil-ufuk-player-locomotion-grounding-director.yml'
+      - 'src/3d/materials/**'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify exact main ancestry
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor "$(git rev-parse origin/main)" "$GITHUB_SHA"
+      - name: Verify scoped diff cap
+        shell: bash
+        run: |
+          base="$(git rev-parse origin/main)"
+          total="$(git diff --numstat "$base" "$GITHUB_SHA" | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$total" -le 3000
+      - name: Syntax and deterministic runtime proof
+        run: |
+          node --check src/3d/gameplay/playerLocomotionGroundingDirector.js
+          node scripts/checkKizilUfukPlayerLocomotionGroundingDirector.mjs
+      - name: Enforce runtime/editor boundary
+        shell: bash
+        run: |
+          ! grep -R "EditorMaterialStudio" src/3d/gameplay/playerLocomotionGroundingDirector.js scripts/checkKizilUfukPlayerLocomotionGroundingDirector.mjs
+          ! grep -R "Math\.random" src/3d/gameplay/playerLocomotionGroundingDirector.js scripts/checkKizilUfukPlayerLocomotionGroundingDirector.mjs
