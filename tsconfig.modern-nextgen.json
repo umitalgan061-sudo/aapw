@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": false,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false
+  },
+  "include": [
+    "src/3d/modern/nextgen/**/*.ts",
+    "tests/modern/nextgen/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
