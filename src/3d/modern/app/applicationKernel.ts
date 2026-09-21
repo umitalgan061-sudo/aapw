@@ -43,7 +43,7 @@ export class ApplicationKernel {
     this.scheduler = new FrameScheduler({ policy: this.config.frame, now: this.#now, report: (event) => this.report(event) });
     this.performance = new PerformanceGovernor(this.config.frame);
     this.assets = new AssetCatalog({ maxEntries: 4096, maxBytes: this.config.quality.textureBudgetMb * 1024 * 1024 });
-    this.saves = new SaveSlotManager({ adapter: options.saveAdapter, maxSlots: this.config.persistence.slotCount, maxBytes: this.config.security.maxSaveBytes, now: this.#now });
+    this.saves = new SaveSlotManager({ ...(options.saveAdapter ? { adapter: options.saveAdapter } : {}), maxSlots: this.config.persistence.slotCount, maxBytes: this.config.security.maxSaveBytes, now: this.#now });
     this.network = new NetworkSessionTimeline({ id: 'aapw-' + this.config.worldSeed.toString(36), now: this.#now });
     this.telemetry = new TelemetryPipeline(this.config.security.maxTelemetryEvents);
     this.accessibility = new AccessibilityProfileStore({ reducedMotion: this.config.capabilities.reducedMotion });
@@ -52,7 +52,7 @@ export class ApplicationKernel {
     this.#bootAt = this.#now();
   }
 
-  phase(): ApplicationKernel['#phase'] { return this.#phase; }
+  phase(): string { return this.#phase; }
   revision(): number { return this.#revision; }
   latest(): ApplicationFrame | undefined { return this.#lastFrame; }
 
@@ -134,7 +134,7 @@ export class ApplicationKernel {
   reset(): void { this.orchestrator.integration.reset(); this.input.reset(); this.performance.reset(); this.telemetry.clear(); this.errors.reset(); this.#diagnostics.length = 0; this.#lastFrame = undefined; this.scheduler.reset(); this.#revision += 1; this.#phase = 'created'; this.#bootAt = this.#now(); }
 
   #seedContext() { return Object.freeze({ input: emptyInputState(), capabilities: this.config.capabilities, features: this.config.features, budget: this.config.initialBudget, commandBus: this.input.commandBus, report: (event: AppDiagnosticEvent) => this.report(event) }); }
-  #transition(next: ApplicationKernel['#phase']): void { this.#phase = next; this.#revision += 1; this.telemetry.event('application.phase.' + next, this.#revision); }
+  #transition(next: 'created' | 'booting' | 'ready' | 'running' | 'paused' | 'stopping' | 'stopped' | 'failed'): void { this.#phase = next; this.#revision += 1; this.telemetry.event('application.phase.' + next, this.#revision); }
 }
 
 export const createApplicationKernel = (options?: ApplicationKernelOptions): ApplicationKernel => new ApplicationKernel(options);
