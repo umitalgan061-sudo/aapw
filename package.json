@@ -61,7 +61,9 @@
     "check:strict-runtime-r16": "npm run verify:strict-runtime-r16 && npm run test:strict-runtime-r16 && npm run typecheck",
     "verify:ts-source": "node scripts/checkProductionTypeScriptSourceR11.mjs",
     "test:ts-source": "npm test -- tests/modern/typedSourceOfTruthR11.test.ts",
-    "check:ts-source": "npm run verify:ts-source && npm run test:ts-source && npm run typecheck"
+    "check:ts-source": "npm run verify:ts-source && npm run test:ts-source && npm run typecheck",
+    "test:resilience-r11": "npm test -- tests/modern/runtimeResilienceR11.test.ts",
+    "check:platform-r11": "npm run verify:ts-source && npm run test:ts-source && npm run test:resilience-r11 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
