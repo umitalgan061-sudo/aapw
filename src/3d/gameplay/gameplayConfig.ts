@@ -26,11 +26,11 @@
  * @module gameplay/gameplayConfig
  */
 
-export { PLAYER_CONFIG } from './playerConfig.js';
-export { NPC_CONFIG } from './npcConfig.js';
-export { ANIMAL_CONFIG } from './animalConfig.js';
+export { PLAYER_CONFIG } from './playerConfig.ts';
+export { NPC_CONFIG } from './npcConfig.ts';
+export { ANIMAL_CONFIG } from './animalConfig.ts';
 export { DRAGON_CONFIG } from './dragonConfig.js';
-export { INTERACTION_CONFIG } from './interactionConfig.js';
+export { INTERACTION_CONFIG } from './interactionConfig.ts';
 
 
 export interface GameplayConfigDomains {
