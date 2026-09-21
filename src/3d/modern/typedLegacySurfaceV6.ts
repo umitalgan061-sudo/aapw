@@ -17,7 +17,7 @@ const RECORDS:readonly LegacySurfaceRecordV6[] = Object.freeze([
  {path:'src/3d/gameLoopHelpers.js',kind:'entry',surface:'render',priority:'p0',typedTarget:'src/3d/modern/typedRenderLoopV6.ts',owner:'runtime',notes:'Frame budget and simulation pacing move into a fixed-step loop.',status:'shadow'},
  {path:'src/3d/renderQuality.js',kind:'render',surface:'render',priority:'p1',typedTarget:'src/3d/modern/performanceBudgetV4.ts',owner:'render',notes:'Quality decisions are data-driven instead of renderer-global.',status:'shadow'},
  {path:'src/3d/safeMode.js',kind:'debug',surface:'telemetry',priority:'p1',typedTarget:'src/3d/modern/typedSceneCoordinatorV6.ts',owner:'runtime',notes:'Recovery and bounded error isolation are centralized.',status:'shadow'},
- {path:'src/3d/audio/audioManager.js',kind:'audio',surface:'audio',priority:'p1',typedTarget:'src/3d/modern/runtimeContractsV4.ts',owner:'audio',notes:'Audio ownership remains behind the runtime command boundary.',status:'inventory'},
+ {path:'src/3d/audio/audioManager.js',kind:'audio',surface:'audio',priority:'p1',typedTarget:'src/3d/audio/audioManager.ts',owner:'audio',notes:'Audio facade is now TypeScript-owned while preserving the established compatibility boundary.',status:'promoted'},
  {path:'src/3d/assetLoader.js',kind:'storage',surface:'assets',priority:'p0',typedTarget:'src/3d/modern/assetStreamingV4.ts',owner:'assets',notes:'Asset loading gains concurrency and residency controls.',status:'shadow'},
  {path:'src/3d/gameplay/player.js',kind:'gameplay',surface:'movement',priority:'p0',typedTarget:'src/3d/modern/typedPlayerRuntimeV6.ts',owner:'simulation',notes:'Player state is pure data and independently testable.',status:'shadow'},
  {path:'src/3d/gameplay/health.js',kind:'gameplay',surface:'movement',priority:'p1',typedTarget:'src/3d/modern/ecsSystemsV4.ts',owner:'simulation',notes:'Health transitions become ECS system data.',status:'inventory'},
@@ -29,9 +29,11 @@ const RECORDS:readonly LegacySurfaceRecordV6[] = Object.freeze([
  {path:'src/3d/world/water.js',kind:'world',surface:'world',priority:'p2',typedTarget:'src/3d/modern/typedSceneCoordinatorV6.ts',owner:'world',notes:'Water becomes presentation-only render state.',status:'inventory'},
  {path:'src/3d/world/rivers.js',kind:'world',surface:'world',priority:'p2',typedTarget:'src/3d/modern/typedWorldRuntimeV6.ts',owner:'world',notes:'River path data can remain deterministic and renderer-agnostic.',status:'inventory'},
  {path:'src/3d/world/roads.js',kind:'world',surface:'world',priority:'p2',typedTarget:'src/3d/modern/typedWorldRuntimeV6.ts',owner:'world',notes:'Road network metadata moves to bounded world chunks.',status:'inventory'},
- {path:'src/3d/lighting.js',kind:'render',surface:'render',priority:'p2',typedTarget:'src/3d/modern/typedRenderLoopV6.ts',owner:'render',notes:'Lighting becomes a render packet consumer.',status:'inventory'},
- {path:'src/3d/sky.js',kind:'render',surface:'render',priority:'p2',typedTarget:'src/3d/modern/typedRenderLoopV6.ts',owner:'render',notes:'Sky is presentation state driven by day/night data.',status:'inventory'},
- {path:'src/3d/stars.js',kind:'render',surface:'render',priority:'p2',typedTarget:'src/3d/modern/typedRenderLoopV6.ts',owner:'render',notes:'Star visibility is a deterministic presentation layer.',status:'inventory'},
+ {path:'src/3d/lighting.js',kind:'render',surface:'render',priority:'p2',typedTarget:'src/3d/lighting.ts',owner:'render',notes:'Day/night orbit, celestial asset fallback and lighting outputs are TypeScript-owned.',status:'promoted'},
+ {path:'src/3d/sky.js',kind:'render',surface:'render',priority:'p2',typedTarget:'src/3d/sky.ts',owner:'render',notes:'Sky is presentation state driven by day/night data.',status:'promoted'},
+ {path:'src/3d/stars.js',kind:'render',surface:'render',priority:'p2',typedTarget:'src/3d/stars.ts',owner:'render',notes:'Deterministic star placement and GPU twinkle are TypeScript-owned.',status:'promoted'},
+ {path:'src/3d/nightVisualEnhancement.js',kind:'render',surface:'render',priority:'p2',typedTarget:'src/3d/nightVisualEnhancement.ts',owner:'render',notes:'Night readability fill is TypeScript-owned and remains a child of the canonical hemisphere light.',status:'promoted'},
+ {path:'src/3d/celestialLightState.js',kind:'render',surface:'render',priority:'p2',typedTarget:'src/3d/celestialLightState.ts',owner:'render',notes:'Shared shader key state is TypeScript-owned and remains read-only at the consumer boundary.',status:'promoted'},
 ]);
 
 const SURFACE_BY_PATH=new Map(RECORDS.map(record=>[record.path,record]));
