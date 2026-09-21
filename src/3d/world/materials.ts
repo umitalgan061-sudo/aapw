@@ -12,7 +12,7 @@
 
 
 import * as THREE from 'three';
-import { mulberry32 } from './terrain.js';
+import { mulberry32 } from './terrain.ts';
 
 /** Square texture resolution (px) for every map this module generates. Cheap at this size: three
  * 256x256 RGBA canvases total ~768KB uncompressed GPU memory, negligible against either the
