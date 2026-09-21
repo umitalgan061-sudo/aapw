@@ -82,11 +82,19 @@ export type AssetLoadResult<T> = {
 type PendingRequest<T> = {
   readonly promise: Promise<AssetLoadResult<T>>;
   readonly controller: AbortController;
-  readonly waiters: number;
+  waiters: number;
 };
 
-type InternalRecord<T = unknown> = AssetRecord<T> & {
+type InternalRecord<T = unknown> = {
+  descriptor: AssetDescriptor;
+  state: AssetState;
+  bytes: number;
+  createdAtMs: number;
+  readyAtMs?: number;
+  lastUsedAtMs: number;
+  useCount: number;
   value?: T;
+  errorMessage?: string;
 };
 
 const PRIORITY_WEIGHT: Readonly<Record<AssetPriority, number>> = {
@@ -171,25 +179,34 @@ export class AssetOrchestratorV3 {
       throw new Error(\`Asset already declared: \${id}\`);
     }
 
-    const normalized: AssetDescriptor = {
-      ...descriptor,
+    let normalized: AssetDescriptor = {
       id,
       url: descriptor.url.trim(),
+      kind: descriptor.kind,
       priority: descriptor.priority,
-      expectedBytes:
-        descriptor.expectedBytes === undefined
-          ? undefined
-          : Math.max(0, Math.floor(descriptor.expectedBytes)),
-      maxBytes:
-        descriptor.maxBytes === undefined
-          ? undefined
-          : Math.max(1, Math.floor(descriptor.maxBytes)),
-      sha256: normalizeHash(descriptor.sha256),
-      contentType: descriptor.contentType?.trim().toLowerCase(),
-      tags: descriptor.tags ? [...new Set(descriptor.tags.map((tag) => tag.trim()).filter(Boolean))] : undefined,
       cacheable: descriptor.cacheable ?? true,
       critical: descriptor.critical ?? descriptor.priority === 'critical',
     };
+    if (descriptor.expectedBytes !== undefined) {
+      normalized = { ...normalized, expectedBytes: Math.max(0, Math.floor(descriptor.expectedBytes)) };
+    }
+    if (descriptor.maxBytes !== undefined) {
+      normalized = { ...normalized, maxBytes: Math.max(1, Math.floor(descriptor.maxBytes)) };
+    }
+    const sha256 = normalizeHash(descriptor.sha256);
+    if (sha256) {
+      normalized = { ...normalized, sha256 };
+    }
+    const contentType = descriptor.contentType?.trim().toLowerCase();
+    if (contentType) {
+      normalized = { ...normalized, contentType };
+    }
+    const tags = descriptor.tags
+      ? [...new Set(descriptor.tags.map((tag) => tag.trim()).filter(Boolean))]
+      : [];
+    if (tags.length > 0) {
+      normalized = { ...normalized, tags };
+    }
 
     this.#descriptors.set(id, normalized);
     this.#records.set(id, {
@@ -316,7 +333,7 @@ export class AssetOrchestratorV3 {
           record.readyAtMs = now;
           record.useCount += 1;
           record.value = payload.value;
-          record.errorMessage = undefined;
+          delete record.errorMessage;
           this.#residentBytes += record.bytes;
 
           return {
@@ -523,19 +540,19 @@ export class AssetOrchestratorV3 {
       this.#residentBytes = Math.max(0, this.#residentBytes - record.bytes);
       record.state = 'declared';
       record.bytes = 0;
-      record.value = undefined;
-      record.readyAtMs = undefined;
+      delete record.value;
+      delete record.readyAtMs;
       record.lastUsedAtMs = this.#clock();
       record.useCount = 0;
-      record.errorMessage = undefined;
+      delete record.errorMessage;
       return;
     }
 
     for (const record of this.#records.values()) {
       record.state = 'declared';
       record.bytes = 0;
-      record.value = undefined;
-      record.readyAtMs = undefined;
+      delete record.value;
+      delete record.readyAtMs;
       record.lastUsedAtMs = this.#clock();
       record.useCount = 0;
       record.errorMessage = undefined;
