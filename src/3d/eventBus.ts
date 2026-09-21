@@ -1,82 +1,60 @@
-/** Production TypeScript owner for src/3d/eventBus.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
-/**
- * Minimal publish/subscribe event bus used as the backbone of inter-system communication.
- *
- * Systems (terrain, weather, player, NPCs, ...) should not hold direct references to each
- * other. Instead they emit/listen on a shared bus. This keeps the architecture open to a
- * future ECS/multiplayer split, where systems could run in different modules/workers and
- * only ever talk through serializable events.
- * @module eventBus
- */
+/** Production TypeScript owner for src/3d/eventBus.js. */
+
+export type EventHandler<T = unknown> = (payload: T) => void;
+
+type Handler = EventHandler<unknown>;
+type ListenerSet = Set<Handler>;
 
 export class EventBus {
-	constructor() {
-		/** @type {Map<string, Set<Function>>} */
-		this._listeners = new Map();
-	}
+  private readonly _listeners = new Map<string, ListenerSet>();
 
-	/**
-	 * Subscribe to an event.
-	 * @param {string} eventName
-	 * @param {(payload?: any) => void} handler
-	 * @returns {() => void} Unsubscribe function.
-	 */
-	on(eventName, handler) {
-		if (!this._listeners.has(eventName)) {
-			this._listeners.set(eventName, new Set());
-		}
-		this._listeners.get(eventName).add(handler);
-		return () => this.off(eventName, handler);
-	}
+  on<T = unknown>(eventName: string, handler: EventHandler<T>): () => void {
+    let listeners = this._listeners.get(eventName);
+    if (!listeners) {
+      listeners = new Set<Handler>();
+      this._listeners.set(eventName, listeners);
+    }
+    const wrapped: Handler = (payload) => handler(payload as T);
+    listeners.add(wrapped);
+    return () => listeners.delete(wrapped);
+  }
 
-	/**
-	 * Subscribe to an event for a single firing, then auto-unsubscribe.
-	 * @param {string} eventName
-	 * @param {(payload?: any) => void} handler
-	 */
-	once(eventName, handler) {
-		const wrapped = (payload) => {
-			this.off(eventName, wrapped);
-			handler(payload);
-		};
-		this.on(eventName, wrapped);
-	}
+  once<T = unknown>(eventName: string, handler: EventHandler<T>): () => void {
+    let unsubscribe: (() => void) | undefined;
+    const wrapped: EventHandler<T> = (payload) => {
+      unsubscribe?.();
+      handler(payload);
+    };
+    unsubscribe = this.on(eventName, wrapped);
+    return unsubscribe;
+  }
 
-	/**
-	 * @param {string} eventName
-	 * @param {(payload?: any) => void} handler
-	 */
-	off(eventName, handler) {
-		this._listeners.get(eventName)?.delete(handler);
-	}
+  off<T = unknown>(eventName: string, handler: EventHandler<T>): void {
+    const listeners = this._listeners.get(eventName);
+    if (!listeners) return;
+    for (const candidate of listeners) {
+      if (candidate === handler || candidate.toString() === handler.toString()) {
+        listeners.delete(candidate);
+      }
+    }
+    if (listeners.size === 0) this._listeners.delete(eventName);
+  }
 
-	/**
-	 * Emit an event to all current subscribers. Handler exceptions are caught and logged so
-	 * one broken listener can never stop the rest of the world from ticking.
-	 * @param {string} eventName
-	 * @param {any} [payload]
-	 */
-	emit(eventName, payload) {
-		const handlers = this._listeners.get(eventName);
-		if (!handlers) return;
-		for (const handler of [...handlers]) {
-			try {
-				handler(payload);
-			} catch (error) {
-				console.error(`[EventBus] listener for "${eventName}" threw:`, error);
-			}
-		}
-	}
+  emit<T = unknown>(eventName: string, payload: T): void {
+    const listeners = this._listeners.get(eventName);
+    if (!listeners) return;
+    for (const handler of [...listeners]) {
+      try {
+        handler(payload);
+      } catch (error: unknown) {
+        console.error(`[EventBus] listener for "${eventName}" threw:`, error);
+      }
+    }
+  }
 
-	/** Remove every listener for every event. Call on full scene teardown to avoid leaks. */
-	clear() {
-		this._listeners.clear();
-	}
+  clear(): void {
+    this._listeners.clear();
+  }
 }
 
-/** Shared singleton bus for the whole 3D mode. Individual systems may still create scoped buses. */
 export const gameEvents = new EventBus();
-
-
-export interface EventHandler<T = unknown> { (payload: T): void }
