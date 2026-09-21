@@ -10,7 +10,7 @@ export interface MigrationModuleRecord {
 }
 
 export interface MigrationLedgerSnapshot {
-  readonly version: 6;
+  readonly version: 7;
   readonly generatedAtTick: number;
   readonly modules: readonly MigrationModuleRecord[];
   readonly legacyCount: number;
@@ -19,6 +19,10 @@ export interface MigrationLedgerSnapshot {
 }
 
 export const R3_MIGRATION_MODULES = [
+  { id: 'terrain-runtime', legacyPath: 'src/3d/world/terrain.js', modernPath: 'src/3d/world/terrain.ts', owner: 'world', status: 'migrated', risk: 'high' },
+  { id: 'water-runtime', legacyPath: 'src/3d/world/water.js', modernPath: 'src/3d/world/water.ts', owner: 'world', status: 'migrated', risk: 'high' },
+  { id: 'river-runtime', legacyPath: 'src/3d/world/rivers.js', modernPath: 'src/3d/world/rivers.ts', owner: 'world', status: 'migrated', risk: 'high' },
+  { id: 'chunk-streaming-runtime', legacyPath: 'src/3d/world/chunkManager.js', modernPath: 'src/3d/world/chunkManager.ts', owner: 'world', status: 'migrated', risk: 'high' },
   { id: 'npc-runtime', legacyPath: 'src/3d/gameplay/npc.js', modernPath: 'src/3d/gameplay/npc.ts', owner: 'runtime', status: 'migrated', risk: 'high' },
   { id: 'wildlife-runtime', legacyPath: 'src/3d/gameplay/animals.js', modernPath: 'src/3d/gameplay/animals.ts', owner: 'runtime', status: 'migrated', risk: 'high' },
   { id: 'living-world-spawner', legacyPath: 'src/3d/gameplay/livingWorldSpawner.js', modernPath: 'src/3d/gameplay/livingWorldSpawner.ts', owner: 'runtime', status: 'migrated', risk: 'high' },
@@ -52,7 +56,7 @@ export function createMigrationLedger(tick: RuntimeTick = 0): MigrationLedgerSna
   const migratedCount = R3_MIGRATION_MODULES.filter((module) => module.status === 'migrated' || module.status === 'retired').length;
   const coveragePercent = legacyCount === 0 ? 100 : Number(((migratedCount / legacyCount) * 100).toFixed(2));
   return {
-    version: 6,
+    version: 7,
     generatedAtTick: tick,
     modules: [...R3_MIGRATION_MODULES],
     legacyCount,
@@ -63,7 +67,7 @@ export function createMigrationLedger(tick: RuntimeTick = 0): MigrationLedgerSna
 
 export function createMigrationEvent(ledger: MigrationLedgerSnapshot, tick: number): RuntimeEvent {
   const payload: RuntimeEnvelope = {
-    version: 6,
+    version: 7,
     kind: 'migration-ledger',
     tick,
     sequence: tick,
