@@ -173,10 +173,10 @@ export class AssetOrchestratorV3 {
       throw new Error('Asset id cannot be empty');
     }
     if (!/^https?:\\/\\//i.test(descriptor.url)) {
-      throw new Error(\`Asset \${id} must use an absolute http(s) URL\`);
+      throw new Error(`Asset ${id} must use an absolute http(s) URL`);
     }
     if (this.#descriptors.has(id)) {
-      throw new Error(\`Asset already declared: \${id}\`);
+      throw new Error(`Asset already declared: ${id}`);
     }
 
     let normalized: AssetDescriptor = {
@@ -241,7 +241,7 @@ export class AssetOrchestratorV3 {
     const normalizedId = normalizeId(id);
     const descriptor = this.#descriptors.get(normalizedId);
     if (!descriptor) {
-      throw new Error(\`Asset not declared: \${normalizedId}\`);
+      throw new Error(`Asset not declared: ${normalizedId}`);
     }
 
     const existing = this.#records.get(normalizedId);
@@ -297,7 +297,7 @@ export class AssetOrchestratorV3 {
     const descriptor = this.#descriptors.get(id);
     const record = this.#records.get(id);
     if (!descriptor || !record) {
-      throw new Error(\`Asset lifecycle record missing: \${id}\`);
+      throw new Error(`Asset lifecycle record missing: ${id}`);
     }
 
     if (this.#activeLoads >= this.#maxConcurrent) {
@@ -354,7 +354,7 @@ export class AssetOrchestratorV3 {
       }
 
       record.state = 'failed';
-      throw lastError ?? new Error(\`Asset load failed: \${id}\`);
+      throw lastError ?? new Error(`Asset load failed: ${id}`);
     } finally {
       this.#activeLoads -= 1;
     }
@@ -365,16 +365,16 @@ export class AssetOrchestratorV3 {
     payload: { readonly value: T; readonly bytes: number; readonly contentType?: string },
   ): void {
     if (!Number.isFinite(payload.bytes) || payload.bytes < 0) {
-      throw new Error(\`Invalid byte count for asset \${descriptor.id}\`);
+      throw new Error(`Invalid byte count for asset ${descriptor.id}`);
     }
     if (descriptor.maxBytes !== undefined && payload.bytes > descriptor.maxBytes) {
       throw new Error(
-        \`Asset \${descriptor.id} exceeds maxBytes \${descriptor.maxBytes}\`,
+        `Asset ${descriptor.id} exceeds maxBytes ${descriptor.maxBytes}`,
       );
     }
     if (descriptor.expectedBytes !== undefined && payload.bytes > descriptor.expectedBytes * 2.5) {
       throw new Error(
-        \`Asset \${descriptor.id} exceeds expected-size safety envelope\`,
+        `Asset ${descriptor.id} exceeds expected-size safety envelope`,
       );
     }
     if (
@@ -383,7 +383,7 @@ export class AssetOrchestratorV3 {
       payload.contentType.toLowerCase() !== descriptor.contentType
     ) {
       throw new Error(
-        \`Asset \${descriptor.id} content type mismatch: expected \${descriptor.contentType}, got \${payload.contentType}\`,
+        `Asset ${descriptor.id} content type mismatch: expected ${descriptor.contentType}, got ${payload.contentType}`,
       );
     }
   }
@@ -397,7 +397,7 @@ export class AssetOrchestratorV3 {
       return;
     }
     if (digest !== descriptor.sha256) {
-      throw new Error(\`Asset integrity mismatch for \${descriptor.id}\`);
+      throw new Error(`Asset integrity mismatch for ${descriptor.id}`);
     }
   }
 
@@ -405,7 +405,7 @@ export class AssetOrchestratorV3 {
     const incoming = Math.max(0, Math.floor(incomingBytes));
     if (incoming > this.#maxResidentBytes) {
       throw new Error(
-        \`Asset \${incomingId} exceeds resident memory budget\`,
+        `Asset ${incomingId} exceeds resident memory budget`,
       );
     }
     while (
@@ -598,7 +598,7 @@ export function createAssetFetcherFromResponse(): AssetFetcher<Response> {
       cache: descriptor.cacheable === false ? 'no-store' : 'force-cache',
     });
     if (!response.ok) {
-      throw new Error(\`Asset HTTP \${response.status} for \${descriptor.id}\`);
+      throw new Error(`Asset HTTP ${response.status} for ${descriptor.id}`);
     }
     const contentType = response.headers.get('content-type') ?? undefined;
     const bytes = Number(response.headers.get('content-length') ?? 0);
