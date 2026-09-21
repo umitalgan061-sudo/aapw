@@ -236,8 +236,8 @@ export function resolveBrowserRenderCapabilities(
     maxTextureSize: Math.max(256, Math.floor(normalized.maxTextureSize)),
     supportsInstancing: Boolean(normalized.supportsInstancing),
     supportsWebGL2: Boolean(normalized.supportsWebGL2),
-    deviceMemoryGb: normalized.deviceMemoryGb,
-    hardwareConcurrency: normalized.hardwareConcurrency,
+    ...(normalized.deviceMemoryGb === undefined ? {} : { deviceMemoryGb: normalized.deviceMemoryGb }),
+    ...(normalized.hardwareConcurrency === undefined ? {} : { hardwareConcurrency: normalized.hardwareConcurrency }),
   };
 }
 
