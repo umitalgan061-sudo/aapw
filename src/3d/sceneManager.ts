@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, STORAGE_KEYS } from './config.ts';
 import { PLAYER_CONFIG } from './gameplay/gameplayConfig.js';
-import { ChunkManager } from './world/chunkManager.js';
+import { ChunkManager } from './world/chunkManager.ts';
 import { installRuntimePindexTerrainPolish } from './world/worldReferenceSurfaceTerrainVisual.js';
 import { createGroundCollider, createSettlementCollider, createCircleCollider, createComposedCollider } from './physics.ts';
 import {
@@ -21,10 +21,10 @@ import {
 	setWaterDepthField,
 	WATER_PLANE_SEGMENTS_DESKTOP,
 	WATER_PLANE_SEGMENTS_MOBILE,
-} from './world/water.js';
+} from './world/water.ts';
 import { createWaterDepthField } from './world/waterDepthField.js';
-import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMesh } from './world/rivers.js';
-import { createHeightSampler, mulberry32 } from './world/terrain.js';
+import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMesh } from './world/rivers.ts';
+import { createHeightSampler, mulberry32 } from './world/terrain.ts';
 import { createSettlements, computeSettlementFlattenPads } from './world/settlements.js';
 import { buildRoadNetwork } from './world/roads.js';
 import { createNaturalGeology, upgradeNaturalGeologyAssets } from './world/naturalGeology.js';
