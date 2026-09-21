@@ -1,4 +1,8 @@
-import { resolvePlayerEquipmentTransitionReceipt, isPlayerEquipmentTransitionReceipt } from '../src/3d/gameplay/playerEquipmentTransitionDirector.ts';
+import {
+  isPlayerEquipmentTransitionReceipt,
+  resolvePlayerEquipmentTransitionReceipt,
+  validatePlayerEquipmentTransitionReceipt,
+} from '../src/3d/gameplay/playerEquipmentTransitionDirector.ts';
 
 const failures = [];
 const base = {
@@ -14,7 +18,7 @@ const bow = {
   offHand: { id: 'empty', family: 'none', damageMultiplier: 0, reachMultiplier: 0, poiseMultiplier: 0, projectile: false },
 };
 
-const receipt = resolvePlayerEquipmentTransitionReceipt({
+const input = {
   previousEquipment: base,
   nextEquipment: bow,
   movementState: 'sprint',
@@ -22,25 +26,26 @@ const receipt = resolvePlayerEquipmentTransitionReceipt({
   comboStep: 2,
   speedMps: 5.2,
   grounded: true,
-});
+};
+const receipt = resolvePlayerEquipmentTransitionReceipt(input);
 
 if (!isPlayerEquipmentTransitionReceipt(receipt)) failures.push('receipt-shape-invalid');
+if (!validatePlayerEquipmentTransitionReceipt(receipt).ok) failures.push('receipt-validation-failed');
 if (!receipt.changed || !receipt.weaponChanged || !receipt.rangedChanged || !receipt.handednessChanged) failures.push('weapon-transition-flags-invalid');
 if (!receipt.changedSlots.includes('mainHand') || !receipt.changedSlots.includes('offHand')) failures.push('changed-slots-missing');
 if (!receipt.socketsToRefresh.includes('mainHand') || !receipt.socketsToRefresh.includes('offHand')) failures.push('socket-refresh-missing');
 if (!receipt.animation.hardReset) failures.push('hard-reset-not-required');
 if (receipt.animation.crossfadeSeconds <= 0) failures.push('crossfade-not-positive');
 if (!Object.isFrozen(receipt) || !Object.isFrozen(receipt.animation) || !Object.isFrozen(receipt.changedSlots)) failures.push('deep-freeze-missing');
-const replay = resolvePlayerEquipmentTransitionReceipt({
-  previousEquipment: base,
-  nextEquipment: bow,
-  movementState: 'sprint',
-  attackKind: 'light',
-  comboStep: 2,
-  speedMps: 5.2,
-  grounded: true,
-});
+
+const replay = resolvePlayerEquipmentTransitionReceipt(input);
 if (JSON.stringify(receipt) !== JSON.stringify(replay)) failures.push('non-deterministic-replay');
+
+const noOp = resolvePlayerEquipmentTransitionReceipt({ previousEquipment: base, nextEquipment: base });
+if (noOp.changed || noOp.changedSlots.length !== 0 || !validatePlayerEquipmentTransitionReceipt(noOp).ok) failures.push('no-op-transition-invalid');
+
+const tampered = { ...receipt, changed: false };
+if (validatePlayerEquipmentTransitionReceipt(tampered).ok) failures.push('tampered-receipt-accepted');
 
 if (failures.length) {
   console.error(failures.join('\n'));
