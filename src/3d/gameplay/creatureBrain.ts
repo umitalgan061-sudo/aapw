@@ -75,9 +75,9 @@
  * @module gameplay/creatureBrain
  */
 
-import { createCreatureRig } from './creatureRig.js';
-import { applyCreatureGait, resetCreatureGaitPose } from './creatureGait.js';
-import { CREATURE_BODY_PLANS } from './creatureBodyPlans.js';
+import { createCreatureRig } from './creatureRig.ts';
+import { applyCreatureGait, resetCreatureGaitPose } from './creatureGait.ts';
+import { CREATURE_BODY_PLANS } from './creatureBodyPlans.ts';
 
 /**
  * Per-species movement tuning. Every value here is this pass's own first-pass engineering judgment —
