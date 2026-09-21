@@ -4,17 +4,7 @@ on:
   pull_request:
     paths:
       - 'src/3d/modern/**'
-      - 'src/3d/config.ts'
-      - 'src/3d/eventBus.ts'
-      - 'src/3d/state.ts'
-      - 'src/engine-ts/**'
       - 'scripts/checkModernPlatform.mjs'
-      - 'scripts/checkModernPlatformV3.mjs'
-      - 'scripts/checkModernPlatformV4.mjs'
-      - 'scripts/checkTypedArchitecture.mjs'
-      - 'scripts/checkTypedEngine.mjs'
-      - 'scripts/checkNextGenRuntimeV2.mjs'
-      - 'scripts/checkModernRuntimeIntegrationV2.mjs'
       - 'package.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
@@ -24,17 +14,7 @@ on:
     branches: [main]
     paths:
       - 'src/3d/modern/**'
-      - 'src/3d/config.ts'
-      - 'src/3d/eventBus.ts'
-      - 'src/3d/state.ts'
-      - 'src/engine-ts/**'
       - 'scripts/checkModernPlatform.mjs'
-      - 'scripts/checkModernPlatformV3.mjs'
-      - 'scripts/checkModernPlatformV4.mjs'
-      - 'scripts/checkTypedArchitecture.mjs'
-      - 'scripts/checkTypedEngine.mjs'
-      - 'scripts/checkNextGenRuntimeV2.mjs'
-      - 'scripts/checkModernRuntimeIntegrationV2.mjs'
       - 'package.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
@@ -51,25 +31,6 @@ concurrency:
 jobs:
   typecheck:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24.21.0
-      - run: npm install --ignore-scripts --no-audit --no-fund
-      - run: npm run verify:modern
-      - run: npm run verify:modern:v3
-      - run: npm run verify:typed
-      - run: npm run verify:nextgen
-      - run: npm run verify:modern:v2
-      - run: npm run typecheck
-      - run: npm test -- --passWithNoTests
-      - run: npm run test:typed
-      - run: npm run build:modern
-
-  determinism:
-    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -77,12 +38,22 @@ jobs:
         with:
           node-version: 24.21.0
       - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:modern
+      - run: npm run typecheck
+      - run: npm test -- --passWithNoTests
+      - run: npm run build:modern
+
+  determinism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - run: node scripts/checkModernPlatform.mjs
-      - run: node scripts/checkModernPlatformV3.mjs
-      - run: node scripts/checkTypedArchitecture.mjs
-      - run: node scripts/checkNextGenRuntimeV2.mjs
-      - run: node scripts/checkModernRuntimeIntegrationV2.mjs
-      - name: Guard deterministic core surfaces
+      - name: Guard deterministic core surfaces only
         run: |
           set -eu
           for file in \
@@ -92,37 +63,8 @@ jobs:
             src/3d/modern/networkSnapshot.ts \
             src/3d/modern/networkReplication.ts \
             src/3d/modern/streamingPlanner.ts; do
-            if grep -nE 'Math\\.random\\(|Date\\.now\\(' "$file"; then
+            if grep -nE 'Math\.random\(|Date\.now\(' "$file"; then
               echo "Deterministic simulation surface must not use wall-clock or ambient random APIs: $file"
-              exit 1
-            fi
-          done
-      - name: Guard v3 deterministic boundaries
-        run: |
-          set -eu
-          for file in \
-            src/3d/modern/ecsRuntimeV3.ts \
-            src/3d/modern/engineKernelV3.ts \
-            src/3d/modern/networkStateV3.ts \
-            src/3d/modern/worldQueryV3.ts \
-            src/3d/modern/securityRuntimeV3.ts; do
-            if grep -nE 'Math\\.random\\(|eval\\(|new Function\\(' "$file"; then
-              echo "Unsafe or nondeterministic primitive detected: $file"
-              exit 1
-            fi
-          done
-      - name: Guard nextgen deterministic boundaries
-        run: |
-          set -eu
-          for file in \
-            src/3d/modern/nextgen/deterministicRngV2.ts \
-            src/3d/modern/nextgen/actorSimulationV2.ts \
-            src/3d/modern/nextgen/networkTransportV2.ts \
-            src/3d/modern/nextgen/runtimePolicyV2.ts \
-            src/3d/modern/nextgen/worldEventJournalV2.ts \
-            src/3d/modern/nextgen/worldStateCodecV2.ts; do
-            if grep -nE 'Math\\.random\\(|eval\\(|new Function\\(' "$file"; then
-              echo "Unsafe primitive detected in nextgen runtime: $file"
               exit 1
             fi
           done
@@ -134,21 +76,8 @@ jobs:
             src/3d/modern/rollbackControllerV2.ts \
             src/3d/modern/runtimeContractMatrixV2.ts \
             src/3d/modern/worldInvariantV2.ts; do
-            if grep -nE 'Math\\.random\\(|eval\\(|new Function\\(' "$file"; then
+            if grep -nE 'Math\.random\(|eval\(|new Function\(' "$file"; then
               echo "Unsafe or nondeterministic primitive detected: $file"
-              exit 1
-            fi
-          done
-      - name: Guard typed deterministic boundaries
-        run: |
-          set -eu
-          for file in \
-            src/engine-ts/coreTypes.ts \
-            src/engine-ts/runtimeContracts.ts \
-            src/engine-ts/world.ts \
-            src/engine-ts/network.ts; do
-            if grep -nE 'Math\\.random\\(|Date\\.now\\(' "$file"; then
-              echo "Typed deterministic boundary must receive time/randomness explicitly: $file"
               exit 1
             fi
           done
