@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/renderQuality.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * Renderer realism baseline: filmic tone mapping and real sun shadows, driven by `config.js`'s
  * `QUALITY_PRESETS`.
@@ -33,7 +32,7 @@
  */
 
 import * as THREE from './vendor/three/three.module.js';
-import { QUALITY_LEVELS, QUALITY_PRESETS } from './config.ts';
+import { QUALITY_LEVELS, QUALITY_PRESETS, isQualityLevel, type QualityLevel, type QualityPreset } from './config.ts';
 
 /**
  * Exposure multiplier applied with ACES tone mapping. Slightly above 1.0 because the existing
@@ -92,10 +91,13 @@ const SHADOW_NORMAL_BIAS = 0.02;
  *   included) all mean "no override" and fall through to the existing per-device default below.
  * @returns {{level: string, preset: {shadowMapSize: number, drawDistance: number, pixelRatioCap: number, textureSize: number}, shadowsEnabled: boolean}}
  */
-export function resolveRenderQuality({ coarsePointer, manualLevel = null }) {
-	const overrideLevel = !coarsePointer && manualLevel && manualLevel !== QUALITY_LEVELS.AUTOMATIC
-		&& QUALITY_PRESETS[manualLevel]
-		? manualLevel
+export interface RenderQualityOptions { readonly coarsePointer: boolean; readonly manualLevel?: string | null; }
+export interface RenderQuality { readonly level: Exclude<QualityLevel, 'automatic'>; readonly preset: QualityPreset; readonly shadowsEnabled: boolean; }
+
+export function resolveRenderQuality({ coarsePointer, manualLevel = null }: RenderQualityOptions): RenderQuality {
+	const overrideLevel = !coarsePointer && typeof manualLevel === 'string' && isQualityLevel(manualLevel)
+		&& manualLevel !== QUALITY_LEVELS.AUTOMATIC && Object.hasOwn(QUALITY_PRESETS, manualLevel)
+		? manualLevel as Exclude<QualityLevel, 'automatic'>
 		: null;
 	const level = overrideLevel ?? (coarsePointer ? QUALITY_LEVELS.LOW : QUALITY_LEVELS.HIGH);
 	return {
@@ -115,7 +117,7 @@ export function resolveRenderQuality({ coarsePointer, manualLevel = null }) {
  * @param {THREE.WebGLRenderer} renderer
  * @param {ReturnType<typeof resolveRenderQuality>} quality
  */
-export function configureRendererRealism(renderer, quality) {
+export function configureRendererRealism(renderer: THREE.WebGLRenderer, quality: RenderQuality): void {
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;
 	renderer.toneMappingExposure = TONE_MAPPING_EXPOSURE;
 	renderer.shadowMap.enabled = quality.shadowsEnabled;
@@ -134,7 +136,7 @@ export function configureRendererRealism(renderer, quality) {
  * @param {THREE.DirectionalLight} sun The `sun` from `createDayNightLighting`.
  * @param {ReturnType<typeof resolveRenderQuality>} quality
  */
-export function configureSunShadow(sun, quality) {
+export function configureSunShadow(sun: THREE.DirectionalLight, quality: RenderQuality): void {
 	if (!quality.shadowsEnabled) {
 		sun.castShadow = false;
 		return;
@@ -174,7 +176,7 @@ export function configureSunShadow(sun, quality) {
  * @param {number} focusY World-space Y (ground height at the focus).
  * @param {number} focusZ World-space Z.
  */
-export function focusSunShadow(sun, focusX, focusY, focusZ) {
+export function focusSunShadow(sun: THREE.DirectionalLight, focusX: number, focusY: number, focusZ: number): void {
 	if (!sun.castShadow) return;
 	sun.position.x += focusX;
 	sun.position.y += focusY;
@@ -199,7 +201,7 @@ export function focusSunShadow(sun, focusX, focusY, focusZ) {
  * @param {boolean} [options.cast=true] Whether meshes in this subtree cast shadows.
  * @param {boolean} [options.receive=true] Whether they receive them.
  */
-export function applyShadowRoles(root, { quality, cast = true, receive = true }) {
+export function applyShadowRoles(root: THREE.Object3D | null | undefined, { quality, cast = true, receive = true }: { readonly quality: RenderQuality; readonly cast?: boolean; readonly receive?: boolean }): void {
 	if (!root || !quality.shadowsEnabled) return;
 	root.traverse((object) => {
 		if (!object.isMesh && !object.isInstancedMesh && !object.isSkinnedMesh) return;
