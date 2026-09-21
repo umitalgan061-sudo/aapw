@@ -196,7 +196,7 @@ export class InputPipelineV3 {
       ...event,
       sequence,
       action: normalizeName(event.action),
-      source: event.source ? normalizeName(event.source) : undefined,
+      ...(event.source ? { source: normalizeName(event.source) } : {}),
       timestampMs: Math.max(0, event.timestampMs),
     };
 
