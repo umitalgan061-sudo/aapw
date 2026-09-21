@@ -1,0 +1,37 @@
+name: Kızıl Ufuk Living World TypeScript Migration Wave 6
+on:
+  push:
+    branches: ['main','agent/kizil-ufuk-ts-living-world-wave6-20260921-r1']
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaActivityBudget.*'
+      - 'src/3d/gameplay/livingWorldFaunaHabitatBalancer.*'
+      - 'src/3d/gameplay/livingWorldFaunaSignalRouter.*'
+      - 'src/3d/gameplay/livingWorldGroupAiPolicy.*'
+      - 'src/3d/gameplay/livingWorldGroupDirectorAdapter.*'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.*'
+      - 'src/3d/gameplay/livingWorldEventDirectorAdapter.*'
+      - 'scripts/checkLivingWorldTsMigrationWave6.mjs'
+      - 'tests/modern/livingWorldTsMigrationWave6.test.ts'
+      - '.github/workflows/living-world-ts-migration-wave6.yml'
+permissions:
+  contents: read
+concurrency:
+  group: living-world-ts-migration-wave6-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v5
+        with: {node-version: 24.21.0}
+      - run: npm install --no-audit --no-fund
+      - run: git fetch origin main --no-tags && git merge-base --is-ancestor origin/main "$GITHUB_SHA"
+      - run: test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - run: node scripts/checkLivingWorldTsMigrationWave6.mjs
+      - run: npx tsc --noEmit --pretty false
+      - run: npx vitest run tests/modern/livingWorldTsMigrationWave6.test.ts
