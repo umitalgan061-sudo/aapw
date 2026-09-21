@@ -17,23 +17,23 @@ export class EventBus {
   private dispatching = false;
   private disposed = false;
 
-  on<T = EventPayload>(eventName: string, handler: EventHandler<T>): EventSubscription {
+  on<T = EventPayload>(eventName: string, handler: EventHandler<T>): () => void {
     if (this.disposed) throw new Error('EventBus has been disposed');
     if (!eventName.trim()) throw new Error('eventName must not be empty');
     const bucket = this.listeners.get(eventName) ?? new Set<EventHandler>();
     bucket.add(handler as EventHandler);
     this.listeners.set(eventName, bucket);
-    return Object.freeze({ event: eventName, unsubscribe: () => this.off(eventName, handler) });
+    return () => { this.off(eventName, handler); };
   }
 
-  once<T = EventPayload>(eventName: string, handler: EventHandler<T>): EventSubscription {
-    let subscription: EventSubscription | undefined;
+  once<T = EventPayload>(eventName: string, handler: EventHandler<T>): () => void {
+    let unsubscribe: (() => void) | undefined;
     const wrapped: EventHandler<T> = payload => {
-      subscription?.unsubscribe();
+      unsubscribe?.();
       handler(payload);
     };
-    subscription = this.on(eventName, wrapped);
-    return subscription;
+    unsubscribe = this.on(eventName, wrapped);
+    return () => unsubscribe?.();
   }
 
   off<T = EventPayload>(eventName: string, handler: EventHandler<T>): boolean {
