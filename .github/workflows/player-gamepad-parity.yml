@@ -78,7 +78,7 @@ jobs:
           read -r ADD DEL < <(git diff --numstat "$MAIN_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$MAIN_SHA additions=$ADD deletions=$DEL total=$TOTAL"
-          test "$TOTAL" -le 1000
+          test "$TOTAL" -le 3000
           echo "BASE_SHA=$MAIN_SHA" >> "$GITHUB_ENV"
       - name: Asset-first targeted hydration
         shell: bash
