@@ -99,8 +99,6 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
-          cache: npm
-          cache-dependency-path: package.json
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run verify:modern
       - run: npm run verify:modern:v3
@@ -124,8 +122,6 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
-          cache: npm
-          cache-dependency-path: package.json
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: node scripts/checkModernPlatform.mjs
       - run: node scripts/checkModernPlatformV3.mjs
