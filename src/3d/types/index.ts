@@ -10,7 +10,7 @@ export * from './input.js';
 export * from './renderBridge.js';
 export * from './resourceCache.js';
 export * from './runtimeFacade.js';
-export * from './runtimeIntegrity.js';
+export * from './runtimeIntegrity.ts';
 export * from './saveCodec.js';
 export * from './schema.js';
 export * from './spatialIndex.js';
