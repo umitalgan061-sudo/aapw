@@ -12,7 +12,7 @@
  */
 
 import { buildRenderPipelinePolicy, estimatePipelineCost } from './renderPipelinePolicy.js';
-import { createDynamicResolutionGovernor } from './dynamicResolutionGovernor.js';
+import { createDynamicResolutionGovernor } from './dynamicResolutionGovernor.ts';
 import { createRenderVisibilityScheduler, groupRenderCandidates } from './renderVisibilityScheduler.js';
 import { createGpuInstanceBatchPlanner, estimateInstanceUploadBytes } from './gpuInstanceBatchPlanner.js';
 import { createTextureResidencyPlanner, estimateTexturePressure } from './textureResidencyPlanner.js';
@@ -22,7 +22,7 @@ import { createRenderDeviceRecovery } from './renderDeviceRecovery.js';
 import { createRenderMetricsCollector } from './renderMetricsCollector.js';
 import { compileRenderPipelineDescriptor } from './renderPipelineComposer.js';
 import { negotiateRenderFeatures, renderFeatureDigest } from './renderFeatureNegotiator.js';
-import { evaluateGpuPressure, pressureRecommendations } from './gpuPressureModel.js';
+import { evaluateGpuPressure, pressureRecommendations } from './gpuPressureModel.ts';
 import { createRenderDegradationPolicy, degradationDigest } from './renderDegradationPolicy.js';
 import { createTemporalHistoryController } from './renderTemporalHistoryPolicy.js';
 import { createRenderFramePacket, renderFramePacketDigest } from './renderFramePacket.js';
