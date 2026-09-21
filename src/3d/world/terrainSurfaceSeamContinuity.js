@@ -9,7 +9,7 @@
  * @module world/terrainSurfaceSeamContinuity
  */
 
-import { createTerrainFaciesDiagnostics } from './terrainSurfaceFacies.js';
+import { createTerrainFaciesDiagnostics } from './terrainSurfaceFacies.ts';
 
 export const TERRAIN_SEAM_CONTINUITY_POLICY = Object.freeze({
 	id: 'terrain-surface-seam-continuity-v1',
