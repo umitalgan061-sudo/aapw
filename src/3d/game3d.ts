@@ -70,7 +70,7 @@ import { createWeatherSystem } from './world/weather.ts';
 import { disposeRiverMesh, disposeWaterfallMesh, updateFlowAnimation } from './world/rivers.ts';
 import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.ts';
 import { disposeRoadNetwork } from './world/roads.ts';
-import { disposeVegetation } from './world/vegetation.js';
+import { disposeVegetation } from './world/vegetation.ts';
 import { disposeVillages } from './world/villages.ts';
 import { disposeIceLandmarks } from './world/iceLandmarks.js';
 // Run 371 — the mobile spawn-anchored vegetation disc itself (previously inlined here, using

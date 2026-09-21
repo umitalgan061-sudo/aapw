@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.ts';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { referenceProtectionRadiiFromMeters, sampleSeatSafeReferenceHydrology } from './worldReferenceHydrology.js';
-import { sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
+import { sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.ts';
 import {
 	WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY,
 	sampleReferenceLakeBasinScale,
@@ -37,7 +37,7 @@ import {
 	terrainConcavityMetersFromNeighbours,
 	buildNeutralDetailCanvas,
 	buildFlatNeutralCanvas,
-} from './terrainBiomeShading.js';
+} from './terrainBiomeShading.ts';
 import { terrainWindExposureFromNeighbours } from './terrainWindSnowExposure.js';
 import {
 	VALYRIA_GEOLOGY_POLICY,
