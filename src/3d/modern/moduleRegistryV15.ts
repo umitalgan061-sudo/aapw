@@ -1,0 +1,29 @@
+/** Dependency-aware typed module registry for modern runtime subsystems. */
+export type ModuleStateV15='declared'|'starting'|'ready'|'stopping'|'stopped'|'failed';
+export interface RuntimeModuleV15<T=unknown>{readonly id:string;readonly version:string;readonly dependencies:readonly string[];readonly critical:boolean;readonly value:T;readonly start?:(context:ModuleContextV15)=>void|Promise<void>;readonly stop?:(context:ModuleContextV15)=>void|Promise<void>;readonly health?:()=>boolean;}
+export interface ModuleContextV15{readonly signal:AbortSignal;readonly nowMs:number;readonly report:(message:string)=>void;}
+export interface ModuleRecordV15<T=unknown>{readonly module:RuntimeModuleV15<T>;readonly state:ModuleStateV15;readonly revision:number;readonly error?:string;readonly startedAtMs?:number;readonly stoppedAtMs?:number;}
+export interface ModuleRegistrySnapshotV15{readonly total:number;readonly ready:number;readonly failed:number;readonly stopped:number;readonly criticalFailures:number;readonly modules:readonly ModuleRecordV15[];}
+
+const topological=(modules:readonly RuntimeModuleV15[]):readonly RuntimeModuleV15[]=>{const pending=new Map(modules.map(m=>[m.id,m]));const output:RuntimeModuleV15[]=[];while(pending.size){const ready=[...pending.values()].filter(m=>(m.dependencies??[]).every(id=>output.some(r=>r.id===id))).sort((a,b)=>a.id.localeCompare(b.id));if(!ready.length)throw new Error('Module dependency cycle detected.');for(const module of ready){output.push(module);pending.delete(module.id);}}return Object.freeze(output);};
+
+export class ModuleRegistryV15{
+  readonly #modules=new Map<string,RuntimeModuleV15>();readonly #records=new Map<string,ModuleRecordV15>();readonly #controller=new AbortController();#revision=0;#started=false;
+  register<T>(module:RuntimeModuleV15<T>):()=>void{if(this.#modules.has(module.id))throw new Error('Module already registered: '+module.id);this.#modules.set(module.id,module as RuntimeModuleV15);this.#records.set(module.id,Object.freeze({module:module as RuntimeModuleV15,state:'declared',revision:++this.#revision}));return()=>this.unregister(module.id);}
+  unregister(id:string):boolean{if(this.#started)throw new Error('Cannot unregister modules while registry is running.');const removed=this.#modules.delete(id);this.#records.delete(id);if(removed)this.#revision+=1;return removed;}
+  has(id:string):boolean{return this.#modules.has(id);}
+  resolve<T>(id:string):T{const module=this.#modules.get(id);if(!module)throw new Error('Module not found: '+id);return module.value as T;}
+  record(id:string):ModuleRecordV15|undefined{return this.#records.get(id);}
+  modules():readonly RuntimeModuleV15[]{return Object.freeze([...this.#modules.values()].sort((a,b)=>a.id.localeCompare(b.id)));}
+  order():readonly RuntimeModuleV15[]{return topological(this.modules());}
+
+  async start(nowMs=Date.now(),report=(message:string)=>undefined):Promise<void>{if(this.#started)return;const order=this.order();for(const module of order){const current=this.#records.get(module.id)!;this.#records.set(module.id,Object.freeze({...current,state:'starting',revision:++this.#revision,startedAtMs:nowMs}));try{await module.start?.({signal:this.#controller.signal,nowMs,report});this.#records.set(module.id,Object.freeze({...this.#records.get(module.id)!,state:'ready',revision:++this.#revision}));}catch(error){const failed=Object.freeze({...this.#records.get(module.id)!,state:'failed' as const,revision:++this.#revision,error:error instanceof Error?error.message:String(error)});this.#records.set(module.id,failed);if(module.critical)throw error;report('Noncritical module failed: '+module.id);}}this.#started=true;}
+  async stop(nowMs=Date.now(),report=(message:string)=>undefined):Promise<void>{if(!this.#started)return;for(const module of [...this.order()].reverse()){const record=this.#records.get(module.id);if(!record||record.state!=='ready')continue;this.#records.set(module.id,Object.freeze({...record,state:'stopping',revision:++this.#revision}));try{await module.stop?.({signal:this.#controller.signal,nowMs,report});this.#records.set(module.id,Object.freeze({...this.#records.get(module.id)!,state:'stopped',revision:++this.#revision,stoppedAtMs:nowMs}));}catch(error){this.#records.set(module.id,Object.freeze({...this.#records.get(module.id)!,state:'failed',revision:++this.#revision,error:error instanceof Error?error.message:String(error)}));if(module.critical)throw error;report('Noncritical module stop failed: '+module.id);}}this.#started=false;}
+
+  health():boolean{for(const module of this.#modules.values()){const record=this.#records.get(module.id);if(module.critical&&record?.state!=='ready')return false;if(module.health&&record?.state==='ready'&&!module.health())return false;}return true;}
+  snapshot():ModuleRegistrySnapshotV15{const records=[...this.#records.values()].sort((a,b)=>a.module.id.localeCompare(b.module.id));return Object.freeze({total:records.length,ready:records.filter(r=>r.state==='ready').length,failed:records.filter(r=>r.state==='failed').length,stopped:records.filter(r=>r.state==='stopped').length,criticalFailures:records.filter(r=>r.state==='failed'&&r.module.critical).length,modules:Object.freeze(records)});}
+  signal():AbortSignal{return this.#controller.signal;}
+  reset():void{for(const id of this.#modules.keys()){const module=this.#modules.get(id)!;this.#records.set(id,Object.freeze({module,state:'declared',revision:++this.#revision}));}this.#started=false;}
+}
+
+export const createModuleV15=<T>(input:RuntimeModuleV15<T>):RuntimeModuleV15<T>=>Object.freeze({id:input.id.trim(),version:input.version.trim(),dependencies:Object.freeze([...input.dependencies]),critical:Boolean(input.critical),value:input.value,...(input.start?{start:input.start}:{}),...(input.stop?{stop:input.stop}:{}),...(input.health?{health:input.health}: {})});
