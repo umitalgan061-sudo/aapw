@@ -1,0 +1,45 @@
+name: Kızıl Ufuk Production TypeScript Migration
+
+on:
+  push:
+    branches: ['main', 'agent/kizil-ufuk-total-ts-migration-wave1-20260921-r1']
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'src/3d/**/*.js'
+      - 'src/3d/**/*.ts'
+      - 'scripts/checkProductionTsMigration.mjs'
+      - 'tests/modern/productionTsMigration.test.ts'
+      - '.github/workflows/production-typescript-migration.yml'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-typescript-migration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+
+      - run: npm install --no-audit --no-fund
+
+      - name: TypeScript migration policy
+        run: node scripts/checkProductionTsMigration.mjs
+
+      - name: TypeScript
+        run: npx tsc --noEmit --pretty false
+
+      - name: Focused migration regression
+        run: npx vitest run tests/modern/productionTsMigration.test.ts
