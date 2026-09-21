@@ -51,7 +51,11 @@
     "build:full": "vite build",
     "verify:typed-world-surface-r12": "node scripts/checkTypedWorldSurfaceR12.mjs",
     "test:typed-world-surface-r12": "npm test -- tests/modern/typedWorldSurfaceR12.test.ts",
-    "check:typed-world-surface-r12": "npm run verify:typed-world-surface-r12 && npm run test:typed-world-surface-r12 && npm run typecheck"
+    "check:typed-world-surface-r12": "npm run verify:typed-world-surface-r12 && npm run test:typed-world-surface-r12 && npm run typecheck",
+    "verify:strict-core": "node scripts/checkStrictCoreR15.mjs",
+    "typecheck:strict-core": "tsc -p tsconfig.strict-core.json --noEmit",
+    "test:strict-core": "npm test -- tests/modern/strictCoreR15.test.ts",
+    "check:strict-core": "npm run verify:strict-core && npm run typecheck:strict-core && npm run test:strict-core"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
