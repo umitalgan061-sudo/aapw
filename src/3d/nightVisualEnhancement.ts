@@ -1,7 +1,7 @@
 /** Typed night readability enhancement kept as a child of the canonical hemisphere light. */
 import * as THREE from 'three';
 const NIGHT_CINEMATIC_FILL_NAME='Game Night Cinematic Fill', NIGHT_CINEMATIC_DAY_INTENSITY=0.02, NIGHT_CINEMATIC_FULL_INTENSITY=0.72, NIGHT_CINEMATIC_SKY=0x8dbfff, NIGHT_CINEMATIC_GROUND=0x475648;
-function smoothNight(value:number):number{const n=THREE.MathUtils.clamp(Number(value)||0,0,1);return n*n*(3-3*n)+n*0;}
+function smoothNight(value:number):number{const n=THREE.MathUtils.clamp(Number(value)||0,0,1);return n*n*(3-2*n);}
 export function installNightVisualEnhancement(hemisphere:THREE.HemisphereLight):THREE.HemisphereLight{
  if(!hemisphere?.isHemisphereLight)throw new Error('Night visual enhancement requires the canonical hemisphere light.');
  const existing=hemisphere.getObjectByName(NIGHT_CINEMATIC_FILL_NAME); if(existing?.isHemisphereLight)return existing;
