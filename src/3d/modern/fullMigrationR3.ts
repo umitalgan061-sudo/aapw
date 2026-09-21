@@ -10,7 +10,7 @@ export interface MigrationModuleRecord {
 }
 
 export interface MigrationLedgerSnapshot {
-  readonly version: 3;
+  readonly version: 4;
   readonly generatedAtTick: number;
   readonly modules: readonly MigrationModuleRecord[];
   readonly legacyCount: number;
@@ -21,8 +21,8 @@ export interface MigrationLedgerSnapshot {
 export const R3_MIGRATION_MODULES = [
   { id: 'scene', legacyPath: 'src/3d/sceneManager.js', modernPath: 'src/3d/modern/sceneRuntime.ts', owner: 'rendering', status: 'facaded', risk: 'high' },
   { id: 'game-loop', legacyPath: 'src/3d/game3d.js', modernPath: 'src/3d/modern/applicationRuntime.ts', owner: 'runtime', status: 'facaded', risk: 'high' },
-  { id: 'physics', legacyPath: 'src/3d/physics.js', modernPath: 'src/3d/modern/physicsRuntime.ts', owner: 'world', status: 'facaded', risk: 'high' },
-  { id: 'input', legacyPath: 'src/3d/input.js', modernPath: 'src/3d/modern/inputRuntime.ts', owner: 'runtime', status: 'facaded', risk: 'medium' },
+  { id: 'physics', legacyPath: 'src/3d/physics.js', modernPath: 'src/3d/physics.ts', owner: 'world', status: 'migrated', risk: 'high' },
+  { id: 'input', legacyPath: 'src/3d/input.js', modernPath: 'src/3d/input.ts', owner: 'runtime', status: 'migrated', risk: 'medium' },
   { id: 'assets', legacyPath: 'src/3d/assets.js', modernPath: 'src/3d/modern/assetRuntimeR3.ts', owner: 'rendering', status: 'facaded', risk: 'medium' },
   { id: 'world', legacyPath: 'src/3d/world/', modernPath: 'src/3d/modern/worldRuntimeR3.ts', owner: 'world', status: 'facaded', risk: 'high' },
   { id: 'save', legacyPath: 'src/3d/saveSystem.js', modernPath: 'src/3d/modern/saveRuntimeR3.ts', owner: 'persistence', status: 'facaded', risk: 'medium' },
@@ -38,7 +38,7 @@ export function createMigrationLedger(tick: RuntimeTick = 0): MigrationLedgerSna
   const migratedCount = R3_MIGRATION_MODULES.filter((module) => module.status === 'migrated' || module.status === 'retired').length;
   const coveragePercent = legacyCount === 0 ? 100 : Number(((migratedCount / legacyCount) * 100).toFixed(2));
   return {
-    version: 3,
+    version: 4,
     generatedAtTick: tick,
     modules: [...R3_MIGRATION_MODULES],
     legacyCount,
