@@ -16,8 +16,8 @@
  * @module gameplay/livingWorldSpawner
  */
 
-import { EVENTS, WORLD_DEFAULTS, SETTLEMENT_CONFIG, CHUNK_CONFIG } from '../config.js';
-import { NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG } from './gameplayConfig.js';
+import { EVENTS, WORLD_DEFAULTS, SETTLEMENT_CONFIG, CHUNK_CONFIG } from '../config.ts';
+import { NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG } from './gameplayConfig.ts';
 import { spawnConfiguredNPCs } from './npc.ts';
 import { spawnConfiguredAnimals } from './animals.ts';
 import { spawnConfiguredCreatures, CREATURE_BEHAVIOR_PROFILES } from './creatureBrain.js';
@@ -25,8 +25,8 @@ import { scatterCreatures, DESKTOP_SPECIES_COUNTS, MOBILE_SPECIES_COUNTS, wrapCr
 import { spawnConfiguredCarts } from './cartBrain.js';
 import { mulberry32 } from '../world/terrain.js';
 import { spawnConfiguredDragons } from './dragons.js';
-import { isCoarsePointerDevice } from '../sceneManager.js';
-import { createDynamicCircleCollider } from '../physics.js';
+import { isCoarsePointerDevice } from '../sceneManager.ts';
+import { createDynamicCircleCollider } from '../physics.ts';
 
 export const NPC_GUARD_ATTACK_DEFAULTS = Object.freeze({
 	damage: 8,
