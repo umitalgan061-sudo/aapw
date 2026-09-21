@@ -46,6 +46,8 @@ export function composePlayerCombatFrame({
   const animationState = String(animation.state ?? motion.state ?? 'idle');
   const weapon = equipmentProfile?.mainHand ?? {};
   const armor = equipmentProfile?.armor ?? {};
+  const sourceIds = equipmentProfile?.sourceIds ?? {};
+  const materialSurfaces = Array.isArray(armor.materialSurfaces) ? [...armor.materialSurfaces] : [];
   const frame = {
     timestamp: finiteOr(timestamp, 0),
     revision: Math.max(0, Math.floor(finiteOr(revision, 0))),
@@ -76,7 +78,15 @@ export function composePlayerCombatFrame({
       armorId: String(armor.id ?? 'unarmored'),
       armorAnimationFamily: String(armor.animationFamily ?? 'unarmored'),
       projectile: Boolean(weapon.projectile),
-      twoHanded: Boolean(weapon.twoHanded),
+      ranged: Boolean(equipmentProfile?.ranged),
+      shieldEquipped: Boolean(equipmentProfile?.shieldEquipped),
+      twoHanded: Boolean(equipmentProfile?.twoHanded || weapon.twoHanded),
+      sourceIds: {
+        mainHand: String(sourceIds.mainHand ?? 'unarmed'),
+        offHand: String(sourceIds.offHand ?? 'none'),
+        chest: String(sourceIds.chest ?? 'unarmored'),
+      },
+      materialSurfaces,
     },
     animation: {
       state: animationState,
@@ -92,6 +102,17 @@ export function composePlayerCombatFrame({
 }
 
 export function isPlayerCombatFrame(value: unknown): boolean {
-  const frame = value as Record<string, unknown> | null;
-  return Boolean(frame && frame.input && frame.motion && frame.combat && frame.animation && typeof frame.revision === 'number');
+  const frame = value as Record<string, any> | null;
+  return Boolean(
+    frame &&
+    Object.isFrozen(frame) &&
+    frame.input && Object.isFrozen(frame.input) &&
+    frame.motion && Object.isFrozen(frame.motion) &&
+    frame.combat && Object.isFrozen(frame.combat) &&
+    frame.animation && Object.isFrozen(frame.animation) &&
+    typeof frame.revision === 'number' &&
+    typeof frame.combat.weaponId === 'string' &&
+    typeof frame.combat.armorId === 'string' &&
+    Array.isArray(frame.combat.materialSurfaces)
+  );
 }
