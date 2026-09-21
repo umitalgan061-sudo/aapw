@@ -1,3 +1,4 @@
+/** Production TypeScript owner for src/3d/fog.js. Legacy .js remains compatibility-only. */
 /**
  * Distance fog, tied to the day/night cycle (`lighting.js`) rather than a fixed look: color always
  * matches the current sky horizon color (so fogged-out terrain blends into the sky instead of
