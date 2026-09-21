@@ -33,7 +33,9 @@
     "check:combat-determinism": "npm run verify:combat-determinism && npm test -- tests/modern/combatAuthorityRegression.test.ts && npm run typecheck",
     "verify:production-v7": "node scripts/checkProductionRuntimeV7.mjs",
     "check:production-v7": "npm run verify:production-v7 && npm run typecheck && npm test -- tests/modern/productionRuntimeV7.test.ts tests/modern/productionRuntimeV7.integration.test.ts",
-    "check:all-modern": "npm run verify:all-modern && npm run verify:production-v7 && npm run check:production-v7"
+    "check:all-modern": "npm run verify:all-modern && npm run verify:production-v7 && npm run check:production-v7",
+    "verify:ts-migration": "node scripts/checkProductionTsMigration.mjs",
+    "check:ts-migration": "npm run verify:ts-migration && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
