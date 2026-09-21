@@ -189,6 +189,14 @@ export function evaluateFaunaActivityBudget(rawCandidates = [], rawContext = {})
     .filter((candidate) => candidate.active && candidate.eligible)
     .map((candidate) => ({ ...candidate, score: scoreFaunaActivityCandidate(candidate, context) }))
     .sort(compareFaunaActivityCandidates);
+  const seenCandidateIds = new Set();
+  const uniqueCandidates = candidates.filter((candidate) => {
+    if (seenCandidateIds.has(candidate.id)) return false;
+    seenCandidateIds.add(candidate.id);
+    return true;
+  });
+  candidates.length = 0;
+  candidates.push(...uniqueCandidates);
   const budget = deriveFaunaActivityBudget(candidates, context);
   const selected = candidates.slice(0, budget).map((candidate, index) => freeze({
     id: candidate.id,
