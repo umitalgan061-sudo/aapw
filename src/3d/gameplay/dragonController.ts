@@ -21,7 +21,7 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.ts';
-import { alignDiveOrientation, applyCirclePose, applyDiveOffset, clampAltitudeAboveGround } from './dragonFlightMath.js';
+import { alignDiveOrientation, applyCirclePose, applyDiveOffset, clampAltitudeAboveGround } from './dragonFlightMath.ts';
 import { createDragonReactionState, stepDragonReactionState } from './dragonReactionState.js';
 
 /**
