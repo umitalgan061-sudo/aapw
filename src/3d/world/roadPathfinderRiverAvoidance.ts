@@ -1,4 +1,4 @@
-/** Production TypeScript owner for src/3d/world/roadPathfinderRiverAvoidance.js. Legacy .js remains compatibility-only. */
+/** Production TypeScript owner for src/3d/world/roadPathfinderRiverAvoidance.legacy.js. */
 // @ts-nocheck
 import { WORLD_DEFAULTS } from '../config.ts';
 import { generateRiverPath } from './rivers.ts';
@@ -128,4 +128,4 @@ export function profileRiverExposure(field, points) {
 }
 
 
-export interface RiverAvoidanceSample { readonly x:number; readonly z:number; readonly cost:number }
+export interface RiverAvoidanceFieldContract { readonly pointCount: number; readonly cellSize: number }
