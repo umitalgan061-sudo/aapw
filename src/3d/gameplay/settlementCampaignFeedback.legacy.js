@@ -1,0 +1,18 @@
+/**
+ * Settlement UX feedback and notification normalizer.
+ * Keeps user-facing state deterministic and bounded.
+ */
+export const SETTLEMENT_FEEDBACK_VERSION=1;
+const text=(value,fallback='')=>{const v=String(value??'').trim();return v?v.slice(0,160):fallback;};
+const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
+const LEVELS=Object.freeze({success:1,info:2,warning:3,blocked:4,error:5});
+const LABELS=Object.freeze({success:'Tamamlandı',info:'Bilgi',warning:'Dikkat',blocked:'Gerekli',error:'Hata'});
+const ACTION_COPY=Object.freeze({enter:'Yerleşime girildi.',exit:'Yerleşimden çıkıldı.',talk:'Konuşma başlatıldı.',trade:'Takas hazır.',buy:'Satın alma hazır.',sell:'Satış hazır.',craft:'Üretim hazır.',equip:'Ekipman hazır.',acceptQuest:'Görev kabul edildi.',advanceQuest:'Görev ilerletildi.',travel:'Seyahat hazır.',rest:'Dinlenme hazır.',train:'Eğitim hazır.',save:'Kayıt hazır.'});
+export function normalizeSettlementFeedback(raw={}){const source=raw&&typeof raw==='object'?raw:{};const status=Object.hasOwn(LABELS,source.status)?source.status:'info';return{version:1,status,code:text(source.code),message:text(source.message,ACTION_COPY[source.action]??'Yerleşim durumu güncellendi.'),action:text(source.action),priority:LEVELS[status],label:LABELS[status],recoverable:['warning','blocked'].includes(status),timestamp:Number.isFinite(Number(source.timestamp))?Number(source.timestamp):null};}
+export function createSettlementNotification(feedback,context={}){const normalized=normalizeSettlementFeedback(feedback);return{...normalized,id:`${normalized.status}:${normalized.action||'settlement'}:${text(context.requestId,'none')}`,title:normalized.label,detail:normalized.message,service:text(context.service),panel:text(context.panel,'overview'),dismissible:normalized.status!=='error'};}
+export function dedupeSettlementNotifications(notifications=[]){const source=Array.isArray(notifications)?notifications:[];const seen=new Set();const result=[];for(let i=source.length-1;i>=0;i-=1){const value=createSettlementNotification(source[i]);if(seen.has(value.id))continue;seen.add(value.id);result.unshift(value);}return result.slice(-24);}
+export function summarizeSettlementFeedback(notifications=[]){const list=dedupeSettlementNotifications(notifications);const counts={success:0,info:0,warning:0,blocked:0,error:0};for(const entry of list)counts[entry.status]+=1;return{version:1,total:list.length,counts,highestPriority:list.reduce((max,v)=>Math.max(max,v.priority),0),hasBlockingError:list.some(v=>v.status==='error'||v.status==='blocked')};}
+export function buildSettlementFeedbackPanel(notifications=[],options={}){const list=dedupeSettlementNotifications(notifications);const focus=text(options.focus);return{version:1,focus,list:list.map(entry=>({...entry,focused:focus?entry.action===focus||entry.code===focus:false})),summary:summarizeSettlementFeedback(list)};}
+export function validateSettlementFeedback(feedback){const value=normalizeSettlementFeedback(feedback);const errors=[];if(value.version!==1)errors.push('version');if(!LABELS[value.status])errors.push('status');if(!Number.isInteger(value.priority)||value.priority<1)errors.push('priority');if(value.message.length===0)errors.push('message');return{ok:errors.length===0,errors};}
+export function toAccessibleSettlementFeedback(feedback){const value=normalizeSettlementFeedback(feedback);return{role:value.status==='error'||value.status==='warning'?'alert':'status',ariaLive:value.status==='error'||value.status==='warning'?'assertive':'polite',label:value.label,message:value.message,action:value.action};}
+export function cloneSettlementFeedback(feedback){return clone(normalizeSettlementFeedback(feedback));}

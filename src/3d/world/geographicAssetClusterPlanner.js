@@ -1,2 +1,4 @@
-/** Compatibility boundary: production implementation lives in geographicAssetClusterPlanner.ts. */
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './geographicAssetClusterPlanner.ts';
 export * from './geographicAssetClusterPlanner.ts';
+export default __typed.default;

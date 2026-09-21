@@ -1,2 +1,4 @@
-/** Compatibility boundary: production weather runtime lives in weather.ts. */
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './weather.ts';
 export * from './weather.ts';
+export default __typed.default;

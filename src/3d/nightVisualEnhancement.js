@@ -1,2 +1,4 @@
-/** Compatibility boundary: production night visual enhancement lives in nightVisualEnhancement.ts. */
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './nightVisualEnhancement.ts';
 export * from './nightVisualEnhancement.ts';
+export default __typed.default;

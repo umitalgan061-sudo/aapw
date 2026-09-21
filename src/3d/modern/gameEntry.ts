@@ -3,6 +3,7 @@ import { createModernRuntime, tickModernRuntime, type RuntimeFrameInput, type Ru
 import { installEntryGate, type EntryGateController } from './entryGate';
 import { platformEvents } from './eventBus';
 import { modernState } from './stateStore';
+import { NextGenRuntimeV14 } from './nextGenRuntimeV14';
 
 export interface Game3DEntryOptions {
   readonly canvas?: HTMLCanvasElement;
@@ -38,6 +39,7 @@ export interface ModernGame3DSession {
   readonly start: () => boolean;
   readonly stop: () => void;
   readonly dispose: () => void;
+  readonly controlPlane: NextGenRuntimeV14;
 }
 
 const DEFAULT_CAMERA: CameraState = Object.freeze({
@@ -57,6 +59,7 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
     const canvas = options.canvas ?? resolveCanvas(options.canvasId ?? 'game3d-canvas');
     if (!canvas) throw new Error('GAME3D_CANVAS_MISSING');
     const runtime = await createModernRuntime({ canvas, initialQuality: options.initialQuality, maxTelemetrySamples: options.maxTelemetrySamples });
+    const controlPlane = new NextGenRuntimeV14({ initialQuality: options.initialQuality });
     const gate = options.installGate === false ? undefined : installEntryGate(options.gateOptions);
     const legacyLoaded = options.legacyLoader ? await options.legacyLoader() : await loadLegacyGame();
     bridgeLegacyEvents();
@@ -83,6 +86,17 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
       });
       state.lastTime = now;
       state.lastSnapshot = snapshot;
+      void controlPlane.tick({
+        frameMs: metrics.frameMs,
+        cpuMs: input.cpuMs ?? metrics.frameMs,
+        gpuMs: input.gpuMs,
+        memoryPressure: input.memoryPressure ?? 0,
+        thermalPressure: input.thermalPressure ?? 0,
+        drawCalls: input.drawCalls ?? 0,
+        visibleObjects: input.visibleObjects ?? 0,
+      }, controlPlane.control.input.normalizeKeyboard()).catch((error) => {
+        console.error('[aapw/v14-control-plane]', error);
+      });
       modernState.patch({ isLoading: false, loadProgress: 1, fps: metrics.frameMs > 0 ? 1000 / metrics.frameMs : 0, frameMs: metrics.frameMs });
       options.onFrame?.(snapshot);
       return snapshot;
@@ -110,7 +124,7 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
       platformEvents.emit('runtime:loop', { action: 'stop' });
     };
     const dispose = (): void => { stop(); gate?.dispose(); };
-    const session: ModernGame3DSession = Object.freeze({ runtime, gate, snapshot: () => state.lastSnapshot, frame: () => Number(runtime.clock.frame()) as FrameId, tick, start, stop, dispose });
+    const session: ModernGame3DSession = Object.freeze({ runtime, gate, controlPlane, snapshot: () => state.lastSnapshot, frame: () => Number(runtime.clock.frame()) as FrameId, tick, start, stop, dispose });
     tick({ frameMs: 0, cpuMs: 0, camera: getCamera() });
     loading?.classList.add('g3d-loading-hidden');
     platformEvents.emit('runtime:session', { backend: runtime.capabilities.backend, legacyLoaded: Boolean(legacyLoaded) });
