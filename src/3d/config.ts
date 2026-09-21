@@ -157,7 +157,7 @@ export const MOBILE_VEGETATION_CULLING_CONFIG_RUN141 = Object.freeze({
 });
 
 export type QualityLevel = (typeof QUALITY_LEVELS)[keyof typeof QUALITY_LEVELS];
-export type QualityPreset = (typeof QUALITY_PRESETS)[QualityLevel extends keyof typeof QUALITY_PRESETS ? QualityLevel : never];
+export type QualityPreset = (typeof QUALITY_PRESETS)[Extract<QualityLevel, keyof typeof QUALITY_PRESETS>];
 export type WorldConfig = typeof WORLD_DEFAULTS;
 export type WorldScaleConfig = typeof WORLD_SCALE;
 export type ChunkConfig = typeof CHUNK_CONFIG;
