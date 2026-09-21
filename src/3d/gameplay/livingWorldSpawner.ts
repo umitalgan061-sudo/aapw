@@ -16,7 +16,7 @@
  * @module gameplay/livingWorldSpawner
  */
 
-import { EVENTS, WORLD_DEFAULTS, SETTLEMENT_CONFIG, CHUNK_CONFIG } from '../config.js';
+import { EVENTS, WORLD_DEFAULTS, SETTLEMENT_CONFIG, CHUNK_CONFIG } from '../config.ts';
 import { NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG } from './gameplayConfig.ts';
 import { spawnConfiguredNPCs } from './npc.ts';
 import { spawnConfiguredAnimals } from './animals.ts';
