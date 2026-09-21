@@ -5,6 +5,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@aapw': resolve(process.cwd(), 'src'),
+      three: resolve(process.cwd(), 'src/3d/vendor/three/three.module.js'),
+      'three/addons/': resolve(process.cwd(), 'src/3d/vendor/three/addons') + '/',
     },
   },
   test: {
