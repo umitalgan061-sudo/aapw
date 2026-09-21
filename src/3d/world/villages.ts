@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
 import { analyzeMaterialSurfaces } from '../materials/MaterialAssignmentCore.js';
 import { placeWorldAsset, WORLD_SURFACE_POLICY_PRESETS } from './WorldAssetPlacementPipeline.js';
-import { isPlaceablePosition } from './vegetation.js';
+import { isPlaceablePosition } from './vegetation.ts';
 import { createStoneMaterial, createRoofMaterial } from './materials.js';
 
 const VILLAGE_OUTER_RADIUS_METERS = 210;
