@@ -312,3 +312,27 @@ export interface WorldChunkCoordinate {
   readonly x: number;
   readonly z: number;
 }
+
+
+/** Runtime telemetry for adaptive world-streaming diagnostics. */
+export interface WorldStreamingStats {
+  readonly residentChunks: number;
+  readonly cumulativeChunks: number;
+  readonly residentAreaKm2: number;
+  readonly cumulativeAreaKm2: number;
+  readonly mobileBounded: boolean;
+  readonly mobileRadiusChunks: number;
+}
+
+ChunkManager.prototype.getStreamingStats = function getStreamingStats() {
+  const mobileBounded = Boolean(this.mobileLiveWorldRadius4Run140);
+  const mobileRadiusChunks = mobileBounded ? MOBILE_LIVE_WORLD_RADIUS_RUN140 : 0;
+  return Object.freeze({
+    residentChunks: this.loadedCount,
+    cumulativeChunks: this.everGeneratedCount,
+    residentAreaKm2: Number(this.getCoveredAreaKm2().toFixed(3)),
+    cumulativeAreaKm2: Number(this.getCumulativeCoveredAreaKm2().toFixed(3)),
+    mobileBounded,
+    mobileRadiusChunks,
+  });
+};
