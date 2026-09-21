@@ -1,6 +1,6 @@
 /** Production TypeScript weather runtime. Deterministic raindrop layout; no independent scheduler. */
 import * as THREE from 'three';
-import { mulberry32 } from './terrain.js';
+import { mulberry32 } from './terrain.ts';
 
 export const RAIN_DROP_COUNT = 900;
 const RAIN_RADIUS_METERS = 60;
