@@ -106,11 +106,11 @@ const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
 const ATTACK_WINDOW_EVENT = 'aapw:player-attack-window';
 const COMBAT_FEEDBACK_EVENT = 'aapw:player-combat-feedback';
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
-function attackCommitBudget(baseMeters: number, comboStep: number, comboBonusPerStep = PLAYER_ACTION_CONFIG.ATTACK_COMBO_COMMIT_BONUS_PER_STEP): number {
+export function attackCommitBudget(baseMeters: number, comboStep: number, comboBonusPerStep = PLAYER_ACTION_CONFIG.ATTACK_COMBO_COMMIT_BONUS_PER_STEP): number {
 	const base = Math.max(0, Number(baseMeters) || 0), step = Math.max(1, Math.floor(Number(comboStep) || 1)), bonus = Math.max(0, Number(comboBonusPerStep) || 0);
 	return base * (1 + (step - 1) * bonus);
 }
-function computeAttackCommitStep(previousElapsedSeconds: number, nextElapsedSeconds: number, activeEndSeconds: number, totalCommitMeters: number, remainingCommitMeters: number): number {
+export function computeAttackCommitStep(previousElapsedSeconds: number, nextElapsedSeconds: number, activeEndSeconds: number, totalCommitMeters: number, remainingCommitMeters: number): number {
 	const previous = Math.max(0, Number(previousElapsedSeconds) || 0), next = Math.max(previous, Number(nextElapsedSeconds) || 0), activeEnd = Math.max(0, Number(activeEndSeconds) || 0), total = Math.max(0, Number(totalCommitMeters) || 0), remaining = clamp(Number(remainingCommitMeters) || 0, 0, total);
 	if (!(activeEnd > 0) || !(total > 0) || !(remaining > 0) || next <= previous) return 0;
 	const committedTime = Math.max(0, Math.min(next, activeEnd) - Math.min(previous, activeEnd));
