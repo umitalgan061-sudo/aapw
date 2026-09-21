@@ -107,4 +107,4 @@
  */
 
 export { createDragon } from './dragonController.ts';
-export { spawnConfiguredDragons } from './dragonSpawns.js';
+export { spawnConfiguredDragons } from './dragonSpawns.ts';
