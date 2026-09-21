@@ -15,12 +15,12 @@
  */
 
 import { EVENTS, WORLD_DEFAULTS, SETTLEMENT_CONFIG, CHUNK_CONFIG } from '../config.js';
-import { NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG } from './gameplayConfig.js';
+import { NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG } from './gameplayConfig.ts';
 import { spawnConfiguredNPCs } from './npc.js';
 import { spawnConfiguredAnimals } from './animals.js';
-import { spawnConfiguredCreatures, CREATURE_BEHAVIOR_PROFILES } from './creatureBrain.js';
+import { spawnConfiguredCreatures, CREATURE_BEHAVIOR_PROFILES } from './creatureBrain.ts';
 import { scatterCreatures, DESKTOP_SPECIES_COUNTS, MOBILE_SPECIES_COUNTS, wrapCreatureWithSimulationLod } from './creatureSpawner.js';
-import { spawnConfiguredCarts } from './cartBrain.js';
+import { spawnConfiguredCarts } from './cartBrain.ts';
 import { mulberry32 } from '../world/terrain.js';
 import { spawnConfiguredDragons } from './dragons.js';
 import { isCoarsePointerDevice } from '../sceneManager.js';
