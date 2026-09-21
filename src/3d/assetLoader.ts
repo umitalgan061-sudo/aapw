@@ -107,7 +107,7 @@ export class AssetLoader {
   async loadFBXModel(
     url: string,
     { fallbackColor = 0xff00ff, fallbackSize = 1, resourcePath }: AssetLoadOptions = {},
-  ): Promise<THREE.Group> {
+  ): Promise<THREE.Object3D> {
     try {
       const loader = await this.#getFBXLoader();
       loader.setResourcePath(resourcePath ?? '');
@@ -157,15 +157,15 @@ export class AssetLoader {
     if (Math.abs(metersPerFbxUnit - 1) > 1e-6) model.scale.setScalar(metersPerFbxUnit);
   }
 
-  #createPlaceholder(color: THREE.ColorRepresentation, size: number): THREE.Group {
+  #createPlaceholder(color: THREE.ColorRepresentation, size: number): AnimatedObject3D {
     const safeSize = Number.isFinite(size) ? Math.max(0.01, size) : 1;
     const geometry = new THREE.BoxGeometry(safeSize, safeSize, safeSize);
     const material = new THREE.MeshStandardMaterial({ color });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.userData.isPlaceholder = true;
-    const group = new THREE.Group();
-    group.add(mesh);
-    return group;
+    const placeholder = mesh as AnimatedObject3D;
+    placeholder.animations = [];
+    return placeholder;
   }
 
   static disposeObject3D(object: THREE.Object3D | null | undefined): void {
