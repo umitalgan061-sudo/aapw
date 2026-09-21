@@ -13,7 +13,7 @@ import {
   WORLD_SURFACE_POLICY_PRESETS,
 } from './WorldAssetPlacementPipeline.js';
 import { REFERENCE_BIOME_ZONES, sampleReferenceInfluence } from './worldReferenceMap.js';
-import { terrainMapUvAt } from './terrain.js';
+import { terrainMapUvAt } from './terrain.ts';
 
 /**
  * Sparse, geography-aware dressing for the outside edge of canonical settlements.
