@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": false,
+    "checkJs": false
+  },
+  "include": [
+    "src/3d/config.ts",
+    "src/3d/eventBus.ts",
+    "src/3d/state.ts",
+    "src/3d/gameplay/gameplayConfig.ts"
+  ]
+}
