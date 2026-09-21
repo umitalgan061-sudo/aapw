@@ -1,13 +1,7 @@
 import { buildSnapshotDelta, applySnapshotDelta, PacketWindow, type SnapshotDelta } from '../network.ts';
-import { deterministicChecksum } from '../determinism.ts';
 import { validatePayload, validateSnapshotBounds, RateLimiter, DEFAULT_SECURITY_LIMITS } from '../security.ts';
-import { tick, type Tick, type WorldSnapshot, type SnapshotEntity } from '../types.ts';
-import type {
-  NetworkPeerState,
-  ReplicationEnvelope,
-  RuntimeFault,
-  ProductionSnapshot,
-} from './contracts.ts';
+import { tick, type Tick, type WorldSnapshot } from '../types.ts';
+import type { NetworkPeerState, ReplicationEnvelope, RuntimeFault } from './contracts.ts';
 
 export interface NetworkRuntimeConfig {
   readonly session: string;
@@ -131,11 +125,7 @@ export class ProductionNetworkRuntime {
   receive(peerId: string, envelope: ReplicationEnvelope, currentTick: Tick, nowMs: number): boolean {
     const peer = this.#peers.get(normalizeId(peerId));
     if (!peer?.connected) return false;
-    if (envelope.protocol !== this.config.protocol) {
-      this.#rejectedPackets += 1;
-      return false;
-    }
-    if (envelope.session !== this.config.session) {
+    if (envelope.protocol !== this.config.protocol || envelope.session !== this.config.session) {
       this.#rejectedPackets += 1;
       return false;
     }
@@ -162,8 +152,8 @@ export class ProductionNetworkRuntime {
     const rtt = Math.max(0, nowMs - peer.receivedAtMs);
     if (peer.rttMs === 0) peer.rttMs = rtt;
     else {
-      const delta = Math.abs(rtt - peer.rttMs);
-      peer.jitterMs = peer.jitterMs * 0.75 + delta * 0.25;
+      const jitterDelta = Math.abs(rtt - peer.rttMs);
+      peer.jitterMs = peer.jitterMs * 0.75 + jitterDelta * 0.25;
       peer.rttMs = peer.rttMs * 0.875 + rtt * 0.125;
     }
     peer.receivedAtMs = Math.max(0, nowMs);
@@ -224,19 +214,19 @@ export class ProductionNetworkRuntime {
       this.#rejectedPackets += 1;
       return undefined;
     }
+    if (!Number.isFinite(delta.tick) || delta.tick < 0 || delta.tick > currentTick + this.config.maxFutureTicks) {
+      this.#rejectedPackets += 1;
+      return undefined;
+    }
     try {
       const result = applySnapshotDelta(base, delta);
-      const checksum = deterministicChecksum([
-        result.tick,
-        ...result.entities.flatMap((entity) => [entity.id, entity.x, entity.y, entity.z, entity.yaw, entity.flags]),
-      ]);
-      if (checksum === delta.checksum) {
-        this.#appliedDeltas += 1;
-      } else {
+      const canonicalDelta = buildSnapshotDelta(base, result);
+      if (canonicalDelta.checksum !== delta.checksum) {
         this.#checksumFailures += 1;
         this.#rejectedPackets += 1;
         return undefined;
       }
+      this.#appliedDeltas += 1;
       peer.snapshots.push(cloneSnapshot(result));
       while (peer.snapshots.length > 32) peer.snapshots.shift();
       return result;
@@ -251,9 +241,7 @@ export class ProductionNetworkRuntime {
     if (!peer?.snapshots.length) return undefined;
     const desired = Math.max(0, targetTick - this.config.interpolationDelayTicks);
     let best = peer.snapshots[0]!;
-    for (const snapshot of peer.snapshots) {
-      if (snapshot.tick <= desired && snapshot.tick >= best.tick) best = snapshot;
-    }
+    for (const snapshot of peer.snapshots) if (snapshot.tick <= desired && snapshot.tick >= best.tick) best = snapshot;
     return cloneSnapshot(best);
   }
 
