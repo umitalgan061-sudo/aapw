@@ -189,14 +189,19 @@ export class TelemetryV3 {
     return this.#clock();
   }
 
-  recordSpan(span: TelemetrySpan): void {
-    this.#spans.push({
+  recordSpan(span: TelemetrySpan): TelemetrySpan {
+    const sanitized: TelemetrySpan = {
       ...span,
       attributes: this.#sanitizeAttributes(span.attributes),
-    });
+    };
+    this.#spans.push(sanitized);
     while (this.#spans.length > this.#maxSpans) {
       this.#spans.shift();
     }
+    return {
+      ...sanitized,
+      attributes: { ...sanitized.attributes },
+    };
   }
 
   #sanitizeAttributes(
@@ -366,8 +371,7 @@ export class TelemetrySpanHandle {
       status,
       attributes: merged,
     };
-    this.#telemetry.recordSpan(span);
-    return span;
+    return this.#telemetry.recordSpan(span);
   }
 
   get id(): string {
