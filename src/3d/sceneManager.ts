@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, STORAGE_KEYS } from './config.ts';
 import { PLAYER_CONFIG } from './gameplay/gameplayConfig.ts';
 import { ChunkManager } from './world/chunkManager.ts';
-import { installRuntimePindexTerrainPolish } from './world/worldReferenceSurfaceTerrainVisual.js';
+import { installRuntimePindexTerrainPolish } from './world/worldReferenceSurfaceTerrainVisual.ts';
 import { createGroundCollider, createSettlementCollider, createCircleCollider, createComposedCollider } from './physics.ts';
 import {
 	createWater,
@@ -27,19 +27,19 @@ import { createWaterDepthField } from './world/waterDepthField.js';
 import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMesh } from './world/rivers.ts';
 import { createHeightSampler, mulberry32 } from './world/terrain.ts';
 import { createSettlements, computeSettlementFlattenPads } from './world/settlements.ts';
-import { buildRoadNetwork } from './world/roads.js';
+import { buildRoadNetwork } from './world/roads.ts';
 import { createNaturalGeology, upgradeNaturalGeologyAssets } from './world/naturalGeology.js';
 import { createValyriaBarrenEcologyPlacementProbe } from './world/valyriaEcology.js';
 import { createVegetation } from './world/vegetation.js';
 import { upgradeWinterVegetationAssets } from './world/winterVegetationAsset.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
-import { createVillages } from './world/villages.js';
+import { createVillages } from './world/villages.ts';
 import { createGeographicSettlementPropLayer } from './world/geographicSettlementProps.js';
 import {
 	decorateGeographicSettlementPropGroup,
 	auditGeographicSettlementPropGroup,
 	buildGeographicSettlementPropRuntimeSummary,
-} from './world/geographicSettlementPropQuality.js';
+} from './world/geographicSettlementPropQuality.ts';
 import { createIceLandmarks } from './world/iceLandmarks.js';
 import { createOrbitCamera } from './camera.ts';
 import { createFreeCameraController } from './debug/freeCamera.js';
