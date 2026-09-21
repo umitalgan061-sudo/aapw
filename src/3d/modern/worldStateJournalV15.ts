@@ -69,7 +69,7 @@ export class WorldStateJournalV15<T extends JsonValue = JsonValue> {
     return entry;
   }
 
-  transaction(mutator:(state:Readonly<T>)=>readonly Omit<WorldPatchV15,'revision'|'tick'>[]|readonly WorldPatchV15[],meta:{tick:number;source:string}):JournalEntryV15 {
+  transaction(mutator:(state:Readonly<T>)=>readonly {path:readonly string[];after:JsonValue|undefined}[]|readonly WorldPatchV15[],meta:{tick:number;source:string}):JournalEntryV15 {
     const raw=mutator(this.#state);
     const patches=raw.map((patch)=>this.patch(patch.path,patch.after,{tick:meta.tick,source:meta.source}));
     return this.commit(patches,meta.source,meta.tick);
