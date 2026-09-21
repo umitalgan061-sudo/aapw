@@ -124,7 +124,7 @@ describe('ApplicationKernelV3', () => {
     });
 
     kernel.on('error', (error, task) => {
-      failures.push(\`\${task?.id ?? 'kernel'}:\${error.message}\`);
+      failures.push(`${task?.id ?? 'kernel'}:${error.message}`);
     });
 
     kernel.registerTask({
@@ -316,7 +316,7 @@ describe('AssetOrchestratorV3', () => {
     ] as const) {
       assets.declare({
         id,
-        url: \`https://example.test/\${id}.bin\`,
+        url: `https://example.test/${id}.bin`,
         kind: 'binary',
         priority,
         maxBytes: 700_000,
