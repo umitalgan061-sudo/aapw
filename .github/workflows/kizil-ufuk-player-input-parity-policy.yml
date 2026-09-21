@@ -1,0 +1,38 @@
+name: Kizil Ufuk Player Input Parity Policy
+on:
+  push:
+    paths:
+      - 'src/3d/gameplay/playerInputParityPolicy.js'
+      - 'scripts/checkPlayerInputParityPolicy.mjs'
+      - '.github/workflows/kizil-ufuk-player-input-parity-policy.yml'
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerInputParityPolicy.js'
+      - 'scripts/checkPlayerInputParityPolicy.mjs'
+      - '.github/workflows/kizil-ufuk-player-input-parity-policy.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify exact main ancestry and shared material boundary
+        shell: bash
+        run: |
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          ! grep -R "EditorMaterialStudio" -n src/3d/gameplay/playerInputParityPolicy.js scripts/checkPlayerInputParityPolicy.mjs
+      - name: Check syntax and run executable contract
+        run: |
+          node --check src/3d/gameplay/playerInputParityPolicy.js
+          node --check scripts/checkPlayerInputParityPolicy.mjs
+          node scripts/checkPlayerInputParityPolicy.mjs
+      - name: Enforce bounded additive scope
+        shell: bash
+        run: |
+          changed=$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerInputParityPolicy.js scripts/checkPlayerInputParityPolicy.mjs .github/workflows/kizil-ufuk-player-input-parity-policy.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
