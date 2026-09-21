@@ -40,7 +40,10 @@
     "check:typed-gameplay-r11": "npm run verify:typed-gameplay-r11 && npm run test:typed-gameplay-r11 && npm run typecheck",
     "verify:typed-creature-runtime": "node scripts/checkTypedCreatureRuntimeWave13.mjs",
     "test:typed-creature-runtime": "npm test -- tests/modern/typedCreatureRuntimeWave13.test.ts",
-    "check:typed-creature-runtime": "npm run verify:typed-creature-runtime && npm run test:typed-creature-runtime && npm run typecheck"
+    "check:typed-creature-runtime": "npm run verify:typed-creature-runtime && npm run test:typed-creature-runtime && npm run typecheck",
+    "verify:typed-gameplay-world-r13": "node scripts/checkTypedGameplayWorldR13.mjs",
+    "test:typed-gameplay-world-r13": "npm test -- tests/modern/typedGameplayWorldR13.test.ts",
+    "check:typed-gameplay-world-r13": "npm run verify:typed-gameplay-world-r13 && npm run test:typed-gameplay-world-r13 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
