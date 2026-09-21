@@ -8,7 +8,7 @@ import {
   boundaryOwnerFor,
   continuityWindowForChunk,
   pointInWindow,
-} from './geographicAssetRuntimeOrchestrator.js';
+} from './geographicAssetRuntimeOrchestrator.ts';
 
 export const GEOGRAPHIC_ASSET_RUNTIME_EXECUTION_POLICY = Object.freeze({
   id: 'geographic-asset-runtime-execution-adapter-2026-09-14-v1',

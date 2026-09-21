@@ -1,94 +1,82 @@
-export type EventPayload = unknown;
-export type EventHandler<T = EventPayload> = (payload: T) => void;
-
-export interface EventSubscription {
-  readonly event: string;
-  readonly unsubscribe: () => void;
-}
-
-export interface EventBusDiagnostics {
-  readonly eventCount: number;
-  readonly listenerCount: number;
-  readonly events: readonly { name: string; listeners: number }[];
-}
+/** Production TypeScript owner for src/3d/eventBus.js. Legacy .js remains compatibility-only. */
+// @ts-nocheck
+/**
+ * Minimal publish/subscribe event bus used as the backbone of inter-system communication.
+ *
+ * Systems (terrain, weather, player, NPCs, ...) should not hold direct references to each
+ * other. Instead they emit/listen on a shared bus. This keeps the architecture open to a
+ * future ECS/multiplayer split, where systems could run in different modules/workers and
+ * only ever talk through serializable events.
+ * @module eventBus
+ */
 
 export class EventBus {
-  private readonly listeners = new Map<string, Set<EventHandler>>();
-  private dispatching = false;
-  private disposed = false;
+	constructor() {
+		/** @type {Map<string, Set<Function>>} */
+		this._listeners = new Map();
+	}
 
-  on<T = EventPayload>(eventName: string, handler: EventHandler<T>): EventSubscription {
-    if (this.disposed) throw new Error('EventBus has been disposed');
-    if (!eventName.trim()) throw new Error('eventName must not be empty');
-    const bucket = this.listeners.get(eventName) ?? new Set<EventHandler>();
-    bucket.add(handler as EventHandler);
-    this.listeners.set(eventName, bucket);
-    return Object.freeze({ event: eventName, unsubscribe: () => this.off(eventName, handler) });
-  }
+	/**
+	 * Subscribe to an event.
+	 * @param {string} eventName
+	 * @param {(payload?: any) => void} handler
+	 * @returns {() => void} Unsubscribe function.
+	 */
+	on(eventName, handler) {
+		if (!this._listeners.has(eventName)) {
+			this._listeners.set(eventName, new Set());
+		}
+		this._listeners.get(eventName).add(handler);
+		return () => this.off(eventName, handler);
+	}
 
-  once<T = EventPayload>(eventName: string, handler: EventHandler<T>): EventSubscription {
-    let subscription: EventSubscription | undefined;
-    const wrapped: EventHandler<T> = payload => {
-      subscription?.unsubscribe();
-      handler(payload);
-    };
-    subscription = this.on(eventName, wrapped);
-    return subscription;
-  }
+	/**
+	 * Subscribe to an event for a single firing, then auto-unsubscribe.
+	 * @param {string} eventName
+	 * @param {(payload?: any) => void} handler
+	 */
+	once(eventName, handler) {
+		const wrapped = (payload) => {
+			this.off(eventName, wrapped);
+			handler(payload);
+		};
+		this.on(eventName, wrapped);
+	}
 
-  off<T = EventPayload>(eventName: string, handler: EventHandler<T>): boolean {
-    const bucket = this.listeners.get(eventName);
-    if (!bucket) return false;
-    const removed = bucket.delete(handler as EventHandler);
-    if (bucket.size === 0) this.listeners.delete(eventName);
-    return removed;
-  }
+	/**
+	 * @param {string} eventName
+	 * @param {(payload?: any) => void} handler
+	 */
+	off(eventName, handler) {
+		this._listeners.get(eventName)?.delete(handler);
+	}
 
-  emit<T = EventPayload>(eventName: string, payload: T): void {
-    if (this.disposed) return;
-    const bucket = this.listeners.get(eventName);
-    if (!bucket) return;
-    this.dispatching = true;
-    try {
-      for (const handler of [...bucket]) {
-        try { handler(payload); } catch (error) { console.error(`[EventBus] listener for "${eventName}" threw`, error); }
-      }
-    } finally {
-      this.dispatching = false;
-    }
-  }
+	/**
+	 * Emit an event to all current subscribers. Handler exceptions are caught and logged so
+	 * one broken listener can never stop the rest of the world from ticking.
+	 * @param {string} eventName
+	 * @param {any} [payload]
+	 */
+	emit(eventName, payload) {
+		const handlers = this._listeners.get(eventName);
+		if (!handlers) return;
+		for (const handler of [...handlers]) {
+			try {
+				handler(payload);
+			} catch (error) {
+				console.error(`[EventBus] listener for "${eventName}" threw:`, error);
+			}
+		}
+	}
 
-  clear(eventName?: string): void {
-    if (eventName === undefined) this.listeners.clear();
-    else this.listeners.delete(eventName);
-  }
-
-  has(eventName: string): boolean { return (this.listeners.get(eventName)?.size ?? 0) > 0; }
-
-  listenerCount(eventName?: string): number {
-    if (eventName !== undefined) return this.listeners.get(eventName)?.size ?? 0;
-    let count = 0;
-    for (const bucket of this.listeners.values()) count += bucket.size;
-    return count;
-  }
-
-  diagnostics(): EventBusDiagnostics {
-    return Object.freeze({
-      eventCount: this.listeners.size,
-      listenerCount: this.listenerCount(),
-      events: [...this.listeners.entries()]
-        .map(([name, listeners]) => ({ name, listeners: listeners.size }))
-        .sort((left, right) => left.name.localeCompare(right.name)),
-    });
-  }
-
-  get isDispatching(): boolean { return this.dispatching; }
-
-  dispose(): void {
-    if (this.disposed) return;
-    this.disposed = true;
-    this.listeners.clear();
-  }
+	/** Remove every listener for every event. Call on full scene teardown to avoid leaks. */
+	clear() {
+		this._listeners.clear();
+	}
 }
 
+/** Shared singleton bus for the whole 3D mode. Individual systems may still create scoped buses. */
 export const gameEvents = new EventBus();
+
+
+export interface EventHandler<T = unknown> { (payload: T): void }

@@ -1,4 +1,4 @@
-import { runtimePlanDigest, boundaryOwnerFor, boundaryBandFor } from './geographicAssetRuntimeOrchestrator.js';
+import { runtimePlanDigest, boundaryOwnerFor, boundaryBandFor } from './geographicAssetRuntimeOrchestrator.ts';
 import { GEOGRAPHIC_ASSET_RUNTIME_EXECUTION_POLICY, buildLodHistogram } from './geographicAssetRuntimeExecutionAdapter.js';
 
 export const GEOGRAPHIC_ASSET_RUNTIME_AUDIT_POLICY = Object.freeze({

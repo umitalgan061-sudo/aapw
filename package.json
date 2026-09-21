@@ -1,24 +1,34 @@
 {
-  "name":"aapw",
-  "private":true,
-  "version":"1.0.0-modernization",
-  "type":"module",
-  "engines":{"node":">=24.21.0"},
-  "scripts":{
-    "typecheck":"tsc --noEmit",
-    "typecheck:nextgen-modern":"tsc -p tsconfig.modern-nextgen.json --noEmit",
-    "test":"vitest run",
-    "test:watch":"vitest",
-    "test:nextgen-modern":"vitest run tests/modern/nextgen --passWithNoTests",
-    "build:modern":"vite build",
-    "check":"npm run typecheck && npm test -- --passWithNoTests",
-    "verify:modern":"node scripts/checkModernPlatform.mjs",
-    "verify:modern:v3":"node scripts/checkModernPlatformV3.mjs",
-    "verify:typed":"node scripts/checkTypedArchitecture.mjs",
-    "test:typed":"node --experimental-strip-types scripts/checkTypedEngine.mjs",
-    "verify:all-modern":"npm run verify:modern && npm run verify:modern:v3 && npm run verify:typed && npm run test:typed",
-    "verify:nextgen":"node scripts/checkNextGenRuntimeV2.mjs",
-    "check:nextgen":"npm run verify:nextgen && npm run typecheck:nextgen-modern && npm run test:nextgen-modern"
+  "name": "aapw",
+  "private": true,
+  "version": "1.0.0-modernization",
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0"
   },
-  "devDependencies":{"@types/node":"^26.5.1","typescript":"^7.0.2","vite":"^8.3.0","vitest":"^5.0.1"}
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "typecheck:nextgen-modern": "tsc -p tsconfig.modern-nextgen.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:nextgen-modern": "vitest run tests/modern/nextgen --passWithNoTests",
+    "build:modern": "vite build",
+    "check": "npm run typecheck && npm test -- --passWithNoTests",
+    "verify:modern": "node scripts/checkModernPlatform.mjs",
+    "verify:modern:v3": "node scripts/checkModernPlatformV3.mjs",
+    "verify:typed": "node scripts/checkTypedArchitecture.mjs",
+    "test:typed": "node --experimental-strip-types scripts/checkTypedEngine.mjs",
+    "verify:all-modern": "npm run verify:modern && npm run verify:modern:v3 && npm run verify:typed && npm run test:typed",
+    "verify:nextgen": "node scripts/checkNextGenRuntimeV2.mjs",
+    "check:nextgen": "npm run verify:nextgen && npm run typecheck:nextgen-modern && npm run test:nextgen-modern",
+    "verify:typed-platform-r9": "node scripts/checkTypedPlatformR9.mjs",
+    "test:typed-platform-r9": "npm test -- tests/modern/typedPlatformR9.test.ts",
+    "check:typed-platform-r9": "npm run verify:typed-platform-r9 && npm run test:typed-platform-r9 && npm run typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
 }
