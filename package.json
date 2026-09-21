@@ -26,7 +26,10 @@
     "check:typed-platform-r9": "npm run verify:typed-platform-r9 && npm run test:typed-platform-r9 && npm run typecheck",
     "verify:typed-runtime-ui-r10": "node scripts/checkTypedRuntimeUiMigrationR10.mjs",
     "test:typed-runtime-ui-r10": "npm test -- tests/modern/typedRuntimeUiMigrationR10.test.ts",
-    "check:typed-runtime-ui-r10": "npm run verify:typed-runtime-ui-r10 && npm run test:typed-runtime-ui-r10 && npm run typecheck"
+    "check:typed-runtime-ui-r10": "npm run verify:typed-runtime-ui-r10 && npm run test:typed-runtime-ui-r10 && npm run typecheck",
+    "verify:typed-world-r10": "node scripts/checkTypedWorldPlatformR10.mjs",
+    "test:typed-world-r10": "npm test -- tests/modern/typedWorldPlatformR10.test.ts",
+    "check:typed-world-r10": "npm run verify:typed-world-r10 && npm run test:typed-world-r10 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

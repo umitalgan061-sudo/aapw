@@ -71,7 +71,7 @@ import { disposeRiverMesh, disposeWaterfallMesh, updateFlowAnimation } from './w
 import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.ts';
 import { disposeRoadNetwork } from './world/roads.js';
 import { disposeVegetation } from './world/vegetation.js';
-import { disposeVillages } from './world/villages.js';
+import { disposeVillages } from './world/villages.ts';
 import { disposeIceLandmarks } from './world/iceLandmarks.js';
 // Run 371 — the mobile spawn-anchored vegetation disc itself (previously inlined here, using
 // `createVegetation`/`CHUNK_CONFIG` directly) moved to `mobileSpawnVegetation.js` to keep this file

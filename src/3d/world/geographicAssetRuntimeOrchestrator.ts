@@ -11,7 +11,7 @@ import {
   buildAssetBatchForSurface,
   validateDistributionManifest,
   replayDistributionDecision,
-} from './geographicAssetDistributionAdapter.js';
+} from './geographicAssetDistributionAdapter.ts';
 
 export const GEOGRAPHIC_ASSET_RUNTIME_POLICY = Object.freeze({
   id: 'geographic-asset-runtime-orchestrator-2026-09-14-v1',
