@@ -1,10 +1,14 @@
 // @ts-nocheck
 /**
+ * TypeScript production owner for the former animalConfig.js module.
+ * The sibling .js file remains only as a compatibility boundary for legacy imports.
+ */
+/**
  * `ANIMAL_CONFIG` (FAZ 6) — wild animals, see `gameplay/animals.js`. Split out of
  * `gameplay/gameplayConfig.js` (run 77, DECISIONS.md ADR-0100) once that file reached 597/600
  * lines — see `playerConfig.js`'s header for the full split rationale/precedent.
  * `gameplayConfig.js` re-exports this unchanged, so no importer of `ANIMAL_CONFIG` needed to change.
- * @module gameplay/animalConfig
+ * @module gameplay/animalConfig.ts
  */
 
 /** Wild animals (FAZ 6 — see `gameplay/animals.js`). Only the wolf is wired up so far; the `wolf`
@@ -342,3 +346,7 @@ export const ANIMAL_CONFIG = Object.freeze({
 		}),
 	]),
 });
+
+
+/** Strongly inferred immutable public contract for this configuration domain. */
+export type AnimalConfig = typeof ANIMAL_CONFIG;
