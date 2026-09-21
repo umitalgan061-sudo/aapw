@@ -48,7 +48,10 @@
     "typecheck:typed-legacy": "tsc -p tsconfig.typed-legacy.json --noEmit",
     "check:typescript-ownership": "npm run verify:typescript-ownership && npm run typecheck:typed-legacy",
     "check:nextgen-v14": "npm run check:typescript-ownership && npm run typecheck && npm test -- --passWithNoTests",
-    "build:full": "vite build"
+    "build:full": "vite build",
+    "verify:typed-world-surface-r12": "node scripts/checkTypedWorldSurfaceR12.mjs",
+    "test:typed-world-surface-r12": "npm test -- tests/modern/typedWorldSurfaceR12.test.ts",
+    "check:typed-world-surface-r12": "npm run verify:typed-world-surface-r12 && npm run test:typed-world-surface-r12 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
