@@ -23,7 +23,7 @@
  * @module gameplay/creatureLocomotionStateSynthesis
  */
 
-import { GAIT_LEG_PHASES } from './creatureGait.js';
+import { GAIT_LEG_PHASES } from './creatureGait.ts';
 
 export const CREATURE_LOCOMOTION_STATE_SYNTHESIS_VERSION = '2026-09-15-v1';
 
