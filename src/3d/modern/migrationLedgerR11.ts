@@ -1,28 +1,11 @@
-/** R11 production migration ledger for geographic distribution, roads and settlement-world presentation. */
-export const R11_MIGRATION_MODULES = Object.freeze([
-  { id:'geographic-distribution', legacyPath:'src/3d/world/geographicAssetDistributionAdapter.js', modernPath:'src/3d/world/geographicAssetDistributionAdapter.ts', status:'migrated' },
-  { id:'geographic-cluster-planner', legacyPath:'src/3d/world/geographicAssetClusterPlanner.js', modernPath:'src/3d/world/geographicAssetClusterPlanner.ts', status:'migrated' },
-  { id:'road-pathfinder', legacyPath:'src/3d/world/roadPathfinder.js', modernPath:'src/3d/world/roadPathfinder.ts', status:'migrated' },
-  { id:'roads', legacyPath:'src/3d/world/roads.js', modernPath:'src/3d/world/roads.ts', status:'migrated' },
-  { id:'villages', legacyPath:'src/3d/world/villages.js', modernPath:'src/3d/world/villages.ts', status:'migrated' },
-  { id:'settlement-prop-quality', legacyPath:'src/3d/world/geographicSettlementPropQuality.js', modernPath:'src/3d/world/geographicSettlementPropQuality.ts', status:'migrated' },
-  { id:'canonical-surface-visual', legacyPath:'src/3d/world/worldReferenceSurfaceTerrainVisual.js', modernPath:'src/3d/world/worldReferenceSurfaceTerrainVisual.ts', status:'migrated' },
+/** R11 strict TypeScript hardening ledger for adaptive rendering policies. */
+export const R11_STRICT_RENDER_MODULES = Object.freeze([
+  { id:'gpu-pressure', legacyPath:'src/3d/rendering/gpuPressureModel.js', typedPath:'src/3d/rendering/gpuPressureModel.ts', status:'strict' },
+  { id:'render-pass-budget', legacyPath:'src/3d/rendering/renderPassBudgetPlanner.js', typedPath:'src/3d/rendering/renderPassBudgetPlanner.ts', status:'strict' },
+  { id:'dynamic-resolution', legacyPath:'src/3d/rendering/dynamicResolutionGovernor.js', typedPath:'src/3d/rendering/dynamicResolutionGovernor.ts', status:'strict' },
 ] as const);
-
-export interface R11MigrationSnapshot {
-  readonly version: 10;
-  readonly migratedCount: number;
-  readonly totalTracked: number;
-  readonly coveragePercent: number;
-}
-
-export function getR11MigrationSnapshot(): R11MigrationSnapshot {
-  const totalTracked = R11_MIGRATION_MODULES.length;
-  const migratedCount = R11_MIGRATION_MODULES.filter(m => m.status === 'migrated').length;
-  return Object.freeze({
-    version: 10,
-    migratedCount,
-    totalTracked,
-    coveragePercent: totalTracked === 0 ? 100 : Number(((migratedCount / totalTracked) * 100).toFixed(2)),
-  });
+export interface R11StrictRenderSnapshot{readonly version:11;readonly strictCount:number;readonly totalTracked:number;readonly coveragePercent:number;}
+export function getR11StrictRenderSnapshot():R11StrictRenderSnapshot{
+ const totalTracked=R11_STRICT_RENDER_MODULES.length,strictCount=R11_STRICT_RENDER_MODULES.filter(m=>m.status==='strict').length;
+ return Object.freeze({version:11,strictCount,totalTracked,coveragePercent:totalTracked===0?100:Number(((strictCount/totalTracked)*100).toFixed(2))});
 }
