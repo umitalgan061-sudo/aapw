@@ -1,4 +1,4 @@
-import { buildChunkRuntimePlan, prepareBoundaryCarry, mergeWithBoundaryCarry, runtimePlanDigest, chunkBoundsFor } from './geographicAssetRuntimeOrchestrator.js';
+import { buildChunkRuntimePlan, prepareBoundaryCarry, mergeWithBoundaryCarry, runtimePlanDigest, chunkBoundsFor } from './geographicAssetRuntimeOrchestrator.ts';
 import { buildExecutionFrame, DEFAULT_EXECUTION_POLICY } from './geographicAssetRuntimeExecutionAdapter.js';
 import { auditPlan } from './geographicAssetRuntimeAudit.js';
 

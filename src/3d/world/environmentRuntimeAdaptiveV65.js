@@ -1,4 +1,4 @@
-import { planRuntime, runtimePlanDigest } from './geographicAssetRuntimeOrchestrator.js';
+import { planRuntime, runtimePlanDigest } from './geographicAssetRuntimeOrchestrator.ts';
 
 export const V65_ADAPTIVE_POLICY = Object.freeze({
   id: 'environment-runtime-adaptive-v65-2026-09-14',
