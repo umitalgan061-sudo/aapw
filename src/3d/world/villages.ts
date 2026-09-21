@@ -13,7 +13,7 @@ import { AssetLoader } from '../assetLoader.js';
 import { analyzeMaterialSurfaces } from '../materials/MaterialAssignmentCore.js';
 import { placeWorldAsset, WORLD_SURFACE_POLICY_PRESETS } from './WorldAssetPlacementPipeline.js';
 import { isPlaceablePosition } from './vegetation.ts';
-import { createStoneMaterial, createRoofMaterial } from './materials.js';
+import { createStoneMaterial, createRoofMaterial } from './materials.ts';
 
 const VILLAGE_OUTER_RADIUS_METERS = 210;
 const HAMLET_DISTANCE_MIN_METERS = 115;
