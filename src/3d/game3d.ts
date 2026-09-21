@@ -46,7 +46,7 @@ import { gameEvents } from './eventBus.ts';
 import { gameState } from './state.ts';
 import { AssetLoader } from './assetLoader.ts';
 import { EVENTS, WORLD_DEFAULTS, WORLD_SCALE } from './config.ts';
-import { PLAYER_CONFIG, INTERACTION_CONFIG } from './gameplay/gameplayConfig.js';
+import { PLAYER_CONFIG, INTERACTION_CONFIG } from './gameplay/gameplayConfig.ts';
 import { KeyboardInput } from './input.ts';
 import { TouchJoystick } from './ui/touchJoystick.js';
 import { InteractionPrompt } from './ui/interactionPrompt.js';
