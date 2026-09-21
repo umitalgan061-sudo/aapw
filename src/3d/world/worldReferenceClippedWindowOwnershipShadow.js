@@ -9,7 +9,7 @@
  */
 
 import * as THREE from 'three';
-import { createWater, updateWater, disposeWater } from './water.js';
+import { createWater, updateWater, disposeWater } from './water.ts';
 import { FULL_REFERENCE_WORLD_MIGRATION_PLAN } from './worldReferenceMigrationPlan.js';
 import {
 	CANONICAL_SCENE_SHADOW_POLICY,
