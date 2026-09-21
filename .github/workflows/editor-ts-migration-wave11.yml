@@ -1,0 +1,34 @@
+name: Kızıl Ufuk Editor TypeScript Migration Wave 11
+on:
+  push:
+    branches: ['main','agent/kizil-ufuk-ts-editor-wave11-20260921-r1']
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'src/3d/editor/EditorGamePatchPreviewGate.*'
+      - 'src/3d/editor/EditorInstanceEditCoordinatorSafe.*'
+      - 'src/3d/editor/EditorInstancePointerOwnership.*'
+      - 'src/3d/editor/EditorInstanceLifecycleSafety.*'
+      - 'scripts/checkEditorTsMigrationWave11.mjs'
+      - 'tests/modern/editorTsMigrationWave11.test.ts'
+      - '.github/workflows/editor-ts-migration-wave11.yml'
+permissions:
+  contents: read
+concurrency:
+  group: editor-ts-migration-wave11-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v5
+        with: {node-version: 24.21.0}
+      - run: npm install --no-audit --no-fund
+      - run: git fetch origin main --no-tags && git merge-base --is-ancestor origin/main "$GITHUB_SHA"
+      - run: test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - run: node scripts/checkEditorTsMigrationWave11.mjs
+      - run: npx tsc --noEmit --pretty false
+      - run: npx vitest run tests/modern/editorTsMigrationWave11.test.ts
