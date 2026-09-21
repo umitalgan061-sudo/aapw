@@ -97,12 +97,13 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 	}
 
 	function onDamage(payload: unknown): void {
-		const stagedResolution = readDamageResolution(payload);
-		const amount = stagedResolution?.amount ?? payload?.amount;
+		const eventPayload = isObjectPayload(payload) ? payload : null;
+		const stagedResolution = readDamageResolution(eventPayload);
+		const amount = stagedResolution?.amount ?? eventPayload?.amount;
 		if (!Number.isFinite(amount) || !(amount > 0)) {
 			if (stagedResolution) {
-				if (Number.isFinite(amount) && amount === 0) writeDamageAppliedAmount(payload, 0);
-				clearResolutionAfterSameEvent(payload);
+				if (Number.isFinite(amount) && amount === 0) writeDamageAppliedAmount(eventPayload, 0);
+				clearResolutionAfterSameEvent(eventPayload);
 			}
 			return;
 		}
@@ -112,10 +113,10 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 			return;
 		}
 		const previous = current;
-		const sourceId = readDamageSourceId(payload, stagedResolution);
+		const sourceId = eventPayload ? readDamageSourceId(eventPayload, stagedResolution) : null;
 		current = Math.max(0, current - amount);
 		const appliedAmount = previous - current;
-		writeDamageAppliedAmount(payload, appliedAmount);
+		writeDamageAppliedAmount(eventPayload, appliedAmount);
 		emitHealthChanged({ previous, reason: 'damage', sourceId });
 		if (current === 0 && !hasDied) {
 			hasDied = true;
