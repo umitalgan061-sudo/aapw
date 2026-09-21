@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { normalizePlayerInput, PLAYER_INPUT_PARITY_LIMITS } from '../src/3d/gameplay/playerInputParity.js';
+import { normalizePlayerInput, PLAYER_INPUT_PARITY_LIMITS } from '../src/3d/gameplay/playerInputIntentAdapter.js';
 
 const keyboard = normalizePlayerInput({ keyboard: { w: true, d: true, sprint: true, lightPressed: true } });
 assert.equal(keyboard.sprint, true);
 assert.equal(keyboard.lightPressed, true);
 assert.equal(keyboard.moveX, 1);
-assert.equal(keyboard.moveZ, 1);
+assert.equal(keyboard.moveZ, -1);
 
 const gamepad = normalizePlayerInput({ gamepad: { leftStick: { x: 0.5, y: -0.5 }, guard: true } });
 assert.ok(gamepad.moveX > 0 && gamepad.moveZ < 0);
