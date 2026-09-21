@@ -106,10 +106,10 @@ async function main() {
     }
 
     const banned = [
-      /Math\\.random\\s*\\(/,
-      /eval\\s*\\(/,
-      /new\\s+Function\\s*\\(/,
-      /globalThis\\.crypto\\.getRandomValues\\s*\\(/,
+      /Math\.random\s*\(/,
+      /eval\s*\(/,
+      /new\s+Function\s*\(/,
+      /globalThis\.crypto\.getRandomValues\s*\(/,
     ];
     for (const expression of banned) {
       if (expression.test(source)) {
