@@ -1,3 +1,4 @@
+import { getR16StrictRuntimeSnapshot } from '../src/3d/modern/migrationLedgerR16.ts';
 import { readFile } from 'node:fs/promises';
 
 const files = [
@@ -41,3 +42,9 @@ console.log(JSON.stringify({
   strictOwners: files.length,
   escapeHatches: 0,
 }));
+
+const ledger = getR16StrictRuntimeSnapshot();
+if (ledger.coveragePercent !== 100 || ledger.strictOwners !== ledger.tracked) {
+  console.error('R16 migration ledger is not fully strict.');
+  process.exit(1);
+}
