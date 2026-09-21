@@ -1,0 +1,38 @@
+name: Safak Kartali Fauna Perception
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaPerceptionPolicy.js'
+      - 'scripts/checkSafakKartaliFaunaPerceptionPolicy.mjs'
+      - '.github/workflows/safak-kartali-fauna-perception.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact main ancestry
+        run: |
+          git fetch origin main --depth=1
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Scope guard
+        run: |
+          changed=$(git diff --numstat origin/main...HEAD | awk '{add += $1; del += $2} END {print add + del}')
+          test "$changed" -le 3000
+          git diff --name-only origin/main...HEAD | grep -Ev '^(src/3d/gameplay/livingWorldFaunaPerceptionPolicy.js|scripts/checkSafakKartaliFaunaPerceptionPolicy.mjs|\.github/workflows/safak-kartali-fauna-perception.yml)$' && exit 1 || true
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/livingWorldFaunaPerceptionPolicy.js
+          node --check scripts/checkSafakKartaliFaunaPerceptionPolicy.mjs
+      - name: Runtime/editor boundary
+        run: |
+          ! grep -nE "EditorMaterialStudio|document\\.|window\\.|Math\\.random" src/3d/gameplay/livingWorldFaunaPerceptionPolicy.js
+      - name: Executable deterministic proof
+        run: node scripts/checkSafakKartaliFaunaPerceptionPolicy.mjs
