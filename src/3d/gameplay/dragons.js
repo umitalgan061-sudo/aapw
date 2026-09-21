@@ -106,5 +106,5 @@
  * @module gameplay/dragons
  */
 
-export { createDragon } from './dragonController.js';
+export { createDragon } from './dragonController.ts';
 export { spawnConfiguredDragons } from './dragonSpawns.js';
