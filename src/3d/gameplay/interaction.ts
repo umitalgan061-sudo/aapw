@@ -23,7 +23,7 @@ import {
 	REST_KIND,
 	buildJourneyRestText,
 	evaluateJourneyWithRestStops,
-} from './interactionFieldReadiness.js';
+} from './interactionFieldReadiness.ts';
 
 const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3', 'Digit4'];
 const QUEST_STATUS = Object.freeze({
