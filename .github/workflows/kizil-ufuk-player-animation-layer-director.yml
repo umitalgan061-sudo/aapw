@@ -1,0 +1,26 @@
+name: Kizil Ufuk Player Animation Layer Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerAnimationLayerDirector.js'
+      - 'scripts/checkKizilUfukPlayerAnimationLayerDirector.mjs'
+      - '.github/workflows/kizil-ufuk-player-animation-layer-director.yml'
+  push:
+    branches:
+      - main
+      - 'agent/**'
+    paths:
+      - 'src/3d/gameplay/playerAnimationLayerDirector.js'
+      - 'scripts/checkKizilUfukPlayerAnimationLayerDirector.mjs'
+      - '.github/workflows/kizil-ufuk-player-animation-layer-director.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/checkKizilUfukPlayerAnimationLayerDirector.mjs
