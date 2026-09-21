@@ -20,7 +20,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import {
 	classifyReferenceBaseSurface,
 	referencePindexFromNormalizedX,
-} from './worldReferenceSurfacePindexes.js';
+} from './worldReferenceSurfacePindexes.ts';
 import { GEOGRAPHIC_REFERENCE_PALETTE, GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './geographicReferencePalette.js';
 
 export const WORLD_REFERENCE_SURFACE_VISUAL_POLICY = Object.freeze({
@@ -311,7 +311,7 @@ export function installRuntimePindexTerrainPolish() {
 
 // Pindex Quality V2 remains the canonical atlas owner; the additions below only make its blend
 // respond to the real rendered surface orientation instead of laying a flat colour sheet over it.
-import { REFERENCE_PINDEX_QUALITY_V2_POLICY, sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
+import { REFERENCE_PINDEX_QUALITY_V2_POLICY, sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.ts';
 
 export const RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY = Object.freeze({
 	id: 'terrain-pindex-quality-v2-runtime-2026-08-12-v2',
