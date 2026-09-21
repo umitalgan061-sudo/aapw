@@ -22,7 +22,7 @@ import {
 	speciesCompetitionScore,
 	normalizeEcologyContext,
 	ecologyDigest,
-} from './livingWorldEcologyPolicy.js';
+} from './livingWorldEcologyPolicy.ts';
 
 const freeze = (value) => Object.freeze(value);
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
