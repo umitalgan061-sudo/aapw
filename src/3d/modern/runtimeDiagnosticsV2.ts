@@ -97,7 +97,7 @@ export const diagnoseRuntime = (input: RuntimeDiagnosticInput): RuntimeDiagnosti
 
   const score = bounded(100 - penalty, 0, 100);
   return Object.freeze({
-    timestamp: input.now ?? Date.now(),
+    timestamp: Number.isFinite(input.now) ? input.now : 0,
     score: Number(score.toFixed(1)),
     issues,
     health: Object.freeze({ frameTimeMs: input.frameTimeMs, targetFrameMs: target, memoryMb: input.memoryMb ?? null, residentChunkBytes: input.chunks.residentBytes, spatialItems: input.spatial.items }),
@@ -118,7 +118,7 @@ export class MetricRing {
   readonly #capacity: number;
   readonly #values: RingSample[] = [];
   constructor(capacity = 180) { this.#capacity = Math.max(8, Math.floor(capacity)); }
-  push(value: number, timestamp = Date.now()): void {
+  push(value: number, timestamp = 0): void {
     this.#values.push(Object.freeze({ timestamp, value: Number.isFinite(value) ? value : 0 }));
     while (this.#values.length > this.#capacity) this.#values.shift();
   }

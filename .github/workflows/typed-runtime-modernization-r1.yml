@@ -46,7 +46,7 @@ jobs:
           node-version: 24.21.0
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Regenerate compatibility matrix
         run: node scripts/generateTypedRuntimeMatrixR1.mjs

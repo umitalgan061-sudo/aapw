@@ -1,5 +1,4 @@
 /** Production TypeScript player combat and locomotion state machine. */
-import * as THREE from 'three';
 /**
  * Playable third-person character controller.
  * Reuses the shipped peasant_girl idle/walk/run family, real ground/collider contracts and the
@@ -18,7 +17,7 @@ import { readDamageResolution, stageDamageResolution } from './health.js';
 
 export type PlayerAttackKind = 'none' | 'light' | 'heavy';
 export type PlayerDefenseState = 'none' | 'hit' | 'dodge' | 'parry' | 'guard' | 'guard-break' | 'hit-stagger';
-export type PlayerMovementState = 'idle' | 'walk' | 'sprint' | 'exhausted' | 'airborne' | 'guard' | 'dodge' | 'parry' | 'guard-break' | 'hit-stagger' | \`attack-\0\`;
+export type PlayerMovementState = 'idle' | 'walk' | 'sprint' | 'exhausted' | 'airborne' | 'guard' | 'dodge' | 'parry' | 'guard-break' | 'hit-stagger' | `attack-${'light' | 'heavy'}`;
 
 export interface PlayerSpawn { readonly x: number; readonly z: number; }
 export interface DamagePayload { readonly amount?: number; readonly appliedAmount?: number; readonly sourceId?: string | null; readonly [key: string]: unknown; }

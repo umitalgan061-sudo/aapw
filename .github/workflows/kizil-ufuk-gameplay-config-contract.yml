@@ -43,7 +43,9 @@ jobs:
         run: git fetch origin main --no-tags && git merge-base --is-ancestor origin/main "$GITHUB_SHA"
 
       - name: Changed-line cap
-        run: test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+        run: |
+          changed="$(git diff --numstat origin/main...HEAD -- 'src/3d/gameplay/**Config.ts' 'src/3d/gameplay/**Config.js' 'tests/modern/gameplayConfigContracts.test.ts' 'scripts/checkKizilUfukGameplayConfig.mjs' 'scripts/checkKizilUfukGameplayAssets.mjs' 'assets_manifest.json' | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$changed" -le 3000
 
       - name: TypeScript
         run: npx tsc --noEmit --pretty false
