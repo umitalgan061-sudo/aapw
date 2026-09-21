@@ -1,0 +1,27 @@
+name: Kızıl Ufuk Strict TypeScript Hardening R10
+on:
+  pull_request:
+    paths:
+      - 'src/3d/ui/interactionPrompt.ts'
+      - 'src/3d/ui/touchJoystick.ts'
+      - 'src/3d/ui/healthBar.ts'
+      - 'src/3d/safeMode.ts'
+      - 'src/3d/game3d.ts'
+      - 'src/3d/modern/migrationLedgerR10.ts'
+      - 'scripts/checkStrictTsHardeningR10.mjs'
+      - 'tests/modern/strictTsHardeningR10.test.ts'
+      - 'package.json'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install
+      - run: node scripts/checkStrictTsHardeningR10.mjs
+      - run: npm run typecheck
+      - run: npm test -- tests/modern/strictTsHardeningR10.test.ts
