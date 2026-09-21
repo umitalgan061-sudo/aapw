@@ -23,11 +23,12 @@
  * Exit 1 = records are missing, disagree unexpectedly, or the inherited baseline cannot be proven.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { execFileSync } = require('child_process');
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CHECKPOINT_FILES = Object.freeze(['3D_GAME_PROGRESS.md', 'STABLE_TAGS.md', 'perf_log.csv']);
 
 function read(relativePath) {
@@ -164,7 +165,7 @@ function main() {
 	);
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
 
 /**
  * Run287 additive-only compatibility extension.
@@ -219,3 +220,4 @@ function maxRunFromPerfCsv(text) {
 	}
 	return runs.length ? Math.max(...runs) : null;
 }
+export { maxRunFromProgress, maxRunFromStableTags, maxRunFromPerfCsv };
