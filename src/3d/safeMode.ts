@@ -1,5 +1,4 @@
 /** Production TypeScript owner for bounded frame-loop safe mode; legacy JS path remains compatibility-only. */
-// @ts-nocheck
 /**
  * safeMode.js — GOVERNANCE.md §8.13 ("Hata Sınırı / Güvenli Mod") helpers, extracted from
  * `game3d.js`'s `tick()` (run 82, DECISIONS.md ADR-0105).
@@ -58,7 +57,7 @@ const SAFE_MODE_NOTE = '(GOVERNANCE.md §8.13 safe mode), rest of the game conti
  * @returns {Array<object>} `entities` unchanged when nothing threw (the overwhelmingly common case,
  *   so no allocation on a healthy frame), otherwise a new list without the failed entities.
  */
-export function updateEntitiesSafely({ entities, scene, label, update }) {
+export function updateEntitiesSafely({ entities, scene, label, update }: SafeModeEntityOptions): readonly SafeModeEntity[] {
 	let anyFailed = false;
 	for (const entity of entities) {
 		try {
@@ -109,7 +108,7 @@ export function updateEntitiesSafely({ entities, scene, label, update }) {
  *   are idempotent).
  * @returns {boolean} The new disabled state — `true` once this system has thrown, else `disabled`.
  */
-export function updateSystemSafely({ disabled, label, update, disposeOnError }) {
+export function updateSystemSafely({ disabled, label, update, disposeOnError }: SafeModeSystemOptions): boolean {
 	if (disabled) return true;
 	try {
 		update();
