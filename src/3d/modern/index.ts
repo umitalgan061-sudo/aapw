@@ -71,3 +71,4 @@ export * from './weatherRuntime';
 export * from './worldChunkRuntime';
 export * from './worldInvariantV2';
 export * from './worldSpatialIndex';
+export * from './app/index.ts';
