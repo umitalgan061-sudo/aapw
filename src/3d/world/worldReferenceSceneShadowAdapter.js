@@ -10,11 +10,11 @@
 
 import * as THREE from 'three';
 import { WORLD_DEFAULTS, SETTLEMENT_CONFIG } from '../config.js';
-import { createHeightSampler } from './terrain.js';
+import { createHeightSampler } from './terrain.ts';
 import { KINGDOM_SEATS, computeSettlementFlattenPads, mapToWorldXZ } from './settlements.js';
 import { computeSeatMST } from './roads.js';
 import { findSlopeAwarePath } from './roadPathfinder.js';
-import { createWater, updateWater, disposeWater } from './water.js';
+import { createWater, updateWater, disposeWater } from './water.ts';
 import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
 import { referenceProtectionRadiiFromMeters, sampleSeatSafeReferenceHydrology } from './worldReferenceHydrology.js';
 import {
