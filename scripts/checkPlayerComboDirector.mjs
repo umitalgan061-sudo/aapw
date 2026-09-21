@@ -5,8 +5,13 @@ import {
   resolvePlayerComboTransition,
   validatePlayerComboFrame,
 } from '../src/3d/gameplay/playerComboDirector.ts';
+import { resolvePlayerEquipmentCombatProfile } from '../src/3d/gameplay/playerEquipmentCombatProfile.ts';
 
-const profile = { mainHand: { id: 'armingSword' }, chest: { id: 'leather' }, offHand: { id: 'buckler' } };
+const profile = resolvePlayerEquipmentCombatProfile({
+  mainHand: { id: 'armingSword' },
+  chest: { id: 'leather' },
+  offHand: { id: 'buckler' },
+});
 
 const first = resolvePlayerComboFrame(profile, {
   requestedKind: 'light',
