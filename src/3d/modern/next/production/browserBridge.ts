@@ -1,7 +1,6 @@
 import type { InputFrame, Tick, Vec3 } from '../types.ts';
 import { InputButton } from '../input.ts';
 import type {
-  ProductionFrameInput,
   ProductionFrameResult,
   RuntimeEventBus,
   RuntimeFault,
@@ -57,7 +56,6 @@ export interface BridgeFrameContext {
   readonly streamingMs?: number;
   readonly networkMs?: number;
   readonly renderMs?: number;
-  readonly memoryBytes?: number;
 }
 
 export interface BridgeStats {
@@ -80,10 +78,7 @@ export class LegacyRuntimeBridge {
   #unbind: Array<() => void> = [];
   #legacy: LegacyGameStateLike | undefined;
 
-  constructor(
-    runtime: ProductionRuntimeController = createProductionRuntimeController(),
-    legacy?: LegacyGameStateLike,
-  ) {
+  constructor(runtime: ProductionRuntimeController = createProductionRuntimeController(), legacy?: LegacyGameStateLike) {
     this.runtime = runtime;
     this.events = runtime.events;
     this.#legacy = legacy;
@@ -100,9 +95,7 @@ export class LegacyRuntimeBridge {
     }));
     this.#unbind.push(this.events.on('health', (health) => this.#applyHealth(health)));
     this.#unbind.push(this.events.on('renderPlan', (plan) => {
-      if (legacy.renderer?.info?.render) {
-        legacy.renderer.info.render.calls = plan.commands.length;
-      }
+      if (legacy.renderer?.info?.render) legacy.renderer.info.render.calls = plan.commands.length;
     }));
     legacy.paused = this.runtime.health().mode === 'paused';
   }
@@ -138,8 +131,9 @@ export class LegacyRuntimeBridge {
     if (!this.#attached && this.#legacy) this.attach(this.#legacy);
     if (this.#legacy) this.#syncLegacyEntities(this.#legacy);
     this.#frames += 1;
+    const paused = context.paused ?? this.#legacy?.paused ?? false;
     const result = await this.runtime.frame({
-      deltaSeconds: context.paused ?? this.#legacy?.paused ? 0 : context.deltaSeconds,
+      deltaSeconds: paused ? 0 : context.deltaSeconds,
       wallTimeMs: context.nowMs,
       input: context.input,
       budget: {
@@ -155,12 +149,7 @@ export class LegacyRuntimeBridge {
     return result;
   }
 
-  feedKeyboardLikeInput(
-    tickValue: Tick,
-    axes: { x: number; z: number },
-    buttons = 0,
-    look = { x: 0, y: 0 },
-  ): boolean {
+  feedKeyboardLikeInput(tickValue: Tick, axes: { x: number; z: number }, buttons = 0, look = { x: 0, y: 0 }): boolean {
     return this.runtime.submitInput({
       tick: tickValue,
       moveX: clampAxis(axes.x),
@@ -174,35 +163,25 @@ export class LegacyRuntimeBridge {
   importEntity(entity: LegacyEntityLike): number | undefined {
     const id = normalizeEntityId(entity.id);
     const position = normalizePosition(entity.object3D?.position);
-    if (id === undefined) {
-      const created = this.runtime.createEntity({
-        position,
-        yawRadians: entity.object3D?.rotation?.y ?? 0,
-        health: entity.health ?? 100,
-        stamina: entity.stamina ?? 100,
-        flags: entity.flags ?? 0,
-      });
-      this.#importedEntities += 1;
-      return created;
-    }
-    const created = this.runtime.entities.upsert({
-      id,
+    const payload = {
+      id: id ?? undefined,
       position,
       yawRadians: entity.object3D?.rotation?.y ?? 0,
       health: entity.health ?? 100,
       stamina: entity.stamina ?? 100,
       flags: entity.flags ?? 0,
-    });
+    };
+    const created = this.runtime.entities.upsert(payload);
+    const state = this.runtime.entities.get(created);
+    if (state) this.runtime.runtime.indexEntity(created, state.transform.position.x, state.transform.position.z, state.transform.radiusMeters);
     this.#importedEntities += 1;
     return created;
   }
 
   importEntities(entities: readonly LegacyEntityLike[]): number {
     let count = 0;
-    const sorted = [...entities].sort((a, b) => normalizeEntityId(a.id) ?? Number.MAX_SAFE_INTEGER - (normalizeEntityId(b.id) ?? Number.MAX_SAFE_INTEGER));
-    for (const entity of sorted) {
-      if (this.importEntity(entity) !== undefined) count += 1;
-    }
+    const sorted = [...entities].sort(compareLegacyEntities);
+    for (const entity of sorted) if (this.importEntity(entity) !== undefined) count += 1;
     return count;
   }
 
@@ -233,48 +212,50 @@ export class LegacyRuntimeBridge {
   #syncLegacyEntities(legacy: LegacyGameStateLike): void {
     const entities = legacy.entities ?? [];
     if (entities.length === 0 && legacy.player?.object3D) {
-      const player = legacy.player.object3D;
-      const id = this.runtime.entities.visibleIds()[0] ?? this.runtime.createEntity({
-        position: normalizePosition(player.position),
-        yawRadians: player.rotation?.y ?? 0,
+      const visible = this.runtime.entities.visibleIds();
+      const id = visible[0] ?? this.runtime.createEntity({
+        position: normalizePosition(legacy.player.object3D.position),
+        yawRadians: legacy.player.object3D.rotation?.y ?? 0,
       });
-      this.runtime.moveEntity(id, normalizePosition(player.position), undefined);
+      this.runtime.moveEntity(id, normalizePosition(legacy.player.object3D.position));
       return;
     }
-    const bounded = entities.slice(0, this.runtime.entities.limits.maxEntities);
-    this.importEntities(bounded);
+    this.importEntities(entities.slice(0, this.runtime.entities.limits.maxEntities));
   }
 
   #applyResult(result: ProductionFrameResult): void {
     const legacy = this.#legacy;
     if (!legacy) return;
-    legacy.elapsedSeconds = this.runtime.snapshot().simTimeSeconds;
+    legacy.elapsedSeconds = result.health.clock.simTimeSeconds;
     legacy.paused = result.mode === 'paused';
     legacy.qualityTier = result.renderPlan.tier;
     if (legacy.camera?.position) {
-      const cameraState = this.runtime.camera.state;
-      legacy.camera.position.x = cameraState.position.x;
-      legacy.camera.position.y = cameraState.position.y;
-      legacy.camera.position.z = cameraState.position.z;
+      const state = this.runtime.camera.state;
+      legacy.camera.position.x = state.position.x;
+      legacy.camera.position.y = state.position.y;
+      legacy.camera.position.z = state.position.z;
     }
-    const renderInfo = legacy.renderer?.info;
-    if (renderInfo?.render) {
-      renderInfo.render.calls = result.renderPlan.commands.length;
-      renderInfo.render.triangles = result.renderPlan.commands.reduce((sum, command) => sum + (command.lod === 0 ? 24 : command.lod === 1 ? 12 : 6), 0);
+    if (legacy.renderer?.info?.render) {
+      legacy.renderer.info.render.calls = result.renderPlan.commands.length;
+      legacy.renderer.info.render.triangles = result.renderPlan.commands.reduce((sum, command) => sum + (command.lod === 0 ? 24 : command.lod === 1 ? 12 : 6), 0);
     }
   }
 
   #applyFault(fault: RuntimeFault): void {
-    const legacy = this.#legacy;
-    if (!legacy) return;
-    if (fault.subsystem === 'render') legacy.qualityTier = 'safe';
-    if (fault.subsystem === 'simulation') legacy.paused = true;
+    if (!this.#legacy) return;
+    if (fault.subsystem === 'render') this.#legacy.qualityTier = 'safe';
+    if (fault.subsystem === 'simulation') this.#legacy.paused = true;
   }
 
   #applyHealth(health: RuntimeHealthReport): void {
-    if (!this.#legacy) return;
-    if (health.mode === 'faulted') this.#legacy.paused = true;
+    if (this.#legacy && health.mode === 'faulted') this.#legacy.paused = true;
   }
+}
+
+function compareLegacyEntities(a: LegacyEntityLike, b: LegacyEntityLike): number {
+  const left = normalizeEntityId(a.id) ?? Number.MAX_SAFE_INTEGER;
+  const right = normalizeEntityId(b.id) ?? Number.MAX_SAFE_INTEGER;
+  return left - right || String(a.id ?? '').localeCompare(String(b.id ?? ''));
 }
 
 function normalizeEntityId(value: number | string | undefined): number | undefined {
@@ -285,11 +266,7 @@ function normalizeEntityId(value: number | string | undefined): number | undefin
 }
 
 function normalizePosition(value: Partial<Vec3> | undefined): Vec3 {
-  return {
-    x: finite(value?.x),
-    y: finite(value?.y),
-    z: finite(value?.z),
-  };
+  return { x: finite(value?.x), y: finite(value?.y), z: finite(value?.z) };
 }
 
 function finite(value: number | undefined): number {
@@ -326,10 +303,7 @@ export function detectBrowserAdapters(): BrowserRuntimeAdapters {
   };
 }
 
-export function createLegacyRuntimeBridge(
-  legacy?: LegacyGameStateLike,
-  config: ProductionBridgeConfig = {},
-): LegacyRuntimeBridge {
+export function createLegacyRuntimeBridge(legacy?: LegacyGameStateLike, config: ProductionBridgeConfig = {}): LegacyRuntimeBridge {
   const adapters = detectBrowserAdapters();
   const controller = createProductionRuntimeController({
     identity: config.identity,
