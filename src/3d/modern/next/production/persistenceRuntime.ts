@@ -384,7 +384,7 @@ function normalizeSaveState(state: SaveState, maxBytes: number): SaveState {
       updatedTick: tick(entity.updatedTick),
     })),
     tick: tick(state.tick),
-    custom: state.custom ? sanitizeCustom(state.custom) : undefined,
+    ...(state.custom ? { custom: sanitizeCustom(state.custom) } : {}),
   };
   const bytes = new TextEncoder().encode(JSON.stringify(normalized)).byteLength;
   if (bytes > maxBytes) throw new Error('save state exceeds normalized byte budget');
