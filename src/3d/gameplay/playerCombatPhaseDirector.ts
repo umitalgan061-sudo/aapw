@@ -10,6 +10,7 @@ import {
 } from './playerEquipmentCombatRules.ts';
 
 export type CombatPhaseKind = 'light' | 'heavy' | 'guard' | 'parry' | 'dodge' | 'ranged';
+export type CombatPhaseName = 'startup' | 'active' | 'recovery' | 'complete';
 
 export interface CombatPhaseInput {
   kind?: CombatPhaseKind;
@@ -36,6 +37,13 @@ export interface CombatPhaseFrame {
   staminaCost: number;
   invulnerable: boolean;
   ranged: boolean;
+}
+
+export interface CombatPhaseReceipt {
+  phase: CombatPhaseName;
+  normalizedTime: number;
+  remaining: number;
+  invulnerable: boolean;
 }
 
 const clamp = (value: unknown, min: number, max: number, fallback: number): number => {
@@ -137,6 +145,26 @@ export function resolvePlayerCombatPhase(input: CombatPhaseInput = {}): CombatPh
     staminaCost: envelope.staminaCost,
     invulnerable: false,
     ranged: false,
+  });
+}
+
+export function resolvePlayerCombatPhaseAtTime(frame: CombatPhaseFrame, elapsedSeconds: number): CombatPhaseReceipt {
+  const elapsed = Math.max(0, Number.isFinite(elapsedSeconds) ? elapsedSeconds : 0);
+  const startupEnd = frame.startup;
+  const activeEnd = frame.startup + frame.active;
+  const normalizedTime = frame.total > 0 ? Math.min(1, elapsed / frame.total) : 1;
+  const phase: CombatPhaseName = elapsed < startupEnd
+    ? 'startup'
+    : elapsed < activeEnd
+      ? 'active'
+      : elapsed < frame.total
+        ? 'recovery'
+        : 'complete';
+  return freeze({
+    phase,
+    normalizedTime: Number(normalizedTime.toFixed(4)),
+    remaining: Number(Math.max(0, frame.total - elapsed).toFixed(4)),
+    invulnerable: frame.invulnerable && phase === 'active',
   });
 }
 
