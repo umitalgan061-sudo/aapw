@@ -12,37 +12,63 @@ function numeric(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : fallback;
 }
 
-/** Capability negotiation that never assumes WebGPU merely because the browser exposes the API. */
-export async function negotiateRenderCapabilities(options: { readonly canvas?: HTMLCanvasElement } = {}): Promise<RenderCapabilities> {
+export interface RenderCapabilityOptions {
+  readonly canvas?: HTMLCanvasElement;
+  /**
+   * Hint from the concrete renderer factory. The hint prevents capability negotiation from
+   * reporting an available WebGPU adapter when the scene is actually rendered through WebGL2.
+   */
+  readonly backendHint?: Extract<RenderBackend, 'webgpu' | 'webgl2' | 'headless'>;
+}
+
+/** Capability negotiation that reflects the backend actually selected by the renderer boundary. */
+export async function negotiateRenderCapabilities(options: RenderCapabilityOptions = {}): Promise<RenderCapabilities> {
   const canvas = options.canvas;
-  const navigatorGpu = typeof navigator !== 'undefined' ? navigator.gpu : undefined;
-  if (navigatorGpu) {
-    try {
-      const adapter = await navigatorGpu.requestAdapter({ powerPreference: 'high-performance' });
-      if (adapter) {
-        const device = await adapter.requestDevice();
-        const limits = adapter.limits;
-        device.destroy();
-        return {
-          backend: 'webgpu',
-          webgpu: true,
-          timestampQueries: adapter.features.has('timestamp-query'),
-          floatTextures: adapter.features.has('float32-filterable'),
-          depthTexture: true,
-          instancing: true,
-          compressedTextures: adapter.features.has('texture-compression-bc') || adapter.features.has('texture-compression-etc2'),
-          limits: {
-            maxTextureDimension2D: numeric(limits.maxTextureDimension2D, FALLBACK_LIMITS.maxTextureDimension2D),
-            maxUniformBufferBindingSize: numeric(limits.maxUniformBufferBindingSize, FALLBACK_LIMITS.maxUniformBufferBindingSize),
-            maxSampledTexturesPerShaderStage: numeric(limits.maxSampledTexturesPerShaderStage, FALLBACK_LIMITS.maxSampledTexturesPerShaderStage),
-            maxColorAttachments: numeric(limits.maxColorAttachments, FALLBACK_LIMITS.maxColorAttachments),
-            maxBindGroups: numeric(limits.maxBindGroups, FALLBACK_LIMITS.maxBindGroups),
-          },
-        };
+  const backendHint = options.backendHint;
+
+  if (backendHint !== 'webgl2' && backendHint !== 'headless') {
+    const navigatorGpu = typeof navigator !== 'undefined' ? navigator.gpu : undefined;
+    if (navigatorGpu) {
+      try {
+        const adapter = await navigatorGpu.requestAdapter({ powerPreference: 'high-performance' });
+        if (adapter) {
+          const device = await adapter.requestDevice();
+          const limits = adapter.limits;
+          device.destroy();
+          return {
+            backend: 'webgpu',
+            webgpu: true,
+            timestampQueries: adapter.features.has('timestamp-query'),
+            floatTextures: adapter.features.has('float32-filterable'),
+            depthTexture: true,
+            instancing: true,
+            compressedTextures: adapter.features.has('texture-compression-bc') || adapter.features.has('texture-compression-etc2'),
+            limits: {
+              maxTextureDimension2D: numeric(limits.maxTextureDimension2D, FALLBACK_LIMITS.maxTextureDimension2D),
+              maxUniformBufferBindingSize: numeric(limits.maxUniformBufferBindingSize, FALLBACK_LIMITS.maxUniformBufferBindingSize),
+              maxSampledTexturesPerShaderStage: numeric(limits.maxSampledTexturesPerShaderStage, FALLBACK_LIMITS.maxSampledTexturesPerShaderStage),
+              maxColorAttachments: numeric(limits.maxColorAttachments, FALLBACK_LIMITS.maxColorAttachments),
+              maxBindGroups: numeric(limits.maxBindGroups, FALLBACK_LIMITS.maxBindGroups),
+            },
+          };
+        }
+      } catch {
+        // A denied or reset WebGPU adapter is a valid runtime condition. Continue to WebGL2.
       }
-    } catch {
-      // A denied or reset WebGPU adapter is a valid runtime condition. Continue to WebGL2.
     }
+  }
+
+  if (backendHint === 'headless') {
+    return {
+      backend: 'headless',
+      webgpu: false,
+      timestampQueries: false,
+      floatTextures: false,
+      depthTexture: false,
+      instancing: false,
+      compressedTextures: false,
+      limits: FALLBACK_LIMITS,
+    };
   }
 
   const context = canvas?.getContext('webgl2', { antialias: true, powerPreference: 'high-performance' });

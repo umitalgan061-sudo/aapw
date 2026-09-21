@@ -1,9 +1,9 @@
-import type { CameraState, RenderCapabilities, QualityTier, PressureState, RuntimeSnapshot, FrameId } from './types';
+import type { CameraState, RenderCapabilities, QualityTier, RuntimeSnapshot, FrameId } from './types';
 import { platformEvents } from './eventBus';
 import { modernState } from './stateStore';
 import { AdaptiveQualityController } from './qualityController';
 import { calculatePressure, RollingTelemetry } from './telemetry';
-import { negotiateRenderCapabilities, recommendQuality } from './capabilities';
+import { negotiateRenderCapabilities, recommendQuality, type RenderCapabilityOptions } from './capabilities';
 import { FixedStepClock } from './deterministic';
 
 export interface RuntimeServices {
@@ -15,6 +15,7 @@ export interface RuntimeServices {
 
 export interface ModernRuntimeOptions {
   readonly canvas?: HTMLCanvasElement;
+  readonly backendHint?: RenderCapabilityOptions['backendHint'];
   readonly initialQuality?: QualityTier;
   readonly maxTelemetrySamples?: number;
 }
@@ -24,7 +25,7 @@ export interface ModernRuntimeOptions {
  * renderer; instead it supplies typed decisions and metrics to the renderer that already exists.
  */
 export async function createModernRuntime(options: ModernRuntimeOptions = {}): Promise<RuntimeServices> {
-  const capabilities = await negotiateRenderCapabilities({ canvas: options.canvas });
+  const capabilities = await negotiateRenderCapabilities({ canvas: options.canvas, backendHint: options.backendHint });
   const initialQuality = options.initialQuality ?? recommendQuality(capabilities);
   const quality = new AdaptiveQualityController({ initial: initialQuality, min: 'minimal', max: 'ultra' });
   const telemetry = new RollingTelemetry({ maxSamples: options.maxTelemetrySamples ?? 360 });
@@ -72,9 +73,7 @@ export function tickModernRuntime(services: RuntimeServices, input: RuntimeFrame
     thermalPressure: pressure.thermal,
   });
   modernState.patch({ quality: tier, fps: input.frameMs > 0 ? 1000 / input.frameMs : 0, frameMs: input.frameMs });
-  if (previous !== tier) {
-    platformEvents.emit('render:quality', { previous, next: tier, reason: `pressure=${pressure.combined.toFixed(3)}` });
-  }
+  if (previous !== tier) platformEvents.emit('render:quality', { previous, next: tier, reason: `pressure=${pressure.combined.toFixed(3)}` });
   platformEvents.emit('render:pressure', pressure);
   return {
     version: 1,
@@ -87,6 +86,7 @@ export function tickModernRuntime(services: RuntimeServices, input: RuntimeFrame
       { name: 'render.scale', value: services.quality.decision.renderScale, unit: 'ratio' },
       { name: 'frame.ms', value: input.frameMs, unit: 'ms' },
       { name: 'cpu.ms', value: input.cpuMs, unit: 'ms' },
+      ...(input.gpuMs === undefined ? [] : [{ name: 'gpu.ms', value: input.gpuMs, unit: 'ms' }]),
       { name: 'draw.calls', value: input.drawCalls, unit: 'count' },
       { name: 'triangles', value: input.triangles, unit: 'count' },
     ],

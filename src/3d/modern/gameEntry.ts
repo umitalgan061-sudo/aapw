@@ -3,6 +3,7 @@ import { createModernRuntime, tickModernRuntime, type RuntimeFrameInput, type Ru
 import { installEntryGate, type EntryGateController } from './entryGate';
 import { platformEvents } from './eventBus';
 import { modernState } from './stateStore';
+import { readLegacyRenderMetrics, RendererPresentationBridge, type RendererPresentationLike } from './rendererPresentationBridge';
 
 export interface Game3DEntryOptions {
   readonly canvas?: HTMLCanvasElement;
@@ -29,6 +30,12 @@ export interface LegacyEventBusModule {
   readonly EVENTS?: Readonly<Record<string, string>>;
 }
 
+interface LegacyGameStateLike {
+  readonly renderer?: RendererPresentationLike;
+}
+
+let activeSession: ModernGame3DSession | undefined;
+
 export interface ModernGame3DSession {
   readonly runtime: RuntimeServices;
   readonly gate?: EntryGateController;
@@ -53,47 +60,73 @@ const DEFAULT_CAMERA: CameraState = Object.freeze({
 
 export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): Promise<ModernGame3DSession | undefined> {
   const loading = resolveElement(options.loadingId ?? 'game3d-loading');
+  let gate: EntryGateController | undefined;
+  let presentationBridge: RendererPresentationBridge | undefined;
+  let removePresentationDprListener: (() => void) | undefined;
+
   try {
     const canvas = options.canvas ?? resolveCanvas(options.canvasId ?? 'game3d-canvas');
     if (!canvas) throw new Error('GAME3D_CANVAS_MISSING');
-    const runtime = await createModernRuntime({ canvas, initialQuality: options.initialQuality, maxTelemetrySamples: options.maxTelemetrySamples });
-    const gate = options.installGate === false ? undefined : installEntryGate(options.gateOptions);
+    gate = options.installGate === false ? undefined : installEntryGate(options.gateOptions);
     const legacyLoaded = options.legacyLoader ? await options.legacyLoader() : await loadLegacyGame();
     bridgeLegacyEvents();
+    const runtime = await createModernRuntime({
+      canvas,
+      backendHint: 'webgl2',
+      initialQuality: options.initialQuality,
+      maxTelemetrySamples: options.maxTelemetrySamples,
+    });
+    presentationBridge = new RendererPresentationBridge({
+      rendererProvider: () => getLegacyGameState()?.renderer ?? null,
+      minFramesBetweenChanges: 18,
+      maxPixelRatio: 2.5,
+      minPixelRatio: 0.6,
+    });
+    const refreshPresentationDpr = () => presentationBridge?.refreshDevicePixelRatio();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', refreshPresentationDpr, { passive: true });
+      removePresentationDprListener = () => window.removeEventListener('resize', refreshPresentationDpr);
+    }
+
     const state: { running: boolean; raf: number | undefined; lastTime: number | undefined; lastSnapshot: RuntimeSnapshot | undefined } = { running: false, raf: undefined, lastTime: undefined, lastSnapshot: undefined };
     const getCamera = (): CameraState => options.camera?.() ?? viewportCamera(canvas);
 
     const tick = (input: Partial<RuntimeFrameInput> = {}): RuntimeSnapshot => {
       const now = performanceNow();
       const previous = state.lastTime ?? now;
+      const frameMs = input.frameMs ?? Math.max(0, Math.min(250, now - previous));
+      runtime.clock.advance(frameMs);
       const frame = Number(runtime.clock.frame()) as FrameId;
-      const metrics = collectFrameMetrics(now - previous);
+      const renderState = getLegacyGameState();
+      const legacyMetrics = readLegacyRenderMetrics(renderState);
       const snapshot = tickModernRuntime(runtime, {
         frame,
-        frameMs: metrics.frameMs,
-        cpuMs: input.cpuMs ?? metrics.frameMs,
-        gpuMs: input.gpuMs,
-        drawCalls: input.drawCalls ?? 0,
-        triangles: input.triangles ?? 0,
+        frameMs,
+        cpuMs: input.cpuMs ?? frameMs,
+        gpuMs: input.gpuMs ?? presentationBridge?.gpuMs(),
+        drawCalls: input.drawCalls ?? legacyMetrics.drawCalls,
+        triangles: input.triangles ?? legacyMetrics.triangles,
         visibleObjects: input.visibleObjects ?? 0,
         textureBytes: input.textureBytes ?? 0,
         memoryPressure: input.memoryPressure,
         thermalPressure: input.thermalPressure,
         camera: input.camera ?? getCamera(),
       });
+      presentationBridge?.apply(snapshot);
       state.lastTime = now;
       state.lastSnapshot = snapshot;
-      modernState.patch({ isLoading: false, loadProgress: 1, fps: metrics.frameMs > 0 ? 1000 / metrics.frameMs : 0, frameMs: metrics.frameMs });
+      modernState.patch({ isLoading: false, loadProgress: 1, fps: frameMs > 0 ? 1000 / frameMs : 0, frameMs });
       options.onFrame?.(snapshot);
       return snapshot;
     };
 
     const loop = (time: number): void => {
       if (!state.running) return;
-      state.lastTime = state.lastTime ?? time;
-      tick();
+      const previous = state.lastTime ?? time;
+      tick({ frameMs: Math.max(0, Math.min(250, time - previous)) });
       state.raf = requestAnimationFrame(loop);
     };
+
     const start = (): boolean => {
       if (state.running) return true;
       state.running = true;
@@ -102,6 +135,7 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
       platformEvents.emit('runtime:loop', { action: 'start' });
       return true;
     };
+
     const stop = (): void => {
       if (!state.running) return;
       state.running = false;
@@ -109,8 +143,28 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
       state.raf = undefined;
       platformEvents.emit('runtime:loop', { action: 'stop' });
     };
-    const dispose = (): void => { stop(); gate?.dispose(); };
-    const session: ModernGame3DSession = Object.freeze({ runtime, gate, snapshot: () => state.lastSnapshot, frame: () => Number(runtime.clock.frame()) as FrameId, tick, start, stop, dispose });
+
+    const dispose = (): void => {
+      stop();
+      gate?.dispose();
+      removePresentationDprListener?.();
+      removePresentationDprListener = undefined;
+      presentationBridge?.dispose();
+      presentationBridge = undefined;
+      if (activeSession?.runtime === runtime) activeSession = undefined;
+    };
+
+    const session: ModernGame3DSession = Object.freeze({
+      runtime,
+      gate,
+      snapshot: () => state.lastSnapshot,
+      frame: () => Number(runtime.clock.frame()) as FrameId,
+      tick,
+      start,
+      stop,
+      dispose,
+    });
+    activeSession = session;
     tick({ frameMs: 0, cpuMs: 0, camera: getCamera() });
     loading?.classList.add('g3d-loading-hidden');
     platformEvents.emit('runtime:session', { backend: runtime.capabilities.backend, legacyLoaded: Boolean(legacyLoaded) });
@@ -118,6 +172,11 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
     if (options.startLoop !== false && typeof requestAnimationFrame === 'function') start();
     return session;
   } catch (error) {
+    removePresentationDprListener?.();
+    presentationBridge?.dispose();
+    presentationBridge = undefined;
+    gate?.dispose();
+    gate = undefined;
     showEntryError(loading, error);
     options.onError?.(error);
     return undefined;
@@ -125,6 +184,8 @@ export async function bootstrapModernGame3D(options: Game3DEntryOptions = {}): P
 }
 
 export const bootModernGame3D = bootstrapModernGame3D;
+
+export function getActiveModernGame3DSession(): ModernGame3DSession | undefined { return activeSession; }
 
 async function loadLegacyGame(): Promise<boolean> {
   const module = await import('../game3d.js') as unknown as LegacyGameModule;
@@ -146,6 +207,11 @@ async function bridgeLegacyEvents(): Promise<void> {
   }
 }
 
+function getLegacyGameState(): LegacyGameStateLike | null {
+  const candidate = globalThis as typeof globalThis & { __AapwGame3DState?: LegacyGameStateLike };
+  return candidate.__AapwGame3DState ?? null;
+}
+
 function resolveCanvas(id: string): HTMLCanvasElement | undefined {
   if (typeof document === 'undefined') return undefined;
   const element = document.getElementById(id);
@@ -165,6 +231,11 @@ function viewportCamera(canvas: HTMLCanvasElement): CameraState {
   return { ...DEFAULT_CAMERA, viewportWidth: width, viewportHeight: height, dpr: Math.min(2.5, Math.max(1, window.devicePixelRatio || 1)) };
 }
 
-function collectFrameMetrics(frameMs: number): { readonly frameMs: number } { return Object.freeze({ frameMs: Math.max(0, Math.min(250, frameMs)) }); }
 function performanceNow(): number { return typeof performance !== 'undefined' ? performance.now() : Date.now(); }
-function showEntryError(loading: HTMLElement | undefined, error: unknown): void { if (!loading) return; loading.textContent = 'Bir şeyler ters gitti: 3D dünya başlatılamadı. Sayfayı yenilemeyi deneyin.'; loading.classList.remove('g3d-loading-hidden'); loading.classList.add('g3d-loading-error'); console.error('[aapw/modern-entry]', error); }
+function showEntryError(loading: HTMLElement | undefined, error: unknown): void {
+  if (!loading) return;
+  loading.textContent = 'Bir şeyler ters gitti: 3D dünya başlatılamadı. Sayfayı yenilemeyi deneyin.';
+  loading.classList.remove('g3d-loading-hidden');
+  loading.classList.add('g3d-loading-error');
+  console.error('[aapw/modern-entry]', error);
+}
