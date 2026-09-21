@@ -14,7 +14,7 @@ import {
   buildGeographicAssetContext,
   validateGeographicAssetContextInput,
   geographicAssetContextDigest,
-} from './geographicAssetContext.js';
+} from './geographicAssetContext.ts';
 import {
   GEOGRAPHIC_ASSET_CLUSTER_POLICY,
   GEOGRAPHIC_ASSET_CLUSTER_MODES,
