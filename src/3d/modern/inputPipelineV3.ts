@@ -132,7 +132,7 @@ export class InputPipelineV3 {
       throw new Error('Input action cannot be empty');
     }
     if (this.#bindings.has(action)) {
-      throw new Error(\`Input action already bound: \${action}\`);
+      throw new Error(`Input action already bound: ${action}`);
     }
     if (this.#bindings.size >= this.#maxActions) {
       throw new Error('Input action capacity reached');
