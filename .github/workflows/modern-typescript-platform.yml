@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/3d/modern/**'
       - 'scripts/checkModernPlatform.mjs'
+      - 'scripts/checkModernApplicationRuntime.mjs'
       - 'package.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
@@ -39,6 +40,7 @@ jobs:
           node-version: 24.21.0
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run verify:modern
+      - run: npm run verify:application
       - run: npm run typecheck
       - run: npm test -- --passWithNoTests
       - run: npm run build:modern
