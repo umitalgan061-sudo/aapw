@@ -8,6 +8,7 @@ for (const token of [
   "resolvePlayerEquipmentTransition",
   "transitionKey",
   "isPlayerEquipmentTransitionReceipt",
+  "validatePlayerEquipmentTransitionReceipt",
   "Object.freeze",
 ]) if (!source.includes(token)) failures.push(`transition-director missing ${token}`);
 for (const token of [
@@ -21,4 +22,4 @@ if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
 }
-console.log(JSON.stringify({ ok: true, suite: 'player-equipment-transition-director', immutableReceipt: true, domFree: true }));
+console.log(JSON.stringify({ ok: true, suite: 'player-equipment-transition-director', immutableReceipt: true, validatedReceipt: true, domFree: true }));
