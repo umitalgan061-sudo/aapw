@@ -254,7 +254,7 @@ export class SessionStateV3 {
       .map((event) => ({ ...event, payload: { ...event.payload } }));
   }
 
-  checkpoint(id = \`checkpoint:\${this.#record.revision}\`): SessionCheckpoint {
+  checkpoint(id = `checkpoint:${this.#record.revision}`): SessionCheckpoint {
     const checkpoint: SessionCheckpoint = {
       id,
       revision: this.#record.revision,
@@ -281,7 +281,7 @@ export class SessionStateV3 {
   restoreCheckpoint(id: string): SessionRecord {
     const checkpoint = this.#checkpoints.find((item) => item.id === id);
     if (!checkpoint) {
-      throw new Error(\`Session checkpoint not found: \${id}\`);
+      throw new Error(`Session checkpoint not found: ${id}`);
     }
 
     const restored: SessionRecord = {
@@ -301,7 +301,7 @@ export class SessionStateV3 {
   transition(phase: SessionPhase): SessionRecord {
     if (!canTransition(this.#record.phase, phase)) {
       throw new Error(
-        \`Invalid session transition \${this.#record.phase} -> \${phase}\`,
+        `Invalid session transition ${this.#record.phase} -> ${phase}`,
       );
     }
     return this.patch({ phase }, 'session.transition');
