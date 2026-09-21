@@ -96,11 +96,15 @@ jobs:
           second="$(node scripts/checkPlayerLocomotionStateSynthesisScenarioMatrix.mjs)"
           test "${first}" = "${second}"
 
-      - name: Four-thousand meaningful-line gate
+      - name: Changed-line cap and meaningful-diff gate
         shell: bash
         run: |
           set -euo pipefail
           base="$(git merge-base origin/main HEAD)"
-          additions="$(git diff --numstat "${base}"...HEAD | awk '{sum += $1} END {print sum + 0}')"
+          read -r additions deletions < <(git diff --numstat "${base}"...HEAD | awk '{a += $1; d += $2} END {print a + 0, d + 0}')
+          total=$((additions + deletions))
           echo "Meaningful-added-lines=${additions}"
-          test "${additions}" -gt 4000
+          echo "Meaningful-deleted-lines=${deletions}"
+          echo "Changed-lines=${total}"
+          test "${additions}" -gt 0
+          test "${total}" -le 3000

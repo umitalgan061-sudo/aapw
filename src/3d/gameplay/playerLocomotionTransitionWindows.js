@@ -3,6 +3,7 @@
  * Windows describe presentation blend timing only; gameplay and clip ownership stay external.
  */
 import { PLAYER_LOCOMOTION_ANTICIPATION_MODES } from './playerLocomotionAnticipationPolicy.js';
+export { PLAYER_LOCOMOTION_ANTICIPATION_MODES } from './playerLocomotionAnticipationPolicy.js';
 
 export const PLAYER_LOCOMOTION_TRANSITION_WINDOW_VERSION = '2026-09-15-v1';
 export const PLAYER_LOCOMOTION_TRANSITION_WINDOW_LIMITS = Object.freeze({ minSeconds: 0.04, maxSeconds: 0.42, maxDamping: 1, minDamping: 0.2, maxHistory: 20 });
@@ -33,7 +34,7 @@ export function classifyPlayerLocomotionTransition(from='idle',to='idle'){
   if(to==='pivot'||from==='pivot')return 'pivot';
   if(to==='brake'||to==='stop')return 'deceleration';
   if(to==='start'||to==='accelerate')return 'acceleration';
-  if(to==='dodge-recover'||to==='stagger-recover'||to==='recover')return 'recovery';
+  if(to==='dodge-recover'||to==='stagger-recover'||to==='recover'||from==='dodge-recover'||from==='stagger-recover'||from==='recover')return 'recovery';
   if(to==='guard-walk'||to==='combat-advance'||from==='guard-walk'||from==='combat-advance')return 'combat';
   return 'redirect';
 }

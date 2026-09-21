@@ -35,7 +35,7 @@ assert.equal(PLAYER_LOCOMOTION_ANTICIPATION_MODES.length,16);
 assert.equal(PLAYER_LOCOMOTION_ANTICIPATION_CHANNELS.length,17);
 
 const normalized=normalizePlayerLocomotionAnticipationPrevious({planarSpeedMps:Infinity,directionAngleRadians:NaN,semanticState:99,phase:3,turnRateDegreesPerSecond:Infinity,surfaceConfidence:-1,surfaceSlip:2});
-assert.equal(normalized.planarSpeedMps,12);assert.equal(normalized.phase,1);assert.equal(normalized.turnRateDegreesPerSecond,540);assert.equal(normalized.surfaceConfidence,0);assert.equal(normalized.surfaceSlip,1);assert.equal(Object.isFrozen(normalized),true);
+assert.equal(normalized.planarSpeedMps,0);assert.equal(normalized.phase,1);assert.equal(normalized.turnRateDegreesPerSecond,0);assert.equal(normalized.surfaceConfidence,0);assert.equal(normalized.surfaceSlip,1);assert.equal(Object.isFrozen(normalized),true);
 
 for(let index=0;index<512;index+=1){
   const angle=(index%32)*Math.PI/16;

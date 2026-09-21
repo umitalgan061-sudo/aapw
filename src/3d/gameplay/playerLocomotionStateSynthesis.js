@@ -86,6 +86,8 @@ export function normalizePlayerLocomotionStateInput(input = {}) {
   const alias = own(OVERRIDE_ALIASES, override) ? OVERRIDE_ALIASES[override] : override;
   return freeze({
     ...input,
+    velocity:directional.velocity,
+    facing:directional.facing,
     planarSpeedMps:clamp(Math.max(0, finite(directional.planarSpeedMps)), 0, LIMITS.maxSpeed),
     turnRateDegreesPerSecond:clamp(Math.abs(finite(directional.turnRateDegreesPerSecond)), 0, LIMITS.maxTurnRate),
     slopeDegrees:clamp(finite(directional.slopeDegrees), -LIMITS.maxSlope, LIMITS.maxSlope),

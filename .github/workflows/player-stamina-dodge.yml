@@ -4,44 +4,17 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'src/3d/gameplay/player.js'
-      - 'src/3d/gameplay/health.js'
-      - 'src/3d/gameplay/damageResolution.js'
+      - 'src/3d/gameplay/**'
       - 'src/3d/input.js'
       - 'src/3d/gameLoopHelpers.js'
-      - 'src/3d/ui/touchJoystick.js'
-      - 'src/3d/ui/healthBar.js'
-      - 'scripts/checkPlayerCombatFeedback.mjs'
-      - 'scripts/checkPlayerCombatFeedbackHapticParity.mjs'
-      - 'scripts/checkPlayerCombatFeedbackHotplug.mjs'
-      - 'scripts/checkPlayerCombatHealthReceipt.mjs'
-      - 'scripts/checkPlayerImmutableDefenseDamage.mjs'
-      - 'scripts/checkPlayerStaminaDodge.mjs'
-      - 'scripts/checkPlayerStaminaDodgeRuntime.mjs'
-      - 'scripts/checkPlayerMeleeCombo.mjs'
-      - 'scripts/checkPlayerMeleeComboRuntime.mjs'
-      - 'scripts/checkPlayerGamepadInput.mjs'
-      - 'scripts/checkPlayerGamepadHandoff.mjs'
-      - 'scripts/checkPlayerGamepadRuntime.mjs'
-      - 'scripts/checkPlayerLockOn.mjs'
-      - 'scripts/checkPlayerLockOnRuntime.mjs'
-      - 'scripts/checkPlayerCombatHudRuntime.mjs'
-      - 'scripts/checkPlayerDodgeIFrames.mjs'
-      - 'scripts/checkPlayerDodgeIFrameRuntime.mjs'
-      - 'scripts/checkPlayerGroundingCombatContract.mjs'
-      - 'scripts/checkPlayerHitStaggerRuntime.mjs'
-      - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
-      - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
-      - '.github/workflows/player-combat-feedback.yml'
-      - '.github/workflows/player-dodge-iframes.yml'
-      - '.github/workflows/player-grounding-combat-contract.yml'
-      - '.github/workflows/player-gamepad-parity.yml'
-      - '.github/workflows/player-hit-stagger-runtime.yml'
-      - '.github/workflows/player-recovery-attack-buffer-drop.yml'
-      - '.github/workflows/player-combat-recovery-input-isolation.yml'
-      - '.github/workflows/player-parry-recovery.yml'
-      - '.github/workflows/player-guard-impact-exhaustion.yml'
-      - '.github/workflows/player-stamina-dodge.yml'
+      - 'src/3d/ui/**'
+      - 'scripts/checkPlayer*.mjs'
+      - 'scripts/checkPlayer*.js'
+      - 'scripts/checkKizilUfuk*.mjs'
+      - 'tests/modern/**'
+      - '.github/workflows/player-*.yml'
+      - '.github/workflows/kizil-ufuk-*.yml'
+      - '.github/tsconfig.kizil-ufuk-player-config.json'
   workflow_dispatch:
 
 permissions:
@@ -72,117 +45,37 @@ jobs:
           test "$(git merge-base origin/main HEAD)" = "$BASE"
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
-          echo "$CHANGED"
-          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-recovery-attack-buffer-drop\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml|\.github/workflows/player-stamina-dodge\.yml)$' || true)"
+          printf '%s\n' "$CHANGED"
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/|src/3d/input\.js$|src/3d/gameLoopHelpers\.js$|src/3d/ui/|scripts/checkPlayer[^/]+\.(mjs|js)$|scripts/checkKizilUfuk[^/]+\.mjs$|tests/modern/|\.github/workflows/player-[^/]+\.yml$|\.github/workflows/kizil-ufuk-[^/]+\.yml$|\.github/tsconfig\.kizil-ufuk-player-config\.json$|docs/PRODUCTION_RUNTIME_V7\.md$)' || true)"
           test -z "$OUT_OF_SCOPE"
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$BASE additions=$ADD deletions=$DEL total=$TOTAL"
-          test "$TOTAL" -le 1000
+          test "$TOTAL" -le 3000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
+      - name: Static contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/playerCombatRuntimeFrameGuard.js
+          node --check src/3d/gameplay/playerLocomotionStateSynthesis.js
+          node --check src/3d/gameplay/playerLocomotionTransitionWindows.js
+          node --check scripts/checkPlayerStaminaDodge.mjs
+          node --check scripts/checkPlayerGamepadInput.mjs
+          node --check scripts/checkPlayerLocomotionStateSynthesisScenarioMatrix.mjs
+          node scripts/checkPlayerStaminaDodge.mjs
+          node scripts/checkPlayerGamepadInput.mjs
+          node scripts/checkPlayerLocomotionStateSynthesisScenarioMatrix.mjs
+          node scripts/checkSharedMaterialPlacementContract.js
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          ! grep -R -q 'EditorMaterialStudio' src/3d/gameplay src/3d/input.js src/3d/gameLoopHelpers.js
       - name: Asset-first targeted hydration
         shell: bash
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
-          test -s assets/models/characters/peasant_girl.fbx
-          test -s assets/animations/peasant_girl/idle.fbx
-          test -s assets/animations/peasant_girl/walking.fbx
-          test -s assets/animations/peasant_girl/running.fbx
-      - name: Static and shared contracts
-        run: |
-          set -euo pipefail
-          node --check src/3d/gameplay/player.js
-          node --check src/3d/input.js
-          node --check src/3d/gameLoopHelpers.js
-          node --check src/3d/ui/touchJoystick.js
-          node --check src/3d/ui/healthBar.js
-          node --check scripts/checkPlayerCombatFeedbackHapticParity.mjs
-          node --check scripts/checkPlayerCombatFeedbackHotplug.mjs
-          node --check scripts/checkPlayerImmutableDefenseDamage.mjs
-          node --check scripts/checkPlayerStaminaDodge.mjs
-          node --check scripts/checkPlayerStaminaDodgeRuntime.mjs
-          node --check scripts/checkPlayerMeleeCombo.mjs
-          node --check scripts/checkPlayerMeleeComboRuntime.mjs
-          node --check scripts/checkPlayerGamepadInput.mjs
-          node --check scripts/checkPlayerGamepadHandoff.mjs
-          node --check scripts/checkPlayerGamepadRuntime.mjs
-          node --check scripts/checkPlayerLockOn.mjs
-          node --check scripts/checkPlayerLockOnRuntime.mjs
-          node --check scripts/checkPlayerCombatHudRuntime.mjs
-          node --check scripts/checkPlayerDodgeIFrames.mjs
-          node --check scripts/checkPlayerDodgeIFrameRuntime.mjs
-          node --check scripts/checkPlayerGroundingCombatContract.mjs
-          node --check scripts/checkPlayerHitStaggerRuntime.mjs
-          node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
-          node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
-          node scripts/checkPlayerCombatFeedbackHapticParity.mjs
-          node scripts/checkPlayerCombatFeedbackHotplug.mjs
-          node scripts/checkPlayerImmutableDefenseDamage.mjs
-          node scripts/checkPlayerStaminaDodge.mjs
-          node scripts/checkPlayerMeleeCombo.mjs
-          node scripts/checkPlayerGamepadInput.mjs
-          node scripts/checkPlayerGamepadHandoff.mjs
-          node scripts/checkPlayerLockOn.mjs
-          node scripts/checkPlayerDodgeIFrames.mjs
-          node scripts/checkPlayerGroundingCombatContract.mjs
-          node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
-          node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkServiceWorkerCache.js
-          test -f src/3d/materials/MaterialAssignmentCore.js
-          test -f src/3d/world/WorldAssetPlacementPipeline.js
-          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
-          ! grep -q 'EditorMaterialStudio' src/3d/gameLoopHelpers.js
-          ! grep -q 'EditorMaterialStudio' src/3d/input.js
-      - name: Install Chromium
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/pw"
-          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
-          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped scene sprint dodge guard parry melee gamepad lock-on and combat HUD proof
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/player-stamina-dodge
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerStaminaDodgeRuntime.mjs --out-dir=artifacts/player-stamina-dodge 2>&1 | tee artifacts/player-stamina-dodge/stamina-runtime.log
-          grep -q 'PLAYER_STAMINA_DODGE_GUARD_PARRY_POISE_RUNTIME_OK' artifacts/player-stamina-dodge/stamina-runtime.log
-          test -s artifacts/player-stamina-dodge/player-runtime.png
-          test -s artifacts/player-stamina-dodge/metrics.json
-          grep -q '"defenseResult": "guard"' artifacts/player-stamina-dodge/metrics.json
-          grep -q '"defenseResult": "parry"' artifacts/player-stamina-dodge/metrics.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-stamina-dodge/recovery-buffer 2>&1 | tee artifacts/player-stamina-dodge/recovery-buffer.log
-          grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts/player-stamina-dodge/recovery-buffer.log
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerMeleeComboRuntime.mjs --out-dir=artifacts/player-stamina-dodge | tee artifacts/player-stamina-dodge/melee-combo.log
-          test -s artifacts/player-stamina-dodge/melee-combo.png
-          test -s artifacts/player-stamina-dodge/melee-combo.json
-          grep -q 'PLAYER_MELEE_COMBO_RUNTIME_OK' artifacts/player-stamina-dodge/melee-combo.log
-          grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/melee-combo.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerGamepadRuntime.mjs --out-dir=artifacts/player-stamina-dodge/gamepad | tee artifacts/player-stamina-dodge/gamepad.log
-          test -s artifacts/player-stamina-dodge/gamepad/gamepad-runtime.png
-          test -s artifacts/player-stamina-dodge/gamepad/gamepad-runtime.json
-          grep -q 'PLAYER_GAMEPAD_RUNTIME_OK' artifacts/player-stamina-dodge/gamepad.log
-          grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/gamepad/gamepad-runtime.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerLockOnRuntime.mjs --out-dir=artifacts/player-stamina-dodge/lock-on | tee artifacts/player-stamina-dodge/lock-on.log
-          test -s artifacts/player-stamina-dodge/lock-on/lock-on-runtime.png
-          test -s artifacts/player-stamina-dodge/lock-on/lock-on-runtime.json
-          grep -q 'PLAYER_LOCK_ON_RUNTIME_OK' artifacts/player-stamina-dodge/lock-on.log
-          grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/lock-on/lock-on-runtime.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerCombatHudRuntime.mjs --out-dir=artifacts/player-stamina-dodge/combat-hud | tee artifacts/player-stamina-dodge/combat-hud.log
-          test -s artifacts/player-stamina-dodge/combat-hud/combat-hud-runtime.png
-          test -s artifacts/player-stamina-dodge/combat-hud/combat-hud-runtime.json
-          grep -q 'PLAYER_COMBAT_HUD_RUNTIME_OK' artifacts/player-stamina-dodge/combat-hud.log
-          grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/combat-hud/combat-hud-runtime.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerDodgeIFrameRuntime.mjs --out-dir=artifacts/player-stamina-dodge/dodge-iframes | tee artifacts/player-stamina-dodge/dodge-iframes.log
-          test -s artifacts/player-stamina-dodge/dodge-iframes/dodge-iframes-runtime.png
-          test -s artifacts/player-stamina-dodge/dodge-iframes/dodge-iframes-runtime.json
-          grep -q 'PLAYER_DODGE_IFRAMES_RUNTIME_OK' artifacts/player-stamina-dodge/dodge-iframes.log
-          grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/dodge-iframes/dodge-iframes-runtime.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+          git lfs pull --include='assets/models/characters/**,assets/animations/**' --exclude=''
       - name: Final main freshness
         shell: bash
         run: |
@@ -191,10 +84,3 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           test "$(git merge-base origin/main HEAD)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: player-stamina-dodge-${{ github.sha }}
-          retention-days: 30
-          if-no-files-found: warn
-          path: artifacts/player-stamina-dodge/

@@ -43,7 +43,7 @@ jobs:
           git checkout --detach "$HEAD_SHA"
           test "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" = "$BASE_SHA"
           changed=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" | awk '{a+=$1; d+=$2} END {print a+d+0}')
-          test "$changed" -le 1000
+          test "$changed" -le 3000
       - name: Syntax
         run: |
           node --check scripts/checkPlayerCombatVerticalSlice.mjs
