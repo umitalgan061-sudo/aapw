@@ -9,7 +9,7 @@
  * @module gameplay/interactionConfig
  */
 
-import { CHOICES_BY_NPC_ID } from './dialogueChoices.js';
+import { CHOICES_BY_NPC_ID } from './dialogueChoices.ts';
 import {
 	FAST_TRAVEL_BLOCK_REASON,
 	buildFieldReadinessText,
