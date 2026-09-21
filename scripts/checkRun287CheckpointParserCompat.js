@@ -1,23 +1,29 @@
 #!/usr/bin/env node
-const fs = require('fs');
-const vm = require('vm');
-const source = fs.readFileSync('scripts/checkCheckpointConsistency.js', 'utf8').replace(/\nmain\(\);\n/, '\n');
-const sandbox = { console, process: { exit() { throw new Error('unexpected exit'); } }, require, __dirname: require('path').resolve('scripts') };
-vm.runInNewContext(source, sandbox, { filename: 'checkCheckpointConsistency.js' });
+import {
+  maxRunFromProgress,
+  maxRunFromStableTags,
+  maxRunFromPerfCsv,
+} from './checkCheckpointConsistency.js';
 
 const stable = [
   'stable-2026-08-01-1000 — Run200 legacy checkpoint',
   '- `stable-2026-08-11-run281` — Pindex-03',
   '- `stable-2026-08-11-run282` — Pindex-04',
 ].join('\n');
+
 const perf = [
   'run,date,scope',
   'legacy,run206,old-shape',
   'run281,2026-08-11,pindex03',
   'run282,2026-08-11,pindex04',
 ].join('\n');
-if (sandbox.maxRunFromStableTags(stable) !== 282) throw new Error('current Markdown stable tag format not parsed');
-if (sandbox.maxRunFromPerfCsv(perf) !== 282) throw new Error('current first-column perf run format not parsed');
+
+if (maxRunFromStableTags(stable) !== 282) {
+  throw new Error('current Markdown stable tag format not parsed');
+}
+if (maxRunFromPerfCsv(perf) !== 282) {
+  throw new Error('current first-column perf run format not parsed');
+}
 
 const progressWithExplicitNonCheckpoints = [
   '## Run 322 — completed checkpoint',
@@ -29,7 +35,8 @@ const progressWithExplicitNonCheckpoints = [
   '## Run 324 — partial validation entry',
   '- **Not run, explicitly:** Godot headless import and browser smoke.',
 ].join('\n');
-if (sandbox.maxRunFromProgress(progressWithExplicitNonCheckpoints) !== 322) {
+
+if (maxRunFromProgress(progressWithExplicitNonCheckpoints) !== 322) {
   throw new Error('explicitly non-checkpoint progress sections advanced the completed-run watermark');
 }
 
@@ -39,7 +46,8 @@ const progressWithLaterCompletedRun = [
   '## Run 325 — completed checkpoint',
   '- Full DoD PASS; stable and performance records emitted.',
 ].join('\n');
-if (sandbox.maxRunFromProgress(progressWithLaterCompletedRun) !== 325) {
+
+if (maxRunFromProgress(progressWithLaterCompletedRun) !== 325) {
   throw new Error('a later completed progress section did not advance the completed-run watermark');
 }
 
