@@ -32,7 +32,10 @@
     "check:typed-world-r11": "npm run verify:typed-world-r11 && npm run test:typed-world-r11 && npm run typecheck",
     "verify:typed-world-support-r11": "node scripts/checkTypedWorldSupportR11.mjs",
     "test:typed-world-support-r11": "npm test -- tests/modern/typedWorldSupportR11.test.ts",
-    "check:typed-world-support-r11": "npm run verify:typed-world-support-r11 && npm run test:typed-world-support-r11 && npm run typecheck"
+    "check:typed-world-support-r11": "npm run verify:typed-world-support-r11 && npm run test:typed-world-support-r11 && npm run typecheck",
+    "verify:typed-gameplay-r11": "node scripts/checkTypedGameplayR11.mjs",
+    "test:typed-gameplay-r11": "npm test -- tests/modern/typedGameplayR11.test.ts",
+    "check:typed-gameplay-r11": "npm run verify:typed-gameplay-r11 && npm run test:typed-gameplay-r11 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
