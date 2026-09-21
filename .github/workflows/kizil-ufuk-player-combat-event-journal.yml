@@ -1,0 +1,29 @@
+name: Kızıl Ufuk Player Combat Event Journal
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatEventJournal.js'
+      - 'scripts/checkKizilUfukPlayerCombatEventJournal.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-event-journal.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify exact main ancestry and scope
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+          ! grep -R "EditorMaterialStudio" src/3d/gameplay/playerCombatEventJournal.js scripts/checkKizilUfukPlayerCombatEventJournal.mjs
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerCombatEventJournal.js && node --check scripts/checkKizilUfukPlayerCombatEventJournal.mjs
+      - name: Deterministic contract
+        run: node scripts/checkKizilUfukPlayerCombatEventJournal.mjs
