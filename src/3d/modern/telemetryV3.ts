@@ -185,6 +185,10 @@ export class TelemetryV3 {
     );
   }
 
+  currentTime(): number {
+    return this.#clock();
+  }
+
   recordSpan(span: TelemetrySpan): void {
     this.#spans.push({
       ...span,
@@ -214,7 +218,7 @@ export class TelemetryV3 {
         typeof rawValue === 'number'
       ) {
         result[key] =
-          typeof rawValue === 'number' ? finite(rawValue) : String(rawValue).slice(0, 256) as string;
+          typeof rawValue === 'number' ? finite(rawValue) : String(rawValue).slice(0, 256);
       } else if (rawValue !== undefined && rawValue !== null) {
         result[key] = String(rawValue).slice(0, 256);
       }
@@ -338,7 +342,7 @@ export class TelemetrySpanHandle {
       throw new Error(\`Telemetry span already ended: \${this.#id}\`);
     }
     this.#ended = true;
-    const endMs = Math.max(this.#startMs, performance.now());
+    const endMs = Math.max(this.#startMs, this.#telemetry.currentTime());
     const merged: Record<string, string | number | boolean> = {
       ...this.#attributes,
     };
