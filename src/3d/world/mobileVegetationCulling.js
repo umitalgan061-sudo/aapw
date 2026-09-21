@@ -9,7 +9,7 @@
  */
 
 import { CHUNK_CONFIG, MOBILE_VEGETATION_CULLING_CONFIG_RUN141 } from '../config.js';
-import { MOBILE_LIVE_WORLD_RADIUS_CHUNKS } from './chunkManager.js';
+import { MOBILE_LIVE_WORLD_RADIUS_CHUNKS } from './chunkManager.ts';
 
 /**
  * Returns the current culling geometry derived from the live mobile terrain radius.
