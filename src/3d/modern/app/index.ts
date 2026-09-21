@@ -11,3 +11,4 @@ export * from './telemetryPipeline.ts';
 export * from './accessibilityProfile.ts';
 export * from './errorBoundary.ts';
 export * from './applicationKernel.ts';
+export * from './applicationHost.ts';
