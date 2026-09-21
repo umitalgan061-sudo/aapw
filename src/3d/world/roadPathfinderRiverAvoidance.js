@@ -1,5 +1,5 @@
 import { WORLD_DEFAULTS } from '../config.js';
-import { generateRiverPath } from './rivers.js';
+import { generateRiverPath } from './rivers.ts';
 
 /**
  * River-avoidance field for `roadPathfinder.js`'s A* search and presentation validation.
