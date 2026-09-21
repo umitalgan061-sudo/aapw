@@ -10,9 +10,9 @@
 import * as THREE from 'three';
 import { WORLD_DEFAULTS, SETTLEMENT_CONFIG } from '../config.js';
 import { createHeightSampler } from './terrain.js';
-import { KINGDOM_SEATS, computeSettlementFlattenPads } from './settlements.js';
+import { KINGDOM_SEATS, computeSettlementFlattenPads } from './settlements.ts';
 import { computeSeatMST } from './roads.js';
-import { findSlopeAwarePath } from './roadPathfinder.js';
+import { findSlopeAwarePath } from './roadPathfinder.ts';
 import { REFERENCE_BIOME_ZONES, REFERENCE_RELIEF_CHAINS, sampleReferenceInfluence } from './worldReferenceMap.js';
 import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
 import { referenceProtectionRadiiFromMeters, sampleSeatSafeReferenceHydrology } from './worldReferenceHydrology.js';
