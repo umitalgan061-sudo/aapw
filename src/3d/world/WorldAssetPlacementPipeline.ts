@@ -12,13 +12,13 @@ import {
   resolveStructureSurfaceProfile,
 } from './structureGroundingPolicy.js';
 import { createDisconnectedFoundationIslandProbes } from './foundationIslandProbes.js';
-import { worldFootprintFor } from './WorldAssetFootprintGeometry.js';
+import { worldFootprintFor } from './WorldAssetFootprintGeometry.ts';
 import {
   isPlainObject,
   optionalFinite,
   validateWorldSurfacePolicy,
   normalizePlacementPolicy,
-} from './WorldSurfacePolicySchema.js';
+} from './WorldSurfacePolicySchema.ts';
 
 export { validateWorldSurfacePolicy, normalizePlacementPolicy };
 
