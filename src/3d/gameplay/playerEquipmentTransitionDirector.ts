@@ -44,6 +44,7 @@ const freeze = <T>(value: T): T => {
 };
 
 const text = (value: unknown, fallback = '') => typeof value === 'string' && value.length > 0 ? value : fallback;
+const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value);
 
 export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTransitionInput = {}): PlayerEquipmentTransitionReceipt {
   const previous = input.previousEquipment ?? {};
@@ -80,4 +81,28 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
     && Object.isFrozen(candidate.animation)
     && Array.isArray(candidate.socketsToRefresh)
     && typeof candidate.transitionKey === 'string';
+}
+
+export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readonly<{ ok: boolean; errors: readonly string[] }> {
+  const errors: string[] = [];
+  if (!isPlayerEquipmentTransitionReceipt(value)) errors.push('receipt-not-frozen-or-shaped');
+  if (value && typeof value === 'object') {
+    const candidate = value as PlayerEquipmentTransitionReceipt;
+    if (candidate.changed !== (candidate.changedSlots.length > 0)) errors.push('changed-flag-mismatch');
+    if (candidate.weaponChanged && !candidate.changedSlots.includes('mainHand')) errors.push('weapon-slot-missing');
+    if (candidate.rangedChanged && !candidate.changedSlots.includes('mainHand')) errors.push('ranged-slot-missing');
+    if (candidate.handednessChanged && !candidate.changedSlots.includes('mainHand')) errors.push('handedness-slot-missing');
+    for (const [name, numeric] of Object.entries({
+      movementDelta: candidate.movementDelta,
+      staminaDrainDelta: candidate.staminaDrainDelta,
+      poiseDelta: candidate.poiseDelta,
+      damageDelta: candidate.damageDelta,
+      reachDelta: candidate.reachDelta,
+      crossfadeSeconds: candidate.animation?.crossfadeSeconds,
+    })) if (!finite(numeric)) errors.push(`${name}-not-finite`);
+    if (candidate.animation?.crossfadeSeconds < 0) errors.push('negative-crossfade');
+    if (candidate.changedSlots.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-changed-slot');
+    if (candidate.socketsToRefresh.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-socket-slot');
+  }
+  return Object.freeze({ ok: errors.length === 0, errors: Object.freeze(errors) });
 }
