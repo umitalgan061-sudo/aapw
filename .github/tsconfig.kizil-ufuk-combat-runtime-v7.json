@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": false,
+    "types": ["node"]
+  },
+  "include": [
+    "../src/3d/gameplay/playerCombatDecisionV6.ts",
+    "../src/3d/gameplay/playerCombatRuntimeContractV7.ts"
+  ]
+}
