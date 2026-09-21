@@ -164,12 +164,12 @@ export class LegacyRuntimeBridge {
     const id = normalizeEntityId(entity.id);
     const position = normalizePosition(entity.object3D?.position);
     const payload = {
-      id: id ?? undefined,
       position,
       yawRadians: entity.object3D?.rotation?.y ?? 0,
       health: entity.health ?? 100,
       stamina: entity.stamina ?? 100,
       flags: entity.flags ?? 0,
+      ...(id === undefined ? {} : { id }),
     };
     const created = this.runtime.entities.upsert(payload);
     const state = this.runtime.entities.get(created);
