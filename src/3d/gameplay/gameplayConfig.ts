@@ -5,10 +5,10 @@
  * deterministic validation and a stable diagnostic snapshot for runtime/CI consumers.
  */
 
-import { ANIMAL_CONFIG as ANIMAL_CONFIG_LEGACY } from './animalConfig.js';
+import { ANIMAL_CONFIG as ANIMAL_CONFIG_LEGACY } from './animalConfig.ts';
 import { DRAGON_CONFIG, validateDragonConfig } from './dragonConfig.ts';
-import { INTERACTION_CONFIG as INTERACTION_CONFIG_LEGACY } from './interactionConfig.js';
-import { NPC_CONFIG as NPC_CONFIG_LEGACY } from './npcConfig.js';
+import { INTERACTION_CONFIG as INTERACTION_CONFIG_LEGACY } from './interactionConfig.ts';
+import { NPC_CONFIG as NPC_CONFIG_LEGACY } from './npcConfig.ts';
 import { PLAYER_CONFIG, validatePlayerConfig } from './playerConfig.ts';
 
 export interface NpcPatrol {
