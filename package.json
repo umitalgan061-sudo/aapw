@@ -39,7 +39,10 @@
     "check:all-modern": "npm run verify:all-modern && npm run verify:production-v7 && npm run check:production-v7 && npm run check:production-runtime-r4",
     "verify:typed-gameplay-runtime": "node scripts/checkTypedGameplayRuntimeR6.mjs",
     "test:typed-gameplay-runtime": "npm test -- tests/modern/typedGameplayRuntimeR6.test.ts",
-    "check:typed-gameplay-runtime": "npm run verify:typed-gameplay-runtime && npm run test:typed-gameplay-runtime && npm run typecheck"
+    "check:typed-gameplay-runtime": "npm run verify:typed-gameplay-runtime && npm run test:typed-gameplay-runtime && npm run typecheck",
+    "verify:typed-render-audio": "node scripts/checkTypedRenderAudioMigrationWave12.mjs",
+    "test:typed-render-audio": "npm test -- tests/modern/typedRenderAudioMigrationWave12.test.ts",
+    "check:typed-render-audio": "npm run verify:typed-render-audio && npm run test:typed-render-audio && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
