@@ -55,7 +55,10 @@
     "verify:strict-core": "node scripts/checkStrictCoreR15.mjs",
     "typecheck:strict-core": "tsc -p tsconfig.strict-core.json --noEmit",
     "test:strict-core": "npm test -- tests/modern/strictCoreR15.test.ts",
-    "check:strict-core": "npm run verify:strict-core && npm run typecheck:strict-core && npm run test:strict-core"
+    "check:strict-core": "npm run verify:strict-core && npm run typecheck:strict-core && npm run test:strict-core",
+    "verify:strict-runtime-r16": "node scripts/checkStrictRuntimeR16.mjs",
+    "test:strict-runtime-r16": "npm test -- tests/modern/strictRuntimeR16.test.ts",
+    "check:strict-runtime-r16": "npm run verify:strict-runtime-r16 && npm run test:strict-runtime-r16 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
