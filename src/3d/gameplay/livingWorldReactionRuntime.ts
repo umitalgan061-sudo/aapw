@@ -36,7 +36,7 @@ import {
   callCombat,
   callLawReport,
   callWorldEvent,
-} from './livingWorldReactionPolicy.js';
+} from './livingWorldReactionPolicy.ts';
 
 const freeze = (value) => Object.freeze(value);
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
