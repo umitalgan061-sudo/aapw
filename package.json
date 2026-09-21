@@ -23,7 +23,10 @@
     "check:nextgen": "npm run verify:nextgen && npm run typecheck:nextgen-modern && npm run test:nextgen-modern",
     "verify:typed-platform-r9": "node scripts/checkTypedPlatformR9.mjs",
     "test:typed-platform-r9": "npm test -- tests/modern/typedPlatformR9.test.ts",
-    "check:typed-platform-r9": "npm run verify:typed-platform-r9 && npm run test:typed-platform-r9 && npm run typecheck"
+    "check:typed-platform-r9": "npm run verify:typed-platform-r9 && npm run test:typed-platform-r9 && npm run typecheck",
+    "verify:typed-world-r10": "node scripts/checkTypedWorldPlatformR10.mjs",
+    "test:typed-world-r10": "npm test -- tests/modern/typedWorldPlatformR10.test.ts",
+    "check:typed-world-r10": "npm run verify:typed-world-r10 && npm run test:typed-world-r10 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
