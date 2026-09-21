@@ -5,6 +5,8 @@ import { EntityComponentWorld } from './ecs.ts';
 import { FixedStepClock } from './fixedStep.ts';
 import { SnapshotHistory, diffSnapshots, applyDelta } from './network.ts';
 import { BudgetedResourceCache, ResourceLoader } from './resourceCache.ts';
+import { RuntimeHealthCoordinator } from './runtimeHealthCoordinator.ts';
+import type { IntegrityProbe } from '../../types/runtimeIntegrity.ts';
 import {
   DEFAULT_SIMULATION_CONFIG,
   EntityId,
@@ -54,6 +56,7 @@ export class NextGenRuntimeKernel<TResource = unknown> {
   readonly resources: BudgetedResourceCache<TResource>;
   readonly clock: FixedStepClock;
   readonly scheduler: DeterministicScheduler;
+  readonly healthCoordinator: RuntimeHealthCoordinator;
   readonly #hooks: KernelHooks;
   readonly #registeredSystems = new Set<string>();
   #lifecycle: LifecycleState = { phase: 'cold' };
@@ -74,6 +77,10 @@ export class NextGenRuntimeKernel<TResource = unknown> {
     this.resources = new BudgetedResourceCache(options.resources, options.resourceConfig);
     this.clock = new FixedStepClock(this.config);
     this.scheduler = new DeterministicScheduler({ systems: [] });
+    this.healthCoordinator = new RuntimeHealthCoordinator(() => {
+      const health = this.health();
+      return { score: health.score, status: health.status, reasons: health.reasons };
+    });
     for (const system of options.initialSystems ?? []) this.registerSystem(system);
     this.#installCoreSystems();
   }
@@ -207,6 +214,18 @@ export class NextGenRuntimeKernel<TResource = unknown> {
       reasons,
       metrics,
     };
+  }
+
+  async diagnoseHealth(now = Date.now()) {
+    return this.healthCoordinator.diagnose(now);
+  }
+
+  registerIntegrityProbe(probe: IntegrityProbe): () => void {
+    return this.healthCoordinator.registerProbe(probe);
+  }
+
+  markIntegrityCheckpoint(now = Date.now()): void {
+    this.healthCoordinator.markCheckpoint(now);
   }
 
   metrics(): RuntimeMetrics {
