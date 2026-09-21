@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/health.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * Generic health/damage state (FAZ 7 dragon combat, run 90, DECISIONS.md ADR-0116) — this project's
  * first health system of any kind. Deliberately generic (not "player health" by name): a plain
@@ -14,13 +13,18 @@
  * @module gameplay/health
  */
 
-const pendingDamageResolutions = new WeakMap();
+export interface HealthEventBus { on(eventName: string, handler: (payload: unknown) => void): void; off(eventName: string, handler: (payload: unknown) => void): void; emit(eventName: string, payload?: unknown): void; }
+export interface HealthEventPayload extends Record<string, any> { readonly amount?: number; readonly sourceId?: string | null; appliedAmount?: number; }
+export interface HealthStateOptions { readonly eventsBus: HealthEventBus; readonly maxHealth: number; readonly damageEventName: string; readonly healthChangedEventName: string; readonly diedEventName: string; }
+export interface HealthState { readonly current: number; readonly maxHealth: number; readonly isDead: boolean; heal(amount: number): void; reset(): void; dispose(): void; }
 
-function isObjectPayload(payload) {
+const pendingDamageResolutions = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
+function isObjectPayload(payload: unknown): payload is HealthEventPayload {
 	return payload !== null && (typeof payload === 'object' || typeof payload === 'function');
 }
 
-function tryWrite(payload, key, value) {
+function tryWrite(payload: unknown, key: string, value: unknown): boolean {
 	if (!isObjectPayload(payload)) return false;
 	try {
 		return Reflect.set(payload, key, value);
@@ -33,7 +37,7 @@ function tryWrite(payload, key, value) {
  * Stage same-event defense/health data without requiring producer payload mutability.
  * Mutable payloads retain the legacy best-effort write-back for existing consumers.
  */
-export function stageDamageResolution(payload, patch = {}) {
+export function stageDamageResolution(payload: unknown, patch: Record<string, unknown> = {}): Readonly<Record<string, unknown>> | null {
 	if (!isObjectPayload(payload)) return null;
 	const previous = pendingDamageResolutions.get(payload) ?? {};
 	const next = Object.freeze({ ...previous, ...patch });
@@ -42,33 +46,33 @@ export function stageDamageResolution(payload, patch = {}) {
 	return next;
 }
 
-export function readDamageResolution(payload) {
+export function readDamageResolution(payload: unknown): Readonly<Record<string, unknown>> | null {
 	return isObjectPayload(payload) ? (pendingDamageResolutions.get(payload) ?? null) : null;
 }
 
-export function clearDamageResolution(payload) {
+export function clearDamageResolution(payload: unknown): void {
 	if (isObjectPayload(payload)) pendingDamageResolutions.delete(payload);
 }
 
-function writeDamageAppliedAmount(payload, appliedAmount) {
+function writeDamageAppliedAmount(payload: unknown, appliedAmount: number): boolean {
 	if (!isObjectPayload(payload)) return false;
 	const previous = pendingDamageResolutions.get(payload) ?? {};
 	pendingDamageResolutions.set(payload, Object.freeze({ ...previous, appliedAmount }));
 	return tryWrite(payload, 'appliedAmount', appliedAmount);
 }
 
-function readDamageSourceId(payload, stagedResolution = readDamageResolution(payload)) {
+function readDamageSourceId(payload: HealthEventPayload, stagedResolution = readDamageResolution(payload)): string | null {
 	return stagedResolution?.sourceId ?? payload?.sourceId ?? null;
 }
 
-export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }) {
+export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }: HealthStateOptions): HealthState {
 	if (!Number.isFinite(maxHealth) || !(maxHealth > 0)) {
 		throw new RangeError('createHealthState maxHealth must be a finite positive number');
 	}
 	let current = maxHealth;
 	let hasDied = false;
 
-	function clearResolutionAfterSameEvent(payload) {
+	function clearResolutionAfterSameEvent(payload: unknown): void {
 		// Preserve the authoritative snapshot through the first microtask wave so listeners
 		// registered after health can defer their own same-event reconciliation without racing cleanup.
 		// If the same payload object is reused before cleanup, a stale event must not erase the
@@ -79,7 +83,7 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 		}));
 	}
 
-	function emitHealthChanged({ previous = current, reason = 'sync', sourceId = null } = {}) {
+	function emitHealthChanged({ previous = current, reason = 'sync', sourceId = null }: { readonly previous?: number; readonly reason?: string; readonly sourceId?: string | null } = {}) {
 		const delta = current - previous;
 		const receipt = { current, maxHealth };
 		Object.defineProperties(receipt, {
@@ -92,13 +96,14 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 		eventsBus.emit(healthChangedEventName, Object.freeze(receipt));
 	}
 
-	function onDamage(payload) {
-		const stagedResolution = readDamageResolution(payload);
-		const amount = stagedResolution?.amount ?? payload?.amount;
+	function onDamage(payload: unknown): void {
+		const eventPayload = isObjectPayload(payload) ? payload : null;
+		const stagedResolution = readDamageResolution(eventPayload);
+		const amount = stagedResolution?.amount ?? eventPayload?.amount;
 		if (!Number.isFinite(amount) || !(amount > 0)) {
 			if (stagedResolution) {
-				if (Number.isFinite(amount) && amount === 0) writeDamageAppliedAmount(payload, 0);
-				clearResolutionAfterSameEvent(payload);
+				if (Number.isFinite(amount) && amount === 0) writeDamageAppliedAmount(eventPayload, 0);
+				clearResolutionAfterSameEvent(eventPayload);
 			}
 			return;
 		}
@@ -108,10 +113,10 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 			return;
 		}
 		const previous = current;
-		const sourceId = readDamageSourceId(payload, stagedResolution);
+		const sourceId = eventPayload ? readDamageSourceId(eventPayload, stagedResolution) : null;
 		current = Math.max(0, current - amount);
 		const appliedAmount = previous - current;
-		writeDamageAppliedAmount(payload, appliedAmount);
+		writeDamageAppliedAmount(eventPayload, appliedAmount);
 		emitHealthChanged({ previous, reason: 'damage', sourceId });
 		if (current === 0 && !hasDied) {
 			hasDied = true;

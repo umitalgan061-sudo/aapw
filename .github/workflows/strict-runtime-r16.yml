@@ -1,0 +1,30 @@
+name: Kızıl Ufuk Strict Runtime TypeScript R16
+on:
+  pull_request:
+    paths:
+      - 'src/3d/renderQuality.ts'
+      - 'src/3d/renderQuality.js'
+      - 'src/3d/fog.ts'
+      - 'src/3d/fog.js'
+      - 'src/3d/safeMode.ts'
+      - 'src/3d/safeMode.js'
+      - 'src/3d/gameplay/health.ts'
+      - 'src/3d/gameplay/health.js'
+      - 'scripts/checkStrictRuntimeR16.mjs'
+      - 'tests/modern/strictRuntimeR16.test.ts'
+      - 'package.json'
+      - 'src/3d/modern/migrationLedgerR16.ts'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install
+      - run: node scripts/checkStrictRuntimeR16.mjs
+      - run: npm run typecheck
+      - run: npm test -- tests/modern/strictRuntimeR16.test.ts

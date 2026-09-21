@@ -1,4 +1,4 @@
-// @ts-nocheck
+/** Production TypeScript owner for src/3d/fog.js. Legacy .js remains compatibility-only. */
 /**
  * Distance fog, tied to the day/night cycle (`lighting.js`) rather than a fixed look: color always
  * matches the current sky horizon color (so fogged-out terrain blends into the sky instead of
@@ -86,12 +86,15 @@ const FOG_HUMID_DAY_TINT_MAX = 0.036;
 /** A small post-sunset humidity lift separates blue hour from both warm dusk and fully dark night. */
 const FOG_BLUE_HOUR_DENSITY_GAIN = 0.000032;
 
+export interface DayNightFogState { readonly horizonColor: THREE.Color; readonly nightFactor: number; }
+export interface FogAtmosphereSnapshot { readonly nightFactor: number; readonly twilight: number; readonly density: number; readonly horizonLuminance: number; readonly horizonChroma: number; }
+
 /**
  * Creates the scene fog. Caller assigns it to `scene.fog` and calls `updateFog` every frame
  * afterward — the color/density below are placeholders, immediately overwritten on first update.
  * @returns {THREE.FogExp2}
  */
-export function createFog() {
+export function createFog(): THREE.FogExp2 {
 	return new THREE.FogExp2(0x000000, FOG_DENSITY_DAY);
 }
 
@@ -127,7 +130,7 @@ export function createFog() {
  * @param {THREE.FogExp2} fog
  * @param {{horizonColor: THREE.Color, nightFactor: number}} dayNight - `lighting.js`'s per-frame output.
  */
-export function updateFog(fog, dayNight) {
+export function updateFog(fog: THREE.FogExp2, dayNight: DayNightFogState): FogAtmosphereSnapshot {
 	const nightFactor = THREE.MathUtils.clamp(dayNight.nightFactor, 0, 1);
 	const twilight = Math.pow(Math.sin(Math.PI * nightFactor), FOG_TWILIGHT_CURVE_POWER);
 	const fullDay = 1 - THREE.MathUtils.smoothstep(nightFactor, 0.08, 0.42);
