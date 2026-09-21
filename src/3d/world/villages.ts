@@ -9,11 +9,11 @@
  */
 
 import * as THREE from 'three';
-import { AssetLoader } from '../assetLoader.js';
+import { AssetLoader } from '../assetLoader.ts';
 import { analyzeMaterialSurfaces } from '../materials/MaterialAssignmentCore.js';
-import { placeWorldAsset, WORLD_SURFACE_POLICY_PRESETS } from './WorldAssetPlacementPipeline.js';
+import { placeWorldAsset, WORLD_SURFACE_POLICY_PRESETS } from './WorldAssetPlacementPipeline.ts';
 import { isPlaceablePosition } from './vegetation.js';
-import { createStoneMaterial, createRoofMaterial } from './materials.js';
+import { createStoneMaterial, createRoofMaterial } from './materials.ts';
 
 const VILLAGE_OUTER_RADIUS_METERS = 210;
 const HAMLET_DISTANCE_MIN_METERS = 115;
