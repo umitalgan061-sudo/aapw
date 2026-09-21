@@ -1,5 +1,5 @@
 /** Stable selector helpers for consumers that must not duplicate locomotion semantics. */
-import { CREATURE_LOCOMOTION_STATES, isCreatureLocomotionAirborne, isCreatureLocomotionReactive } from './creatureLocomotionStateSynthesis.js';
+import { CREATURE_LOCOMOTION_STATES, isCreatureLocomotionAirborne, isCreatureLocomotionReactive } from './creatureLocomotionStateSynthesis.ts';
 
 function text(value, fallback = '') { return typeof value === 'string' && value ? value : fallback; }
 function n(value, fallback = 0) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
