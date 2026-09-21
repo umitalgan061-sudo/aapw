@@ -156,19 +156,19 @@ export class WorldStreamingV3 {
       throw new Error('Streaming interest source radius must be positive');
     }
 
-    const normalized: StreamInterestSource = {
-      ...source,
+    let normalized: StreamInterestSource = {
       id: source.id.trim(),
       x: Number.isFinite(source.x) ? source.x : 0,
       z: Number.isFinite(source.z) ? source.z : 0,
       radiusMeters: Math.max(1, source.radiusMeters),
       weight: Math.max(0, source.weight),
-      categories: source.categories ? [...new Set(source.categories)] : undefined,
-      pinRadiusMeters:
-        source.pinRadiusMeters === undefined
-          ? undefined
-          : Math.max(0, source.pinRadiusMeters),
     };
+    if (source.categories && source.categories.length > 0) {
+      normalized = { ...normalized, categories: [...new Set(source.categories)] };
+    }
+    if (source.pinRadiusMeters !== undefined) {
+      normalized = { ...normalized, pinRadiusMeters: Math.max(0, source.pinRadiusMeters) };
+    }
 
     this.#sources.set(normalized.id, normalized);
     return () => {
