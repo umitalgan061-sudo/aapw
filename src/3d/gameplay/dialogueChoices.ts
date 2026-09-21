@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/dialogueChoices.js; legacy JS path remains compatibility-only. */
-// @ts-nocheck
 /**
  * `INTERACTION_CONFIG.CHOICES_BY_NPC_ID` — split out of `gameplay/gameplayConfig.js` (run 50,
  * DECISIONS.md ADR-0066) once that file reached 566/600 lines with only 34 headroom left, this
@@ -78,7 +77,7 @@
  * yet (no further branching, no state/persistence, no stat effects) — proves the mechanism on a
  * growing pilot subset first, same "pilot on 2 of N, extend later" precedent `NPC_CONFIG.SPAWNS`'
  * own patrol rollout (run 22) already established for this project. */
-export const CHOICES_BY_NPC_ID = Object.freeze({
+export const CHOICES_BY_NPC_ID: DialogueChoicesByNpcId = Object.freeze({
 	'umit-guard-1': Object.freeze([
 		Object.freeze({
 			label: 'Ejderhalar hâlâ var mı?',
