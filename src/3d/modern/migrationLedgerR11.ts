@@ -1,5 +1,5 @@
-/** R10 production migration ledger for geographic distribution, roads and settlement-world presentation. */
-export const R10_MIGRATION_MODULES = Object.freeze([
+/** R11 production migration ledger for geographic distribution, roads and settlement-world presentation. */
+export const R11_MIGRATION_MODULES = Object.freeze([
   { id:'geographic-distribution', legacyPath:'src/3d/world/geographicAssetDistributionAdapter.js', modernPath:'src/3d/world/geographicAssetDistributionAdapter.ts', status:'migrated' },
   { id:'geographic-cluster-planner', legacyPath:'src/3d/world/geographicAssetClusterPlanner.js', modernPath:'src/3d/world/geographicAssetClusterPlanner.ts', status:'migrated' },
   { id:'road-pathfinder', legacyPath:'src/3d/world/roadPathfinder.js', modernPath:'src/3d/world/roadPathfinder.ts', status:'migrated' },
@@ -9,16 +9,16 @@ export const R10_MIGRATION_MODULES = Object.freeze([
   { id:'canonical-surface-visual', legacyPath:'src/3d/world/worldReferenceSurfaceTerrainVisual.js', modernPath:'src/3d/world/worldReferenceSurfaceTerrainVisual.ts', status:'migrated' },
 ] as const);
 
-export interface R10MigrationSnapshot {
+export interface R11MigrationSnapshot {
   readonly version: 10;
   readonly migratedCount: number;
   readonly totalTracked: number;
   readonly coveragePercent: number;
 }
 
-export function getR10MigrationSnapshot(): R10MigrationSnapshot {
-  const totalTracked = R10_MIGRATION_MODULES.length;
-  const migratedCount = R10_MIGRATION_MODULES.filter(m => m.status === 'migrated').length;
+export function getR11MigrationSnapshot(): R11MigrationSnapshot {
+  const totalTracked = R11_MIGRATION_MODULES.length;
+  const migratedCount = R11_MIGRATION_MODULES.filter(m => m.status === 'migrated').length;
   return Object.freeze({
     version: 10,
     migratedCount,
