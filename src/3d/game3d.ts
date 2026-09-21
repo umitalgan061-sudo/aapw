@@ -64,7 +64,7 @@ import { createHealthState } from './gameplay/health.js';
 import { spawnLivingWorld } from './gameplay/livingWorldSpawner.js';
 import { createInteractionController } from './gameplay/interaction.ts';
 import { focusSunShadow, applyShadowRoles } from './renderQuality.ts';
-import { createWorldEventSystem } from './gameplay/worldEvents.js';
+import { createWorldEventSystem } from './gameplay/worldEvents.ts';
 import { updateWater, disposeWater } from './world/water.ts';
 import { createWeatherSystem } from './world/weather.ts';
 import { disposeRiverMesh, disposeWaterfallMesh, updateFlowAnimation } from './world/rivers.ts';
