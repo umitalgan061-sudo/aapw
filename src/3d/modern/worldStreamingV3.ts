@@ -24,7 +24,7 @@ export type StreamPriority =
   | 'far'
   | 'background';
 
-export type StreamChunkId = \`\${number}:\${number}\`;
+export type StreamChunkId = `${number}:${number}`;
 
 export type StreamChunk = {
   readonly id: StreamChunkId;
@@ -104,7 +104,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function chunkId(x: number, z: number): StreamChunkId {
-  return \`\${Math.trunc(x)}:\${Math.trunc(z)}\`;
+  return `${Math.trunc(x)}:${Math.trunc(z)}`;
 }
 
 function parseChunk(id: StreamChunkId): { readonly x: number; readonly z: number } {
