@@ -29,7 +29,7 @@
 export { PLAYER_CONFIG } from './playerConfig.ts';
 export { NPC_CONFIG } from './npcConfig.ts';
 export { ANIMAL_CONFIG } from './animalConfig.ts';
-export { DRAGON_CONFIG } from './dragonConfig.js';
+export { DRAGON_CONFIG } from './dragonConfig.ts';
 export { INTERACTION_CONFIG } from './interactionConfig.ts';
 
 

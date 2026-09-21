@@ -34,7 +34,10 @@
     "test:typed-world-support-r11": "npm test -- tests/modern/typedWorldSupportR11.test.ts",
     "check:typed-world-support-r11": "npm run verify:typed-world-support-r11 && npm run test:typed-world-support-r11 && npm run typecheck",
     "verify:runtime:v3": "node scripts/checkModernRuntimeV3.mjs",
-    "check:modern": "npm run verify:modern && npm run verify:runtime:v3 && npm run typecheck && npm test -- --passWithNoTests"
+    "check:modern": "npm run verify:modern && npm run verify:runtime:v3 && npm run typecheck && npm test -- --passWithNoTests",
+    "verify:typed-gameplay-r11": "node scripts/checkTypedGameplayR11.mjs",
+    "test:typed-gameplay-r11": "npm test -- tests/modern/typedGameplayR11.test.ts",
+    "check:typed-gameplay-r11": "npm run verify:typed-gameplay-r11 && npm run test:typed-gameplay-r11 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

@@ -7,7 +7,7 @@ import {
   createPlayerLocomotionStateSynthesisState,
   resolvePlayerLocomotionStateIntent,
   resolvePlayerLocomotionStateReadModel,
-} from './playerLocomotionStateSynthesis.js';
+} from './playerLocomotionStateSynthesis.ts';
 import {
   PLAYER_LOCOMOTION_STATE_TIMELINE_VERSION,
   createPlayerLocomotionStateTimelineState,

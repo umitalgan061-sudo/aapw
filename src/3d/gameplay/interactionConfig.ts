@@ -17,7 +17,7 @@ import {
 	evaluateFieldReadiness,
 	evaluateJourneyEndurance,
 	evaluateJourneyWithRestStops,
-} from './interactionFieldReadiness.js';
+} from './interactionFieldReadiness.ts';
 
 /** Dragonstone watch outcome values shared by quest definitions and the interaction adapter. */
 export const WATCH_POLICY = Object.freeze({

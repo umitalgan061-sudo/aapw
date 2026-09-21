@@ -2,7 +2,7 @@
  * Runtime facade for creature locomotion presentation state.
  * Keeps per-creature temporal state outside the behaviour brain while exposing immutable snapshots.
  */
-import { synthesizeCreatureLocomotionState, projectCreatureGaitRequest } from './creatureLocomotionStateSynthesis.js';
+import { synthesizeCreatureLocomotionState, projectCreatureGaitRequest } from './creatureLocomotionStateSynthesis.ts';
 import { createCreatureLocomotionTimeline, tickCreatureLocomotionTimeline, getCreatureLocomotionTimelineLatest, summarizeCreatureLocomotionTimeline } from './creatureLocomotionStateTimeline.js';
 
 function number(value, fallback = 0) {
