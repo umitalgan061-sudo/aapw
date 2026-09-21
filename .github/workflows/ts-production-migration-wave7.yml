@@ -5,24 +5,87 @@ on:
     paths:
       - 'src/3d/auroraRealism.js'
       - 'src/3d/auroraRealism.ts'
-      - 'src/3d/gameplay/**'
-      - 'tests/modern/tsProductionMigrationWave7.test.ts'
+      - 'src/3d/gameplay/animalConfig.js'
+      - 'src/3d/gameplay/animalConfig.ts'
+      - 'src/3d/gameplay/interactionFieldReadiness.js'
+      - 'src/3d/gameplay/interactionFieldReadiness.ts'
+      - 'src/3d/gameplay/livingWorldStimulusAdapter.js'
+      - 'src/3d/gameplay/livingWorldStimulusAdapter.ts'
+      - 'src/3d/gameplay/livingWorldStimulusAudit.js'
+      - 'src/3d/gameplay/livingWorldStimulusAudit.ts'
+      - 'src/3d/gameplay/livingWorldStimulusRolePolicy.js'
+      - 'src/3d/gameplay/livingWorldStimulusRolePolicy.ts'
+      - 'src/3d/gameplay/settlementCampaignSaveSlots.js'
+      - 'src/3d/gameplay/settlementCampaignSaveSlots.ts'
+      - 'src/3d/gameplay/settlementCampaignTelemetry.js'
+      - 'src/3d/gameplay/settlementCampaignTelemetry.ts'
+      - 'src/3d/gameplay/worldOpportunityEvidence.js'
+      - 'src/3d/gameplay/worldOpportunityEvidence.ts'
+      - 'src/3d/gameplay/worldShelterContext.js'
+      - 'src/3d/gameplay/worldShelterContext.ts'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.js'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.ts'
+      - 'src/3d/gameplay/livingWorldEventDirectorAdapter.js'
+      - 'src/3d/gameplay/livingWorldEventDirectorAdapter.ts'
+      - 'src/3d/gameplay/livingWorldFaunaActivityBudget.js'
+      - 'src/3d/gameplay/livingWorldFaunaActivityBudget.ts'
+      - 'src/3d/gameplay/livingWorldFaunaHabitatBalancer.js'
+      - 'src/3d/gameplay/livingWorldFaunaHabitatBalancer.ts'
+      - 'src/3d/gameplay/livingWorldFaunaSignalRouter.js'
+      - 'src/3d/gameplay/livingWorldFaunaSignalRouter.ts'
+      - 'src/3d/gameplay/livingWorldGroupAiPolicy.js'
+      - 'src/3d/gameplay/livingWorldGroupAiPolicy.ts'
+      - 'src/3d/gameplay/livingWorldGroupDirectorAdapter.js'
+      - 'src/3d/gameplay/livingWorldGroupDirectorAdapter.ts'
+      - 'package.json'
       - 'scripts/checkTsProductionMigrationWave7.mjs'
+      - 'tests/modern/tsProductionMigrationWave7.test.ts'
       - 'src/3d/modern/production-v7/interestManager.ts'
       - 'src/3d/modern/combatAuthority.ts'
-      - 'package.json'
       - '.github/workflows/ts-production-migration-wave7.yml'
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - 'src/3d/auroraRealism.js'
       - 'src/3d/auroraRealism.ts'
-      - 'src/3d/gameplay/**'
-      - 'tests/modern/tsProductionMigrationWave7.test.ts'
+      - 'src/3d/gameplay/animalConfig.js'
+      - 'src/3d/gameplay/animalConfig.ts'
+      - 'src/3d/gameplay/interactionFieldReadiness.js'
+      - 'src/3d/gameplay/interactionFieldReadiness.ts'
+      - 'src/3d/gameplay/livingWorldStimulusAdapter.js'
+      - 'src/3d/gameplay/livingWorldStimulusAdapter.ts'
+      - 'src/3d/gameplay/livingWorldStimulusAudit.js'
+      - 'src/3d/gameplay/livingWorldStimulusAudit.ts'
+      - 'src/3d/gameplay/livingWorldStimulusRolePolicy.js'
+      - 'src/3d/gameplay/livingWorldStimulusRolePolicy.ts'
+      - 'src/3d/gameplay/settlementCampaignSaveSlots.js'
+      - 'src/3d/gameplay/settlementCampaignSaveSlots.ts'
+      - 'src/3d/gameplay/settlementCampaignTelemetry.js'
+      - 'src/3d/gameplay/settlementCampaignTelemetry.ts'
+      - 'src/3d/gameplay/worldOpportunityEvidence.js'
+      - 'src/3d/gameplay/worldOpportunityEvidence.ts'
+      - 'src/3d/gameplay/worldShelterContext.js'
+      - 'src/3d/gameplay/worldShelterContext.ts'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.js'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.ts'
+      - 'src/3d/gameplay/livingWorldEventDirectorAdapter.js'
+      - 'src/3d/gameplay/livingWorldEventDirectorAdapter.ts'
+      - 'src/3d/gameplay/livingWorldFaunaActivityBudget.js'
+      - 'src/3d/gameplay/livingWorldFaunaActivityBudget.ts'
+      - 'src/3d/gameplay/livingWorldFaunaHabitatBalancer.js'
+      - 'src/3d/gameplay/livingWorldFaunaHabitatBalancer.ts'
+      - 'src/3d/gameplay/livingWorldFaunaSignalRouter.js'
+      - 'src/3d/gameplay/livingWorldFaunaSignalRouter.ts'
+      - 'src/3d/gameplay/livingWorldGroupAiPolicy.js'
+      - 'src/3d/gameplay/livingWorldGroupAiPolicy.ts'
+      - 'src/3d/gameplay/livingWorldGroupDirectorAdapter.js'
+      - 'src/3d/gameplay/livingWorldGroupDirectorAdapter.ts'
+      - 'package.json'
       - 'scripts/checkTsProductionMigrationWave7.mjs'
+      - 'tests/modern/tsProductionMigrationWave7.test.ts'
       - 'src/3d/modern/production-v7/interestManager.ts'
       - 'src/3d/modern/combatAuthority.ts'
-      - 'package.json'
       - '.github/workflows/ts-production-migration-wave7.yml'
 
 permissions:
@@ -37,16 +100,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout exact head
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.sha }}
-      - uses: actions/setup-node@v5
+      - name: Node 24.21
+        uses: actions/setup-node@v5
         with:
           node-version: 24.21.0
           cache: npm
           cache-dependency-path: package.json
-      - run: npm install --ignore-scripts --no-audit --no-fund
-      - run: npm run verify:ts-production-wave7
-      - run: npm run test:ts-production-wave7
-      - run: npm run check:combat-determinism
-      - run: npm run check:production-runtime-r4
+      - name: Install
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Migration structural gate
+        run: npm run verify:ts-production-wave7
+      - name: Focused migration tests
+        run: npm run test:ts-production-wave7
+      - name: Combat determinism gate
+        run: npm run check:combat-determinism
+      - name: Production runtime R4 gate
+        run: npm run check:production-runtime-r4
