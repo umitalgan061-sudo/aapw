@@ -5,7 +5,7 @@
  */
 
 import * as THREE from 'three';
-import { mulberry32 } from './terrain.js';
+import { mulberry32 } from './terrain.ts';
 import { northClimateWeightsAtWorldZ } from './terrainBiomeShading.js';
 import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js';
 
