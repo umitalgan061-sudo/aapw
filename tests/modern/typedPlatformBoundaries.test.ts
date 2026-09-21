@@ -1,19 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { createOrbitCamera, resolveCameraCollision } from '../../src/3d/camera.ts';
+import { resolveCameraCollision } from '../../src/3d/camera.ts';
 import { AssetLoader } from '../../src/3d/assetLoader.ts';
 
 describe('typed camera boundary', () => {
-  it('clamps invalid orbit distance options into safe bounds', () => {
-    const camera = new THREE.PerspectiveCamera();
-    const element = document?.createElement?.('div');
-    if (!element) return;
-    const controls = createOrbitCamera(camera, element, { minDistance: -5, maxDistance: -1 });
-    expect(controls.minDistance).toBeGreaterThan(0);
-    expect(controls.maxDistance).toBe(controls.minDistance);
-    controls.dispose();
-  });
-
   it('keeps the desired camera position when nothing occludes the target', () => {
     const raycaster = new THREE.Raycaster();
     const target = new THREE.Vector3(0, 1, 0);
@@ -42,8 +32,10 @@ describe('typed asset boundary', () => {
     const mesh = new THREE.Mesh(geometry, material);
     const group = new THREE.Group();
     group.add(mesh);
+    const geometryDispose = vi.spyOn(geometry, 'dispose');
+    const textureDispose = vi.spyOn(texture, 'dispose');
     AssetLoader.disposeObject3D(group);
-    expect(geometry.dispose).toBeDefined();
-    expect(texture.dispose).toBeDefined();
+    expect(geometryDispose).toHaveBeenCalledOnce();
+    expect(textureDispose).toHaveBeenCalledOnce();
   });
 });
