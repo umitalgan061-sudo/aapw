@@ -37,7 +37,10 @@
     "check:modern": "npm run verify:modern && npm run verify:runtime:v3 && npm run typecheck && npm test -- --passWithNoTests",
     "verify:typed-gameplay-r11": "node scripts/checkTypedGameplayR11.mjs",
     "test:typed-gameplay-r11": "npm test -- tests/modern/typedGameplayR11.test.ts",
-    "check:typed-gameplay-r11": "npm run verify:typed-gameplay-r11 && npm run test:typed-gameplay-r11 && npm run typecheck"
+    "check:typed-gameplay-r11": "npm run verify:typed-gameplay-r11 && npm run test:typed-gameplay-r11 && npm run typecheck",
+    "verify:typed-creature-runtime": "node scripts/checkTypedCreatureRuntimeWave13.mjs",
+    "test:typed-creature-runtime": "npm test -- tests/modern/typedCreatureRuntimeWave13.test.ts",
+    "check:typed-creature-runtime": "npm run verify:typed-creature-runtime && npm run test:typed-creature-runtime && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
