@@ -84,6 +84,7 @@ import { updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
 import { updateFog } from './fog.js';
 import { updateMobileVegetationDistanceCullingRun141 } from './world/mobileVegetationCulling.js';
 import { createScene, isCoarsePointerDevice } from './sceneManager.ts';
+import { createProductionRuntimeGuardR12 } from './runtime/productionRuntimeGuardR12.ts';
 import { updateEntitiesSafely, updateSystemSafely } from './safeMode.ts';
 import { createPerfPanel } from './debug/perfPanel.js';
 import {
@@ -134,6 +135,12 @@ export async function initGame3D() {
 		}
 
 		const state = createScene(canvas);
+		state.productionRuntimeGuard = createProductionRuntimeGuardR12({
+			frameBudgetMs: 16.67,
+			warningMultiplier: 1.25,
+			maxFrameSamples: 180,
+			maxSubsystemSamples: 360,
+		});
 		const unbindResize = bindResize(state);
 
 		// FAZ 3: real, decimated Meshy AI castle models at 7 kingdom seats (DECISIONS.md ADR-0074),
@@ -331,6 +338,7 @@ export async function initGame3D() {
 		let frameId;
 		const tick = () => {
 			frameId = requestAnimationFrame(tick);
+			const runtimeFrameToken = state.productionRuntimeGuard.beginFrame();
 			// Paused: every downstream consumer below is already delta-scaled (movement, animation
 			// mixers, day/night, world-event countdowns, sky/water/starfield time), so clamping to 0
 			// freezes the whole world in one place without restructuring this loop — `state.clock`
@@ -517,6 +525,7 @@ export async function initGame3D() {
 			state.camera.position.set(desiredCameraX, desiredCameraY, desiredCameraZ);
 			// After render(): renderer.info.render.calls/.triangles reset on every render() call, so
 			// reading them any earlier this frame would report the *previous* frame's numbers.
+			state.productionRuntimeGuard.endFrame(runtimeFrameToken);
 			state.perfPanel.update(delta);
 		};
 		tick();
@@ -565,6 +574,7 @@ export async function initGame3D() {
 			disposeIceLandmarks(state.iceLandmarks);
 			if (state.mobileSpawnVegetation) disposeVegetation(state.mobileSpawnVegetation);
 			disposeDayNightLighting(state.scene, state.lights);
+			state.productionRuntimeGuard.dispose();
 			state.renderer.dispose();
 		}, { once: true });
 
