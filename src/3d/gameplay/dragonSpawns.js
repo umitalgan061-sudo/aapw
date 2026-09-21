@@ -9,7 +9,7 @@
  * @module gameplay/dragonSpawns
  */
 
-import { createDragon } from './dragonController.js';
+import { createDragon } from './dragonController.ts';
 
 /**
  * Resolves and loads every configured dragon spawn (`gameplayConfig.js`'s `DRAGON_CONFIG.SPAWNS`)
