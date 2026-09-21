@@ -10,7 +10,7 @@ export interface MigrationModuleRecord {
 }
 
 export interface MigrationLedgerSnapshot {
-  readonly version: 4;
+  readonly version: 5;
   readonly generatedAtTick: number;
   readonly modules: readonly MigrationModuleRecord[];
   readonly legacyCount: number;
@@ -19,6 +19,10 @@ export interface MigrationLedgerSnapshot {
 }
 
 export const R3_MIGRATION_MODULES = [
+  { id: 'gameplay-config-animal', legacyPath: 'src/3d/gameplay/animalConfig.js', modernPath: 'src/3d/gameplay/animalConfig.ts', owner: 'runtime', status: 'migrated', risk: 'low' },
+  { id: 'gameplay-config-interaction', legacyPath: 'src/3d/gameplay/interactionConfig.js', modernPath: 'src/3d/gameplay/interactionConfig.ts', owner: 'runtime', status: 'migrated', risk: 'medium' },
+  { id: 'gameplay-config-npc', legacyPath: 'src/3d/gameplay/npcConfig.js', modernPath: 'src/3d/gameplay/npcConfig.ts', owner: 'runtime', status: 'migrated', risk: 'medium' },
+  { id: 'gameplay-config-species', legacyPath: 'src/3d/gameplay/creatureSpeciesConfig.js', modernPath: 'src/3d/gameplay/creatureSpeciesConfig.ts', owner: 'runtime', status: 'migrated', risk: 'low' },
   { id: 'scene', legacyPath: 'src/3d/sceneManager.js', modernPath: 'src/3d/sceneManager.ts', owner: 'rendering', status: 'migrated', risk: 'high' },
   { id: 'game-loop', legacyPath: 'src/3d/game3d.js', modernPath: 'src/3d/game3d.ts', owner: 'runtime', status: 'migrated', risk: 'high' },
   { id: 'player', legacyPath: 'src/3d/gameplay/player.js', modernPath: 'src/3d/gameplay/player.ts', owner: 'runtime', status: 'migrated', risk: 'high' },
@@ -44,7 +48,7 @@ export function createMigrationLedger(tick: RuntimeTick = 0): MigrationLedgerSna
   const migratedCount = R3_MIGRATION_MODULES.filter((module) => module.status === 'migrated' || module.status === 'retired').length;
   const coveragePercent = legacyCount === 0 ? 100 : Number(((migratedCount / legacyCount) * 100).toFixed(2));
   return {
-    version: 4,
+    version: 5,
     generatedAtTick: tick,
     modules: [...R3_MIGRATION_MODULES],
     legacyCount,
@@ -55,7 +59,7 @@ export function createMigrationLedger(tick: RuntimeTick = 0): MigrationLedgerSna
 
 export function createMigrationEvent(ledger: MigrationLedgerSnapshot, tick: number): RuntimeEvent {
   const payload: RuntimeEnvelope = {
-    version: 4,
+    version: 5,
     kind: 'migration-ledger',
     tick,
     sequence: tick,
