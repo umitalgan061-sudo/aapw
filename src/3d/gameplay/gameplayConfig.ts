@@ -1,5 +1,4 @@
-/** Production TypeScript owner for src/3d/gameplay/gameplayConfig.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
+/** Strict TypeScript gameplay configuration barrel. */
 /**
  * Gameplay-system config/constants barrel — re-exports `PLAYER_CONFIG` (FAZ 4), `NPC_CONFIG`
  * (FAZ 5), `ANIMAL_CONFIG` (FAZ 6), `DRAGON_CONFIG` (FAZ 7), and `INTERACTION_CONFIG` (FAZ 5

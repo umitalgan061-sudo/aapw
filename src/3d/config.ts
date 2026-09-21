@@ -1,5 +1,4 @@
-/** Production TypeScript owner for src/3d/config.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
+/** Strict TypeScript production configuration owner. */
 /**
  * Central configuration and constants for the 3D Westeros world's core/world/UI systems. No magic
  * numbers should live in rendering/world code — add them here instead. Gameplay-system config
@@ -157,6 +156,11 @@ export const MOBILE_VEGETATION_CULLING_CONFIG_RUN141 = Object.freeze({
 	INTERSECTION_MARGIN_METERS: 100,
 });
 
-export type QualityLevel = typeof QUALITY_LEVELS[keyof typeof QUALITY_LEVELS];
+export type QualityLevel = (typeof QUALITY_LEVELS)[keyof typeof QUALITY_LEVELS];
+export type QualityPreset = (typeof QUALITY_PRESETS)[Extract<QualityLevel, keyof typeof QUALITY_PRESETS>];
 export type WorldConfig = typeof WORLD_DEFAULTS;
 export type WorldScaleConfig = typeof WORLD_SCALE;
+export type ChunkConfig = typeof CHUNK_CONFIG;
+export type SettlementConfig = typeof SETTLEMENT_CONFIG;
+export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
+export type EventName = (typeof EVENTS)[keyof typeof EVENTS];
