@@ -18,7 +18,7 @@ import {
   scoreGeographicAssetFamily,
   deriveGeographicAssetPlacement,
   geographicAssetContextAtWorldXZ,
-} from './geographicAssetContext.js';
+} from './geographicAssetContext.ts';
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
