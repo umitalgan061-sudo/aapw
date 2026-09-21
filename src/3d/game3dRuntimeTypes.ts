@@ -133,4 +133,3 @@ export interface Game3DState extends ReturnType<typeof createScene> {
   weatherDisabledDueToError: boolean;
   worldEventsDisabledDueToError: boolean;
 }
-
