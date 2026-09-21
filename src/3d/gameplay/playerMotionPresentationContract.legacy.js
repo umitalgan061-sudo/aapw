@@ -1,0 +1,20 @@
+/** Stable contract for composite player motion presentation consumers. */
+import { PLAYER_MOTION_PRESENTATION_DOMAINS } from './playerMotionPresentationState.js';
+
+export const PLAYER_MOTION_PRESENTATION_CONTRACT_VERSION='2026-09-15-v1';
+export const PLAYER_MOTION_PRESENTATION_CHANNELS=Object.freeze(['locomotion','traversal','anticipation','commitment','contact','confidence']);
+export const PLAYER_MOTION_PRESENTATION_REQUIRED=Object.freeze(['version','domain','locomotion','traversal','channels','precedence']);
+function finite(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}function clamp(v,min,max){return Math.max(min,Math.min(max,v));}function clamp01(v){return clamp(finite(v),0,1);}function round(v,d=4){const f=10**d;return Math.round(finite(v)*f)/f;}function freeze(v){return Object.freeze(v);}
+
+export function createPlayerMotionPresentationContract(state={}){
+ const channels=Object.fromEntries(PLAYER_MOTION_PRESENTATION_CHANNELS.map(k=>[k,round(clamp01(state.channels?.[k]))]));
+ return freeze({version:PLAYER_MOTION_PRESENTATION_CONTRACT_VERSION,domain:PLAYER_MOTION_PRESENTATION_DOMAINS.includes(state.domain)?state.domain:'locomotion',locomotion:freeze({mode:state.locomotion?.mode??'idle',direction:state.locomotion?.anticipatedDirection??'forward',confidence:round(clamp01(state.locomotion?.confidence))}),traversal:freeze({state:state.traversal?.state??'clear',phase:state.traversal?.phase??'idle',event:state.traversal?.event??'none',technique:state.traversal?.technique??null,confidence:round(clamp01(state.traversal?.confidence))}),channels,precedence:freeze({domain:state.precedence?.domain??'locomotion',reason:state.precedence?.reason??'default',traversalScore:finite(state.precedence?.traversalScore),locomotionScore:finite(state.precedence?.locomotionScore)})});
+}
+
+export function validatePlayerMotionPresentationContract(contract={}){const errors=[];for(const key of PLAYER_MOTION_PRESENTATION_REQUIRED)if(contract[key]===undefined)errors.push(`missing:${key}`);if(!PLAYER_MOTION_PRESENTATION_DOMAINS.includes(contract.domain))errors.push('domain');for(const k of PLAYER_MOTION_PRESENTATION_CHANNELS)if(contract.channels?.[k]<0||contract.channels?.[k]>1)errors.push(`channel:${k}`);if(!contract.traversal?.state)errors.push('traversal.state');if(!contract.locomotion?.mode)errors.push('locomotion.mode');return freeze({valid:errors.length===0,errors:freeze(errors)});}
+
+export function toAnimationMotionPresentationContract(contract={}){return freeze({domain:contract.domain,locomotionMode:contract.locomotion?.mode,traversalState:contract.traversal?.state,traversalPhase:contract.traversal?.phase,traversalTechnique:contract.traversal?.technique,locomotionWeight:contract.channels?.locomotion??0,traversalWeight:contract.channels?.traversal??0,anticipation:contract.channels?.anticipation??0,commitment:contract.channels?.commitment??0,contact:contract.channels?.contact??0,confidence:contract.channels?.confidence??0});}
+export function toAudioMotionPresentationContract(contract={}){return freeze({domain:contract.domain,locomotion:contract.locomotion?.mode,traversal:contract.traversal?.event,state:contract.traversal?.state,priority:contract.precedence?.traversalScore??0,intensity:round(Math.max(contract.channels?.commitment??0,contract.channels?.contact??0))});}
+export function toVfxMotionPresentationContract(contract={}){return freeze({state:contract.traversal?.state,event:contract.traversal?.event,weight:contract.channels?.traversal??0,contact:contract.channels?.contact??0,confidence:contract.channels?.confidence??0});}
+export function toLegacyMotionPresentationContract(contract={}){return freeze({moving:Boolean(contract.channels?.locomotion>0.15),traversing:Boolean(contract.channels?.traversal>0.15),traversalState:contract.traversal?.state??'clear',blocked:contract.traversal?.state==='blocked',confidence:contract.channels?.confidence??0});}
+export function equivalentPlayerMotionContracts(a={},b={}){return JSON.stringify(a)===JSON.stringify(b);}

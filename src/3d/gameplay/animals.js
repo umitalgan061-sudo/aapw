@@ -1,2 +1,4 @@
-/** Compatibility boundary: production implementation lives in animals.ts. */
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './animals.ts';
 export * from './animals.ts';
+export default __typed.default;

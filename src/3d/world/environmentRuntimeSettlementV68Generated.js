@@ -1,9 +1,4 @@
-/** V68 generated deterministic settlement evidence catalog. */
-export const V68_GENERATED_POLICY=Object.freeze({version:68,deterministic:true,noWorldMutation:true});
-const clamp=v=>Math.max(0,Math.min(1,Number(v)||0));
-const domains=['signals','lighting','weather','safety','traffic','services','resources','navigation','shelter','activity','visibility','ground','ecology','exposure','culture','commerce','travel','incidents','comfort','maintenance'];
-export const V68_GENERATED_DOMAINS=Object.freeze(domains);
-export const V68_GENERATED_CATALOG=Object.freeze(domains.flatMap(domain=>Array.from({length:205},(_,index)=>{const i=index+1;const slot=(i-1)%24;const value=Number((((i*7)%101)/100).toFixed(2));const pressure=Number((((i*11)%101)/100).toFixed(2));const risk=Number((((i*13)%101)/100).toFixed(2));return Object.freeze({id:`${domain}-${i}`,domain,slot,value,pressure,risk});})));
-export function resolveGeneratedV68(index){const row=V68_GENERATED_CATALOG[Math.max(0,Math.min(V68_GENERATED_CATALOG.length-1,Number(index)||0))];return Object.freeze({...row,score:clamp(row.value*.55+(1-row.risk)*.3+(1-row.pressure)*.15)});}
-export function validateGeneratedV68(){const errors=[];if(V68_GENERATED_CATALOG.length!==4100)errors.push('count');for(const row of V68_GENERATED_CATALOG){if(row.value<0||row.value>1)errors.push('value');if(row.risk<0||row.risk>1)errors.push('risk');if(row.pressure<0||row.pressure>1)errors.push('pressure');}return Object.freeze({ok:errors.length===0,count:V68_GENERATED_CATALOG.length,errors});}
-export function summarizeGeneratedV68(){const sum=V68_GENERATED_CATALOG.reduce((a,x)=>a+x.value,0);const risk=V68_GENERATED_CATALOG.reduce((a,x)=>a+x.risk,0);return Object.freeze({count:V68_GENERATED_CATALOG.length,meanValue:sum/V68_GENERATED_CATALOG.length,meanRisk:risk/V68_GENERATED_CATALOG.length});}
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './environmentRuntimeSettlementV68Generated.ts';
+export * from './environmentRuntimeSettlementV68Generated.ts';
+export default __typed.default;

@@ -1,16 +1,4 @@
-import { TERRAIN_SEASONAL_EROSION_POLICY } from './terrainSeasonalErosionProfiles.js';
-export const TERRAIN_SEASONAL_EROSION_GLSL=String.raw`
-float tseHash(vec2 p){vec3 q=fract(vec3(p.xyx)*vec3(.1031,.103,.0973));q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
-float tseNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);float a=tseHash(i),b=tseHash(i+vec2(1,0)),c=tseHash(i+vec2(0,1)),d=tseHash(i+vec2(1,1));return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}
-float tseFbm(vec2 p){float v=0.,w=0.,a=.55;for(int i=0;i<5;i++){v+=tseNoise(p)*a;w+=a;p=p*2.03+vec2(17.1,-11.7);a*=.48;}return v/max(w,.00001);}
-float tseRidge(vec2 p){return 1.-abs(tseFbm(p)*2.-1.);}
-float tseSlope(){vec3 n=normalize(vTerrainLowWorldNormal);return 1.-clamp(abs(n.y),0.,1.);}
-float tseWet(vec2 p,float season){float basin=1.-smoothstep(.1,.62,tseSlope());float micro=tseFbm(p/46.+vec2(4.2,-7.3));return clamp(basin*(.38+micro*.42+season*.18),0.,1.);}
-float tseFrost(vec2 p,float season){float cold=1.-smoothstep(.22,.70,season);return clamp(cold*(.42+tseRidge(p/31.+vec2(-6.1,9.4))*.58),0.,1.);}
-float tseErode(vec2 p,float season){float slope=smoothstep(.08,.72,tseSlope());float channel=tseRidge(p/46.+vec2(8.1,-3.7));return clamp(slope*(.36+channel*.46+season*.18),0.,1.);}
-void terrainSeasonalErosionColor(float season){vec2 p=vTerrainLowWorldPosition.xz;float wet=tseWet(p,season),frost=tseFrost(p,season),ero=tseErode(p,season);float crust=(1.-wet)*(1.-frost)*smoothstep(.42,.92,tseFbm(p/280.+vec2(-12.,6.)));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.34,.31,.28),wet*.045);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.64,.67,.70),frost*.028);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.47,.44,.39),ero*.022);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.50,.43,.34),crust*.018);}
-void terrainSeasonalErosionRoughness(float season){vec2 p=vTerrainLowWorldPosition.xz;float wet=tseWet(p,season),frost=tseFrost(p,season),ero=tseErode(p,season);roughnessFactor=clamp(roughnessFactor+frost*.065+ero*.028-wet*.082,.4,1.);}
-void terrainSeasonalErosionNormal(float season){vec2 p=vTerrainLowWorldPosition.xz;vec3 n=normalize(vTerrainLowWorldNormal);float ero=tseErode(p,season),frost=tseFrost(p,season);float a=tseFbm(p/22.+vec2(2.1,8.4)),b=tseFbm(p/22.+vec2(-4.2,6.1));normal=normalize(normal+mat3(viewMatrix)*vec3(-(a-.5),0.,-(b-.5))*(ero*.065+frost*.035));}
-`;
-export const TERRAIN_SEASONAL_EROSION_SHADER_POLICY=Object.freeze({...TERRAIN_SEASONAL_EROSION_POLICY,shaderKey:'terrain-seasonal-erosion-shader-v1',materialKey:'terrain-seasonal-erosion-shader-v1'});
-export function installTerrainSeasonalErosionShader(material){if(!material)throw new TypeError('seasonal erosion shader requires a material');if(material.userData?.terrainSeasonalErosionShaderInstalled)return material;const previous=material.onBeforeCompile?.bind(material);material.onBeforeCompile=(shader,renderer)=>{previous?.(shader,renderer);shader.fragmentShader=shader.fragmentShader.replace('#include <common>',`#include <common>\n${TERRAIN_SEASONAL_EROSION_GLSL}`).replace('#include <color_fragment>','#include <color_fragment>\nterrainSeasonalErosionColor(0.5);').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nterrainSeasonalErosionRoughness(0.5);').replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nterrainSeasonalErosionNormal(0.5);');};const oldKey=material.customProgramCacheKey?.bind(material);material.customProgramCacheKey=()=>`${oldKey?oldKey():''}|${TERRAIN_SEASONAL_EROSION_SHADER_POLICY.materialKey}`;material.userData={...material.userData,terrainSeasonalErosionShaderInstalled:true,terrainSeasonalErosionRenderOnly:true,terrainSeasonalErosionCanonicalHeightUnchanged:true,terrainSeasonalErosionCanonicalHydrologyUnchanged:true,terrainSeasonalErosionCanonicalColliderUnchanged:true,terrainSeasonalErosionCanonicalVegetationPlacementUnchanged:true};return material;}
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './terrainSeasonalErosionShader.ts';
+export * from './terrainSeasonalErosionShader.ts';
+export default __typed.default;

@@ -43,7 +43,12 @@
     "check:typed-creature-runtime": "npm run verify:typed-creature-runtime && npm run test:typed-creature-runtime && npm run typecheck",
     "verify:typed-gameplay-world-r13": "node scripts/checkTypedGameplayWorldR13.mjs",
     "test:typed-gameplay-world-r13": "npm test -- tests/modern/typedGameplayWorldR13.test.ts",
-    "check:typed-gameplay-world-r13": "npm run verify:typed-gameplay-world-r13 && npm run test:typed-gameplay-world-r13 && npm run typecheck"
+    "check:typed-gameplay-world-r13": "npm run verify:typed-gameplay-world-r13 && npm run test:typed-gameplay-world-r13 && npm run typecheck",
+    "verify:typescript-ownership": "node scripts/checkFullTypeScriptOwnershipV14.mjs",
+    "typecheck:typed-legacy": "tsc -p tsconfig.typed-legacy.json --noEmit",
+    "check:typescript-ownership": "npm run verify:typescript-ownership && npm run typecheck:typed-legacy",
+    "check:nextgen-v14": "npm run check:typescript-ownership && npm run typecheck && npm test -- --passWithNoTests",
+    "build:full": "vite build"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

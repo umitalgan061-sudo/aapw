@@ -1,2 +1,4 @@
-/** Compatibility boundary: production implementation lives in eventBus.ts. */
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './eventBus.ts';
 export * from './eventBus.ts';
+export default __typed.default;

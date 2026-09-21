@@ -1,0 +1,26 @@
+/** High-level player presentation packet scenarios. */
+export const PLAYER_PRESENTATION_ORCHESTRATOR_SCENARIOS=Object.freeze([
+{id:'idle',steps:[{planarSpeedMps:0,traversalWeight:0}],domains:['locomotion']},
+{id:'walk-toward-obstacle',steps:[{planarSpeedMps:2,traversalWeight:.2,traversalForwardDistance:5},{planarSpeedMps:2.5,traversalWeight:.6,traversalForwardDistance:2.5},{planarSpeedMps:3,traversalWeight:.9,traversalForwardDistance:1.2}],domains:['locomotion','locomotion','traversal']},
+{id:'vault-land',steps:[{planarSpeedMps:3,traversalWeight:.9,traversalForwardDistance:1.2},{planarSpeedMps:0,traversalWeight:.2,landingImpactMps:2,elapsedSeconds:.1}],domains:['traversal','traversal']},
+{id:'climb-land',steps:[{planarSpeedMps:2,traversalWeight:.9,traversalForwardDistance:1.4,traversalHeight:1.2,grounded:false},{planarSpeedMps:0,traversalWeight:.2,landingImpactMps:1.7,elapsedSeconds:.1}],domains:['traversal','traversal']},
+{id:'drop-land',steps:[{planarSpeedMps:2,traversalWeight:.9,traversalForwardDistance:1.4,traversalHeight:-1,grounded:false},{planarSpeedMps:0,traversalWeight:.2,landingImpactMps:1.4,elapsedSeconds:.1}],domains:['traversal','traversal']},
+{id:'blocked',steps:[{planarSpeedMps:4,traversalWeight:.8,traversalForwardDistance:1.2,traversalBlocked:true}],domains:['traversal']},
+{id:'cancelled',steps:[{planarSpeedMps:4,traversalWeight:.8,traversalForwardDistance:1.2,cancelRequested:true}],domains:['traversal']},
+{id:'surface-degraded',steps:[{planarSpeedMps:3,traversalWeight:.8,traversalForwardDistance:1.2,surfaceConfidence:.2}],domains:['traversal']},
+{id:'airborne-recovery',steps:[{planarSpeedMps:2,traversalWeight:.8,traversalHeight:1.2,grounded:false},{planarSpeedMps:1,traversalWeight:0,grounded:false}],domains:['traversal','locomotion']},
+{id:'approach-clear',steps:[{planarSpeedMps:2,traversalWeight:.3,traversalForwardDistance:5},{planarSpeedMps:2,traversalWeight:0,traversalForwardDistance:6}],domains:['locomotion','locomotion']},
+{id:'blocked-clear',steps:[{planarSpeedMps:2,traversalWeight:.8,traversalBlocked:true},{planarSpeedMps:2,traversalWeight:0}],domains:['traversal','locomotion']},
+{id:'cancel-clear',steps:[{planarSpeedMps:2,traversalWeight:.8,cancelRequested:true},{planarSpeedMps:2,traversalWeight:0}],domains:['traversal','locomotion']},
+{id:'fast-prepare',steps:[{planarSpeedMps:7,traversalWeight:.5,traversalForwardDistance:3.2},{planarSpeedMps:8,traversalWeight:.8,traversalForwardDistance:2.1}],domains:['locomotion','traversal']},
+{id:'slow-prepare',steps:[{planarSpeedMps:1,traversalWeight:.5,traversalForwardDistance:3.2},{planarSpeedMps:1.1,traversalWeight:.8,traversalForwardDistance:2.1}],domains:['locomotion','traversal']},
+{id:'contact-confidence-low',steps:[{planarSpeedMps:3,traversalWeight:.9,traversalForwardDistance:1.2,footPlantConfidence:.1}],domains:['traversal']},
+{id:'impact-hard',steps:[{planarSpeedMps:0,traversalWeight:.2,landingImpactMps:6,elapsedSeconds:.1}],domains:['traversal']},
+{id:'weight-zero',steps:[{planarSpeedMps:4,traversalWeight:0,traversalForwardDistance:1}],domains:['locomotion']},
+{id:'weight-maximum',steps:[{planarSpeedMps:4,traversalWeight:1,traversalForwardDistance:1}],domains:['traversal']},
+{id:'distance-far',steps:[{planarSpeedMps:4,traversalWeight:.4,traversalForwardDistance:8}],domains:['locomotion']},
+{id:'distance-near',steps:[{planarSpeedMps:4,traversalWeight:.8,traversalForwardDistance:1}],domains:['traversal']},
+{id:'direction-shift',steps:[{planarSpeedMps:3,traversalWeight:.8,traversalForwardDistance:1.5,directionShiftDegrees:45}],domains:['traversal']},
+{id:'repeated-stable',steps:[{planarSpeedMps:3,traversalWeight:.8,traversalForwardDistance:1.5},{planarSpeedMps:3,traversalWeight:.8,traversalForwardDistance:1.5},{planarSpeedMps:3,traversalWeight:.8,traversalForwardDistance:1.5}],domains:['traversal','traversal','traversal']},
+]);
+export function getPlayerPresentationOrchestratorScenario(id){return PLAYER_PRESENTATION_ORCHESTRATOR_SCENARIOS.find(x=>x.id===id)??null;}

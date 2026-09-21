@@ -1,2 +1,4 @@
-/** Compatibility boundary: production gameplay configuration lives in gameplayConfig.ts. */
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './gameplayConfig.ts';
 export * from './gameplayConfig.ts';
+export default __typed.default;

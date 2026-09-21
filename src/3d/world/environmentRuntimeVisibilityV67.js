@@ -1,15 +1,4 @@
-import { clamp01, finiteV67, meanV67, normalizeSampleV67 } from './environmentRuntimeV67.js';
-export const VISIBILITY_V67=Object.freeze({id:'visibility-v67',version:67,deterministic:true,noWorldMutation:true});
-export const baseVisibilityV67=(sample={})=>{const s=normalizeSampleV67(sample);return clamp01(s.visibility*.72+(1-s.humidity)*.12+(1-s.rain)*.08+(1-s.canopy)*.08);};
-export const fogOcclusionV67=(sample={})=>clamp01(1-baseVisibilityV67(sample));
-export const concealmentV67=(sample={})=>{const s=normalizeSampleV67(sample);return clamp01(s.canopy*.5+fogOcclusionV67(s)*.28+(1-slopeNormV67(s))* .22);};
-const slopeNormV67=(s)=>clamp01(s.slope);
-export const visibilityClassV67=(visibility=0)=>visibility<.18?'blind':visibility<.35?'poor':visibility<.58?'limited':visibility<.78?'usable':'clear';
-export const buildVisibilitySampleV67=(sample={})=>{const s=normalizeSampleV67(sample);const visibility=baseVisibilityV67(s);return{id:s.id,visibility,class:visibilityClassV67(visibility),fog:fogOcclusionV67(s),concealment:concealmentV67(s)};};
-export const buildVisibilityFieldV67=(samples=[])=>samples.map(buildVisibilitySampleV67);
-export const visibilitySummaryV67=(field=[])=>({samples:field.length,mean:meanV67(field.map(x=>x.visibility)),poor:field.filter(x=>x.visibility<.35).length,concealed:field.filter(x=>x.concealment>.62).length});
-export const cameraReadabilityV67=(sample={})=>clamp01(baseVisibilityV67(sample)*.72+(1-concealmentV67(sample))*.28);
-export const lineOfSightV67=(source={},target={})=>{const a=buildVisibilitySampleV67(source);const b=buildVisibilitySampleV67(target);return clamp01((a.visibility+b.visibility)/2-Math.abs(a.concealment-b.concealment)*.25);};
-export const validateVisibilityV67=(field=[])=>{const errors=[];if(!Array.isArray(field))errors.push('field');if(field.some(x=>x.visibility<0||x.visibility>1))errors.push('visibility');if(field.some(x=>x.concealment<0||x.concealment>1))errors.push('concealment');return{ok:errors.length===0,errors};};
-export const visibilityTelemetryV67=(field=[])=>({policy:VISIBILITY_V67.id,valid:validateVisibilityV67(field).ok,summary:visibilitySummaryV67(field)});
-export const concealmentPriorityV67=(sample={})=>clamp01(concealmentV67(sample)*.7+(1-baseVisibilityV67(sample))*.3);
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './environmentRuntimeVisibilityV67.ts';
+export * from './environmentRuntimeVisibilityV67.ts';
+export default __typed.default;

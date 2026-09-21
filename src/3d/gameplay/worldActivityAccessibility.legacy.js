@@ -1,0 +1,18 @@
+/** Read-only accessibility projection for world activity signals. */
+import { createWorldActivityEvidence } from './worldActivityEvidence.js';
+export const WORLD_ACTIVITY_ACCESSIBILITY_VERSION=1;
+export const WORLD_ACTIVITY_ACCESSIBILITY_MODES=Object.freeze(['standard','high-contrast','low-motion','screen-reader','compact']);
+export const WORLD_ACTIVITY_ACCESSIBILITY_LIMITS=Object.freeze({maxCues:8,maxLabels:8});
+const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
+const c=v=>Math.max(0,Math.min(1,n(v)));
+const t=(v,d='')=>{const s=String(v??'').trim();return s?s.slice(0,120):d;};
+const freeze=(v,s=new Set())=>{if(!v||typeof v!=='object'||s.has(v))return v;s.add(v);Object.freeze(v);for(const x of Object.values(v))freeze(x,s);return v;};
+const stable=v=>v===null||typeof v!=='object'?JSON.stringify(v):Array.isArray(v)?`[${v.map(stable).join(',')}]`:`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;
+const digest=v=>{let h=2166136261,s=stable(v);for(let i=0;i<s.length;i+=1){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(16).padStart(8,'0');};
+function mode(v){return WORLD_ACTIVITY_ACCESSIBILITY_MODES.includes(v)?v:'standard';}
+function transform(signal,selected){const base={id:signal.id,type:signal.type,score:c(signal.score),label:t(signal.type,'signal'),copy:t(signal.copy,'World activity cue')};if(selected==='high-contrast')return {...base,priority:'high'};if(selected==='screen-reader')return {...base,announcement:`${base.label}: ${base.copy}`};if(selected==='low-motion')return {...base,motion:'none'};if(selected==='compact')return {...base,copy:base.copy.slice(0,72)};return base;}
+function order(signals){return [...signals].sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id));}
+export function createWorldActivityAccessibility(options={},accessibility='standard'){const selected=mode(accessibility);const evidence=createWorldActivityEvidence(options);const cues=order(evidence.recommendations.map((x,i)=>({id:`recommendation:${x.type}:${i+1}`,type:x.type,score:x.score,copy:x.reason}))).slice(0,WORLD_ACTIVITY_ACCESSIBILITY_LIMITS.maxCues).map(x=>transform(x,selected));const p={version:1,settlementId:evidence.settlementId,mode:selected,stage:evidence.stage,evidenceLevel:evidence.evidenceLevel,cues,spokenCues:selected==='screen-reader'?cues.map(x=>x.announcement):[],focus:cues[0]?.id??null,ownership:{readOnly:true,noUiMutation:true,noWorldMutation:true,noAccessibilityStateMutation:true}};return freeze({...p,fingerprint:digest(p)});}
+export function validateWorldActivityAccessibility(v){const s=v&&typeof v==='object'?v:{};const e=[];if(!WORLD_ACTIVITY_ACCESSIBILITY_MODES.includes(s.mode))e.push('mode');if(!Array.isArray(s.cues)||s.cues.length>8)e.push('cue-cap');if(s.spokenCues?.length>8)e.push('spoken-cap');if(!s.ownership?.readOnly||!s.ownership?.noUiMutation)e.push('ownership');if(s.cues?.some(x=>x.score<0||x.score>1))e.push('score');return freeze({ok:e.length===0,errors:e,fingerprint:s.fingerprint??digest(s)});}
+export function summarizeWorldActivityAccessibility(o={},m='standard'){const x=createWorldActivityAccessibility(o,m);return freeze({settlementId:x.settlementId,mode:x.mode,stage:x.stage,evidenceLevel:x.evidenceLevel,cueCount:x.cues.length,focus:x.focus,spokenCount:x.spokenCues.length,fingerprint:x.fingerprint});}
+export const WORLD_ACTIVITY_ACCESSIBILITY_API=Object.freeze({version:1,modes:[...WORLD_ACTIVITY_ACCESSIBILITY_MODES],maxCues:8,create:'createWorldActivityAccessibility',validate:'validateWorldActivityAccessibility',summary:'summarizeWorldActivityAccessibility'});
