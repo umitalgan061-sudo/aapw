@@ -455,7 +455,7 @@ export class AssetOrchestratorV3 {
     }
     this.#residentBytes = Math.max(0, this.#residentBytes - record.bytes);
     record.state = 'evicted';
-    record.value = undefined;
+    delete record.value;
     record.bytes = 0;
     record.lastUsedAtMs = this.#clock();
     return true;
@@ -555,7 +555,7 @@ export class AssetOrchestratorV3 {
       delete record.readyAtMs;
       record.lastUsedAtMs = this.#clock();
       record.useCount = 0;
-      record.errorMessage = undefined;
+      delete record.errorMessage;
     }
     this.#residentBytes = 0;
   }
@@ -602,7 +602,7 @@ export function createAssetFetcherFromResponse(): AssetFetcher<Response> {
     }
     const contentType = response.headers.get('content-type') ?? undefined;
     const bytes = Number(response.headers.get('content-length') ?? 0);
-    return { value: response, bytes, contentType };
+    return contentType === undefined ? { value: response, bytes } : { value: response, bytes, contentType };
   };
 }
 
