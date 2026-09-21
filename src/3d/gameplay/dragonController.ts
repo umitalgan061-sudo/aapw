@@ -22,7 +22,7 @@
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.ts';
 import { alignDiveOrientation, applyCirclePose, applyDiveOffset, clampAltitudeAboveGround } from './dragonFlightMath.ts';
-import { createDragonReactionState, stepDragonReactionState } from './dragonReactionState.js';
+import { createDragonReactionState, stepDragonReactionState } from './dragonReactionState.ts';
 
 /**
  * Loads the dragon model, places it on its circling flight path, and returns a small controller
