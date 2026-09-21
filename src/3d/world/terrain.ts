@@ -37,7 +37,7 @@ import {
 	terrainConcavityMetersFromNeighbours,
 	buildNeutralDetailCanvas,
 	buildFlatNeutralCanvas,
-} from './terrainBiomeShading.js';
+} from './terrainBiomeShading.ts';
 import { terrainWindExposureFromNeighbours } from './terrainWindSnowExposure.js';
 import {
 	VALYRIA_GEOLOGY_POLICY,
