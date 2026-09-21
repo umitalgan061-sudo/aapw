@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { createLivingWorldRuntimeSlice, LIVING_WORLD_RUNTIME_BUDGET } from '../src/3d/gameplay/livingWorldRuntimeSlice.js';
+
+const makeActor = (x, update) => ({ object3D: { position: { x, z: 0 }, userData: {} }, update });
+let nearTicks = 0;
+let farTicks = 0;
+const state = { npcs: [makeActor(5, () => { nearTicks += 1; })], animals: [makeActor(150, () => { farTicks += 1; })] };
+const slice = createLivingWorldRuntimeSlice({ state });
+const first = slice.tick(0.1, { x: 0, z: 0 });
+assert.equal(first.lanes.npc.updated, 1);
+assert.equal(first.lanes.animal.updated, 0);
+assert.equal(first.lanes.animal.skipped, 1);
+assert.equal(nearTicks, 1);
+assert.equal(farTicks, 0);
+const second = slice.tick(LIVING_WORLD_RUNTIME_BUDGET.animal.distantIntervalSeconds, { x: 0, z: 0 });
+assert.equal(second.lanes.animal.updated, 1);
+assert.equal(farTicks, 1);
+assert.equal(state.npcs[0].object3D.userData.livingWorldRuntime.kind, 'npc');
+const repeat = createLivingWorldRuntimeSlice({ state: { npcs: [makeActor(5, () => {})] } });
+assert.deepEqual(repeat.tick(0.1, { x: 0, z: 0 }).lanes.npc, slice.tick(0, { x: 0, z: 0 }).lanes.npc);
+slice.dispose();
+assert.equal(slice.tick(0.1, { x: 0, z: 0 }).disposed, true);
+console.log('living-world runtime slice checks passed');
