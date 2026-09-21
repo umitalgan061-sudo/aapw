@@ -74,16 +74,16 @@ async function main() {
 
   for (const file of requiredFiles) {
     if (!(await exists(file))) {
-      fail(\`missing required file: \${file}\`);
+      fail(`missing required file: ${file}`);
       failures += 1;
     }
   }
 
   const index = await read('src/3d/modern/index.ts');
   for (const name of requiredExports) {
-    const token = \`./\${name}\`;
+    const token = `./${name}`;
     if (!index.includes(token)) {
-      fail(\`modern barrel does not export \${token}\`);
+      fail(`modern barrel does not export ${token}`);
       failures += 1;
     }
   }
@@ -92,7 +92,7 @@ async function main() {
   const packageJson = JSON.parse(packageText);
   for (const script of ['verify:runtime:v3', 'check:modern']) {
     if (typeof packageJson.scripts?.[script] !== 'string') {
-      fail(\`package.json is missing script \${script}\`);
+      fail(`package.json is missing script ${script}`);
       failures += 1;
     }
   }
@@ -101,7 +101,7 @@ async function main() {
     const source = await read(file);
     const lines = source.split('\\n').length;
     if (lines > limits.maxSourceLines) {
-      fail(\`\${file} exceeds \${limits.maxSourceLines} lines (\${lines})\`);
+      fail(`${file} exceeds ${limits.maxSourceLines} lines (${lines})`);
       failures += 1;
     }
 
@@ -113,7 +113,7 @@ async function main() {
     ];
     for (const expression of banned) {
       if (expression.test(source)) {
-        fail(\`unsafe or nondeterministic primitive \${expression} in \${file}\`);
+        fail(`unsafe or nondeterministic primitive ${expression} in ${file}`);
         failures += 1;
       }
     }
@@ -122,7 +122,7 @@ async function main() {
   const testSource = await read('tests/modern/runtimeV3.integration.test.ts');
   const testLines = testSource.split('\\n').length;
   if (testLines > limits.maxTestLines) {
-    fail(\`V3 integration tests exceed \${limits.maxTestLines} lines (\${testLines})\`);
+    fail(`V3 integration tests exceed ${limits.maxTestLines} lines (${testLines})`);
     failures += 1;
   }
 
@@ -139,7 +139,7 @@ async function main() {
 
   for (const marker of requiredTestMarkers) {
     if (!testSource.includes(marker)) {
-      fail(\`integration suite does not exercise \${marker}\`);
+      fail(`integration suite does not exercise ${marker}`);
       failures += 1;
     }
   }
