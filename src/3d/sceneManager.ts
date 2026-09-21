@@ -13,7 +13,7 @@
 
 import * as THREE from 'three';
 import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG, SETTLEMENT_CONFIG, STORAGE_KEYS } from './config.ts';
-import { PLAYER_CONFIG } from './gameplay/gameplayConfig.js';
+import { PLAYER_CONFIG } from './gameplay/gameplayConfig.ts';
 import { ChunkManager } from './world/chunkManager.ts';
 import { installRuntimePindexTerrainPolish } from './world/worldReferenceSurfaceTerrainVisual.js';
 import { createGroundCollider, createSettlementCollider, createCircleCollider, createComposedCollider } from './physics.ts';
