@@ -1,7 +1,7 @@
 import { WORLD_DEFAULTS, isQualityLevel, type QualityLevel } from './config.ts';
 import { gameEvents, type EventBus } from './eventBus.ts';
 
-export type GamePhase = 'boot' | 'loading' | 'ready' | 'playing' | 'paused' | 'error' | 'disposing';
+export type GamePhase = 'boot' | 'loading' | 'ready' | 'playing' | 'paused' | 'error' | 'disposing' | 'phase0-architecture' | 'phase1-scene';
 
 export interface GameStateShape {
   readonly quality: QualityLevel;
