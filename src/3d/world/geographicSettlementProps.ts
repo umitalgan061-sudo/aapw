@@ -1,7 +1,7 @@
 /** Production TypeScript owner for src/3d/world/geographicSettlementProps.js. Legacy .js remains compatibility-only. */
 // @ts-nocheck
 import * as THREE from 'three';
-import { AssetLoader } from '../assetLoader.js';
+import { AssetLoader } from '../assetLoader.ts';
 import {
   analyzeMaterialSurfaces,
   buildRecommendedLayerRecipe,
