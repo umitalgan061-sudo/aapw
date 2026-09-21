@@ -7,6 +7,8 @@
  * @module gameplay/interaction
  */
 
+import type * as THREE from 'three';
+
 import {
 	WATCH_POLICY,
 	buildInventoryText,
@@ -402,9 +404,22 @@ export interface InteractionController {
   handleChoice(index: number): void;
   handleKeyDown(event: Readonly<{ code: string; repeat?: boolean }>): void;
   update(npcs: readonly RuntimeInteractionNpc[], playerPosition: Readonly<{ x: number; z: number }>): void;
-  getSaveSnapshot(): unknown;
-  restoreSaveSnapshot(snapshot: unknown): void;
-  dispose(): void;
+  showQuestJournal(): void;
+  showInventory(): void;
+  showQuartermaster(feedback?: string): boolean;
+  showExpeditionBoard(): void;
+  useMasteryArmorerService(): boolean;
+  commitJourneyWithRestStops(steps?: readonly unknown[]): unknown;
+  getQuestSnapshot(): unknown;
+  getReputationSnapshot(): unknown;
+  getProgressionSnapshot(): unknown;
+  getInventorySnapshot(): unknown;
+  getEconomySnapshot(): unknown;
+  getWorldStateSnapshot(): unknown;
+  getJourneySnapshot(): unknown;
+  getRpgSnapshot(): unknown;
+  restoreQuestSnapshot(snapshot: unknown): void;
+  restoreRpgSnapshot(snapshot: unknown): void;
 }
 
 /** Structural NPC shape required by proximity interaction. */
