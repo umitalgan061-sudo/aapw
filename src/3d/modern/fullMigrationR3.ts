@@ -20,7 +20,7 @@ export interface MigrationLedgerSnapshot {
 
 export const R3_MIGRATION_MODULES = [
   { id: 'scene', legacyPath: 'src/3d/sceneManager.js', modernPath: 'src/3d/sceneManager.ts', owner: 'rendering', status: 'migrated', risk: 'high' },
-  { id: 'game-loop', legacyPath: 'src/3d/game3d.js', modernPath: 'src/3d/modern/applicationRuntime.ts', owner: 'runtime', status: 'facaded', risk: 'high' },
+  { id: 'game-loop', legacyPath: 'src/3d/game3d.js', modernPath: 'src/3d/game3d.ts', owner: 'runtime', status: 'migrated', risk: 'high' },
   { id: 'physics', legacyPath: 'src/3d/physics.js', modernPath: 'src/3d/physics.ts', owner: 'world', status: 'migrated', risk: 'high' },
   { id: 'input', legacyPath: 'src/3d/input.js', modernPath: 'src/3d/input.ts', owner: 'runtime', status: 'migrated', risk: 'medium' },
   { id: 'loop-helpers', legacyPath: 'src/3d/gameLoopHelpers.js', modernPath: 'src/3d/gameLoopHelpers.ts', owner: 'runtime', status: 'migrated', risk: 'medium' },
@@ -52,7 +52,7 @@ export function createMigrationLedger(tick: RuntimeTick = 0): MigrationLedgerSna
 
 export function createMigrationEvent(ledger: MigrationLedgerSnapshot, tick: number): RuntimeEvent {
   const payload: RuntimeEnvelope = {
-    version: 3,
+    version: 4,
     kind: 'migration-ledger',
     tick,
     sequence: tick,
