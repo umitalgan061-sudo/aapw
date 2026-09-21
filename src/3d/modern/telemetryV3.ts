@@ -71,7 +71,7 @@ function normalizeTags(
 }
 
 function nowId(counter: number, now: number): string {
-  return \`span:\${Math.floor(now)}:\${counter}\`;
+  return `span:${Math.floor(now)}:${counter}`;
 }
 
 export class TelemetryV3 {
@@ -339,7 +339,7 @@ export class TelemetrySpanHandle {
 
   end(status: 'ok' | 'error' = 'ok', attributes?: Readonly<Record<string, unknown>>): TelemetrySpan {
     if (this.#ended) {
-      throw new Error(\`Telemetry span already ended: \${this.#id}\`);
+      throw new Error(`Telemetry span already ended: ${this.#id}`);
     }
     this.#ended = true;
     const endMs = Math.max(this.#startMs, this.#telemetry.currentTime());
