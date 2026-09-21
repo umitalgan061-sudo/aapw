@@ -84,7 +84,7 @@ export class MigrationManagerV3 {
       throw new Error('Migration surface id cannot be empty');
     }
     if (this.#surfaces.has(surface.id)) {
-      throw new Error(\`Migration surface already defined: \${surface.id}\`);
+      throw new Error(`Migration surface already defined: ${surface.id}`);
     }
 
     const normalized: MigrationSurface = {
@@ -105,7 +105,7 @@ export class MigrationManagerV3 {
   setSignal(signal: MigrationSignal): MigrationDecision {
     const surface = this.#surfaces.get(signal.surfaceId);
     if (!surface) {
-      throw new Error(\`Migration surface not found: \${signal.surfaceId}\`);
+      throw new Error(`Migration surface not found: ${signal.surfaceId}`);
     }
     const normalized: MigrationSignal = {
       ...signal,
@@ -123,7 +123,7 @@ export class MigrationManagerV3 {
   evaluate(surfaceId: string): MigrationDecision {
     const surface = this.#surfaces.get(surfaceId);
     if (!surface) {
-      throw new Error(\`Migration surface not found: \${surfaceId}\`);
+      throw new Error(`Migration surface not found: ${surfaceId}`);
     }
     const signal = this.#signals.get(surfaceId);
 
@@ -208,7 +208,7 @@ export class MigrationManagerV3 {
 
     const surface = this.#surfaces.get(surfaceId);
     if (!surface) {
-      throw new Error(\`Migration surface not found: \${surfaceId}\`);
+      throw new Error(`Migration surface not found: ${surfaceId}`);
     }
 
     const currentIndex = STATE_ORDER.indexOf(surface.state);
@@ -236,14 +236,14 @@ export class MigrationManagerV3 {
       surfaceId,
       state: nextState,
       canAdvance: nextState !== 'retired',
-      reason: \`advanced to \${nextState}\`,
+      reason: `advanced to ${nextState}`,
     };
   }
 
   rollback(surfaceId: string): MigrationDecision {
     const surface = this.#surfaces.get(surfaceId);
     if (!surface) {
-      throw new Error(\`Migration surface not found: \${surfaceId}\`);
+      throw new Error(`Migration surface not found: ${surfaceId}`);
     }
     const index = STATE_ORDER.indexOf(surface.state);
     const previous = STATE_ORDER[Math.max(0, index - 1)];
@@ -269,7 +269,7 @@ export class MigrationManagerV3 {
       surfaceId,
       state: previous,
       canAdvance: previous !== 'retired',
-      reason: \`rolled back to \${previous}\`,
+      reason: `rolled back to ${previous}`,
     };
   }
 
