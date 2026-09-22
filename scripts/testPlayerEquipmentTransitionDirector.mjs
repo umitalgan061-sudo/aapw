@@ -88,6 +88,12 @@ const malformed = {
 };
 if (validatePlayerEquipmentTransitionReceipt(malformed).ok) failures.push('malformed-animation-accepted');
 
+const armorWithoutFlag = { ...receipt, changedSlots: Object.freeze(['chest']), socketsToRefresh: Object.freeze(['chest']), weaponChanged: false, rangedChanged: false, handednessChanged: false, defenseChanged: false };
+if (validatePlayerEquipmentTransitionReceipt(armorWithoutFlag).ok) failures.push('armor-without-defense-flag-accepted');
+
+const defenseWithoutArmor = { ...receipt, changedSlots: Object.freeze(['mainHand', 'offHand']), socketsToRefresh: Object.freeze(['mainHand', 'offHand']), defenseChanged: true };
+if (validatePlayerEquipmentTransitionReceipt(defenseWithoutArmor).ok) failures.push('defense-without-armor-flag-accepted');
+
 const malformedShape = { changed: true };
 let malformedShapeThrew = false;
 try {
