@@ -141,6 +141,13 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
   if (candidate.weaponChanged && !changedSlots.includes('mainHand')) errors.push('weapon-slot-missing');
   if (candidate.rangedChanged && !changedSlots.includes('mainHand')) errors.push('ranged-slot-missing');
   if (candidate.handednessChanged && !changedSlots.includes('mainHand')) errors.push('handedness-slot-missing');
+  const semanticFlags = {
+    weaponChanged: candidate.weaponChanged,
+    defenseChanged: candidate.defenseChanged,
+    rangedChanged: candidate.rangedChanged,
+    handednessChanged: candidate.handednessChanged,
+  };
+  if (!candidate.changed && Object.values(semanticFlags).some((flag) => flag === true)) errors.push('noop-transition-has-semantic-flags');
   for (const [name, numeric] of Object.entries({
     movementDelta: candidate.movementDelta,
     staminaDrainDelta: candidate.staminaDrainDelta,
