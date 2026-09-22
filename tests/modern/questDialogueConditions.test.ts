@@ -4,6 +4,7 @@ import {
   createDialogueConditionGate,
   evaluateDialogueConditionDetailed,
   evaluateDialogueConditions,
+  evaluateDialogueConditionsDetailed,
   isDialogueCondition,
   isDialogueConditionMode,
   normalizeDialogueCondition,
@@ -73,6 +74,40 @@ describe('quest dialogue conditions', () => {
     expect(evaluateDialogueConditionDetailed({ kind: 'settlement-service', settlementId: 'stonewatch', service: 'smithing' as never }, context)).toEqual({ passed: false, failure: 'invalid-condition' });
   });
 
+  it('returns deterministic aggregate failure reasons for all-of and any-of dialogue UX', () => {
+    const quests = new QuestAuthorityV2();
+    const context: DialogueConditionContext = { quests, reputation: { merchants: 4 } };
+    const result = evaluateDialogueConditionsDetailed([
+      { kind: 'quest-completed', questId: 'missing-quest' },
+      { kind: 'reputation-at-least', factionId: 'merchants', value: 10 },
+    ], context);
+
+    expect(result).toEqual({
+      passed: false,
+      failure: 'missing-quest',
+      mode: 'all',
+      failures: ['missing-quest', 'reputation-too-low'],
+    });
+    expect(evaluateDialogueConditionsDetailed([
+      { kind: 'quest-completed', questId: 'missing-quest' },
+      { kind: 'reputation-at-least', factionId: 'merchants', value: 10 },
+    ], context, 'any')).toEqual({
+      passed: false,
+      failure: 'missing-quest',
+      mode: 'any',
+      failures: ['missing-quest', 'reputation-too-low'],
+    });
+    expect(evaluateDialogueConditionsDetailed([
+      { kind: 'quest-completed', questId: 'missing-quest' },
+      { kind: 'reputation-at-least', factionId: 'merchants', value: 10 },
+    ], { quests, reputation: { merchants: 12 } }, 'any')).toEqual({
+      passed: true,
+      failure: null,
+      mode: 'any',
+      failures: ['missing-quest'],
+    });
+  });
+
   it('fails closed for invalid modes at every evaluation boundary', () => {
     const quests = new QuestAuthorityV2();
     const context: DialogueConditionContext = { quests, reputation: { merchants: 12 } };
@@ -82,6 +117,12 @@ describe('quest dialogue conditions', () => {
     expect(isDialogueConditionMode('any')).toBe(true);
     expect(isDialogueConditionMode('either')).toBe(false);
     expect(evaluateDialogueConditions([condition], context, 'either' as never)).toBe(false);
+    expect(evaluateDialogueConditionsDetailed([condition], context, 'either' as never)).toEqual({
+      passed: false,
+      failure: 'invalid-condition',
+      mode: 'all',
+      failures: ['invalid-condition'],
+    });
     expect(stableDialogueConditionKey([condition], 'either' as never)).toBe('invalid:');
   });
 
