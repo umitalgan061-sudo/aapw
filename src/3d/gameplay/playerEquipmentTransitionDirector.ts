@@ -57,8 +57,8 @@ export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTr
     speedMps: Number.isFinite(Number(input.speedMps)) ? Number(input.speedMps) : 0,
     grounded: input.grounded !== false,
   });
-  const changedSlots = [...delta.changedSlots];
-  const socketsToRefresh = transition.socketsToRefresh.filter((slot): slot is string => typeof slot === 'string');
+  const changedSlots = Object.freeze([...delta.changedSlots]);
+  const socketsToRefresh = Object.freeze(transition.socketsToRefresh.filter((slot): slot is string => typeof slot === 'string'));
   const transitionKey = [
     changedSlots.join(','),
     transition.animation.fromFamily,
@@ -67,8 +67,9 @@ export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTr
   ].join('|');
   return freeze({
     ...delta,
+    changedSlots,
     animation: freeze({ ...transition.animation }),
-    socketsToRefresh: Object.freeze(socketsToRefresh),
+    socketsToRefresh,
     transitionKey,
   });
 }
@@ -77,9 +78,11 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
   if (!value || typeof value !== 'object') return false;
   const candidate = value as PlayerEquipmentTransitionReceipt;
   return Object.isFrozen(candidate)
+    && Object.isFrozen(candidate.changedSlots)
     && Array.isArray(candidate.changedSlots)
     && Object.isFrozen(candidate.animation)
     && Array.isArray(candidate.socketsToRefresh)
+    && Object.isFrozen(candidate.socketsToRefresh)
     && typeof candidate.transitionKey === 'string';
 }
 
@@ -103,6 +106,22 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
     if (candidate.animation?.crossfadeSeconds < 0) errors.push('negative-crossfade');
     if (candidate.changedSlots.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-changed-slot');
     if (candidate.socketsToRefresh.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-socket-slot');
+    for (const [name, flag] of Object.entries({
+      changed: candidate.changed,
+      weaponChanged: candidate.weaponChanged,
+      defenseChanged: candidate.defenseChanged,
+      rangedChanged: candidate.rangedChanged,
+      handednessChanged: candidate.handednessChanged,
+      animationCompatible: candidate.animation?.compatible,
+      animationHardReset: candidate.animation?.hardReset,
+      preserveLocomotion: candidate.animation?.preserveLocomotion,
+    })) if (typeof flag !== 'boolean') errors.push(`${name}-not-boolean`);
+    for (const [name, textValue] of Object.entries({
+      fromFamily: candidate.animation?.fromFamily,
+      toFamily: candidate.animation?.toFamily,
+      action: candidate.animation?.action,
+      transitionKey: candidate.transitionKey,
+    })) if (typeof textValue !== 'string') errors.push(`${name}-not-string`);
   }
   return Object.freeze({ ok: errors.length === 0, errors: Object.freeze(errors) });
 }
