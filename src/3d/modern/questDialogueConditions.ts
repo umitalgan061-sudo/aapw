@@ -23,42 +23,47 @@ export interface DialogueConditionGate {
   evaluate(context: DialogueConditionContext): boolean;
 }
 
-const clean = (value: string): string => value.trim().slice(0, 96);
-const positiveFinite = (value: number): boolean => Number.isFinite(value) && value > 0;
+const clean = (value: unknown): string => (typeof value === 'string' ? value.trim().slice(0, 96) : '');
+const positiveFinite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
 const services = new Set<SettlementService>(['blacksmith', 'tavern', 'market', 'stable', 'farm', 'barracks']);
 const statuses = new Set<QuestStatus>(['locked', 'available', 'active', 'completed', 'failed', 'abandoned']);
 
 export const isDialogueConditionMode = (mode: unknown): mode is DialogueConditionMode => mode === 'all' || mode === 'any';
 
-export const normalizeDialogueCondition = (condition: DialogueCondition): DialogueCondition | null => {
-  if (condition.kind === 'quest-status') {
-    const questId = clean(condition.questId);
-    return questId && statuses.has(condition.status) ? { kind: condition.kind, questId, status: condition.status } : null;
-  }
-  if (condition.kind === 'quest-completed') {
-    const questId = clean(condition.questId);
-    return questId ? { kind: condition.kind, questId } : null;
-  }
-  if (condition.kind === 'quest-objective-progress') {
-    const questId = clean(condition.questId);
-    const objectiveId = clean(condition.objectiveId);
-    return questId && objectiveId && positiveFinite(condition.amount)
-      ? { kind: condition.kind, questId, objectiveId, amount: Math.floor(condition.amount) }
+export const normalizeDialogueCondition = (condition: unknown): DialogueCondition | null => {
+  if (!condition || typeof condition !== 'object') return null;
+  const candidate = condition as Partial<DialogueCondition> & { kind?: unknown };
+  if (candidate.kind === 'quest-status') {
+    const questId = clean(candidate.questId);
+    return questId && statuses.has(candidate.status as QuestStatus)
+      ? { kind: candidate.kind, questId, status: candidate.status as QuestStatus }
       : null;
   }
-  if (condition.kind === 'reputation-at-least') {
-    const factionId = clean(condition.factionId);
-    return factionId && Number.isFinite(condition.value) ? { kind: condition.kind, factionId, value: condition.value } : null;
+  if (candidate.kind === 'quest-completed') {
+    const questId = clean(candidate.questId);
+    return questId ? { kind: candidate.kind, questId } : null;
   }
-  const settlementId = clean(condition.settlementId);
-  return settlementId && services.has(condition.service) ? { kind: condition.kind, settlementId, service: condition.service } : null;
+  if (candidate.kind === 'quest-objective-progress') {
+    const questId = clean(candidate.questId);
+    const objectiveId = clean(candidate.objectiveId);
+    return questId && objectiveId && positiveFinite(candidate.amount)
+      ? { kind: candidate.kind, questId, objectiveId, amount: Math.floor(candidate.amount) }
+      : null;
+  }
+  if (candidate.kind === 'reputation-at-least') {
+    const factionId = clean(candidate.factionId);
+    return factionId && typeof candidate.value === 'number' && Number.isFinite(candidate.value)
+      ? { kind: candidate.kind, factionId, value: candidate.value }
+      : null;
+  }
+  if (candidate.kind !== 'settlement-service') return null;
+  const settlementId = clean(candidate.settlementId);
+  return settlementId && services.has(candidate.service as SettlementService)
+    ? { kind: candidate.kind, settlementId, service: candidate.service as SettlementService }
+    : null;
 };
 
-export const isDialogueCondition = (condition: unknown): condition is DialogueCondition => {
-  if (!condition || typeof condition !== 'object') return false;
-  const candidate = condition as Partial<DialogueCondition>;
-  return normalizeDialogueCondition(candidate as DialogueCondition) !== null;
-};
+export const isDialogueCondition = (condition: unknown): condition is DialogueCondition => normalizeDialogueCondition(condition) !== null;
 
 export const evaluateDialogueCondition = (
   condition: DialogueCondition,
