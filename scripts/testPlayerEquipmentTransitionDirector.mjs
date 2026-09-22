@@ -3,20 +3,23 @@ import {
   resolvePlayerEquipmentTransitionReceipt,
   validatePlayerEquipmentTransitionReceipt,
 } from '../src/3d/gameplay/playerEquipmentTransitionDirector.ts';
+import { resolvePlayerEquipmentCombatProfile } from '../src/3d/gameplay/playerEquipmentCombatProfile.ts';
 
 const failures = [];
-const base = {
+const baseSlots = {
   mainHand: { id: 'arming-sword' },
   offHand: { id: 'buckler' },
   chest: { id: 'leather' },
   head: { id: 'hood' },
   back: { id: 'empty' },
 };
-const bow = {
-  ...base,
+const bowSlots = {
+  ...baseSlots,
   mainHand: { id: 'bow' },
   offHand: null,
 };
+const base = resolvePlayerEquipmentCombatProfile(baseSlots);
+const bow = resolvePlayerEquipmentCombatProfile(bowSlots);
 
 const input = {
   previousEquipment: base,
