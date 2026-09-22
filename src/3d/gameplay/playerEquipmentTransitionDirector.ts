@@ -199,6 +199,12 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
     transitionKey: candidate.transitionKey,
   })) if (typeof textValue !== 'string' || textValue.length === 0) errors.push(`${name}-not-string`);
 
+  if (!candidate.changed && animation && typeof animation.fromFamily === 'string' && typeof animation.toFamily === 'string') {
+    if (animation.fromFamily !== animation.toFamily) errors.push('noop-transition-animation-family-drift');
+    if (animation.hardReset !== false) errors.push('noop-transition-hard-reset');
+    if (animation.compatible !== true) errors.push('noop-transition-animation-incompatible');
+  }
+
   if (animation && typeof animation.fromFamily === 'string' && typeof animation.toFamily === 'string' && typeof animation.hardReset === 'boolean') {
     const expectedKey = buildTransitionKey(changedSlots.filter((slot): slot is string => typeof slot === 'string'), animation as PlayerEquipmentTransitionReceipt['animation']);
     if (candidate.transitionKey !== expectedKey) errors.push('transition-key-mismatch');
