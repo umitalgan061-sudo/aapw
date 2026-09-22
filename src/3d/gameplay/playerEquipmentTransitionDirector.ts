@@ -148,14 +148,16 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
     handednessChanged: candidate.handednessChanged,
   };
   if (!candidate.changed && Object.values(semanticFlags).some((flag) => flag === true)) errors.push('noop-transition-has-semantic-flags');
-  for (const [name, numeric] of Object.entries({
+  const numericValues = {
     movementDelta: candidate.movementDelta,
     staminaDrainDelta: candidate.staminaDrainDelta,
     poiseDelta: candidate.poiseDelta,
     damageDelta: candidate.damageDelta,
     reachDelta: candidate.reachDelta,
     crossfadeSeconds: animation?.crossfadeSeconds,
-  })) if (!finite(numeric)) errors.push(`${name}-not-finite`);
+  };
+  for (const [name, numeric] of Object.entries(numericValues)) if (!finite(numeric)) errors.push(`${name}-not-finite`);
+  if (!candidate.changed && Object.entries(numericValues).some(([name, numeric]) => name !== 'crossfadeSeconds' && numeric !== 0)) errors.push('noop-transition-has-stat-deltas');
   if (typeof animation?.crossfadeSeconds === 'number' && animation.crossfadeSeconds < 0) errors.push('negative-crossfade');
   if (changedSlots.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-changed-slot');
   if (socketsToRefresh.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-socket-slot');
