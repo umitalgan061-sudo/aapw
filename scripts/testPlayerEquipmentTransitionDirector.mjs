@@ -39,7 +39,7 @@ if (!receipt.changedSlots.includes('mainHand') || !receipt.changedSlots.includes
 if (!receipt.socketsToRefresh.includes('mainHand') || !receipt.socketsToRefresh.includes('offHand')) failures.push('socket-refresh-missing');
 if (!receipt.animation.hardReset) failures.push('hard-reset-not-required');
 if (receipt.animation.crossfadeSeconds <= 0) failures.push('crossfade-not-positive');
-if (!Object.isFrozen(receipt) || !Object.isFrozen(receipt.animation) || !Object.isFrozen(receipt.changedSlots)) failures.push('deep-freeze-missing');
+if (!Object.isFrozen(receipt) || !Object.isFrozen(receipt.animation) || !Object.isFrozen(receipt.changedSlots) || !Object.isFrozen(receipt.socketsToRefresh)) failures.push('deep-freeze-missing');
 
 const replay = resolvePlayerEquipmentTransitionReceipt(input);
 if (JSON.stringify(receipt) !== JSON.stringify(replay)) failures.push('non-deterministic-replay');
@@ -49,6 +49,12 @@ if (noOp.changed || noOp.changedSlots.length !== 0 || !validatePlayerEquipmentTr
 
 const tampered = { ...receipt, changed: false };
 if (validatePlayerEquipmentTransitionReceipt(tampered).ok) failures.push('tampered-receipt-accepted');
+
+const malformed = {
+  ...receipt,
+  animation: { ...receipt.animation, compatible: 'yes' },
+};
+if (validatePlayerEquipmentTransitionReceipt(malformed).ok) failures.push('malformed-animation-accepted');
 
 if (failures.length) {
   console.error(failures.join('\n'));
