@@ -132,6 +132,9 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
   if (!candidate.changed && (changedSlots.length > 0 || socketsToRefresh.length > 0)) errors.push('noop-transition-has-refreshes');
   if (candidate.changed && changedSlots.length === 0) errors.push('changed-transition-missing-slots');
   const changedSlotSet = new Set(changedSlots.filter((slot): slot is string => typeof slot === 'string'));
+  const refreshSlotSet = new Set(socketsToRefresh.filter((slot): slot is string => typeof slot === 'string'));
+  if (changedSlotSet.size !== changedSlots.length) errors.push('duplicate-changed-slot');
+  if (refreshSlotSet.size !== socketsToRefresh.length) errors.push('duplicate-socket-refresh');
   for (const slot of socketsToRefresh) if (typeof slot === 'string' && !changedSlotSet.has(slot)) errors.push('socket-refresh-not-changed-slot');
   for (const slot of changedSlots) if (typeof slot === 'string' && !VALID_EQUIPMENT_SOCKETS.has(slot)) errors.push('unknown-changed-slot');
   for (const slot of socketsToRefresh) if (typeof slot === 'string' && !VALID_EQUIPMENT_SOCKETS.has(slot)) errors.push('unknown-socket-refresh');
