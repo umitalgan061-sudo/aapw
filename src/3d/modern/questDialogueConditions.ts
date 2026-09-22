@@ -22,6 +22,11 @@ export interface DialogueConditionEvaluation {
   readonly failure: DialogueConditionFailure | null;
 }
 
+export interface DialogueConditionsEvaluation extends DialogueConditionEvaluation {
+  readonly mode: DialogueConditionMode;
+  readonly failures: readonly DialogueConditionFailure[];
+}
+
 export interface DialogueConditionGate {
   readonly conditions: readonly DialogueCondition[];
   readonly mode: DialogueConditionMode;
@@ -117,16 +122,36 @@ export const evaluateDialogueCondition = (
   context: DialogueConditionContext,
 ): boolean => evaluateDialogueConditionDetailed(condition, context).passed;
 
+export const evaluateDialogueConditionsDetailed = (
+  conditions: readonly DialogueCondition[],
+  context: DialogueConditionContext,
+  mode: DialogueConditionMode = 'all',
+): DialogueConditionsEvaluation => {
+  if (!isDialogueConditionMode(mode)) {
+    return { passed: false, failure: 'invalid-condition', mode: 'all', failures: ['invalid-condition'] };
+  }
+  if (conditions.length === 0) {
+    const passed = mode === 'all';
+    return { passed, failure: passed ? null : 'invalid-condition', mode, failures: passed ? [] : ['invalid-condition'] };
+  }
+  const evaluations = conditions.map((condition) => evaluateDialogueConditionDetailed(condition, context));
+  const failures = evaluations
+    .map((evaluation) => evaluation.failure)
+    .filter((failure): failure is DialogueConditionFailure => failure !== null);
+  const passed = mode === 'any' ? evaluations.some((evaluation) => evaluation.passed) : evaluations.every((evaluation) => evaluation.passed);
+  return {
+    passed,
+    failure: passed ? null : (failures[0] ?? 'invalid-condition'),
+    mode,
+    failures: Object.freeze([...new Set(failures)]),
+  };
+};
+
 export const evaluateDialogueConditions = (
   conditions: readonly DialogueCondition[],
   context: DialogueConditionContext,
   mode: DialogueConditionMode = 'all',
-): boolean => {
-  if (!isDialogueConditionMode(mode)) return false;
-  if (conditions.length === 0) return mode === 'all';
-  const results = conditions.map((condition) => evaluateDialogueCondition(condition, context));
-  return mode === 'any' ? results.some(Boolean) : results.every(Boolean);
-};
+): boolean => evaluateDialogueConditionsDetailed(conditions, context, mode).passed;
 
 export const stableDialogueConditionKey = (
   conditions: readonly DialogueCondition[],
