@@ -6,9 +6,12 @@ on:
       - 'src/3d/world/photorealismDirector.js'
       - 'src/3d/world/photorealismRuntimeAdapter.ts'
       - 'src/3d/world/photorealismRuntimeAdapter.js'
+      - 'src/3d/world/photorealismSceneBridge.ts'
+      - 'src/3d/world/photorealismSceneBridge.js'
       - 'scripts/checkPhotorealismDirector.mjs'
       - 'tests/modern/photorealismDirector.test.ts'
       - 'tests/modern/photorealismRuntimeAdapter.test.ts'
+      - 'tests/modern/photorealismSceneBridge.test.ts'
       - '.github/workflows/buzul-photorealism-director.yml'
   workflow_dispatch:
 jobs:
@@ -27,4 +30,5 @@ jobs:
           --moduleResolution Bundler --skipLibCheck
           src/3d/world/photorealismDirector.ts
           src/3d/world/photorealismRuntimeAdapter.ts
-      - run: npx vitest run tests/modern/photorealismDirector.test.ts tests/modern/photorealismRuntimeAdapter.test.ts
+          src/3d/world/photorealismSceneBridge.ts
+      - run: npx vitest run tests/modern/photorealismDirector.test.ts tests/modern/photorealismRuntimeAdapter.test.ts tests/modern/photorealismSceneBridge.test.ts
