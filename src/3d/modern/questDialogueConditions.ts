@@ -14,6 +14,12 @@ export interface DialogueConditionContext {
   readonly settlementServices?: Readonly<Record<string, readonly string[]>>;
 }
 
+export interface DialogueConditionGate {
+  readonly conditions: readonly DialogueCondition[];
+  readonly key: string;
+  evaluate(context: DialogueConditionContext): boolean;
+}
+
 const clean = (value: string): string => value.trim().slice(0, 96);
 const services = new Set<SettlementService>(['blacksmith', 'tavern', 'market', 'stable', 'farm', 'barracks']);
 const statuses = new Set<QuestStatus>(['locked', 'available', 'active', 'completed', 'failed', 'abandoned']);
@@ -73,3 +79,17 @@ export const stableDialogueConditionKey = (conditions: readonly DialogueConditio
     .map((condition) => JSON.stringify(condition))
     .sort()
     .join('|');
+
+export const createDialogueConditionGate = (
+  conditions: readonly DialogueCondition[],
+): DialogueConditionGate | null => {
+  const normalized = conditions.map(normalizeDialogueCondition);
+  if (normalized.some((condition) => condition === null)) return null;
+  const safeConditions = Object.freeze(normalized as DialogueCondition[]);
+  const key = stableDialogueConditionKey(safeConditions);
+  return Object.freeze({
+    conditions: safeConditions,
+    key,
+    evaluate: (context: DialogueConditionContext): boolean => evaluateDialogueConditions(safeConditions, context),
+  });
+};
