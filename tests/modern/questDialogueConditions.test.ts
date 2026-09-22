@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QuestAuthorityV2 } from '../../src/3d/modern/questAuthorityV2.ts';
 import {
+  createDialogueConditionGate,
   evaluateDialogueConditions,
   isDialogueCondition,
   normalizeDialogueCondition,
@@ -52,5 +53,20 @@ describe('quest dialogue conditions', () => {
     ];
     const b = [...a].reverse();
     expect(stableDialogueConditionKey(a)).toBe(stableDialogueConditionKey(b));
+  });
+
+  it('compiles a reusable immutable gate and fails closed on malformed input', () => {
+    const gate = createDialogueConditionGate([
+      { kind: 'quest-completed', questId: 'roadside-repair' },
+      { kind: 'settlement-service', settlementId: 'stonewatch-market', service: 'market' },
+    ]);
+    expect(gate).not.toBeNull();
+    expect(gate?.key).toBe(stableDialogueConditionKey(gate?.conditions ?? []));
+    expect(Object.isFrozen(gate)).toBe(true);
+    expect(Object.isFrozen(gate?.conditions)).toBe(true);
+
+    expect(createDialogueConditionGate([
+      { kind: 'settlement-service', settlementId: 'stonewatch-market', service: 'library' as never },
+    ])).toBeNull();
   });
 });
