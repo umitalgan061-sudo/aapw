@@ -8,6 +8,13 @@ export interface DialogueConditionFailureHint {
   readonly priority: number;
 }
 
+export interface DialogueConditionFailureSummary {
+  readonly failures: readonly DialogueConditionFailure[];
+  readonly hints: readonly DialogueConditionFailureHint[];
+  readonly primary: DialogueConditionFailureHint;
+  readonly hideBranch: boolean;
+}
+
 const HINTS: Readonly<Record<DialogueConditionFailure, DialogueConditionFailureHint>> = Object.freeze({
   'missing-quest': Object.freeze({ failure: 'missing-quest', action: 'hide-branch', priority: 0 }),
   'invalid-condition': Object.freeze({ failure: 'invalid-condition', action: 'hide-branch', priority: 0 }),
@@ -35,3 +42,17 @@ export const orderDialogueConditionFailures = (
     const priorityDelta = HINTS[left].priority - HINTS[right].priority;
     return priorityDelta || left.localeCompare(right);
   }));
+
+export const summarizeDialogueConditionFailures = (
+  failures: readonly DialogueConditionFailure[],
+): DialogueConditionFailureSummary => {
+  const ordered = orderDialogueConditionFailures(failures);
+  const hints = Object.freeze(ordered.map(getDialogueConditionFailureHint));
+  const primary = hints[0] ?? HINTS['invalid-condition'];
+  return Object.freeze({
+    failures: ordered,
+    hints,
+    primary,
+    hideBranch: hints.some((hint) => hint.action === 'hide-branch'),
+  });
+};
