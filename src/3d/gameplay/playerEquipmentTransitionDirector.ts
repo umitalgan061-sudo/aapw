@@ -50,6 +50,13 @@ const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(
 const boolean = (value: unknown): value is boolean => typeof value === 'boolean';
 const stringArray = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((item) => typeof item === 'string' && item.length > 0);
 
+const buildTransitionKey = (changedSlots: readonly string[], animation: PlayerEquipmentTransitionReceipt['animation']) => [
+  changedSlots.join(','),
+  animation.fromFamily,
+  animation.toFamily,
+  animation.hardReset ? 'reset' : 'blend',
+].join('|');
+
 export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTransitionInput = {}): PlayerEquipmentTransitionReceipt {
   const previous = input.previousEquipment ?? {};
   const next = input.nextEquipment ?? {};
@@ -63,16 +70,12 @@ export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTr
   });
   const changedSlots = Object.freeze([...delta.changedSlots]);
   const socketsToRefresh = Object.freeze(transition.socketsToRefresh.filter((slot): slot is string => typeof slot === 'string'));
-  const transitionKey = [
-    changedSlots.join(','),
-    transition.animation.fromFamily,
-    transition.animation.toFamily,
-    transition.animation.hardReset ? 'reset' : 'blend',
-  ].join('|');
+  const animation = freeze({ ...transition.animation });
+  const transitionKey = buildTransitionKey(changedSlots, animation);
   return freeze({
     ...delta,
     changedSlots,
-    animation: freeze({ ...transition.animation }),
+    animation,
     socketsToRefresh,
     transitionKey,
   });
@@ -101,13 +104,17 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
     && boolean(animation.compatible)
     && boolean(animation.hardReset)
     && typeof animation.fromFamily === 'string'
+    && animation.fromFamily.length > 0
     && typeof animation.toFamily === 'string'
+    && animation.toFamily.length > 0
     && typeof animation.action === 'string'
+    && animation.action.length > 0
     && boolean(animation.preserveLocomotion)
     && finite(animation.crossfadeSeconds)
     && stringArray(candidate.socketsToRefresh)
     && Object.isFrozen(candidate.socketsToRefresh)
-    && typeof candidate.transitionKey === 'string';
+    && typeof candidate.transitionKey === 'string'
+    && candidate.transitionKey.length > 0;
 }
 
 export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readonly<{ ok: boolean; errors: readonly string[] }> {
@@ -157,7 +164,12 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
     toFamily: animation?.toFamily,
     action: animation?.action,
     transitionKey: candidate.transitionKey,
-  })) if (typeof textValue !== 'string') errors.push(`${name}-not-string`);
+  })) if (typeof textValue !== 'string' || textValue.length === 0) errors.push(`${name}-not-string`);
+
+  if (animation && typeof animation.fromFamily === 'string' && typeof animation.toFamily === 'string' && typeof animation.hardReset === 'boolean') {
+    const expectedKey = buildTransitionKey(changedSlots.filter((slot): slot is string => typeof slot === 'string'), animation as PlayerEquipmentTransitionReceipt['animation']);
+    if (candidate.transitionKey !== expectedKey) errors.push('transition-key-mismatch');
+  }
 
   return Object.freeze({ ok: errors.length === 0, errors: Object.freeze(errors) });
 }
