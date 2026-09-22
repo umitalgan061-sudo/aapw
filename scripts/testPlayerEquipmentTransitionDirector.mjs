@@ -6,16 +6,16 @@ import {
 
 const failures = [];
 const base = {
-  mainHand: { id: 'iron-sword', family: 'sword', damageMultiplier: 1, reachMultiplier: 1, poiseMultiplier: 1, projectile: false },
-  offHand: { id: 'buckler', family: 'shield', damageMultiplier: 0.4, reachMultiplier: 0.8, poiseMultiplier: 0.8, projectile: false },
-  chest: { id: 'leather', family: 'light', movementMultiplier: 1, staminaDrainMultiplier: 1, poiseBonus: 0 },
-  head: { id: 'hood', family: 'cloth' },
-  back: { id: 'empty', family: 'none' },
+  mainHand: { id: 'arming-sword' },
+  offHand: { id: 'buckler' },
+  chest: { id: 'leather' },
+  head: { id: 'hood' },
+  back: { id: 'empty' },
 };
 const bow = {
   ...base,
-  mainHand: { id: 'hunter-bow', family: 'bow', damageMultiplier: 1.2, reachMultiplier: 1.1, poiseMultiplier: 0.9, projectile: true },
-  offHand: { id: 'empty', family: 'none', damageMultiplier: 0, reachMultiplier: 0, poiseMultiplier: 0, projectile: false },
+  mainHand: { id: 'bow' },
+  offHand: null,
 };
 
 const input = {
