@@ -84,11 +84,14 @@ export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTr
   });
 }
 
+const hasCanonicalSocketOrder = (slots: readonly string[]) => slots.every((slot, index) => index === 0 || (EQUIPMENT_SOCKET_ORDER.get(slots[index - 1] as typeof VALID_EQUIPMENT_SOCKETS[number]) ?? Number.MAX_SAFE_INTEGER) <= (EQUIPMENT_SOCKET_ORDER.get(slot as typeof VALID_EQUIPMENT_SOCKETS[number]) ?? Number.MAX_SAFE_INTEGER));
+const hasKnownUniqueSockets = (slots: readonly string[]) => new Set(slots).size === slots.length && slots.every((slot) => EQUIPMENT_SOCKET_ORDER.has(slot as typeof VALID_EQUIPMENT_SOCKETS[number]));
+
 export function isPlayerEquipmentTransitionReceipt(value: unknown): value is PlayerEquipmentTransitionReceipt {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<PlayerEquipmentTransitionReceipt>;
   const animation = candidate.animation;
-  return Object.isFrozen(value)
+  if (!(Object.isFrozen(value)
     && stringArray(candidate.changedSlots)
     && Object.isFrozen(candidate.changedSlots)
     && boolean(candidate.changed)
@@ -117,10 +120,14 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
     && stringArray(candidate.socketsToRefresh)
     && Object.isFrozen(candidate.socketsToRefresh)
     && typeof candidate.transitionKey === 'string'
-    && candidate.transitionKey.length > 0;
-}
+    && candidate.transitionKey.length > 0)) return false;
 
-const hasCanonicalSocketOrder = (slots: readonly string[]) => slots.every((slot, index) => index === 0 || (EQUIPMENT_SOCKET_ORDER.get(slots[index - 1] as typeof VALID_EQUIPMENT_SOCKETS[number]) ?? Number.MAX_SAFE_INTEGER) <= (EQUIPMENT_SOCKET_ORDER.get(slot as typeof VALID_EQUIPMENT_SOCKETS[number]) ?? Number.MAX_SAFE_INTEGER));
+  const changedSlots = candidate.changedSlots;
+  const socketsToRefresh = candidate.socketsToRefresh;
+  if (!hasKnownUniqueSockets(changedSlots) || !hasKnownUniqueSockets(socketsToRefresh)) return false;
+  if (!hasCanonicalSocketOrder(changedSlots) || !hasCanonicalSocketOrder(socketsToRefresh)) return false;
+  return candidate.transitionKey === buildTransitionKey(changedSlots, animation as PlayerEquipmentTransitionReceipt['animation']);
+}
 
 export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readonly<{ ok: boolean; errors: readonly string[] }> {
   const errors: string[] = [];
