@@ -85,5 +85,5 @@ export function applyPhotorealismFrameToScene(
 
 export function sceneBridgeIsSafe(receipt: SceneBridgeReceipt): boolean {
   return receipt.deterministicKey.length > 0
-    && !receipt.applied.includes('material-provenance') === false;
+    && receipt.applied.includes('material-provenance');
 }
