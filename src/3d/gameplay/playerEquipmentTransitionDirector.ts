@@ -126,6 +126,13 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
   const socketsToRefresh = candidate.socketsToRefresh;
   if (!hasKnownUniqueSockets(changedSlots) || !hasKnownUniqueSockets(socketsToRefresh)) return false;
   if (!hasCanonicalSocketOrder(changedSlots) || !hasCanonicalSocketOrder(socketsToRefresh)) return false;
+  if (candidate.changed !== (changedSlots.length > 0)) return false;
+  if (candidate.changed && socketsToRefresh.length !== changedSlots.length) return false;
+  if (candidate.changed && changedSlots.some((slot) => !socketsToRefresh.includes(slot))) return false;
+  if (!candidate.changed && socketsToRefresh.length !== 0) return false;
+  if (!candidate.changed && (candidate.weaponChanged || candidate.defenseChanged || candidate.rangedChanged || candidate.handednessChanged)) return false;
+  if (!candidate.changed && (candidate.movementDelta !== 0 || candidate.staminaDrainDelta !== 0 || candidate.poiseDelta !== 0 || candidate.damageDelta !== 0 || candidate.reachDelta !== 0)) return false;
+  if (!candidate.changed && (animation.fromFamily !== animation.toFamily || animation.hardReset || animation.compatible !== true)) return false;
   return candidate.transitionKey === buildTransitionKey(changedSlots, animation as PlayerEquipmentTransitionReceipt['animation']);
 }
 
