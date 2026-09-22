@@ -32,6 +32,7 @@ export interface DialogueConditionGate {
   readonly mode: DialogueConditionMode;
   readonly key: string;
   evaluate(context: DialogueConditionContext): boolean;
+  evaluateDetailed(context: DialogueConditionContext): DialogueConditionsEvaluation;
 }
 
 const clean = (value: unknown): string => (typeof value === 'string' ? value.trim().slice(0, 96) : '');
@@ -179,6 +180,7 @@ export const createDialogueConditionGate = (
     conditions: safeConditions,
     mode,
     key,
-    evaluate: (context: DialogueConditionContext): boolean => evaluateDialogueConditions(safeConditions, context, mode),
+    evaluateDetailed: (context: DialogueConditionContext): DialogueConditionsEvaluation => evaluateDialogueConditionsDetailed(safeConditions, context, mode),
+    evaluate: (context: DialogueConditionContext): boolean => evaluateDialogueConditionsDetailed(safeConditions, context, mode).passed,
   });
 };
