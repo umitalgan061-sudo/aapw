@@ -53,6 +53,9 @@ if (validatePlayerEquipmentTransitionReceipt(tampered).ok) failures.push('tamper
 const refreshTampered = { ...receipt, socketsToRefresh: Object.freeze(['head']) };
 if (validatePlayerEquipmentTransitionReceipt(refreshTampered).ok) failures.push('foreign-socket-refresh-accepted');
 
+const unknownSlotTampered = { ...receipt, changedSlots: Object.freeze([...receipt.changedSlots, 'finger']) };
+if (validatePlayerEquipmentTransitionReceipt(unknownSlotTampered).ok) failures.push('unknown-socket-accepted');
+
 const malformed = {
   ...receipt,
   animation: { ...receipt.animation, compatible: 'yes' },
