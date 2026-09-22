@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { QuestAuthorityV2 } from '../../src/3d/modern/questAuthorityV2.ts';
 import {
   evaluateDialogueConditions,
+  isDialogueCondition,
+  normalizeDialogueCondition,
   stableDialogueConditionKey,
   type DialogueConditionContext,
 } from '../../src/3d/modern/questDialogueConditions.ts';
@@ -36,9 +38,16 @@ describe('quest dialogue conditions', () => {
     expect(evaluateDialogueConditions([{ kind: 'quest-completed', questId: 'roadside-repair' }], context)).toBe(true);
   });
 
-  it('produces order-independent deterministic keys', () => {
+  it('normalizes safe keys and rejects malformed conditions', () => {
+    expect(normalizeDialogueCondition({ kind: 'quest-completed', questId: '  road  ' })).toEqual({ kind: 'quest-completed', questId: 'road' });
+    expect(normalizeDialogueCondition({ kind: 'reputation-at-least', factionId: 'guild', value: Number.NaN })).toBeNull();
+    expect(isDialogueCondition({ kind: 'settlement-service', settlementId: 'town', service: 'tavern' })).toBe(true);
+    expect(isDialogueCondition({ kind: 'settlement-service', settlementId: 'town', service: 'library' })).toBe(false);
+  });
+
+  it('produces order-independent deterministic keys after normalization', () => {
     const a = [
-      { kind: 'quest-completed', questId: 'a' } as const,
+      { kind: 'quest-completed', questId: ' a ' } as const,
       { kind: 'reputation-at-least', factionId: 'b', value: 2 } as const,
     ];
     const b = [...a].reverse();
