@@ -38,6 +38,7 @@ export type PlayerEquipmentTransitionReceipt = Readonly<{
 
 const VALID_EQUIPMENT_SOCKETS = ['head', 'chest', 'back', 'mainHand', 'offHand'] as const;
 const ARMOR_SOCKETS = new Set(['head', 'chest', 'back']);
+const WEAPON_SOCKETS = new Set(['mainHand', 'offHand']);
 const EQUIPMENT_SOCKET_ORDER = new Map(VALID_EQUIPMENT_SOCKETS.map((slot, index) => [slot, index]));
 
 const freeze = <T>(value: T): T => {
@@ -146,7 +147,9 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
   for (const slot of changedSlots) if (typeof slot === 'string' && !refreshSlotSet.has(slot)) errors.push('changed-slot-missing-refresh');
   for (const slot of changedSlots) if (typeof slot === 'string' && !EQUIPMENT_SOCKET_ORDER.has(slot as typeof VALID_EQUIPMENT_SOCKETS[number])) errors.push('unknown-changed-slot');
   for (const slot of socketsToRefresh) if (typeof slot === 'string' && !EQUIPMENT_SOCKET_ORDER.has(slot as typeof VALID_EQUIPMENT_SOCKETS[number])) errors.push('unknown-socket-refresh');
-  if (candidate.weaponChanged && !changedSlots.includes('mainHand')) errors.push('weapon-slot-missing');
+  const weaponSlotChanged = changedSlots.some((slot) => typeof slot === 'string' && WEAPON_SOCKETS.has(slot));
+  if (candidate.weaponChanged && !weaponSlotChanged) errors.push('weapon-flag-without-weapon-slot');
+  if (weaponSlotChanged && !candidate.weaponChanged) errors.push('weapon-slot-without-weapon-flag');
   if (candidate.rangedChanged && !changedSlots.includes('mainHand')) errors.push('ranged-slot-missing');
   if (candidate.handednessChanged && !changedSlots.includes('mainHand')) errors.push('handedness-slot-missing');
   const armorChanged = changedSlots.some((slot) => typeof slot === 'string' && ARMOR_SOCKETS.has(slot));
