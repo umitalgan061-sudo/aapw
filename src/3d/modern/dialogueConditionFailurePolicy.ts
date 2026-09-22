@@ -1,4 +1,7 @@
-import type { DialogueConditionFailure } from './questDialogueConditions.ts';
+import type {
+  DialogueConditionFailure,
+  DialogueConditionsEvaluation,
+} from './questDialogueConditions.ts';
 
 export type DialogueConditionFailureAction = 'show-quest' | 'show-reputation' | 'show-service' | 'hide-branch';
 
@@ -56,3 +59,7 @@ export const summarizeDialogueConditionFailures = (
     hideBranch: hints.some((hint) => hint.action === 'hide-branch'),
   });
 };
+
+export const summarizeDialogueConditionEvaluation = (
+  evaluation: Pick<DialogueConditionsEvaluation, 'failures'>,
+): DialogueConditionFailureSummary => summarizeDialogueConditionFailures(evaluation.failures);
