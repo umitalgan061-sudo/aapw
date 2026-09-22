@@ -9,10 +9,10 @@ const files=[
 for(const file of files){
   const source=await readFile(new URL(`../${file}`,import.meta.url),'utf8');
   assert.equal(source.includes('EditorMaterialStudio'),false,`${file} must not import editor DOM runtime`);
-  assert.equal(source.includes('WorldAssetPlacementPipeline')||file.includes('test'),true,`${file} must stay inside the shared placement boundary or test it`);
+  assert.equal(source.includes('placementQuery')||file.includes('test'),true,`${file} must stay inside the shared placement boundary or test it`);
 }
 const controller=await readFile(new URL('../src/3d/world/photorealismRuntimeController.ts',import.meta.url),'utf8');
-for(const token of ['visible-failure-gate','applyObservation','deterministicKey','maxOperationsPerFrame','isRuntimeControllerReceipt']) assert.ok(controller.includes(token),`missing runtime controller contract: ${token}`);
+for(const token of ['visible-failure-gate','applyObservation','deterministicKey','maxOperationsPerFrame','isRuntimeControllerReceipt','placementQuery']) assert.ok(controller.includes(token),`missing runtime controller contract: ${token}`);
 const batch=await readFile(new URL('../src/3d/world/photorealismBatchExecutor.ts',import.meta.url),'utf8');
 for(const token of ['stableSort','maxBatchSize','batchAcceptance','budgetClampedCount']) assert.ok(batch.includes(token),`missing batch contract: ${token}`);
 console.log('Photorealism runtime controller contract: PASS');
