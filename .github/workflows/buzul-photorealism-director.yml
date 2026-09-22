@@ -12,6 +12,7 @@ on:
       - 'src/3d/world/photorealismAssetClusterPlanner.ts'
       - 'src/3d/world/photorealismRuntimeController.ts'
       - 'src/3d/world/photorealismBatchExecutor.ts'
+      - 'src/3d/world/photorealismStructuralSuppression.ts'
       - 'scripts/checkPhotorealismDirector.mjs'
       - 'scripts/checkPhotorealismRuntimeController.mjs'
       - 'tests/modern/photorealismDirector.test.ts'
@@ -19,6 +20,7 @@ on:
       - 'tests/modern/photorealismSceneBridge.test.ts'
       - 'tests/world/photorealismEnvironmentPass.test.ts'
       - 'tests/world/photorealismRuntimeController.test.ts'
+      - 'tests/world/photorealismStructuralSuppression.test.ts'
       - '.github/workflows/buzul-photorealism-director.yml'
   workflow_dispatch:
 jobs:
@@ -43,4 +45,5 @@ jobs:
           src/3d/world/photorealismAssetClusterPlanner.ts
           src/3d/world/photorealismRuntimeController.ts
           src/3d/world/photorealismBatchExecutor.ts
-      - run: npx vitest run tests/modern/photorealismDirector.test.ts tests/modern/photorealismRuntimeAdapter.test.ts tests/modern/photorealismSceneBridge.test.ts tests/world/photorealismEnvironmentPass.test.ts tests/world/photorealismRuntimeController.test.ts
+          src/3d/world/photorealismStructuralSuppression.ts
+      - run: npx vitest run tests/modern/photorealismDirector.test.ts tests/modern/photorealismRuntimeAdapter.test.ts tests/modern/photorealismSceneBridge.test.ts tests/world/photorealismEnvironmentPass.test.ts tests/world/photorealismRuntimeController.test.ts tests/world/photorealismStructuralSuppression.test.ts
