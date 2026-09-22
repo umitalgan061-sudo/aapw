@@ -37,6 +37,7 @@ export type PlayerEquipmentTransitionReceipt = Readonly<{
 }>;
 
 const VALID_EQUIPMENT_SOCKETS = ['head', 'chest', 'back', 'mainHand', 'offHand'] as const;
+const ARMOR_SOCKETS = new Set(['head', 'chest', 'back']);
 const EQUIPMENT_SOCKET_ORDER = new Map(VALID_EQUIPMENT_SOCKETS.map((slot, index) => [slot, index]));
 
 const freeze = <T>(value: T): T => {
@@ -148,6 +149,9 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
   if (candidate.weaponChanged && !changedSlots.includes('mainHand')) errors.push('weapon-slot-missing');
   if (candidate.rangedChanged && !changedSlots.includes('mainHand')) errors.push('ranged-slot-missing');
   if (candidate.handednessChanged && !changedSlots.includes('mainHand')) errors.push('handedness-slot-missing');
+  const armorChanged = changedSlots.some((slot) => typeof slot === 'string' && ARMOR_SOCKETS.has(slot));
+  if (candidate.defenseChanged && !armorChanged) errors.push('defense-flag-without-armor-slot');
+  if (!candidate.defenseChanged && armorChanged) errors.push('armor-slot-without-defense-flag');
   const semanticFlags = {
     weaponChanged: candidate.weaponChanged,
     defenseChanged: candidate.defenseChanged,
