@@ -94,6 +94,12 @@ if (validatePlayerEquipmentTransitionReceipt(armorWithoutFlag).ok) failures.push
 const defenseWithoutArmor = { ...receipt, changedSlots: Object.freeze(['mainHand', 'offHand']), socketsToRefresh: Object.freeze(['mainHand', 'offHand']), defenseChanged: true };
 if (validatePlayerEquipmentTransitionReceipt(defenseWithoutArmor).ok) failures.push('defense-without-armor-flag-accepted');
 
+const weaponSlotWithoutFlag = { ...receipt, weaponChanged: false };
+if (validatePlayerEquipmentTransitionReceipt(weaponSlotWithoutFlag).ok) failures.push('weapon-slot-without-weapon-flag-accepted');
+
+const weaponFlagWithoutSlot = { ...receipt, changedSlots: Object.freeze(['chest']), socketsToRefresh: Object.freeze(['chest']), weaponChanged: true, defenseChanged: true, rangedChanged: false, handednessChanged: false };
+if (validatePlayerEquipmentTransitionReceipt(weaponFlagWithoutSlot).ok) failures.push('weapon-flag-without-weapon-slot-accepted');
+
 const malformedShape = { changed: true };
 let malformedShapeThrew = false;
 try {
