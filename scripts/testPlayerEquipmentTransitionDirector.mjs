@@ -50,6 +50,9 @@ if (noOp.changed || noOp.changedSlots.length !== 0 || noOp.socketsToRefresh.leng
 const tampered = { ...receipt, changed: false };
 if (validatePlayerEquipmentTransitionReceipt(tampered).ok) failures.push('tampered-receipt-accepted');
 
+const noOpSemanticTampered = { ...noOp, weaponChanged: true };
+if (validatePlayerEquipmentTransitionReceipt(noOpSemanticTampered).ok) failures.push('noop-semantic-flag-accepted');
+
 const refreshTampered = { ...receipt, socketsToRefresh: Object.freeze(['head']) };
 if (validatePlayerEquipmentTransitionReceipt(refreshTampered).ok) failures.push('foreign-socket-refresh-accepted');
 
