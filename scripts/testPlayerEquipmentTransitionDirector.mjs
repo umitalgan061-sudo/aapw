@@ -59,6 +59,9 @@ if (validatePlayerEquipmentTransitionReceipt(noOpDeltaTampered).ok) failures.pus
 const refreshTampered = { ...receipt, socketsToRefresh: Object.freeze(['head']) };
 if (validatePlayerEquipmentTransitionReceipt(refreshTampered).ok) failures.push('foreign-socket-refresh-accepted');
 
+const missingRefreshTampered = { ...receipt, socketsToRefresh: Object.freeze(['mainHand']) };
+if (validatePlayerEquipmentTransitionReceipt(missingRefreshTampered).ok) failures.push('missing-socket-refresh-accepted');
+
 const duplicateChangedSlots = { ...receipt, changedSlots: Object.freeze([...receipt.changedSlots, 'mainHand']) };
 if (validatePlayerEquipmentTransitionReceipt(duplicateChangedSlots).ok) failures.push('duplicate-changed-slot-accepted');
 
