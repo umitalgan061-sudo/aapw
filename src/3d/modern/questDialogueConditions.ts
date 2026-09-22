@@ -2,6 +2,7 @@ import type { QuestAuthorityV2, QuestStatus } from './questAuthorityV2.ts';
 
 export type SettlementService = 'blacksmith' | 'tavern' | 'market' | 'stable' | 'farm' | 'barracks';
 export type DialogueConditionMode = 'all' | 'any';
+export type DialogueConditionFailure = 'invalid-condition' | 'missing-quest' | 'quest-status-mismatch' | 'objective-missing' | 'objective-incomplete' | 'reputation-too-low' | 'service-unavailable';
 
 export type DialogueCondition =
   | Readonly<{ kind: 'quest-status'; questId: string; status: QuestStatus }>
@@ -14,6 +15,11 @@ export interface DialogueConditionContext {
   readonly quests: QuestAuthorityV2;
   readonly reputation?: Readonly<Record<string, number>>;
   readonly settlementServices?: Readonly<Record<string, readonly string[]>>;
+}
+
+export interface DialogueConditionEvaluation {
+  readonly passed: boolean;
+  readonly failure: DialogueConditionFailure | null;
 }
 
 export interface DialogueConditionGate {
@@ -65,29 +71,51 @@ export const normalizeDialogueCondition = (condition: unknown): DialogueConditio
 
 export const isDialogueCondition = (condition: unknown): condition is DialogueCondition => normalizeDialogueCondition(condition) !== null;
 
-export const evaluateDialogueCondition = (
+export const evaluateDialogueConditionDetailed = (
   condition: DialogueCondition,
   context: DialogueConditionContext,
-): boolean => {
+): DialogueConditionEvaluation => {
   const normalized = normalizeDialogueCondition(condition);
-  if (!normalized) return false;
+  if (!normalized) return { passed: false, failure: 'invalid-condition' };
   if (normalized.kind === 'quest-status') {
-    return context.quests.get(normalized.questId)?.status === normalized.status;
+    const quest = context.quests.get(normalized.questId);
+    if (!quest) return { passed: false, failure: 'missing-quest' };
+    return quest.status === normalized.status
+      ? { passed: true, failure: null }
+      : { passed: false, failure: 'quest-status-mismatch' };
   }
   if (normalized.kind === 'quest-completed') {
-    return context.quests.get(normalized.questId)?.status === 'completed';
+    const quest = context.quests.get(normalized.questId);
+    if (!quest) return { passed: false, failure: 'missing-quest' };
+    return quest.status === 'completed'
+      ? { passed: true, failure: null }
+      : { passed: false, failure: 'quest-status-mismatch' };
   }
   if (normalized.kind === 'quest-objective-progress') {
-    const objective = context.quests.get(normalized.questId)?.objectives.find((entry) => entry.id === normalized.objectiveId);
-    return objective !== undefined && objective.progress >= normalized.amount;
+    const quest = context.quests.get(normalized.questId);
+    if (!quest) return { passed: false, failure: 'missing-quest' };
+    const objective = quest.objectives.find((entry) => entry.id === normalized.objectiveId);
+    if (!objective) return { passed: false, failure: 'objective-missing' };
+    return Number.isFinite(objective.progress) && objective.progress >= normalized.amount
+      ? { passed: true, failure: null }
+      : { passed: false, failure: 'objective-incomplete' };
   }
   if (normalized.kind === 'reputation-at-least') {
     const value = context.reputation?.[normalized.factionId] ?? 0;
-    return Number.isFinite(value) && value >= normalized.value;
+    return Number.isFinite(value) && value >= normalized.value
+      ? { passed: true, failure: null }
+      : { passed: false, failure: 'reputation-too-low' };
   }
   const available = context.settlementServices?.[normalized.settlementId] ?? [];
-  return available.includes(normalized.service);
+  return available.includes(normalized.service)
+    ? { passed: true, failure: null }
+    : { passed: false, failure: 'service-unavailable' };
 };
+
+export const evaluateDialogueCondition = (
+  condition: DialogueCondition,
+  context: DialogueConditionContext,
+): boolean => evaluateDialogueConditionDetailed(condition, context).passed;
 
 export const evaluateDialogueConditions = (
   conditions: readonly DialogueCondition[],
