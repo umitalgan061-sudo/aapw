@@ -28,6 +28,8 @@ const positiveFinite = (value: number): boolean => Number.isFinite(value) && val
 const services = new Set<SettlementService>(['blacksmith', 'tavern', 'market', 'stable', 'farm', 'barracks']);
 const statuses = new Set<QuestStatus>(['locked', 'available', 'active', 'completed', 'failed', 'abandoned']);
 
+export const isDialogueConditionMode = (mode: unknown): mode is DialogueConditionMode => mode === 'all' || mode === 'any';
+
 export const normalizeDialogueCondition = (condition: DialogueCondition): DialogueCondition | null => {
   if (condition.kind === 'quest-status') {
     const questId = clean(condition.questId);
@@ -87,6 +89,7 @@ export const evaluateDialogueConditions = (
   context: DialogueConditionContext,
   mode: DialogueConditionMode = 'all',
 ): boolean => {
+  if (!isDialogueConditionMode(mode)) return false;
   if (conditions.length === 0) return mode === 'all';
   const results = conditions.map((condition) => evaluateDialogueCondition(condition, context));
   return mode === 'any' ? results.some(Boolean) : results.every(Boolean);
@@ -95,19 +98,21 @@ export const evaluateDialogueConditions = (
 export const stableDialogueConditionKey = (
   conditions: readonly DialogueCondition[],
   mode: DialogueConditionMode = 'all',
-): string =>
-  `${mode}:${conditions
+): string => {
+  if (!isDialogueConditionMode(mode)) return 'invalid:';
+  return `${mode}:${conditions
     .map(normalizeDialogueCondition)
     .filter((condition): condition is DialogueCondition => condition !== null)
     .map((condition) => JSON.stringify(condition))
     .sort()
     .join('|')}`;
+};
 
 export const createDialogueConditionGate = (
   conditions: readonly DialogueCondition[],
   mode: DialogueConditionMode = 'all',
 ): DialogueConditionGate | null => {
-  if (mode !== 'all' && mode !== 'any') return null;
+  if (!isDialogueConditionMode(mode)) return null;
   const normalized = conditions.map(normalizeDialogueCondition);
   if (normalized.some((condition) => condition === null)) return null;
   const safeConditions = Object.freeze(normalized as DialogueCondition[]);
