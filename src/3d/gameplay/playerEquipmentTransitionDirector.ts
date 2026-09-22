@@ -136,6 +136,8 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
   if (changedSlotSet.size !== changedSlots.length) errors.push('duplicate-changed-slot');
   if (refreshSlotSet.size !== socketsToRefresh.length) errors.push('duplicate-socket-refresh');
   for (const slot of socketsToRefresh) if (typeof slot === 'string' && !changedSlotSet.has(slot)) errors.push('socket-refresh-not-changed-slot');
+  if (candidate.changed && refreshSlotSet.size !== changedSlotSet.size) errors.push('changed-slot-refresh-count-mismatch');
+  for (const slot of changedSlots) if (typeof slot === 'string' && !refreshSlotSet.has(slot)) errors.push('changed-slot-missing-refresh');
   for (const slot of changedSlots) if (typeof slot === 'string' && !VALID_EQUIPMENT_SOCKETS.has(slot)) errors.push('unknown-changed-slot');
   for (const slot of socketsToRefresh) if (typeof slot === 'string' && !VALID_EQUIPMENT_SOCKETS.has(slot)) errors.push('unknown-socket-refresh');
   if (candidate.weaponChanged && !changedSlots.includes('mainHand')) errors.push('weapon-slot-missing');
