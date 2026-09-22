@@ -58,7 +58,7 @@ export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTr
     grounded: input.grounded !== false,
   });
   const changedSlots = [...delta.changedSlots];
-  const socketsToRefresh = [...transition.socketsToRefresh];
+  const socketsToRefresh = transition.socketsToRefresh.filter((slot): slot is string => typeof slot === 'string');
   const transitionKey = [
     changedSlots.join(','),
     transition.animation.fromFamily,
