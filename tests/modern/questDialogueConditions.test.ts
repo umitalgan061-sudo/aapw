@@ -73,6 +73,14 @@ describe('quest dialogue conditions', () => {
     expect(stableDialogueConditionKey([condition], 'either' as never)).toBe('invalid:');
   });
 
+  it('rejects unknown runtime shapes without throwing', () => {
+    expect(normalizeDialogueCondition(null)).toBeNull();
+    expect(normalizeDialogueCondition({})).toBeNull();
+    expect(normalizeDialogueCondition({ kind: 'unknown' })).toBeNull();
+    expect(isDialogueCondition({})).toBe(false);
+    expect(isDialogueCondition({ kind: 'unknown' })).toBe(false);
+  });
+
   it('normalizes safe keys and rejects malformed conditions', () => {
     expect(normalizeDialogueCondition({ kind: 'quest-completed', questId: '  road  ' })).toEqual({ kind: 'quest-completed', questId: 'road' });
     expect(normalizeDialogueCondition({ kind: 'quest-objective-progress', questId: 'road', objectiveId: 'repair', amount: 0 })).toBeNull();
