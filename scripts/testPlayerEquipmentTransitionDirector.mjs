@@ -37,7 +37,7 @@ if (!validatePlayerEquipmentTransitionReceipt(receipt).ok) failures.push('receip
 if (!receipt.changed || !receipt.weaponChanged || !receipt.rangedChanged || !receipt.handednessChanged) failures.push('weapon-transition-flags-invalid');
 if (!receipt.changedSlots.includes('mainHand') || !receipt.changedSlots.includes('offHand')) failures.push('changed-slots-missing');
 if (!receipt.socketsToRefresh.includes('mainHand') || !receipt.socketsToRefresh.includes('offHand')) failures.push('socket-refresh-missing');
-if (!receipt.animation.hardReset) failures.push('hard-reset-not-required');
+if (receipt.animation.hardReset !== true) failures.push('hard-reset-not-required');
 if (receipt.animation.crossfadeSeconds <= 0) failures.push('crossfade-not-positive');
 if (!Object.isFrozen(receipt) || !Object.isFrozen(receipt.animation) || !Object.isFrozen(receipt.changedSlots) || !Object.isFrozen(receipt.socketsToRefresh)) failures.push('deep-freeze-missing');
 
@@ -45,10 +45,13 @@ const replay = resolvePlayerEquipmentTransitionReceipt(input);
 if (JSON.stringify(receipt) !== JSON.stringify(replay)) failures.push('non-deterministic-replay');
 
 const noOp = resolvePlayerEquipmentTransitionReceipt({ previousEquipment: base, nextEquipment: base });
-if (noOp.changed || noOp.changedSlots.length !== 0 || !validatePlayerEquipmentTransitionReceipt(noOp).ok) failures.push('no-op-transition-invalid');
+if (noOp.changed || noOp.changedSlots.length !== 0 || noOp.socketsToRefresh.length !== 0 || !validatePlayerEquipmentTransitionReceipt(noOp).ok) failures.push('no-op-transition-invalid');
 
 const tampered = { ...receipt, changed: false };
 if (validatePlayerEquipmentTransitionReceipt(tampered).ok) failures.push('tampered-receipt-accepted');
+
+const refreshTampered = { ...receipt, socketsToRefresh: Object.freeze(['head']) };
+if (validatePlayerEquipmentTransitionReceipt(refreshTampered).ok) failures.push('foreign-socket-refresh-accepted');
 
 const malformed = {
   ...receipt,
