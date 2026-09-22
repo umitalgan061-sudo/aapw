@@ -93,6 +93,10 @@ const reorderedRefreshSlots = { ...receipt, socketsToRefresh: Object.freeze(['of
 if (isPlayerEquipmentTransitionReceipt(reorderedRefreshSlots)) failures.push('shape-guard-accepted-reordered-refresh-slots');
 if (validatePlayerEquipmentTransitionReceipt(reorderedRefreshSlots).ok) failures.push('reordered-socket-refresh-accepted');
 
+const mismatchedRefreshOrder = { ...receipt, socketsToRefresh: Object.freeze(['offHand', 'mainHand']) };
+if (isPlayerEquipmentTransitionReceipt(mismatchedRefreshOrder)) failures.push('shape-guard-accepted-mismatched-refresh-order');
+if (!validatePlayerEquipmentTransitionReceipt(mismatchedRefreshOrder).errors.includes('socket-refresh-order-mismatch')) failures.push('mismatched-refresh-order-not-diagnosed');
+
 const duplicateChangedSlots = { ...receipt, changedSlots: Object.freeze([...receipt.changedSlots, 'mainHand']) };
 if (isPlayerEquipmentTransitionReceipt(duplicateChangedSlots)) failures.push('shape-guard-accepted-duplicate-changed-slot');
 if (validatePlayerEquipmentTransitionReceipt(duplicateChangedSlots).ok) failures.push('duplicate-changed-slot-accepted');
