@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const ts=fs.readFileSync('src/3d/world/photorealismDirector.ts','utf8');
 const js=fs.readFileSync('src/3d/world/photorealismDirector.js','utf8');
+const bridge=fs.readFileSync('src/3d/world/photorealismSceneBridge.ts','utf8');
+const bridgeJs=fs.readFileSync('src/3d/world/photorealismSceneBridge.js','utf8');
 const failures=[];
 const must=[
   ['typed-owner',ts.includes('export function buildPhotorealismFrame')],
@@ -12,7 +14,10 @@ const must=[
   ['pbr',ts.includes('normalStrength')&&ts.includes('roughness')],
   ['atmosphere',ts.includes('fogDensity')&&ts.includes('aerialPerspective')],
   ['compat-boundary',js.includes("photorealismDirector.ts")],
-  ['no-editor-runtime-import',!ts.includes('EditorMaterialStudio.js')],
+  ['bridge-applies-pbr',bridge.includes('applyPhotorealismFrameToScene')&&bridge.includes('material-roughness')],
+  ['bridge-provenance',bridge.includes('material-provenance')&&bridge.includes('sourceAuthority')],
+  ['bridge-compat-boundary',bridgeJs.includes("photorealismSceneBridge.ts")],
+  ['no-editor-runtime-import',!ts.includes('EditorMaterialStudio.js')&&!bridge.includes('EditorMaterialStudio.js')],
   ['no-grid-term',!ts.includes('GeoCell')&&!ts.includes('Pindex')],
 ];
 for(const [name,ok] of must)if(!ok)failures.push(name);
