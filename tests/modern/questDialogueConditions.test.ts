@@ -19,7 +19,7 @@ describe('quest dialogue conditions', () => {
       level: 1,
       prerequisites: [],
       rewards: { gold: 20 },
-      objectives: [{ id: 'repair-cart', kind: 'interact', target: 'market-cart', amount: 1, progress: 0, optional: false }],
+      objectives: [{ id: 'repair-cart', kind: 'interact', target: 'market-cart', amount: 2, progress: 0, optional: false }],
     });
     quests.accept('roadside-repair', 10);
 
@@ -31,9 +31,14 @@ describe('quest dialogue conditions', () => {
 
     expect(evaluateDialogueConditions([
       { kind: 'quest-status', questId: 'roadside-repair', status: 'active' },
+      { kind: 'quest-objective-progress', questId: 'roadside-repair', objectiveId: 'repair-cart', amount: 2 },
       { kind: 'reputation-at-least', factionId: 'merchants', value: 10 },
       { kind: 'settlement-service', settlementId: 'stonewatch-market', service: 'blacksmith' },
-    ], context)).toBe(true);
+    ], context)).toBe(false);
+
+    quests.progress('roadside-repair', 'repair-cart', 1, 15);
+    expect(evaluateDialogueConditions([{ kind: 'quest-objective-progress', questId: 'roadside-repair', objectiveId: 'repair-cart', amount: 1 }], context)).toBe(true);
+    expect(evaluateDialogueConditions([{ kind: 'quest-objective-progress', questId: 'roadside-repair', objectiveId: 'repair-cart', amount: 2 }], context)).toBe(false);
 
     quests.progress('roadside-repair', 'repair-cart', 1, 20);
     expect(evaluateDialogueConditions([{ kind: 'quest-completed', questId: 'roadside-repair' }], context)).toBe(true);
@@ -41,6 +46,7 @@ describe('quest dialogue conditions', () => {
 
   it('normalizes safe keys and rejects malformed conditions', () => {
     expect(normalizeDialogueCondition({ kind: 'quest-completed', questId: '  road  ' })).toEqual({ kind: 'quest-completed', questId: 'road' });
+    expect(normalizeDialogueCondition({ kind: 'quest-objective-progress', questId: 'road', objectiveId: 'repair', amount: 0 })).toBeNull();
     expect(normalizeDialogueCondition({ kind: 'reputation-at-least', factionId: 'guild', value: Number.NaN })).toBeNull();
     expect(isDialogueCondition({ kind: 'settlement-service', settlementId: 'town', service: 'tavern' })).toBe(true);
     expect(isDialogueCondition({ kind: 'settlement-service', settlementId: 'town', service: 'library' })).toBe(false);
@@ -49,15 +55,18 @@ describe('quest dialogue conditions', () => {
   it('produces order-independent deterministic keys after normalization', () => {
     const a = [
       { kind: 'quest-completed', questId: ' a ' } as const,
+      { kind: 'quest-objective-progress', questId: 'road', objectiveId: 'repair', amount: 2.9 } as const,
       { kind: 'reputation-at-least', factionId: 'b', value: 2 } as const,
     ];
     const b = [...a].reverse();
     expect(stableDialogueConditionKey(a)).toBe(stableDialogueConditionKey(b));
+    expect(stableDialogueConditionKey(a)).toContain('"amount":2');
   });
 
   it('compiles a reusable immutable gate and fails closed on malformed input', () => {
     const gate = createDialogueConditionGate([
       { kind: 'quest-completed', questId: 'roadside-repair' },
+      { kind: 'quest-objective-progress', questId: 'roadside-repair', objectiveId: 'repair-cart', amount: 1 },
       { kind: 'settlement-service', settlementId: 'stonewatch-market', service: 'market' },
     ]);
     expect(gate).not.toBeNull();
