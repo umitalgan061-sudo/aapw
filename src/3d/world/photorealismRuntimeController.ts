@@ -89,6 +89,19 @@ function applyExecutions(executions:readonly RuntimeExecution[],targets:readonly
   }
 }
 
+function validateTargets(targets:readonly RuntimeTarget[]):string|null {
+  const seenIds=new Set<string>();
+  const seenKinds=new Set<RuntimeTargetKind>();
+  for(const target of targets){
+    if(!target || typeof target.id!=='string' || target.id.length===0 || typeof target.apply!=='function') return 'invalid-target-shape';
+    if(seenIds.has(target.id)) return 'duplicate-target-id';
+    if(seenKinds.has(target.kind)) return 'duplicate-target-kind';
+    seenIds.add(target.id);
+    seenKinds.add(target.kind);
+  }
+  return null;
+}
+
 export function createPhotorealismRuntimeController(options:RuntimeControllerOptions){
   const maxOperations=Math.max(1,Math.trunc(options.maxOperationsPerFrame??32));
   const rejectVisibleFailures=options.rejectVisibleFailures??true;
@@ -99,8 +112,9 @@ export function createPhotorealismRuntimeController(options:RuntimeControllerOpt
     },
     apply(plan:EnvironmentPassPlan,targets:readonly RuntimeTarget[]):RuntimeControllerReceipt{
       const issueCodes=Object.freeze(plan.issues.map(issue=>issue.code));
-      const rejected=rejectVisibleFailures&&plan.health.visibleFailureCount>0;
-      const all=buildOperations(plan,targets);
+      const targetError=validateTargets(targets);
+      const rejected=targetError!==null || (rejectVisibleFailures&&plan.health.visibleFailureCount>0);
+      const all=targetError===null ? buildOperations(plan,targets) : [];
       const budgetClamped=all.length>maxOperations;
       const operations=Object.freeze(all.slice(0,maxOperations));
       if(!rejected) applyExecutions(operations,targets);
@@ -108,7 +122,7 @@ export function createPhotorealismRuntimeController(options:RuntimeControllerOpt
         deterministicKey:`buzul|runtime-controller-v1|${Math.trunc(options.seed)}|${plan.deterministicKey}`,
         planKey:plan.deterministicKey,
         accepted:!rejected,
-        rejectedReason:rejected?'visible-failure-gate':null,
+        rejectedReason:targetError ?? (rejected?'visible-failure-gate':null),
         operations,
         issueCodes,
         operationCount:operations.length,
