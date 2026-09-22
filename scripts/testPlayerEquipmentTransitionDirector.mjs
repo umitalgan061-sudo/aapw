@@ -53,6 +53,12 @@ if (validatePlayerEquipmentTransitionReceipt(tampered).ok) failures.push('tamper
 const refreshTampered = { ...receipt, socketsToRefresh: Object.freeze(['head']) };
 if (validatePlayerEquipmentTransitionReceipt(refreshTampered).ok) failures.push('foreign-socket-refresh-accepted');
 
+const duplicateChangedSlots = { ...receipt, changedSlots: Object.freeze([...receipt.changedSlots, 'mainHand']) };
+if (validatePlayerEquipmentTransitionReceipt(duplicateChangedSlots).ok) failures.push('duplicate-changed-slot-accepted');
+
+const duplicateRefreshSlots = { ...receipt, socketsToRefresh: Object.freeze([...receipt.socketsToRefresh, 'mainHand']) };
+if (validatePlayerEquipmentTransitionReceipt(duplicateRefreshSlots).ok) failures.push('duplicate-socket-refresh-accepted');
+
 const unknownSlotTampered = { ...receipt, changedSlots: Object.freeze([...receipt.changedSlots, 'finger']) };
 if (validatePlayerEquipmentTransitionReceipt(unknownSlotTampered).ok) failures.push('unknown-socket-accepted');
 
