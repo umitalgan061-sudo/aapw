@@ -56,6 +56,15 @@ const malformed = {
 };
 if (validatePlayerEquipmentTransitionReceipt(malformed).ok) failures.push('malformed-animation-accepted');
 
+const malformedShape = { changed: true };
+let malformedShapeThrew = false;
+try {
+  if (validatePlayerEquipmentTransitionReceipt(malformedShape).ok) failures.push('malformed-shape-accepted');
+} catch {
+  malformedShapeThrew = true;
+}
+if (malformedShapeThrew) failures.push('malformed-shape-threw');
+
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
