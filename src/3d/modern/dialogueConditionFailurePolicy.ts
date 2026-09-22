@@ -18,11 +18,20 @@ const HINTS: Readonly<Record<DialogueConditionFailure, DialogueConditionFailureH
   'service-unavailable': Object.freeze({ failure: 'service-unavailable', action: 'show-service', priority: 50 }),
 });
 
-export const getDialogueConditionFailureHint = (failure: DialogueConditionFailure): DialogueConditionFailureHint => HINTS[failure];
+export const isDialogueConditionFailure = (failure: unknown): failure is DialogueConditionFailure => (
+  typeof failure === 'string' && Object.prototype.hasOwnProperty.call(HINTS, failure)
+);
+
+export const getDialogueConditionFailureHint = (failure: DialogueConditionFailure): DialogueConditionFailureHint => {
+  if (isDialogueConditionFailure(failure)) return HINTS[failure];
+  return HINTS['invalid-condition'];
+};
 
 export const orderDialogueConditionFailures = (
   failures: readonly DialogueConditionFailure[],
-): readonly DialogueConditionFailure[] => Object.freeze([...new Set(failures)].sort((left, right) => {
-  const priorityDelta = HINTS[left].priority - HINTS[right].priority;
-  return priorityDelta || left.localeCompare(right);
-}));
+): readonly DialogueConditionFailure[] => Object.freeze([...new Set(failures)]
+  .map((failure) => (isDialogueConditionFailure(failure) ? failure : 'invalid-condition' as const))
+  .sort((left, right) => {
+    const priorityDelta = HINTS[left].priority - HINTS[right].priority;
+    return priorityDelta || left.localeCompare(right);
+  }));
