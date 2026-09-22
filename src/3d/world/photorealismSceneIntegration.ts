@@ -15,6 +15,10 @@ import {
   type RuntimeControllerOptions,
   type RuntimeTarget,
 } from './photorealismRuntimeController.ts';
+import {
+  createPhotorealismSceneTargets,
+  type PhotorealismSceneTargetCallbacks,
+} from './photorealismSceneTargetFactory.ts';
 
 export interface PhotorealismSceneIntegration {
   readonly controller: ReturnType<typeof createPhotorealismRuntimeController>;
@@ -23,6 +27,7 @@ export interface PhotorealismSceneIntegration {
     observation: CanonicalEnvironmentObservation,
     targets: readonly RuntimeTarget[],
   ) => RuntimeControllerReceipt;
+  readonly createTargets: (callbacks: PhotorealismSceneTargetCallbacks) => readonly RuntimeTarget[];
 }
 
 export function createPhotorealismSceneIntegration(
@@ -33,6 +38,7 @@ export function createPhotorealismSceneIntegration(
     controller,
     evaluate: (observation) => controller.plan(observation),
     apply: (observation, targets) => controller.applyObservation(observation, targets),
+    createTargets: (callbacks) => createPhotorealismSceneTargets(callbacks),
   });
 }
 
