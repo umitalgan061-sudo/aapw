@@ -135,7 +135,15 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
   if (!candidate.changed && (candidate.weaponChanged || candidate.defenseChanged || candidate.rangedChanged || candidate.handednessChanged)) return false;
   if (!candidate.changed && (candidate.movementDelta !== 0 || candidate.staminaDrainDelta !== 0 || candidate.poiseDelta !== 0 || candidate.damageDelta !== 0 || candidate.reachDelta !== 0)) return false;
   if (!candidate.changed && (animation.fromFamily !== animation.toFamily || animation.hardReset || animation.compatible !== true)) return false;
-  return candidate.transitionKey === buildTransitionKey(changedSlots, animation as PlayerEquipmentTransitionReceipt['animation']);
+
+  const weaponSlotChanged = changedSlots.some((slot) => WEAPON_SOCKETS.has(slot));
+  const defenseSlotChanged = changedSlots.some((slot) => DEFENSE_SOCKETS.has(slot));
+  if (candidate.weaponChanged !== weaponSlotChanged) return false;
+  if (candidate.defenseChanged !== defenseSlotChanged) return false;
+  if (candidate.rangedChanged && !changedSlots.includes('mainHand')) return false;
+  if (candidate.handednessChanged && !changedSlots.includes('mainHand')) return false;
+  if (candidate.transitionKey !== buildTransitionKey(changedSlots, animation as PlayerEquipmentTransitionReceipt['animation'])) return false;
+  return true;
 }
 
 export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readonly<{ ok: boolean; errors: readonly string[] }> {
