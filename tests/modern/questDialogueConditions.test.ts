@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { QuestAuthorityV2 } from '../../src/3d/modern/questAuthorityV2.ts';
 import {
   createDialogueConditionGate,
+  evaluateDialogueConditionDetailed,
   evaluateDialogueConditions,
   isDialogueCondition,
   isDialogueConditionMode,
@@ -59,6 +60,17 @@ describe('quest dialogue conditions', () => {
     expect(evaluateDialogueConditions([blockedQuest, merchantGate], context, 'any')).toBe(true);
     expect(evaluateDialogueConditions([], context, 'any')).toBe(false);
     expect(evaluateDialogueConditions([], context)).toBe(true);
+  });
+
+  it('exposes stable failure reasons for dialogue UX without changing the boolean gate', () => {
+    const quests = new QuestAuthorityV2();
+    const context: DialogueConditionContext = { quests, reputation: { merchants: 4 } };
+    const missingQuest = { kind: 'quest-completed', questId: 'missing-quest' } as const;
+    const lowReputation = { kind: 'reputation-at-least', factionId: 'merchants', value: 10 } as const;
+
+    expect(evaluateDialogueConditionDetailed(missingQuest, context)).toEqual({ passed: false, failure: 'missing-quest' });
+    expect(evaluateDialogueConditionDetailed(lowReputation, context)).toEqual({ passed: false, failure: 'reputation-too-low' });
+    expect(evaluateDialogueConditionDetailed({ kind: 'settlement-service', settlementId: 'stonewatch', service: 'smithing' as never }, context)).toEqual({ passed: false, failure: 'invalid-condition' });
   });
 
   it('fails closed for invalid modes at every evaluation boundary', () => {
