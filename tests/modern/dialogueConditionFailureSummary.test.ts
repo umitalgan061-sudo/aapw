@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { summarizeDialogueConditionFailures } from '../../src/3d/modern/dialogueConditionFailurePolicy.ts';
+import {
+  summarizeDialogueConditionEvaluation,
+  summarizeDialogueConditionFailures,
+} from '../../src/3d/modern/dialogueConditionFailurePolicy.ts';
 
 describe('dialogue condition failure summary', () => {
   it('selects the primary UX hint and preserves stable ordering', () => {
@@ -26,6 +29,16 @@ describe('dialogue condition failure summary', () => {
       'show-quest',
       'show-service',
     ]);
+  });
+
+  it('projects a detailed gate evaluation without requiring consumers to reshape failures', () => {
+    const summary = summarizeDialogueConditionEvaluation({
+      failures: ['service-unavailable', 'reputation-too-low'],
+    });
+
+    expect(summary.failures).toEqual(['reputation-too-low', 'service-unavailable']);
+    expect(summary.primary.action).toBe('show-reputation');
+    expect(summary.hideBranch).toBe(false);
   });
 
   it('returns a safe hidden-branch summary for an empty failure set', () => {
