@@ -21,4 +21,4 @@ jobs:
       - run: npm install
       - run: node scripts/checkPlayerEquipmentTransitionDirector.mjs
       - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirector.mjs
-      - run: npx tsc --noEmit --allowJs false --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler src/3d/gameplay/playerEquipmentTransitionDirector.ts
+      - run: npx tsc --noEmit --ignoreConfig --allowJs false --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler src/3d/gameplay/playerEquipmentTransitionDirector.ts
