@@ -45,6 +45,8 @@ const freeze = <T>(value: T): T => {
 
 const text = (value: unknown, fallback = '') => typeof value === 'string' && value.length > 0 ? value : fallback;
 const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value);
+const boolean = (value: unknown): value is boolean => typeof value === 'boolean';
+const stringArray = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((item) => typeof item === 'string' && item.length > 0);
 
 export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTransitionInput = {}): PlayerEquipmentTransitionReceipt {
   const previous = input.previousEquipment ?? {};
@@ -76,12 +78,32 @@ export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTr
 
 export function isPlayerEquipmentTransitionReceipt(value: unknown): value is PlayerEquipmentTransitionReceipt {
   if (!value || typeof value !== 'object') return false;
-  const candidate = value as PlayerEquipmentTransitionReceipt;
-  return Object.isFrozen(candidate)
+  const candidate = value as Partial<PlayerEquipmentTransitionReceipt>;
+  const animation = candidate.animation;
+  return Object.isFrozen(value)
+    && stringArray(candidate.changedSlots)
     && Object.isFrozen(candidate.changedSlots)
-    && Array.isArray(candidate.changedSlots)
-    && Object.isFrozen(candidate.animation)
-    && Array.isArray(candidate.socketsToRefresh)
+    && boolean(candidate.changed)
+    && boolean(candidate.weaponChanged)
+    && boolean(candidate.defenseChanged)
+    && boolean(candidate.rangedChanged)
+    && boolean(candidate.handednessChanged)
+    && finite(candidate.movementDelta)
+    && finite(candidate.staminaDrainDelta)
+    && finite(candidate.poiseDelta)
+    && finite(candidate.damageDelta)
+    && finite(candidate.reachDelta)
+    && !!animation
+    && typeof animation === 'object'
+    && Object.isFrozen(animation)
+    && boolean(animation.compatible)
+    && boolean(animation.hardReset)
+    && typeof animation.fromFamily === 'string'
+    && typeof animation.toFamily === 'string'
+    && typeof animation.action === 'string'
+    && boolean(animation.preserveLocomotion)
+    && finite(animation.crossfadeSeconds)
+    && stringArray(candidate.socketsToRefresh)
     && Object.isFrozen(candidate.socketsToRefresh)
     && typeof candidate.transitionKey === 'string';
 }
