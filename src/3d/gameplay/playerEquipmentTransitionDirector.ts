@@ -120,6 +120,10 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
   if (!animation) errors.push('animation-not-shaped');
 
   if (candidate.changed !== (changedSlots.length > 0)) errors.push('changed-flag-mismatch');
+  if (!candidate.changed && (changedSlots.length > 0 || socketsToRefresh.length > 0)) errors.push('noop-transition-has-refreshes');
+  if (candidate.changed && changedSlots.length === 0) errors.push('changed-transition-missing-slots');
+  const changedSlotSet = new Set(changedSlots.filter((slot): slot is string => typeof slot === 'string'));
+  for (const slot of socketsToRefresh) if (typeof slot === 'string' && !changedSlotSet.has(slot)) errors.push('socket-refresh-not-changed-slot');
   if (candidate.weaponChanged && !changedSlots.includes('mainHand')) errors.push('weapon-slot-missing');
   if (candidate.rangedChanged && !changedSlots.includes('mainHand')) errors.push('ranged-slot-missing');
   if (candidate.handednessChanged && !changedSlots.includes('mainHand')) errors.push('handedness-slot-missing');
