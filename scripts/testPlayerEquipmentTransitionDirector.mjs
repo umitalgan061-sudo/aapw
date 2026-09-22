@@ -37,6 +37,8 @@ if (!validatePlayerEquipmentTransitionReceipt(receipt).ok) failures.push('receip
 if (!receipt.changed || !receipt.weaponChanged || !receipt.rangedChanged || !receipt.handednessChanged) failures.push('weapon-transition-flags-invalid');
 if (!receipt.changedSlots.includes('mainHand') || !receipt.changedSlots.includes('offHand')) failures.push('changed-slots-missing');
 if (!receipt.socketsToRefresh.includes('mainHand') || !receipt.socketsToRefresh.includes('offHand')) failures.push('socket-refresh-missing');
+if (receipt.changedSlots.join(',') !== 'mainHand,offHand') failures.push('changed-slot-order-not-canonical');
+if (receipt.socketsToRefresh.join(',') !== 'mainHand,offHand') failures.push('socket-refresh-order-not-canonical');
 if (receipt.animation.hardReset !== true) failures.push('hard-reset-not-required');
 if (receipt.animation.crossfadeSeconds <= 0) failures.push('crossfade-not-positive');
 if (!Object.isFrozen(receipt) || !Object.isFrozen(receipt.animation) || !Object.isFrozen(receipt.changedSlots) || !Object.isFrozen(receipt.socketsToRefresh)) failures.push('deep-freeze-missing');
@@ -61,6 +63,12 @@ if (validatePlayerEquipmentTransitionReceipt(refreshTampered).ok) failures.push(
 
 const missingRefreshTampered = { ...receipt, socketsToRefresh: Object.freeze(['mainHand']) };
 if (validatePlayerEquipmentTransitionReceipt(missingRefreshTampered).ok) failures.push('missing-socket-refresh-accepted');
+
+const reorderedChangedSlots = { ...receipt, changedSlots: Object.freeze(['offHand', 'mainHand']) };
+if (validatePlayerEquipmentTransitionReceipt(reorderedChangedSlots).ok) failures.push('reordered-changed-slots-accepted');
+
+const reorderedRefreshSlots = { ...receipt, socketsToRefresh: Object.freeze(['offHand', 'mainHand']) };
+if (validatePlayerEquipmentTransitionReceipt(reorderedRefreshSlots).ok) failures.push('reordered-socket-refresh-accepted');
 
 const duplicateChangedSlots = { ...receipt, changedSlots: Object.freeze([...receipt.changedSlots, 'mainHand']) };
 if (validatePlayerEquipmentTransitionReceipt(duplicateChangedSlots).ok) failures.push('duplicate-changed-slot-accepted');
