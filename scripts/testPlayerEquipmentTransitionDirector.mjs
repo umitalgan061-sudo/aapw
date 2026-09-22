@@ -56,6 +56,9 @@ if (validatePlayerEquipmentTransitionReceipt(refreshTampered).ok) failures.push(
 const unknownSlotTampered = { ...receipt, changedSlots: Object.freeze([...receipt.changedSlots, 'finger']) };
 if (validatePlayerEquipmentTransitionReceipt(unknownSlotTampered).ok) failures.push('unknown-socket-accepted');
 
+const keyTampered = { ...receipt, transitionKey: 'tampered-key' };
+if (validatePlayerEquipmentTransitionReceipt(keyTampered).ok) failures.push('transition-key-tampering-accepted');
+
 const malformed = {
   ...receipt,
   animation: { ...receipt.animation, compatible: 'yes' },
