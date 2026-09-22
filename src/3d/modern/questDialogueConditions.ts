@@ -5,6 +5,7 @@ export type SettlementService = 'blacksmith' | 'tavern' | 'market' | 'stable' | 
 export type DialogueCondition =
   | Readonly<{ kind: 'quest-status'; questId: string; status: QuestStatus }>
   | Readonly<{ kind: 'quest-completed'; questId: string }>
+  | Readonly<{ kind: 'quest-objective-progress'; questId: string; objectiveId: string; amount: number }>
   | Readonly<{ kind: 'reputation-at-least'; factionId: string; value: number }>
   | Readonly<{ kind: 'settlement-service'; settlementId: string; service: SettlementService }>;
 
@@ -21,6 +22,7 @@ export interface DialogueConditionGate {
 }
 
 const clean = (value: string): string => value.trim().slice(0, 96);
+const positiveFinite = (value: number): boolean => Number.isFinite(value) && value > 0;
 const services = new Set<SettlementService>(['blacksmith', 'tavern', 'market', 'stable', 'farm', 'barracks']);
 const statuses = new Set<QuestStatus>(['locked', 'available', 'active', 'completed', 'failed', 'abandoned']);
 
@@ -32,6 +34,13 @@ export const normalizeDialogueCondition = (condition: DialogueCondition): Dialog
   if (condition.kind === 'quest-completed') {
     const questId = clean(condition.questId);
     return questId ? { kind: condition.kind, questId } : null;
+  }
+  if (condition.kind === 'quest-objective-progress') {
+    const questId = clean(condition.questId);
+    const objectiveId = clean(condition.objectiveId);
+    return questId && objectiveId && positiveFinite(condition.amount)
+      ? { kind: condition.kind, questId, objectiveId, amount: Math.floor(condition.amount) }
+      : null;
   }
   if (condition.kind === 'reputation-at-least') {
     const factionId = clean(condition.factionId);
@@ -58,6 +67,10 @@ export const evaluateDialogueCondition = (
   }
   if (normalized.kind === 'quest-completed') {
     return context.quests.get(normalized.questId)?.status === 'completed';
+  }
+  if (normalized.kind === 'quest-objective-progress') {
+    const objective = context.quests.get(normalized.questId)?.objectives.find((entry) => entry.id === normalized.objectiveId);
+    return objective !== undefined && objective.progress >= normalized.amount;
   }
   if (normalized.kind === 'reputation-at-least') {
     const value = context.reputation?.[normalized.factionId] ?? 0;
