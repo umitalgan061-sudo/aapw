@@ -8,6 +8,7 @@ on:
       - 'src/3d/world/photorealismRuntimeAdapter.js'
       - 'src/3d/world/photorealismSceneBridge.ts'
       - 'src/3d/world/photorealismSceneBridge.js'
+      - 'src/3d/world/photorealismSceneIntegration.ts'
       - 'src/3d/world/photorealismEnvironmentPass.ts'
       - 'src/3d/world/photorealismAssetClusterPlanner.ts'
       - 'src/3d/world/photorealismRuntimeController.ts'
@@ -15,6 +16,7 @@ on:
       - 'src/3d/world/photorealismStructuralSuppression.ts'
       - 'scripts/checkPhotorealismDirector.mjs'
       - 'scripts/checkPhotorealismRuntimeController.mjs'
+      - 'scripts/checkPhotorealismSceneIntegration.mjs'
       - 'tests/modern/photorealismDirector.test.ts'
       - 'tests/modern/photorealismRuntimeAdapter.test.ts'
       - 'tests/modern/photorealismSceneBridge.test.ts'
@@ -35,12 +37,14 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: node scripts/checkPhotorealismDirector.mjs
       - run: node scripts/checkPhotorealismRuntimeController.mjs
+      - run: node scripts/checkPhotorealismSceneIntegration.mjs
       - run: >-
           npx tsc --noEmit --target ES2024 --module ESNext
           --moduleResolution Bundler --skipLibCheck
           src/3d/world/photorealismDirector.ts
           src/3d/world/photorealismRuntimeAdapter.ts
           src/3d/world/photorealismSceneBridge.ts
+          src/3d/world/photorealismSceneIntegration.ts
           src/3d/world/photorealismEnvironmentPass.ts
           src/3d/world/photorealismAssetClusterPlanner.ts
           src/3d/world/photorealismRuntimeController.ts
