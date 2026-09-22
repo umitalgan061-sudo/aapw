@@ -8,10 +8,13 @@ on:
       - 'src/3d/world/photorealismRuntimeAdapter.js'
       - 'src/3d/world/photorealismSceneBridge.ts'
       - 'src/3d/world/photorealismSceneBridge.js'
+      - 'src/3d/world/photorealismEnvironmentPass.ts'
+      - 'src/3d/world/photorealismAssetClusterPlanner.ts'
       - 'scripts/checkPhotorealismDirector.mjs'
       - 'tests/modern/photorealismDirector.test.ts'
       - 'tests/modern/photorealismRuntimeAdapter.test.ts'
       - 'tests/modern/photorealismSceneBridge.test.ts'
+      - 'tests/world/photorealismEnvironmentPass.test.ts'
       - '.github/workflows/buzul-photorealism-director.yml'
   workflow_dispatch:
 jobs:
@@ -31,4 +34,6 @@ jobs:
           src/3d/world/photorealismDirector.ts
           src/3d/world/photorealismRuntimeAdapter.ts
           src/3d/world/photorealismSceneBridge.ts
-      - run: npx vitest run tests/modern/photorealismDirector.test.ts tests/modern/photorealismRuntimeAdapter.test.ts tests/modern/photorealismSceneBridge.test.ts
+          src/3d/world/photorealismEnvironmentPass.ts
+          src/3d/world/photorealismAssetClusterPlanner.ts
+      - run: npx vitest run tests/modern/photorealismDirector.test.ts tests/modern/photorealismRuntimeAdapter.test.ts tests/modern/photorealismSceneBridge.test.ts tests/world/photorealismEnvironmentPass.test.ts
