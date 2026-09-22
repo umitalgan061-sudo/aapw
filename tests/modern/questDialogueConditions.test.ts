@@ -4,6 +4,7 @@ import {
   createDialogueConditionGate,
   evaluateDialogueConditions,
   isDialogueCondition,
+  isDialogueConditionMode,
   normalizeDialogueCondition,
   stableDialogueConditionKey,
   type DialogueConditionContext,
@@ -58,6 +59,18 @@ describe('quest dialogue conditions', () => {
     expect(evaluateDialogueConditions([blockedQuest, merchantGate], context, 'any')).toBe(true);
     expect(evaluateDialogueConditions([], context, 'any')).toBe(false);
     expect(evaluateDialogueConditions([], context)).toBe(true);
+  });
+
+  it('fails closed for invalid modes at every evaluation boundary', () => {
+    const quests = new QuestAuthorityV2();
+    const context: DialogueConditionContext = { quests, reputation: { merchants: 12 } };
+    const condition = { kind: 'reputation-at-least', factionId: 'merchants', value: 10 } as const;
+
+    expect(isDialogueConditionMode('all')).toBe(true);
+    expect(isDialogueConditionMode('any')).toBe(true);
+    expect(isDialogueConditionMode('either')).toBe(false);
+    expect(evaluateDialogueConditions([condition], context, 'either' as never)).toBe(false);
+    expect(stableDialogueConditionKey([condition], 'either' as never)).toBe('invalid:');
   });
 
   it('normalizes safe keys and rejects malformed conditions', () => {
