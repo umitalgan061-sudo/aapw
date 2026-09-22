@@ -58,6 +58,12 @@ if (validatePlayerEquipmentTransitionReceipt(noOpSemanticTampered).ok) failures.
 const noOpDeltaTampered = { ...noOp, damageDelta: 1 };
 if (validatePlayerEquipmentTransitionReceipt(noOpDeltaTampered).ok) failures.push('noop-stat-delta-accepted');
 
+const noOpAnimationFamilyTampered = { ...noOp, animation: Object.freeze({ ...noOp.animation, toFamily: `${noOp.animation.toFamily}-drift` }) };
+if (validatePlayerEquipmentTransitionReceipt(noOpAnimationFamilyTampered).ok) failures.push('noop-animation-family-drift-accepted');
+
+const noOpAnimationResetTampered = { ...noOp, animation: Object.freeze({ ...noOp.animation, hardReset: true }) };
+if (validatePlayerEquipmentTransitionReceipt(noOpAnimationResetTampered).ok) failures.push('noop-hard-reset-accepted');
+
 const refreshTampered = { ...receipt, socketsToRefresh: Object.freeze(['head']) };
 if (validatePlayerEquipmentTransitionReceipt(refreshTampered).ok) failures.push('foreign-socket-refresh-accepted');
 
