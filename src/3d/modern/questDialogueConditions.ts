@@ -1,6 +1,7 @@
 import type { QuestAuthorityV2, QuestStatus } from './questAuthorityV2.ts';
 
 export type SettlementService = 'blacksmith' | 'tavern' | 'market' | 'stable' | 'farm' | 'barracks';
+export type DialogueConditionMode = 'all' | 'any';
 
 export type DialogueCondition =
   | Readonly<{ kind: 'quest-status'; questId: string; status: QuestStatus }>
@@ -17,6 +18,7 @@ export interface DialogueConditionContext {
 
 export interface DialogueConditionGate {
   readonly conditions: readonly DialogueCondition[];
+  readonly mode: DialogueConditionMode;
   readonly key: string;
   evaluate(context: DialogueConditionContext): boolean;
 }
@@ -83,26 +85,37 @@ export const evaluateDialogueCondition = (
 export const evaluateDialogueConditions = (
   conditions: readonly DialogueCondition[],
   context: DialogueConditionContext,
-): boolean => conditions.every((condition) => evaluateDialogueCondition(condition, context));
+  mode: DialogueConditionMode = 'all',
+): boolean => {
+  if (conditions.length === 0) return mode === 'all';
+  const results = conditions.map((condition) => evaluateDialogueCondition(condition, context));
+  return mode === 'any' ? results.some(Boolean) : results.every(Boolean);
+};
 
-export const stableDialogueConditionKey = (conditions: readonly DialogueCondition[]): string =>
-  conditions
+export const stableDialogueConditionKey = (
+  conditions: readonly DialogueCondition[],
+  mode: DialogueConditionMode = 'all',
+): string =>
+  `${mode}:${conditions
     .map(normalizeDialogueCondition)
     .filter((condition): condition is DialogueCondition => condition !== null)
     .map((condition) => JSON.stringify(condition))
     .sort()
-    .join('|');
+    .join('|')}`;
 
 export const createDialogueConditionGate = (
   conditions: readonly DialogueCondition[],
+  mode: DialogueConditionMode = 'all',
 ): DialogueConditionGate | null => {
+  if (mode !== 'all' && mode !== 'any') return null;
   const normalized = conditions.map(normalizeDialogueCondition);
   if (normalized.some((condition) => condition === null)) return null;
   const safeConditions = Object.freeze(normalized as DialogueCondition[]);
-  const key = stableDialogueConditionKey(safeConditions);
+  const key = stableDialogueConditionKey(safeConditions, mode);
   return Object.freeze({
     conditions: safeConditions,
+    mode,
     key,
-    evaluate: (context: DialogueConditionContext): boolean => evaluateDialogueConditions(safeConditions, context),
+    evaluate: (context: DialogueConditionContext): boolean => evaluateDialogueConditions(safeConditions, context, mode),
   });
 };
