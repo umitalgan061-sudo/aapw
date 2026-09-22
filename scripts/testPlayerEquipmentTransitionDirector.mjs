@@ -65,21 +65,27 @@ const missingRefreshTampered = { ...receipt, socketsToRefresh: Object.freeze(['m
 if (validatePlayerEquipmentTransitionReceipt(missingRefreshTampered).ok) failures.push('missing-socket-refresh-accepted');
 
 const reorderedChangedSlots = { ...receipt, changedSlots: Object.freeze(['offHand', 'mainHand']) };
+if (isPlayerEquipmentTransitionReceipt(reorderedChangedSlots)) failures.push('shape-guard-accepted-reordered-changed-slots');
 if (validatePlayerEquipmentTransitionReceipt(reorderedChangedSlots).ok) failures.push('reordered-changed-slots-accepted');
 
 const reorderedRefreshSlots = { ...receipt, socketsToRefresh: Object.freeze(['offHand', 'mainHand']) };
+if (isPlayerEquipmentTransitionReceipt(reorderedRefreshSlots)) failures.push('shape-guard-accepted-reordered-refresh-slots');
 if (validatePlayerEquipmentTransitionReceipt(reorderedRefreshSlots).ok) failures.push('reordered-socket-refresh-accepted');
 
 const duplicateChangedSlots = { ...receipt, changedSlots: Object.freeze([...receipt.changedSlots, 'mainHand']) };
+if (isPlayerEquipmentTransitionReceipt(duplicateChangedSlots)) failures.push('shape-guard-accepted-duplicate-changed-slot');
 if (validatePlayerEquipmentTransitionReceipt(duplicateChangedSlots).ok) failures.push('duplicate-changed-slot-accepted');
 
 const duplicateRefreshSlots = { ...receipt, socketsToRefresh: Object.freeze([...receipt.socketsToRefresh, 'mainHand']) };
+if (isPlayerEquipmentTransitionReceipt(duplicateRefreshSlots)) failures.push('shape-guard-accepted-duplicate-refresh-slot');
 if (validatePlayerEquipmentTransitionReceipt(duplicateRefreshSlots).ok) failures.push('duplicate-socket-refresh-accepted');
 
 const unknownSlotTampered = { ...receipt, changedSlots: Object.freeze([...receipt.changedSlots, 'finger']) };
+if (isPlayerEquipmentTransitionReceipt(unknownSlotTampered)) failures.push('shape-guard-accepted-unknown-slot');
 if (validatePlayerEquipmentTransitionReceipt(unknownSlotTampered).ok) failures.push('unknown-socket-accepted');
 
 const keyTampered = { ...receipt, transitionKey: 'tampered-key' };
+if (isPlayerEquipmentTransitionReceipt(keyTampered)) failures.push('shape-guard-accepted-tampered-key');
 if (validatePlayerEquipmentTransitionReceipt(keyTampered).ok) failures.push('transition-key-tampering-accepted');
 
 const malformed = {
