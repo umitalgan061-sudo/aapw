@@ -80,7 +80,7 @@ function pushIssue(list:EnvironmentIssue[], issue:EnvironmentIssue):void {
 
 function inspectP0(observation:CanonicalEnvironmentObservation, list:EnvironmentIssue[]):void {
   if (observation.visibleRectangularWater) pushIssue(list,{priority:'P0',code:'rectangular-water-block',severity:1,message:'Hydrology is rendered as a visible rectangular/tile block.',evidence:{waterDistance:observation.sample.waterDistanceMeters,waterLevel:observation.sample.waterLevelMeters}});
-  if (observation.visibleGridSeam) pushIssue(list,{priority:'P0',code:'grid-seam',severity:1,message:'A visible grid/Pindex seam remains in the shipped surface.',evidence:{worldX:observation.sample.worldX,worldZ:observation.sample.worldZ}});
+  if (observation.visibleGridSeam) pushIssue(list,{priority:'P0',code:'grid-seam',severity:1,message:'A visible terrain seam remains in the shipped surface.',evidence:{worldX:observation.sample.worldX,worldZ:observation.sample.worldZ}});
   if (observation.shorelineGradient<0.18) pushIssue(list,{priority:'P0',code:'shoreline-step',severity:clamp((0.18-observation.shorelineGradient)/0.18),message:'Shoreline gradient is too abrupt for a continuous canonical surface.',evidence:{shorelineGradient:observation.shorelineGradient}});
   if (observation.waterNormalRepeat>0.72) pushIssue(list,{priority:'P0',code:'water-moire',severity:clamp((observation.waterNormalRepeat-0.72)/0.28),message:'Water normal repetition risks visible stripe/moire artefacts.',evidence:{waterNormalRepeat:observation.waterNormalRepeat}});
 }
