@@ -154,7 +154,9 @@ describe('quest dialogue conditions', () => {
     expect(stableDialogueConditionKey(a)).toContain('"amount":2');
   });
 
-  it('compiles a reusable immutable gate and fails closed on malformed input', () => {
+  it('compiles a reusable immutable gate with boolean and detailed evaluation surfaces', () => {
+    const quests = new QuestAuthorityV2();
+    const context: DialogueConditionContext = { quests, reputation: { merchants: 12 }, settlementServices: { 'stonewatch-market': ['market'] } };
     const gate = createDialogueConditionGate([
       { kind: 'quest-completed', questId: 'roadside-repair' },
       { kind: 'quest-objective-progress', questId: 'roadside-repair', objectiveId: 'repair-cart', amount: 1 },
@@ -163,6 +165,13 @@ describe('quest dialogue conditions', () => {
     expect(gate).not.toBeNull();
     expect(gate?.key).toBe(stableDialogueConditionKey(gate?.conditions ?? [], gate?.mode));
     expect(gate?.mode).toBe('all');
+    expect(gate?.evaluate(context)).toBe(false);
+    expect(gate?.evaluateDetailed(context)).toEqual({
+      passed: false,
+      failure: 'missing-quest',
+      mode: 'all',
+      failures: ['missing-quest'],
+    });
     expect(Object.isFrozen(gate)).toBe(true);
     expect(Object.isFrozen(gate?.conditions)).toBe(true);
 
@@ -172,6 +181,12 @@ describe('quest dialogue conditions', () => {
     ], 'any');
     expect(anyGate?.mode).toBe('any');
     expect(anyGate?.key).toContain('any:');
+    expect(anyGate?.evaluateDetailed(context)).toEqual({
+      passed: true,
+      failure: null,
+      mode: 'any',
+      failures: ['missing-quest'],
+    });
 
     expect(createDialogueConditionGate([
       { kind: 'settlement-service', settlementId: 'stonewatch-market', service: 'library' as never },
