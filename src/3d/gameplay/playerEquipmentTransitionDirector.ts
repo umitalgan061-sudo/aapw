@@ -86,6 +86,7 @@ export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTr
 
 const hasCanonicalSocketOrder = (slots: readonly string[]) => slots.every((slot, index) => index === 0 || (EQUIPMENT_SOCKET_ORDER.get(slots[index - 1] as typeof VALID_EQUIPMENT_SOCKETS[number]) ?? Number.MAX_SAFE_INTEGER) <= (EQUIPMENT_SOCKET_ORDER.get(slot as typeof VALID_EQUIPMENT_SOCKETS[number]) ?? Number.MAX_SAFE_INTEGER));
 const hasKnownUniqueSockets = (slots: readonly string[]) => new Set(slots).size === slots.length && slots.every((slot) => EQUIPMENT_SOCKET_ORDER.has(slot as typeof VALID_EQUIPMENT_SOCKETS[number]));
+const hasMatchingSocketOrder = (left: readonly string[], right: readonly string[]) => left.length === right.length && left.every((slot, index) => slot === right[index]);
 
 export function isPlayerEquipmentTransitionReceipt(value: unknown): value is PlayerEquipmentTransitionReceipt {
   if (!value || typeof value !== 'object') return false;
@@ -128,6 +129,7 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
   if (!hasCanonicalSocketOrder(changedSlots) || !hasCanonicalSocketOrder(socketsToRefresh)) return false;
   if (candidate.changed !== (changedSlots.length > 0)) return false;
   if (candidate.changed && socketsToRefresh.length !== changedSlots.length) return false;
+  if (candidate.changed && !hasMatchingSocketOrder(changedSlots, socketsToRefresh)) return false;
   if (candidate.changed && changedSlots.some((slot) => !socketsToRefresh.includes(slot))) return false;
   if (!candidate.changed && socketsToRefresh.length !== 0) return false;
   if (!candidate.changed && (candidate.weaponChanged || candidate.defenseChanged || candidate.rangedChanged || candidate.handednessChanged)) return false;
@@ -156,6 +158,7 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
   if (refreshSlotSet.size !== socketsToRefresh.length) errors.push('duplicate-socket-refresh');
   if (!hasCanonicalSocketOrder(changedSlots.filter((slot): slot is string => typeof slot === 'string'))) errors.push('changed-slot-order-noncanonical');
   if (!hasCanonicalSocketOrder(socketsToRefresh.filter((slot): slot is string => typeof slot === 'string'))) errors.push('socket-refresh-order-noncanonical');
+  if (candidate.changed && !hasMatchingSocketOrder(changedSlots.filter((slot): slot is string => typeof slot === 'string'), socketsToRefresh.filter((slot): slot is string => typeof slot === 'string'))) errors.push('socket-refresh-order-mismatch');
   for (const slot of socketsToRefresh) if (typeof slot === 'string' && !changedSlotSet.has(slot)) errors.push('socket-refresh-not-changed-slot');
   if (candidate.changed && refreshSlotSet.size !== changedSlotSet.size) errors.push('changed-slot-refresh-count-mismatch');
   for (const slot of changedSlots) if (typeof slot === 'string' && !refreshSlotSet.has(slot)) errors.push('changed-slot-missing-refresh');
