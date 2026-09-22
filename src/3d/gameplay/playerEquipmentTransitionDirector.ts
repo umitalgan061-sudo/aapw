@@ -89,39 +89,45 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
 export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readonly<{ ok: boolean; errors: readonly string[] }> {
   const errors: string[] = [];
   if (!isPlayerEquipmentTransitionReceipt(value)) errors.push('receipt-not-frozen-or-shaped');
-  if (value && typeof value === 'object') {
-    const candidate = value as PlayerEquipmentTransitionReceipt;
-    if (candidate.changed !== (candidate.changedSlots.length > 0)) errors.push('changed-flag-mismatch');
-    if (candidate.weaponChanged && !candidate.changedSlots.includes('mainHand')) errors.push('weapon-slot-missing');
-    if (candidate.rangedChanged && !candidate.changedSlots.includes('mainHand')) errors.push('ranged-slot-missing');
-    if (candidate.handednessChanged && !candidate.changedSlots.includes('mainHand')) errors.push('handedness-slot-missing');
-    for (const [name, numeric] of Object.entries({
-      movementDelta: candidate.movementDelta,
-      staminaDrainDelta: candidate.staminaDrainDelta,
-      poiseDelta: candidate.poiseDelta,
-      damageDelta: candidate.damageDelta,
-      reachDelta: candidate.reachDelta,
-      crossfadeSeconds: candidate.animation?.crossfadeSeconds,
-    })) if (!finite(numeric)) errors.push(`${name}-not-finite`);
-    if (candidate.animation?.crossfadeSeconds < 0) errors.push('negative-crossfade');
-    if (candidate.changedSlots.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-changed-slot');
-    if (candidate.socketsToRefresh.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-socket-slot');
-    for (const [name, flag] of Object.entries({
-      changed: candidate.changed,
-      weaponChanged: candidate.weaponChanged,
-      defenseChanged: candidate.defenseChanged,
-      rangedChanged: candidate.rangedChanged,
-      handednessChanged: candidate.handednessChanged,
-      animationCompatible: candidate.animation?.compatible,
-      animationHardReset: candidate.animation?.hardReset,
-      preserveLocomotion: candidate.animation?.preserveLocomotion,
-    })) if (typeof flag !== 'boolean') errors.push(`${name}-not-boolean`);
-    for (const [name, textValue] of Object.entries({
-      fromFamily: candidate.animation?.fromFamily,
-      toFamily: candidate.animation?.toFamily,
-      action: candidate.animation?.action,
-      transitionKey: candidate.transitionKey,
-    })) if (typeof textValue !== 'string') errors.push(`${name}-not-string`);
-  }
+  if (!value || typeof value !== 'object') return Object.freeze({ ok: false, errors: Object.freeze(errors) });
+
+  const candidate = value as Partial<PlayerEquipmentTransitionReceipt>;
+  const changedSlots = Array.isArray(candidate.changedSlots) ? candidate.changedSlots : [];
+  const socketsToRefresh = Array.isArray(candidate.socketsToRefresh) ? candidate.socketsToRefresh : [];
+  const animation = candidate.animation && typeof candidate.animation === 'object' ? candidate.animation : undefined;
+  if (!animation) errors.push('animation-not-shaped');
+
+  if (candidate.changed !== (changedSlots.length > 0)) errors.push('changed-flag-mismatch');
+  if (candidate.weaponChanged && !changedSlots.includes('mainHand')) errors.push('weapon-slot-missing');
+  if (candidate.rangedChanged && !changedSlots.includes('mainHand')) errors.push('ranged-slot-missing');
+  if (candidate.handednessChanged && !changedSlots.includes('mainHand')) errors.push('handedness-slot-missing');
+  for (const [name, numeric] of Object.entries({
+    movementDelta: candidate.movementDelta,
+    staminaDrainDelta: candidate.staminaDrainDelta,
+    poiseDelta: candidate.poiseDelta,
+    damageDelta: candidate.damageDelta,
+    reachDelta: candidate.reachDelta,
+    crossfadeSeconds: animation?.crossfadeSeconds,
+  })) if (!finite(numeric)) errors.push(`${name}-not-finite`);
+  if (typeof animation?.crossfadeSeconds === 'number' && animation.crossfadeSeconds < 0) errors.push('negative-crossfade');
+  if (changedSlots.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-changed-slot');
+  if (socketsToRefresh.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-socket-slot');
+  for (const [name, flag] of Object.entries({
+    changed: candidate.changed,
+    weaponChanged: candidate.weaponChanged,
+    defenseChanged: candidate.defenseChanged,
+    rangedChanged: candidate.rangedChanged,
+    handednessChanged: candidate.handednessChanged,
+    animationCompatible: animation?.compatible,
+    animationHardReset: animation?.hardReset,
+    preserveLocomotion: animation?.preserveLocomotion,
+  })) if (typeof flag !== 'boolean') errors.push(`${name}-not-boolean`);
+  for (const [name, textValue] of Object.entries({
+    fromFamily: animation?.fromFamily,
+    toFamily: animation?.toFamily,
+    action: animation?.action,
+    transitionKey: candidate.transitionKey,
+  })) if (typeof textValue !== 'string') errors.push(`${name}-not-string`);
+
   return Object.freeze({ ok: errors.length === 0, errors: Object.freeze(errors) });
 }
