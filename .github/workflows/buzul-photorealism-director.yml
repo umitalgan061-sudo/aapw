@@ -1,0 +1,23 @@
+name: Buzul Muhafızı Photorealism Director
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/photorealismDirector.ts'
+      - 'src/3d/world/photorealismDirector.js'
+      - 'scripts/checkPhotorealismDirector.mjs'
+      - 'tests/modern/photorealismDirector.test.ts'
+      - '.github/workflows/buzul-photorealism-director.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node scripts/checkPhotorealismDirector.mjs
+      - run: npx tsc --noEmit
+      - run: npx vitest run tests/modern/photorealismDirector.test.ts
