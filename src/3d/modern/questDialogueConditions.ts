@@ -1,10 +1,12 @@
 import type { QuestAuthorityV2, QuestStatus } from './questAuthorityV2.ts';
 
+export type SettlementService = 'blacksmith' | 'tavern' | 'market' | 'stable' | 'farm' | 'barracks';
+
 export type DialogueCondition =
   | Readonly<{ kind: 'quest-status'; questId: string; status: QuestStatus }>
   | Readonly<{ kind: 'quest-completed'; questId: string }>
   | Readonly<{ kind: 'reputation-at-least'; factionId: string; value: number }>
-  | Readonly<{ kind: 'settlement-service'; settlementId: string; service: 'blacksmith' | 'tavern' | 'market' | 'stable' | 'farm' | 'barracks' }>;
+  | Readonly<{ kind: 'settlement-service'; settlementId: string; service: SettlementService }>;
 
 export interface DialogueConditionContext {
   readonly quests: QuestAuthorityV2;
@@ -13,23 +15,50 @@ export interface DialogueConditionContext {
 }
 
 const clean = (value: string): string => value.trim().slice(0, 96);
+const services = new Set<SettlementService>(['blacksmith', 'tavern', 'market', 'stable', 'farm', 'barracks']);
+const statuses = new Set<QuestStatus>(['locked', 'available', 'active', 'completed', 'failed', 'abandoned']);
+
+export const normalizeDialogueCondition = (condition: DialogueCondition): DialogueCondition | null => {
+  if (condition.kind === 'quest-status') {
+    const questId = clean(condition.questId);
+    return questId && statuses.has(condition.status) ? { kind: condition.kind, questId, status: condition.status } : null;
+  }
+  if (condition.kind === 'quest-completed') {
+    const questId = clean(condition.questId);
+    return questId ? { kind: condition.kind, questId } : null;
+  }
+  if (condition.kind === 'reputation-at-least') {
+    const factionId = clean(condition.factionId);
+    return factionId && Number.isFinite(condition.value) ? { kind: condition.kind, factionId, value: condition.value } : null;
+  }
+  const settlementId = clean(condition.settlementId);
+  return settlementId && services.has(condition.service) ? { kind: condition.kind, settlementId, service: condition.service } : null;
+};
+
+export const isDialogueCondition = (condition: unknown): condition is DialogueCondition => {
+  if (!condition || typeof condition !== 'object') return false;
+  const candidate = condition as Partial<DialogueCondition>;
+  return normalizeDialogueCondition(candidate as DialogueCondition) !== null;
+};
 
 export const evaluateDialogueCondition = (
   condition: DialogueCondition,
   context: DialogueConditionContext,
 ): boolean => {
-  if (condition.kind === 'quest-status') {
-    return context.quests.get(clean(condition.questId))?.status === condition.status;
+  const normalized = normalizeDialogueCondition(condition);
+  if (!normalized) return false;
+  if (normalized.kind === 'quest-status') {
+    return context.quests.get(normalized.questId)?.status === normalized.status;
   }
-  if (condition.kind === 'quest-completed') {
-    return context.quests.get(clean(condition.questId))?.status === 'completed';
+  if (normalized.kind === 'quest-completed') {
+    return context.quests.get(normalized.questId)?.status === 'completed';
   }
-  if (condition.kind === 'reputation-at-least') {
-    const value = context.reputation?.[clean(condition.factionId)] ?? 0;
-    return Number.isFinite(value) && value >= condition.value;
+  if (normalized.kind === 'reputation-at-least') {
+    const value = context.reputation?.[normalized.factionId] ?? 0;
+    return Number.isFinite(value) && value >= normalized.value;
   }
-  const services = context.settlementServices?.[clean(condition.settlementId)] ?? [];
-  return services.includes(condition.service);
+  const available = context.settlementServices?.[normalized.settlementId] ?? [];
+  return available.includes(normalized.service);
 };
 
 export const evaluateDialogueConditions = (
@@ -39,6 +68,8 @@ export const evaluateDialogueConditions = (
 
 export const stableDialogueConditionKey = (conditions: readonly DialogueCondition[]): string =>
   conditions
+    .map(normalizeDialogueCondition)
+    .filter((condition): condition is DialogueCondition => condition !== null)
     .map((condition) => JSON.stringify(condition))
     .sort()
     .join('|');
