@@ -47,6 +47,17 @@ describe('photorealism runtime controller',()=>{
     expect(controllerHealth(receipt).accepted).toBe(false);
   });
 
+  it('rejects duplicate target kinds before scene mutation',()=>{
+    const log:unknown[]=[];
+    const controller=createPhotorealismRuntimeController({seed:8,rejectVisibleFailures:false});
+    const duplicateTargets=[...targets(log),{id:'renderer-2',kind:'renderer',apply:()=>log.push('unexpected')}];
+    const receipt=controller.applyObservation(observation(),duplicateTargets as any);
+    expect(receipt.accepted).toBe(false);
+    expect(receipt.rejectedReason).toBe('duplicate-target-kind');
+    expect(receipt.operationCount).toBe(0);
+    expect(log).toHaveLength(0);
+  });
+
   it('applies bounded operations and clamps the operation budget',()=>{
     const log:unknown[]=[];
     const controller=createPhotorealismRuntimeController({seed:9,maxOperationsPerFrame:3,rejectVisibleFailures:false});
