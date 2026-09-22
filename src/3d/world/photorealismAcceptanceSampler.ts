@@ -7,6 +7,7 @@
  * production change without introducing a second terrain authority.
  */
 import type { CanonicalEnvironmentObservation } from './photorealismEnvironmentPass.ts';
+import { buildPhotorealismFrame } from './photorealismDirector.ts';
 
 export type AcceptanceView = 'full-world' | 'far' | 'terrain-near' | 'northwest-near';
 
@@ -43,8 +44,6 @@ const finite = (value: unknown, fallback: number): number => {
   const numeric = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
 };
-
-const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
 function point(
   center: readonly [number, number],
@@ -87,8 +86,8 @@ export function createPhotorealismAcceptanceSampleSet(
 ): AcceptanceSampleSet {
   const seed = Math.trunc(finite(options.seed, 0));
   const center: readonly [number, number] = Object.freeze([
-    finite(options.worldCenter?.[0], 0),
-    finite(options.worldCenter?.[1], 0),
+    finite(options.worldCenter?.[0], observation.sample.worldX),
+    finite(options.worldCenter?.[1], observation.sample.worldZ),
   ] as const);
   const extent: readonly [number, number] = Object.freeze([
     Math.max(1, Math.abs(finite(options.worldExtent?.[0], 1000))),
@@ -98,15 +97,16 @@ export function createPhotorealismAcceptanceSampleSet(
     Math.max(1, Math.trunc(finite(options.viewport?.[0], 1536))),
     Math.max(1, Math.trunc(finite(options.viewport?.[1], 1024))),
   ] as const);
-  const observed = new Set(observation.biomeContext.map((entry) => String(entry.biome)));
+  const frame = buildPhotorealismFrame(seed, observation.sample);
   const categories = Object.freeze([
     'coast',
     'mountain',
     'water',
     'vegetation',
     'settlement',
-    ...[...observed].sort(),
-  ]);
+    frame.biome,
+    frame.dominantSurface,
+  ].filter((value, index, values) => values.indexOf(value) === index));
   const samples = [
     sample('full-world', 'full-world', point(center, extent, 0, 0), viewport, seed, 0, 90, categories),
     sample('far-center', 'far', point(center, extent, 0.18, 0.12), viewport, seed, 18, 62, categories),
@@ -114,7 +114,7 @@ export function createPhotorealismAcceptanceSampleSet(
     sample('northwest-near', 'northwest-near', point(center, extent, -0.62, 0.58), viewport, seed, 320, 30, categories),
   ];
   return Object.freeze({
-    deterministicKey: `buzul|acceptance-sampler-v1|${seed}|${viewport[0]}x${viewport[1]}|${Math.round(clamp(observation.frame.water.depthMeters, 0, 100000))}`,
+    deterministicKey: `buzul|acceptance-sampler-v1|${seed}|${viewport[0]}x${viewport[1]}|${Math.round(observation.sample.worldX * 4) / 4}|${Math.round(observation.sample.worldZ * 4) / 4}`,
     samples: Object.freeze(samples),
     cameraContract: Object.freeze({
       projection: 'orthographic',
