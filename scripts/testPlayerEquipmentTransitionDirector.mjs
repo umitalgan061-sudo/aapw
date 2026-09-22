@@ -53,6 +53,9 @@ if (validatePlayerEquipmentTransitionReceipt(tampered).ok) failures.push('tamper
 const noOpSemanticTampered = { ...noOp, weaponChanged: true };
 if (validatePlayerEquipmentTransitionReceipt(noOpSemanticTampered).ok) failures.push('noop-semantic-flag-accepted');
 
+const noOpDeltaTampered = { ...noOp, damageDelta: 1 };
+if (validatePlayerEquipmentTransitionReceipt(noOpDeltaTampered).ok) failures.push('noop-stat-delta-accepted');
+
 const refreshTampered = { ...receipt, socketsToRefresh: Object.freeze(['head']) };
 if (validatePlayerEquipmentTransitionReceipt(refreshTampered).ok) failures.push('foreign-socket-refresh-accepted');
 
