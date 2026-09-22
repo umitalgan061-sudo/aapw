@@ -18,6 +18,10 @@ const bowSlots = {
   mainHand: { id: 'bow' },
   offHand: null,
 };
+const shieldSwapSlots = {
+  ...baseSlots,
+  offHand: { id: 'tower-shield' },
+};
 const base = resolvePlayerEquipmentCombatProfile(baseSlots);
 const bow = resolvePlayerEquipmentCombatProfile(bowSlots);
 
@@ -48,6 +52,10 @@ if (JSON.stringify(receipt) !== JSON.stringify(replay)) failures.push('non-deter
 
 const noOp = resolvePlayerEquipmentTransitionReceipt({ previousEquipment: base, nextEquipment: base });
 if (noOp.changed || noOp.changedSlots.length !== 0 || noOp.socketsToRefresh.length !== 0 || !validatePlayerEquipmentTransitionReceipt(noOp).ok) failures.push('no-op-transition-invalid');
+
+const shieldSwap = resolvePlayerEquipmentTransitionReceipt({ previousEquipment: base, nextEquipment: shieldSwapSlots });
+if (!shieldSwap.changed || !shieldSwap.changedSlots.includes('offHand') || !shieldSwap.defenseChanged) failures.push('offhand-defense-transition-flags-invalid');
+if (!validatePlayerEquipmentTransitionReceipt(shieldSwap).ok) failures.push('offhand-defense-transition-rejected');
 
 const tampered = { ...receipt, changed: false };
 if (validatePlayerEquipmentTransitionReceipt(tampered).ok) failures.push('tampered-receipt-accepted');
@@ -125,4 +133,4 @@ if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
 }
-console.log(JSON.stringify({ ok: true, suite: 'player-equipment-transition-director-runtime', changedSlots: receipt.changedSlots, transitionKey: receipt.transitionKey }));
+console.log(JSON.stringify({ ok: true, suite: 'player-equipment-transition-director-runtime', changedSlots: receipt.changedSlots, transitionKey: receipt.transitionKey, shieldSwapSlots: shieldSwap.changedSlots }));
