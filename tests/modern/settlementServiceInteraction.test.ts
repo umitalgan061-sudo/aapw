@@ -14,7 +14,24 @@ describe('resolveSettlementServiceInteraction', () => {
     );
 
     expect(result).toMatchObject({ allowed: true, reason: 'allowed' });
+    expect(result.availableActions).toEqual(['craft', 'repair']);
     expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result.availableActions)).toBe(true);
+  });
+
+  it('normalizes custom actions for stable UX receipts', () => {
+    const result = resolveSettlementServiceInteraction(
+      {
+        settlementId: 'northwatch',
+        serviceKind: 'market',
+        isOpen: true,
+        hasAccess: true,
+        availableActions: ['trade', 'trade', 'craft' as never],
+      },
+      'trade',
+    );
+
+    expect(result.availableActions).toEqual(['trade', 'craft']);
   });
 
   it('rejects actions that do not belong to the service', () => {
@@ -99,5 +116,6 @@ describe('resolveSettlementServiceInteraction', () => {
     );
 
     expect(invalid).toMatchObject({ allowed: false, reason: 'invalid-context' });
+    expect(invalid.availableActions).toEqual(['trade']);
   });
 });
