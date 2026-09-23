@@ -40,6 +40,16 @@ const malformed = evaluateTerrainPlacementParity([
 assert.equal(malformed.ok, false);
 assert.deepEqual(malformed.failures, ['non-finite-sample']);
 
+const malformedCoordinate = evaluateTerrainPlacementParity([
+  { x: Number.NaN, z: 0, renderedHeight: 10, colliderHeight: 10 },
+]);
+assert.equal(malformedCoordinate.ok, false);
+assert.deepEqual(malformedCoordinate.failures, ['invalid-coordinate']);
+
+const malformedShape = evaluateTerrainPlacementParity([null]);
+assert.equal(malformedShape.ok, false);
+assert.deepEqual(malformedShape.failures, ['invalid-sample']);
+
 assert.throws(() => assertTerrainPlacementParity(gradeFailure.sampleCount ? [
   { x: 0, z: 0, renderedHeight: 0, colliderHeight: 0 },
   { x: 1, z: 0, renderedHeight: 2, colliderHeight: 2 },
