@@ -61,8 +61,8 @@ export function evaluateTerrainPlacementParity(
   const normalizedPolicy = normalizePolicy(policy);
   const failures: string[] = [];
   let maxHeightDeltaMeters = 0;
-  let minRenderedHeight = Infinity;
-  let maxRenderedHeight = -Infinity;
+  let minFootprintHeight = Infinity;
+  let maxFootprintHeight = -Infinity;
 
   if (!Array.isArray(samples) || samples.length === 0) {
     failures.push('missing-samples');
@@ -86,19 +86,23 @@ export function evaluateTerrainPlacementParity(
       continue;
     }
 
-    const heightDelta = Math.abs(Number(sample.renderedHeight) - Number(sample.colliderHeight));
+    const renderedHeight = Number(sample.renderedHeight);
+    const colliderHeight = Number(sample.colliderHeight);
+    const heightDelta = Math.abs(renderedHeight - colliderHeight);
     if (!Number.isFinite(heightDelta)) {
       failures.push('non-finite-sample');
       continue;
     }
 
     maxHeightDeltaMeters = Math.max(maxHeightDeltaMeters, heightDelta);
-    minRenderedHeight = Math.min(minRenderedHeight, Number(sample.renderedHeight));
-    maxRenderedHeight = Math.max(maxRenderedHeight, Number(sample.renderedHeight));
+    // Grade safety must cover both surfaces. A collider-only ramp can still
+    // interpenetrate or float even when the rendered samples look flat.
+    minFootprintHeight = Math.min(minFootprintHeight, renderedHeight, colliderHeight);
+    maxFootprintHeight = Math.max(maxFootprintHeight, renderedHeight, colliderHeight);
   }
 
-  const maxFootprintRangeMeters = Number.isFinite(minRenderedHeight)
-    ? maxRenderedHeight - minRenderedHeight
+  const maxFootprintRangeMeters = Number.isFinite(minFootprintHeight)
+    ? maxFootprintHeight - minFootprintHeight
     : 0;
 
   if (maxHeightDeltaMeters > normalizedPolicy.maxHeightDeltaMeters) {
