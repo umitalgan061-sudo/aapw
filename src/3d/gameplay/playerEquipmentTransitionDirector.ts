@@ -119,6 +119,7 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
     && animation.action.length > 0
     && boolean(animation.preserveLocomotion)
     && finite(animation.crossfadeSeconds)
+    && animation.crossfadeSeconds >= 0
     && stringArray(candidate.socketsToRefresh)
     && Object.isFrozen(candidate.socketsToRefresh)
     && typeof candidate.transitionKey === 'string'
