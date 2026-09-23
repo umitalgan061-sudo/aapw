@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { evaluatePhotorealismRuntimeSafety } from '../../src/3d/world/photorealismRuntimeSafety.ts';
 
 const base = {
-  visibleFailures: { rectangularWater: false, gridSeam: false, waterMoire: false, blackSky: false },
-  renderedColliderParityMeters: 0.1,
+  waterNormalRepeat: 0.2,
+  skyLuminance: 0.7,
+  renderedHeightMeters: 10,
+  colliderHeightMeters: 10.1,
+  visibleRectangularWater: false,
+  visibleGridSeam: false,
 } as any;
 
 describe('photorealism runtime safety', () => {
@@ -12,16 +16,23 @@ describe('photorealism runtime safety', () => {
   });
 
   it('fails closed for visible P0/P5 failures', () => {
-    expect(evaluatePhotorealismRuntimeSafety({ ...base, visibleFailures: { ...base.visibleFailures, rectangularWater: true } })).toEqual({
+    expect(evaluatePhotorealismRuntimeSafety({ ...base, visibleRectangularWater: true })).toEqual({
       safeToApply: false,
       reason: 'visible-p0-p5-failure',
     });
   });
 
   it('fails closed for terrain/collider parity drift', () => {
-    expect(evaluatePhotorealismRuntimeSafety({ ...base, renderedColliderParityMeters: 0.36 })).toEqual({
+    expect(evaluatePhotorealismRuntimeSafety({ ...base, colliderHeightMeters: 10.36 })).toEqual({
       safeToApply: false,
       reason: 'terrain-collider-parity-out-of-bounds',
+    });
+  });
+
+  it('fails closed for malformed numeric observations', () => {
+    expect(evaluatePhotorealismRuntimeSafety({ ...base, skyLuminance: Number.NaN })).toEqual({
+      safeToApply: false,
+      reason: 'malformed-observation',
     });
   });
 });
