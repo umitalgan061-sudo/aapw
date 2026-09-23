@@ -150,6 +150,7 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
   if (candidate.defenseChanged !== defenseSlotChanged) return false;
   if (candidate.rangedChanged && !changedSlots.includes('mainHand')) return false;
   if (candidate.handednessChanged && !changedSlots.includes('mainHand')) return false;
+  if (animation.hardReset !== (candidate.weaponChanged || candidate.handednessChanged || candidate.rangedChanged)) return false;
   if (candidate.transitionKey !== buildTransitionKey(changedSlots, animation as PlayerEquipmentTransitionReceipt['animation'])) return false;
   return true;
 }
@@ -195,6 +196,7 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
     handednessChanged: candidate.handednessChanged,
   };
   if (!candidate.changed && Object.values(semanticFlags).some((flag) => flag === true)) errors.push('noop-transition-has-semantic-flags');
+  if (animation && typeof animation.hardReset === 'boolean' && animation.hardReset !== (candidate.weaponChanged || candidate.handednessChanged || candidate.rangedChanged)) errors.push('hard-reset-flag-mismatch');
   const numericValues = {
     movementDelta: candidate.movementDelta,
     staminaDrainDelta: candidate.staminaDrainDelta,
