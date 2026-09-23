@@ -81,4 +81,15 @@ describe('photorealism runtime safety', () => {
       reason: 'malformed-observation',
     });
   });
+
+  it('fails closed for null or primitive observations at the runtime boundary', () => {
+    expect(evaluatePhotorealismRuntimeSafety(null as any)).toEqual({
+      safeToApply: false,
+      reason: 'malformed-observation',
+    });
+    expect(evaluatePhotorealismRuntimeSafety('invalid' as any)).toEqual({
+      safeToApply: false,
+      reason: 'malformed-observation',
+    });
+  });
 });
