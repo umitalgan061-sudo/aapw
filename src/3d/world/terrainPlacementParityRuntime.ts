@@ -61,7 +61,10 @@ export function collectPreparedPlacementParitySamples(
   const deduped = new Map<string, TerrainParitySample>();
   for (const record of records) {
     const sample = toSample(record as Readonly<Record<string, unknown>>);
-    deduped.set(`${sample.x}:${sample.z}`, sample);
+    const key = `${sample.x}:${sample.z}`;
+    // The first pipeline observation is the canonical surface sample. Later island or
+    // overlapping footprint projections must never replace it with a non-canonical value.
+    if (!deduped.has(key)) deduped.set(key, sample);
   }
   return Object.freeze([...deduped.values()]);
 }
