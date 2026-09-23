@@ -38,6 +38,7 @@ export interface SettlementServiceInteraction {
     | 'action-unavailable'
     | 'invalid-context';
   requiredQuestIds: readonly string[];
+  availableActions: readonly SettlementServiceAction[];
 }
 
 const DEFAULT_ACTIONS: Readonly<Record<SettlementServiceKind, readonly SettlementServiceAction[]>> = {
@@ -78,23 +79,33 @@ function freezeIds(values: readonly string[] | undefined): readonly string[] {
   return Object.freeze(unique);
 }
 
+function freezeActions(
+  serviceKind: SettlementServiceKind,
+  values: readonly SettlementServiceAction[] | undefined,
+): readonly SettlementServiceAction[] {
+  const source = Array.isArray(values) ? values.filter(isAction) : DEFAULT_ACTIONS[serviceKind];
+  return Object.freeze([...new Set(source)]);
+}
+
 export function resolveSettlementServiceInteraction(
   context: SettlementServiceContext,
   action: SettlementServiceAction,
 ): SettlementServiceInteraction {
   const requiredQuestIds = freezeIds(context?.requiredQuestIds);
   const completedQuestIds = new Set(freezeIds(context?.completedQuestIds));
+  const serviceKind = isServiceKind(context?.serviceKind) ? context.serviceKind : 'market';
+  const availableActions = freezeActions(serviceKind, context?.availableActions);
   const base = {
     settlementId: typeof context?.settlementId === 'string' ? context.settlementId : '',
-    serviceKind: context?.serviceKind,
+    serviceKind,
     action,
     requiredQuestIds,
+    availableActions,
   };
 
   if (!context || !isServiceKind(context.serviceKind) || !isAction(action) || !base.settlementId) {
     return Object.freeze({
       ...base,
-      serviceKind: isServiceKind(context?.serviceKind) ? context.serviceKind : 'market',
       action: isAction(action) ? action : 'trade',
       allowed: false,
       reason: 'invalid-context',
@@ -113,11 +124,7 @@ export function resolveSettlementServiceInteraction(
     return Object.freeze({ ...base, allowed: false, reason: 'quest-locked' });
   }
 
-  const available = Array.isArray(context.availableActions)
-    ? context.availableActions.filter(isAction)
-    : DEFAULT_ACTIONS[context.serviceKind];
-
-  if (!available.includes(action)) {
+  if (!availableActions.includes(action)) {
     return Object.freeze({ ...base, allowed: false, reason: 'action-unavailable' });
   }
 
