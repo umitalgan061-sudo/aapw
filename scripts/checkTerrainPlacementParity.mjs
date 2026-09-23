@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import {
+  TERRAIN_PLACEMENT_PARITY_DEFAULTS,
+  evaluateTerrainPlacementParity,
+  assertTerrainPlacementParity,
+} from '../src/3d/world/terrainPlacementParity.ts';
+
+const passing = [
+  { x: 0, z: 0, renderedHeight: 10, colliderHeight: 10.1 },
+  { x: 1, z: 0, renderedHeight: 10.4, colliderHeight: 10.55 },
+  { x: 0, z: 1, renderedHeight: 10.8, colliderHeight: 10.9 },
+];
+const pass = evaluateTerrainPlacementParity(passing);
+assert.equal(pass.ok, true);
+assert.equal(pass.failures.length, 0);
+assert.equal(pass.sampleCount, 3);
+assert.ok(pass.maxHeightDeltaMeters <= TERRAIN_PLACEMENT_PARITY_DEFAULTS.maxHeightDeltaMeters);
+assert.doesNotThrow(() => assertTerrainPlacementParity(passing));
+
+const parityFailure = evaluateTerrainPlacementParity([
+  { x: 0, z: 0, renderedHeight: 10, colliderHeight: 10.4 },
+]);
+assert.equal(parityFailure.ok, false);
+assert.deepEqual(parityFailure.failures, ['terrain-collider-parity']);
+
+const gradeFailure = evaluateTerrainPlacementParity([
+  { x: 0, z: 0, renderedHeight: 0, colliderHeight: 0 },
+  { x: 1, z: 0, renderedHeight: 2, colliderHeight: 2 },
+]);
+assert.equal(gradeFailure.ok, false);
+assert.deepEqual(gradeFailure.failures, ['unsafe-footprint-grade']);
+
+const malformed = evaluateTerrainPlacementParity([
+  { x: 0, z: 0, renderedHeight: Number.NaN, colliderHeight: 1 },
+]);
+assert.equal(malformed.ok, false);
+assert.deepEqual(malformed.failures, ['non-finite-sample']);
+
+assert.throws(() => assertTerrainPlacementParity(gradeFailure.sampleCount ? [
+  { x: 0, z: 0, renderedHeight: 0, colliderHeight: 0 },
+  { x: 1, z: 0, renderedHeight: 2, colliderHeight: 2 },
+] : []), /unsafe-footprint-grade/);
+
+console.log('Terrain placement parity contract PASS');
