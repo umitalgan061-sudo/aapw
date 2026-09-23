@@ -22,6 +22,7 @@ export interface SettlementServiceContext {
   hasAccess: boolean;
   availableActions?: readonly SettlementServiceAction[];
   requiredQuestIds?: readonly string[];
+  completedQuestIds?: readonly string[];
 }
 
 export interface SettlementServiceInteraction {
@@ -33,6 +34,7 @@ export interface SettlementServiceInteraction {
     | 'allowed'
     | 'service-closed'
     | 'access-denied'
+    | 'quest-locked'
     | 'action-unavailable'
     | 'invalid-context';
   requiredQuestIds: readonly string[];
@@ -81,6 +83,7 @@ export function resolveSettlementServiceInteraction(
   action: SettlementServiceAction,
 ): SettlementServiceInteraction {
   const requiredQuestIds = freezeIds(context?.requiredQuestIds);
+  const completedQuestIds = new Set(freezeIds(context?.completedQuestIds));
   const base = {
     settlementId: typeof context?.settlementId === 'string' ? context.settlementId : '',
     serviceKind: context?.serviceKind,
@@ -104,6 +107,10 @@ export function resolveSettlementServiceInteraction(
 
   if (!context.hasAccess) {
     return Object.freeze({ ...base, allowed: false, reason: 'access-denied' });
+  }
+
+  if (requiredQuestIds.some((questId) => !completedQuestIds.has(questId))) {
+    return Object.freeze({ ...base, allowed: false, reason: 'quest-locked' });
   }
 
   const available = Array.isArray(context.availableActions)
