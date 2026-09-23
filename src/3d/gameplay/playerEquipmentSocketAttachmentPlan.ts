@@ -31,6 +31,10 @@ const SLOT_ORDER = new Map([
 
 const freezeOperation = (slot: string, operation: 'detach' | 'attach', order: number) => Object.freeze({ slot, operation, order });
 
+const canonicalOperationsKey = (operations: readonly PlayerEquipmentSocketAttachmentOperation[]) => operations
+  .map(({ slot, operation }) => `${slot}:${operation}`)
+  .join(',');
+
 export function resolvePlayerEquipmentSocketAttachmentPlan(
   checkpoint: PlayerEquipmentTransitionCheckpoint,
 ): PlayerEquipmentSocketAttachmentPlan {
@@ -41,7 +45,7 @@ export function resolvePlayerEquipmentSocketAttachmentPlan(
   ]);
   const planKey = [
     checkpoint.transitionKey,
-    operations.map(({ slot, operation }) => `${slot}:${operation}`).join(','),
+    canonicalOperationsKey(operations),
   ].join('|');
   return Object.freeze({
     changed: checkpoint.changed,
@@ -59,17 +63,31 @@ export function validatePlayerEquipmentSocketAttachmentPlan(value: unknown): Rea
   const operations = Array.isArray(candidate?.operations) ? candidate.operations : [];
   if (!Object.isFrozen(operations)) errors.push('operations-not-frozen');
   if (candidate?.changed === false && operations.length > 0) errors.push('noop-has-operations');
+  if (candidate?.changed === true && operations.length === 0) errors.push('changed-without-operations');
   if (operations.length % 2 !== 0) errors.push('operation-pair-mismatch');
+  const seenSlots = new Set<string>();
   operations.forEach((operation, index) => {
     if (!operation || typeof operation !== 'object' || !Object.isFrozen(operation)) errors.push('operation-not-frozen');
     const expected = index % 2 === 0 ? 'detach' : 'attach';
+    const slot = (operation as any)?.slot;
     if ((operation as any)?.operation !== expected) errors.push('operation-order');
     if ((operation as any)?.order !== index) errors.push('operation-index-mismatch');
-    if (typeof (operation as any)?.slot !== 'string' || !SLOT_ORDER.has((operation as any).slot)) errors.push('unknown-slot');
-    if (index > 0 && index % 2 === 0 && (operation as any)?.slot === operations[index - 1]?.slot) {
-      // expected pair boundary: the same slot is allowed only for detach→attach.
+    if (typeof slot !== 'string' || !SLOT_ORDER.has(slot)) errors.push('unknown-slot');
+    if (index % 2 === 0 && typeof slot === 'string') {
+      if (seenSlots.has(slot)) errors.push('duplicate-slot');
+      seenSlots.add(slot);
+    }
+    if (index > 0 && index % 2 === 1 && slot !== operations[index - 1]?.slot) errors.push('pair-slot-mismatch');
+    if (index > 1 && index % 2 === 0 && typeof slot === 'string' && typeof operations[index - 2]?.slot === 'string') {
+      const previousSlot = operations[index - 2].slot;
+      if ((SLOT_ORDER.get(previousSlot) ?? 99) >= (SLOT_ORDER.get(slot) ?? 99)) errors.push('slot-order');
     }
   });
   if (typeof candidate?.planKey !== 'string' || candidate.planKey.length === 0) errors.push('invalid-plan-key');
+  if (candidate && typeof candidate.planKey === 'string' && typeof candidate.animationAction === 'string') {
+    const transitionKey = candidate.planKey.split('|')[0];
+    const expectedKey = `${transitionKey}|${canonicalOperationsKey(operations as readonly PlayerEquipmentSocketAttachmentOperation[])}`;
+    if (candidate.planKey !== expectedKey) errors.push('plan-key-mismatch');
+  }
   return Object.freeze({ ok: errors.length === 0, errors: Object.freeze([...new Set(errors)]) });
 }
