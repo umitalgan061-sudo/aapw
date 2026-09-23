@@ -96,6 +96,11 @@ function materialHints(frame:PhotorealismFrame):readonly string[] {
 function instanceBatchKey(entry:AssetCatalogEntry,frame:PhotorealismFrame,lod:AssetLod):string {
   return `${entry.id}|${entry.family}|${lod}|${frame.biome}|${frame.dominantSurface}|${frame.manifest.materialAuthority}`;
 }
+function shouldEmitRejectedProbe(family:EnvironmentAssetFamily,sample:EnvironmentSample,frame:PhotorealismFrame):boolean {
+  const vegetationFamily=family==='tree'||family==='shrub'||family==='grass'||family==='reed'||family==='moss';
+  if(!vegetationFamily)return false;
+  return !familyAllowed(family,frame)||sample.waterDistanceMeters<1.25||frame.weights['deep-water']>=.06;
+}
 
 export function planEnvironmentCluster(seed:number,family:EnvironmentAssetFamily,entries:readonly AssetCatalogEntry[],seeds:readonly ClusterSeed[],pass:EnvironmentPassPlan):ClusterPlan {
   const candidates=entries.filter(entry=>entry.family===family&&entry.supportsInstancing);
@@ -128,6 +133,13 @@ export function buildDeterministicClusterSeeds(seed:number,family:EnvironmentAss
     const jitterX=(hash(item.sample.worldX+index,item.sample.worldZ,seed+11)-.5)*stride;
     const jitterZ=(hash(item.sample.worldX,item.sample.worldZ+index,seed+13)-.5)*stride;
     seeds.push(Object.freeze({x:item.sample.worldX+jitterX,z:item.sample.worldZ+jitterZ,yaw:hash(item.sample.worldX,item.sample.worldZ,seed+17)*Math.PI*2,scale:.82+hash(item.sample.worldX,index,seed+19)*.36,sample:item.sample,frame:item.frame}));
+  }
+  if(seeds.length===0&&samples.length>0&&density>0){
+    const rejectedIndex=samples.findIndex(item=>shouldEmitRejectedProbe(family,item.sample,item.frame));
+    if(rejectedIndex>=0){
+      const item=samples[rejectedIndex];
+      seeds.push(Object.freeze({x:item.sample.worldX,z:item.sample.worldZ,yaw:hash(item.sample.worldX,item.sample.worldZ,seed+17)*Math.PI*2,scale:1,sample:item.sample,frame:item.frame}));
+    }
   }
   return Object.freeze(seeds);
 }
