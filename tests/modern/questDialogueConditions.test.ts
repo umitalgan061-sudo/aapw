@@ -119,6 +119,21 @@ describe('quest dialogue conditions', () => {
     expect(evaluateDialogueConditionDetailed({ kind: 'reputation-at-least', factionId: 'merchants', value: 1 }, {} as DialogueConditionContext)).toEqual({ passed: false, failure: 'reputation-too-low' });
   });
 
+  it('swallows throwing runtime accessors and malformed objective collections', () => {
+    const throwingContext = {
+      quests: { get: () => { throw new Error('quest source unavailable'); } },
+      reputation: new Proxy({}, { get: () => { throw new Error('reputation source unavailable'); } }),
+      settlementServices: new Proxy({}, { get: () => { throw new Error('service source unavailable'); } }),
+    } as unknown as DialogueConditionContext;
+
+    expect(evaluateDialogueConditionDetailed({ kind: 'quest-completed', questId: 'broken' }, throwingContext)).toEqual({ passed: false, failure: 'missing-quest' });
+    expect(evaluateDialogueConditionDetailed({ kind: 'reputation-at-least', factionId: 'guild', value: 1 }, throwingContext)).toEqual({ passed: false, failure: 'reputation-too-low' });
+    expect(evaluateDialogueConditionDetailed({ kind: 'settlement-service', settlementId: 'town', service: 'tavern' }, throwingContext)).toEqual({ passed: false, failure: 'service-unavailable' });
+
+    const malformedQuest = { get: () => ({ status: 'active', objectives: null }) } as unknown as DialogueConditionContext['quests'];
+    expect(evaluateDialogueConditionDetailed({ kind: 'quest-objective-progress', questId: 'broken', objectiveId: 'repair', amount: 1 }, { quests: malformedQuest })).toEqual({ passed: false, failure: 'objective-missing' });
+  });
+
   it('fails closed for invalid modes at every evaluation boundary', () => {
     const quests = new QuestAuthorityV2();
     const context: DialogueConditionContext = { quests, reputation: { merchants: 12 } };
