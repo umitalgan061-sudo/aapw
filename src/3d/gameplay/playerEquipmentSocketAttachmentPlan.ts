@@ -39,6 +39,22 @@ const canonicalOperationsKey = (operations: readonly PlayerEquipmentSocketAttach
 
 const canonicalSlots = (slots: readonly string[]) => [...slots].sort((a, b) => (SLOT_ORDER.get(a) ?? 99) - (SLOT_ORDER.get(b) ?? 99));
 
+const safeIsFrozen = (value: unknown) => {
+  try {
+    return Object.isFrozen(value);
+  } catch {
+    return false;
+  }
+};
+
+const safeRead = <T>(read: () => T, fallback: T): T => {
+  try {
+    return read();
+  } catch {
+    return fallback;
+  }
+};
+
 export function resolvePlayerEquipmentSocketAttachmentPlan(
   checkpoint: PlayerEquipmentTransitionCheckpoint,
 ): PlayerEquipmentSocketAttachmentPlan {
@@ -64,46 +80,54 @@ export function resolvePlayerEquipmentSocketAttachmentPlan(
 
 export function validatePlayerEquipmentSocketAttachmentPlan(value: unknown): Readonly<{ ok: boolean; errors: readonly string[] }> {
   const errors: string[] = [];
-  if (!value || typeof value !== 'object' || !Object.isFrozen(value)) errors.push('plan-not-frozen');
-  const candidate = value as Partial<PlayerEquipmentSocketAttachmentPlan> | null;
-  const changedSlots = Array.isArray(candidate?.changedSlots) ? candidate.changedSlots : [];
-  const operations = Array.isArray(candidate?.operations) ? candidate.operations : [];
-  if (!Object.isFrozen(changedSlots)) errors.push('changed-slots-not-frozen');
-  if (!Object.isFrozen(operations)) errors.push('operations-not-frozen');
-  if (candidate?.changed !== (changedSlots.length > 0)) errors.push('changed-flag-mismatch');
-  if (candidate?.changed === false && operations.length > 0) errors.push('noop-has-operations');
-  if (candidate?.changed === true && operations.length === 0) errors.push('changed-without-operations');
+  if (!value || typeof value !== 'object' || !safeIsFrozen(value)) errors.push('plan-not-frozen');
+  const candidate = safeRead(() => value as Partial<PlayerEquipmentSocketAttachmentPlan>, null);
+  const changedSlots = safeRead(() => (Array.isArray(candidate?.changedSlots) ? candidate.changedSlots : []), []);
+  const operations = safeRead(() => (Array.isArray(candidate?.operations) ? candidate.operations : []), []);
+  if (!safeIsFrozen(changedSlots)) errors.push('changed-slots-not-frozen');
+  if (!safeIsFrozen(operations)) errors.push('operations-not-frozen');
+  const changed = safeRead(() => candidate?.changed, undefined);
+  if (changed !== (changedSlots.length > 0)) errors.push('changed-flag-mismatch');
+  if (changed === false && operations.length > 0) errors.push('noop-has-operations');
+  if (changed === true && operations.length === 0) errors.push('changed-without-operations');
   if (operations.length % 2 !== 0) errors.push('operation-pair-mismatch');
   const seenSlots = new Set<string>();
   operations.forEach((operation, index) => {
-    if (!operation || typeof operation !== 'object' || !Object.isFrozen(operation)) errors.push('operation-not-frozen');
+    if (!operation || typeof operation !== 'object' || !safeIsFrozen(operation)) errors.push('operation-not-frozen');
     const expected = index % 2 === 0 ? 'detach' : 'attach';
-    const slot = (operation as any)?.slot;
-    if ((operation as any)?.operation !== expected) errors.push('operation-order');
-    if ((operation as any)?.order !== index) errors.push('operation-index-mismatch');
+    const slot = safeRead(() => (operation as any)?.slot, undefined);
+    const operationKind = safeRead(() => (operation as any)?.operation, undefined);
+    const order = safeRead(() => (operation as any)?.order, undefined);
+    if (operationKind !== expected) errors.push('operation-order');
+    if (order !== index) errors.push('operation-index-mismatch');
     if (typeof slot !== 'string' || !SLOT_ORDER.has(slot)) errors.push('unknown-slot');
     if (index % 2 === 0 && typeof slot === 'string') {
       if (seenSlots.has(slot)) errors.push('duplicate-slot');
       seenSlots.add(slot);
     }
-    if (index > 0 && index % 2 === 1 && slot !== operations[index - 1]?.slot) errors.push('pair-slot-mismatch');
-    if (index > 1 && index % 2 === 0 && typeof slot === 'string' && typeof operations[index - 2]?.slot === 'string') {
-      const previousSlot = operations[index - 2].slot;
-      if ((SLOT_ORDER.get(previousSlot) ?? 99) >= (SLOT_ORDER.get(slot) ?? 99)) errors.push('slot-order');
+    const previousSlot = index > 0 ? safeRead(() => (operations[index - 1] as any)?.slot, undefined) : undefined;
+    const priorPairSlot = index > 1 ? safeRead(() => (operations[index - 2] as any)?.slot, undefined) : undefined;
+    if (index > 0 && index % 2 === 1 && slot !== previousSlot) errors.push('pair-slot-mismatch');
+    if (index > 1 && index % 2 === 0 && typeof slot === 'string' && typeof priorPairSlot === 'string') {
+      if ((SLOT_ORDER.get(priorPairSlot) ?? 99) >= (SLOT_ORDER.get(slot) ?? 99)) errors.push('slot-order');
     }
   });
   if (changedSlots.some((slot) => typeof slot !== 'string' || !SLOT_ORDER.has(slot))) errors.push('unknown-changed-slot');
   if (new Set(changedSlots).size !== changedSlots.length) errors.push('duplicate-changed-slot');
   if (changedSlots.some((slot, index) => index > 0 && (SLOT_ORDER.get(changedSlots[index - 1]) ?? 99) > (SLOT_ORDER.get(slot) ?? 99))) errors.push('changed-slot-order');
-  const operationSlots = operations.filter((_, index) => index % 2 === 0).map((operation) => (operation as any)?.slot);
+  const operationSlots = operations.filter((_, index) => index % 2 === 0).map((operation) => safeRead(() => (operation as any)?.slot, undefined));
   if (operationSlots.length !== changedSlots.length || operationSlots.some((slot, index) => slot !== changedSlots[index])) errors.push('operation-slots-do-not-match-changes');
-  if (typeof candidate?.transitionKey !== 'string' || candidate.transitionKey.length === 0) errors.push('invalid-transition-key');
-  if (typeof candidate?.animationAction !== 'string' || candidate.animationAction.length === 0) errors.push('invalid-animation-action');
-  if (typeof candidate?.preserveLocomotion !== 'boolean') errors.push('invalid-locomotion-flag');
-  if (typeof candidate?.planKey !== 'string' || candidate.planKey.length === 0) errors.push('invalid-plan-key');
-  if (candidate && typeof candidate.transitionKey === 'string' && candidate.transitionKey.length > 0 && candidate.planKey === `${candidate.transitionKey}|${canonicalOperationsKey(operations as readonly PlayerEquipmentSocketAttachmentOperation[])}`) {
+  const transitionKey = safeRead(() => candidate?.transitionKey, undefined);
+  const animationAction = safeRead(() => candidate?.animationAction, undefined);
+  const preserveLocomotion = safeRead(() => candidate?.preserveLocomotion, undefined);
+  const planKey = safeRead(() => candidate?.planKey, undefined);
+  if (typeof transitionKey !== 'string' || transitionKey.length === 0) errors.push('invalid-transition-key');
+  if (typeof animationAction !== 'string' || animationAction.length === 0) errors.push('invalid-animation-action');
+  if (typeof preserveLocomotion !== 'boolean') errors.push('invalid-locomotion-flag');
+  if (typeof planKey !== 'string' || planKey.length === 0) errors.push('invalid-plan-key');
+  if (typeof transitionKey === 'string' && transitionKey.length > 0 && planKey === `${transitionKey}|${canonicalOperationsKey(operations as readonly PlayerEquipmentSocketAttachmentOperation[])}`) {
     // canonical key matches
-  } else if (candidate?.planKey) {
+  } else if (planKey) {
     errors.push('plan-key-mismatch');
   }
   return Object.freeze({ ok: errors.length === 0, errors: Object.freeze([...new Set(errors)]) });
