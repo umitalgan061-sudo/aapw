@@ -11,14 +11,14 @@ describe('buildSettlementServiceMenu', () => {
     });
 
     expect(menu).toEqual([
-      { action: 'craft', label: 'Craft', enabled: true, reason: 'allowed', missingQuestIds: [] },
-      { action: 'repair', label: 'Repair', enabled: true, reason: 'allowed', missingQuestIds: [] },
+      { action: 'craft', label: 'Craft', enabled: true, reason: 'allowed', missingQuestIds: [], hint: 'Available' },
+      { action: 'repair', label: 'Repair', enabled: true, reason: 'allowed', missingQuestIds: [], hint: 'Available' },
     ]);
     expect(Object.isFrozen(menu)).toBe(true);
     expect(Object.isFrozen(menu[0])).toBe(true);
   });
 
-  it('keeps quest-locked entries visible with their missing quest ids', () => {
+  it('keeps quest-locked entries visible with a deterministic quest hint', () => {
     const menu = buildSettlementServiceMenu({
       settlementId: 'northwatch',
       serviceKind: 'market',
@@ -35,6 +35,7 @@ describe('buildSettlementServiceMenu', () => {
         enabled: false,
         reason: 'quest-locked',
         missingQuestIds: ['merchant-charter'],
+        hint: 'Requires quest: merchant-charter',
       },
     ]);
   });
@@ -49,7 +50,7 @@ describe('buildSettlementServiceMenu', () => {
     });
 
     expect(menu).toEqual([
-      { action: 'rest', label: 'Rest', enabled: false, reason: 'service-closed', missingQuestIds: [] },
+      { action: 'rest', label: 'Rest', enabled: false, reason: 'service-closed', missingQuestIds: [], hint: 'Service is closed' },
     ]);
   });
 
@@ -63,7 +64,7 @@ describe('buildSettlementServiceMenu', () => {
     });
 
     expect(menu).toEqual([
-      { action: 'trade', label: 'Trade', enabled: true, reason: 'allowed', missingQuestIds: [] },
+      { action: 'trade', label: 'Trade', enabled: true, reason: 'allowed', missingQuestIds: [], hint: 'Available' },
     ]);
   });
 });
