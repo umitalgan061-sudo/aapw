@@ -16,6 +16,14 @@ function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function boolean(value: unknown): value is boolean {
+  return typeof value === 'boolean';
+}
+
+function boundedUnit(value: number): boolean {
+  return value >= 0 && value <= 1;
+}
+
 export function evaluatePhotorealismRuntimeSafety(
   observation: CanonicalEnvironmentObservation,
 ): RuntimeSafetyDecision {
@@ -26,6 +34,12 @@ export function evaluatePhotorealismRuntimeSafety(
     observation.colliderHeightMeters,
   ];
   if (numericInputs.some(value => !finite(value))) {
+    return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
+  }
+  if (!boundedUnit(observation.waterNormalRepeat) || !boundedUnit(observation.skyLuminance)) {
+    return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
+  }
+  if (!boolean(observation.visibleRectangularWater) || !boolean(observation.visibleGridSeam)) {
     return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
   }
   const failureSet = {

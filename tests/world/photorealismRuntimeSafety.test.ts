@@ -35,4 +35,18 @@ describe('photorealism runtime safety', () => {
       reason: 'malformed-observation',
     });
   });
+
+  it('fails closed for out-of-range normalized observations', () => {
+    expect(evaluatePhotorealismRuntimeSafety({ ...base, waterNormalRepeat: 1.01 })).toEqual({
+      safeToApply: false,
+      reason: 'malformed-observation',
+    });
+  });
+
+  it('fails closed for non-boolean visibility flags', () => {
+    expect(evaluatePhotorealismRuntimeSafety({ ...base, visibleGridSeam: 0 })).toEqual({
+      safeToApply: false,
+      reason: 'malformed-observation',
+    });
+  });
 });
