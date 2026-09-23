@@ -24,6 +24,16 @@ const ACTION_LABELS: Readonly<Record<SettlementServiceAction, string>> = {
   travel: 'Travel',
 };
 
+const ACTION_ORDER: readonly SettlementServiceAction[] = [
+  'craft',
+  'repair',
+  'rest',
+  'trade',
+  'gather',
+  'train',
+  'travel',
+];
+
 function isAction(value: unknown): value is SettlementServiceAction {
   return (
     value === 'craft' ||
@@ -41,6 +51,7 @@ export function buildSettlementServiceMenu(
 ): readonly SettlementServiceMenuEntry[] {
   const actions = Array.isArray(context?.availableActions) && context.availableActions.length > 0
     ? [...new Set(context.availableActions.filter(isAction))]
+        .sort((left, right) => ACTION_ORDER.indexOf(left) - ACTION_ORDER.indexOf(right))
     : [];
 
   const sourceActions = actions.length > 0 ? actions : inferDefaultActions(context?.serviceKind);
