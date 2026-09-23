@@ -36,7 +36,7 @@ export interface DialogueConditionGate {
 }
 
 const clean = (value: unknown): string => (typeof value === 'string' ? value.trim().slice(0, 96) : '');
-const positiveFinite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
+const positiveFinite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0 && Math.floor(value) >= 1;
 const services = new Set<SettlementService>(['blacksmith', 'tavern', 'market', 'stable', 'farm', 'barracks']);
 const statuses = new Set<QuestStatus>(['locked', 'available', 'active', 'completed', 'failed', 'abandoned']);
 
