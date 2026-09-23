@@ -63,6 +63,14 @@ describe('photorealism live scene runtime', () => {
     expect(receipt.appliedOperations).toBeGreaterThan(0);
     expect(liveOwners.renderer.toneMappingExposure).toBeTypeOf('number');
     expect(liveOwners.fog?.density).toBeTypeOf('number');
+    expect(liveOwners.renderer.userData?.photorealismPerformanceBudget).toEqual(expect.objectContaining({
+      targetFrameMs: expect.any(Number),
+      maxDrawCalls: expect.any(Number),
+      maxTriangles: expect.any(Number),
+      maxTextureMb: expect.any(Number),
+      lodBias: expect.any(Number),
+      instanceBatchSize: expect.any(Number),
+    }));
     expect(liveOwners.material?.userData?.photorealismMaterialRecipe).toBeDefined();
     expect(liveOwners.water?.userData?.photorealismWaterPolicy).toBeDefined();
     expect(liveOwners.vegetation?.userData?.photorealismVegetationBudget).toBeDefined();
@@ -80,7 +88,7 @@ describe('photorealism live scene runtime', () => {
     const receipt = applyLivePhotorealismFrame(integration, liveOwners, observation);
     expect(receipt.accepted).toBe(true);
     expect(liveOwners.renderer.userData).toEqual(expect.objectContaining({ photorealismSkyLuminance: expect.any(Number) }));
-    expect(liveOwners.fog!.userData).toEqual(expect.objectContaining({ photorealismAerialPerspective: expect.any(Number) }));
+    expect(liveOwners.fog!.userData).toEqual(expect.objectContaining({ photorealismAerialPerspective: expect.any(Number }));
   });
 
   it('fails closed and performs no mutation when a visible P0/P5 failure is observed', () => {
