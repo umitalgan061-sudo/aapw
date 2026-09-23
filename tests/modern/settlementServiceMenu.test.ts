@@ -54,6 +54,18 @@ describe('buildSettlementServiceMenu', () => {
     ]);
   });
 
+  it('canonicalizes custom action order for deterministic UI output', () => {
+    const menu = buildSettlementServiceMenu({
+      settlementId: 'northwatch',
+      serviceKind: 'blacksmith',
+      isOpen: true,
+      hasAccess: true,
+      availableActions: ['repair', 'craft'],
+    });
+
+    expect(menu.map(({ action }) => action)).toEqual(['craft', 'repair']);
+  });
+
   it('drops malformed runtime actions instead of emitting unlabeled menu rows', () => {
     const menu = buildSettlementServiceMenu({
       settlementId: 'northwatch',
