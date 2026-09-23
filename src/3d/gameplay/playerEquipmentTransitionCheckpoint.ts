@@ -85,6 +85,8 @@ export function validatePlayerEquipmentTransitionCheckpoint(value: unknown): Rea
   const candidate = value as Partial<PlayerEquipmentTransitionCheckpoint> | null;
   const changedSlots = Array.isArray(candidate?.changedSlots) ? candidate.changedSlots : [];
   const socketsToRefresh = Array.isArray(candidate?.socketsToRefresh) ? candidate.socketsToRefresh : [];
+  if (!Object.isFrozen(changedSlots)) errors.push('changed-slots-not-frozen');
+  if (!Object.isFrozen(socketsToRefresh)) errors.push('refresh-slots-not-frozen');
   if (candidate?.changed !== (changedSlots.length > 0)) errors.push('changed-flag-mismatch');
   if (new Set(changedSlots).size !== changedSlots.length) errors.push('duplicate-changed-slot');
   if (new Set(socketsToRefresh).size !== socketsToRefresh.length) errors.push('duplicate-refresh-slot');
