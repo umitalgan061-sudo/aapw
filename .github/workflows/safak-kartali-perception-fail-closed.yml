@@ -1,0 +1,33 @@
+name: Safak Kartali Perception Fail Closed
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldPerceptionPolicy.js'
+      - 'scripts/checkLivingWorldPerceptionFailClosed.mjs'
+      - '.github/workflows/safak-kartali-perception-fail-closed.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: node --check src/3d/gameplay/livingWorldPerceptionPolicy.js
+      - name: Executable contract
+        run: node scripts/checkLivingWorldPerceptionFailClosed.mjs
+      - name: Scope guard
+        run: |
+          changed=$(git diff --numstat "${{ github.event.pull_request.base.sha || 'HEAD^' }}" "${{ github.event.pull_request.head.sha || github.sha }}" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
