@@ -8,6 +8,13 @@ const base = {
   colliderHeightMeters: 10.1,
   visibleRectangularWater: false,
   visibleGridSeam: false,
+  visibleSmoothWall: false,
+  visibleFlatGround: false,
+  visibleSnowSheet: false,
+  visibleSparseCanopy: false,
+  visibleRoadRibbon: false,
+  visibleFloatingAsset: false,
+  visibleMaterialMismatch: false,
 } as any;
 
 describe('photorealism runtime safety', () => {
@@ -20,6 +27,23 @@ describe('photorealism runtime safety', () => {
       safeToApply: false,
       reason: 'visible-p0-p5-failure',
     });
+  });
+
+  it('fails closed for any visible P1-P4 acceptance failure', () => {
+    for (const key of [
+      'visibleSmoothWall',
+      'visibleFlatGround',
+      'visibleSnowSheet',
+      'visibleSparseCanopy',
+      'visibleRoadRibbon',
+      'visibleFloatingAsset',
+      'visibleMaterialMismatch',
+    ]) {
+      expect(evaluatePhotorealismRuntimeSafety({ ...base, [key]: true })).toEqual({
+        safeToApply: false,
+        reason: 'visible-p0-p5-failure',
+      });
+    }
   });
 
   it('fails closed for terrain/collider parity drift', () => {
