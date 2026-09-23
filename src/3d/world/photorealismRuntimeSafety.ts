@@ -24,9 +24,16 @@ function boundedUnit(value: number): boolean {
   return value >= 0 && value <= 1;
 }
 
+function malformedObservation(observation: unknown): boolean {
+  return observation === null || typeof observation !== 'object';
+}
+
 export function evaluatePhotorealismRuntimeSafety(
   observation: CanonicalEnvironmentObservation,
 ): RuntimeSafetyDecision {
+  if (malformedObservation(observation)) {
+    return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
+  }
   const numericInputs = [
     observation.shorelineGradient,
     observation.waterNormalRepeat,
