@@ -40,6 +40,7 @@ const VALID_EQUIPMENT_SOCKETS = ['head', 'chest', 'back', 'mainHand', 'offHand']
 const DEFENSE_SOCKETS = new Set(['head', 'chest', 'back', 'offHand']);
 const WEAPON_SOCKETS = new Set(['mainHand', 'offHand']);
 const EQUIPMENT_SOCKET_ORDER = new Map(VALID_EQUIPMENT_SOCKETS.map((slot, index) => [slot, index]));
+const VALID_ATTACK_KINDS = new Set(['none', 'light', 'heavy']);
 const MAX_CROSSFADE_SECONDS = 2;
 
 const freeze = <T>(value: T): T => {
@@ -55,6 +56,7 @@ const boolean = (value: unknown): value is boolean => typeof value === 'boolean'
 const stringArray = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((item) => typeof item === 'string' && item.length > 0);
 const uniqueErrors = (errors: readonly string[]) => Object.freeze([...new Set(errors)]);
 const canonicalCrossfade = (value: number) => value.toFixed(6);
+const normalizeAttackKind = (value: unknown): 'none' | 'light' | 'heavy' => VALID_ATTACK_KINDS.has(value) ? value as 'none' | 'light' | 'heavy' : 'none';
 
 const buildTransitionKey = (changedSlots: readonly string[], animation: PlayerEquipmentTransitionReceipt['animation']) => [
   changedSlots.join(','),
@@ -72,7 +74,7 @@ export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTr
   const delta = comparePlayerEquipmentProfiles(previous, next);
   const transition = resolvePlayerEquipmentTransition(previous, next, {
     movementState: text(input.movementState, 'idle'),
-    attackKind: input.attackKind ?? 'none',
+    attackKind: normalizeAttackKind(input.attackKind),
     comboStep: Math.max(0, Math.floor(Number(input.comboStep) || 0)),
     speedMps: Number.isFinite(Number(input.speedMps)) ? Number(input.speedMps) : 0,
     grounded: input.grounded !== false,
