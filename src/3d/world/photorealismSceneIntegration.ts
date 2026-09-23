@@ -19,6 +19,11 @@ import {
   createPhotorealismSceneTargets,
   type PhotorealismSceneTargetCallbacks,
 } from './photorealismSceneTargetFactory.ts';
+import {
+  createSharedMaterialAssignmentRequestFromSample,
+  type SharedMaterialAssignmentRequest,
+} from './photorealismMaterialAssignmentAdapter.ts';
+import type { EnvironmentSample } from './photorealismDirector.ts';
 
 export interface PhotorealismSceneIntegration {
   readonly controller: ReturnType<typeof createPhotorealismRuntimeController>;
@@ -28,6 +33,12 @@ export interface PhotorealismSceneIntegration {
     targets: readonly RuntimeTarget[],
   ) => RuntimeControllerReceipt;
   readonly createTargets: (callbacks: PhotorealismSceneTargetCallbacks) => readonly RuntimeTarget[];
+  readonly materialRequest: (
+    assetId: string,
+    seed: number,
+    sample: EnvironmentSample,
+    targetMeshIndex?: number,
+  ) => SharedMaterialAssignmentRequest;
 }
 
 export function createPhotorealismSceneIntegration(
@@ -39,6 +50,8 @@ export function createPhotorealismSceneIntegration(
     evaluate: (observation) => controller.plan(observation),
     apply: (observation, targets) => controller.applyObservation(observation, targets),
     createTargets: (callbacks) => createPhotorealismSceneTargets(callbacks),
+    materialRequest: (assetId, seed, sample, targetMeshIndex = 0) =>
+      createSharedMaterialAssignmentRequestFromSample(assetId, seed, sample, targetMeshIndex),
   });
 }
 
