@@ -105,6 +105,10 @@ function applyOperation(owners: LiveSceneRuntimeOwners, operation: RuntimeOperat
   }
   if (operation === 'apply-placement-query' && owners.placement && typeof value === 'object') {
     ensureUserData(owners.placement).photorealismPlacementQuery = value;
+    return;
+  }
+  if (operation === 'apply-performance-budget' && typeof value === 'object') {
+    ensureUserData(owners.renderer).photorealismPerformanceBudget = value;
   }
 }
 
