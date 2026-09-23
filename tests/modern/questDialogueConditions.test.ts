@@ -110,6 +110,15 @@ describe('quest dialogue conditions', () => {
     expect(Object.isFrozen(result.failures)).toBe(true);
   });
 
+  it('fails closed for malformed evaluation contexts without throwing', () => {
+    const malformedContext = { quests: {} } as unknown as DialogueConditionContext;
+    const condition = { kind: 'quest-completed', questId: 'missing-quest' } as const;
+
+    expect(evaluateDialogueConditionDetailed(condition, malformedContext)).toEqual({ passed: false, failure: 'missing-quest' });
+    expect(evaluateDialogueConditionDetailed({ kind: 'settlement-service', settlementId: 'stonewatch', service: 'tavern' }, {} as DialogueConditionContext)).toEqual({ passed: false, failure: 'service-unavailable' });
+    expect(evaluateDialogueConditionDetailed({ kind: 'reputation-at-least', factionId: 'merchants', value: 1 }, {} as DialogueConditionContext)).toEqual({ passed: false, failure: 'reputation-too-low' });
+  });
+
   it('fails closed for invalid modes at every evaluation boundary', () => {
     const quests = new QuestAuthorityV2();
     const context: DialogueConditionContext = { quests, reputation: { merchants: 12 } };
