@@ -58,6 +58,8 @@ const buildTransitionKey = (changedSlots: readonly string[], animation: PlayerEq
   changedSlots.join(','),
   animation.fromFamily,
   animation.toFamily,
+  animation.action,
+  animation.preserveLocomotion ? 'preserve' : 'rebind',
   animation.hardReset ? 'reset' : 'blend',
 ].join('|');
 
