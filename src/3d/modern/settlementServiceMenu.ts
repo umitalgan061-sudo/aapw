@@ -23,11 +23,23 @@ const ACTION_LABELS: Readonly<Record<SettlementServiceAction, string>> = {
   travel: 'Travel',
 };
 
+function isAction(value: unknown): value is SettlementServiceAction {
+  return (
+    value === 'craft' ||
+    value === 'repair' ||
+    value === 'rest' ||
+    value === 'trade' ||
+    value === 'gather' ||
+    value === 'train' ||
+    value === 'travel'
+  );
+}
+
 export function buildSettlementServiceMenu(
   context: SettlementServiceContext,
 ): readonly SettlementServiceMenuEntry[] {
   const actions = Array.isArray(context?.availableActions) && context.availableActions.length > 0
-    ? [...new Set(context.availableActions)]
+    ? [...new Set(context.availableActions.filter(isAction))]
     : [];
 
   const sourceActions = actions.length > 0 ? actions : inferDefaultActions(context?.serviceKind);

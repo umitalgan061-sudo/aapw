@@ -52,4 +52,18 @@ describe('buildSettlementServiceMenu', () => {
       { action: 'rest', label: 'Rest', enabled: false, reason: 'service-closed', missingQuestIds: [] },
     ]);
   });
+
+  it('drops malformed runtime actions instead of emitting unlabeled menu rows', () => {
+    const menu = buildSettlementServiceMenu({
+      settlementId: 'northwatch',
+      serviceKind: 'market',
+      isOpen: true,
+      hasAccess: true,
+      availableActions: ['trade', 'craft' as never, 'unknown-action' as never],
+    });
+
+    expect(menu).toEqual([
+      { action: 'trade', label: 'Trade', enabled: true, reason: 'allowed', missingQuestIds: [] },
+    ]);
+  });
 });
