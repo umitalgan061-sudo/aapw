@@ -52,6 +52,7 @@ const text = (value: unknown, fallback = '') => typeof value === 'string' && val
 const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value);
 const boolean = (value: unknown): value is boolean => typeof value === 'boolean';
 const stringArray = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((item) => typeof item === 'string' && item.length > 0);
+const uniqueErrors = (errors: readonly string[]) => Object.freeze([...new Set(errors)]);
 
 const buildTransitionKey = (changedSlots: readonly string[], animation: PlayerEquipmentTransitionReceipt['animation']) => [
   changedSlots.join(','),
@@ -149,7 +150,7 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
 export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readonly<{ ok: boolean; errors: readonly string[] }> {
   const errors: string[] = [];
   if (!isPlayerEquipmentTransitionReceipt(value)) errors.push('receipt-not-frozen-or-shaped');
-  if (!value || typeof value !== 'object') return Object.freeze({ ok: false, errors: Object.freeze(errors) });
+  if (!value || typeof value !== 'object') return Object.freeze({ ok: false, errors: uniqueErrors(errors) });
 
   const candidate = value as Partial<PlayerEquipmentTransitionReceipt>;
   const changedSlots = Array.isArray(candidate.changedSlots) ? candidate.changedSlots : [];
@@ -228,5 +229,6 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
     if (candidate.transitionKey !== expectedKey) errors.push('transition-key-mismatch');
   }
 
-  return Object.freeze({ ok: errors.length === 0, errors: Object.freeze(errors) });
+  const normalizedErrors = uniqueErrors(errors);
+  return Object.freeze({ ok: normalizedErrors.length === 0, errors: normalizedErrors });
 }
