@@ -47,10 +47,10 @@ export function createPhotorealismSceneIntegration(
   const controller = createPhotorealismRuntimeController(options);
   return Object.freeze({
     controller,
-    evaluate: (observation) => controller.plan(observation),
-    apply: (observation, targets) => controller.applyObservation(observation, targets),
-    createTargets: (callbacks) => createPhotorealismSceneTargets(callbacks),
-    materialRequest: (assetId, seed, sample, targetMeshIndex = 0) =>
+    evaluate: (observation: CanonicalEnvironmentObservation): EnvironmentPassPlan => controller.plan(observation),
+    apply: (observation: CanonicalEnvironmentObservation, targets: readonly RuntimeTarget[]): RuntimeControllerReceipt => controller.applyObservation(observation, targets),
+    createTargets: (callbacks: PhotorealismSceneTargetCallbacks): readonly RuntimeTarget[] => createPhotorealismSceneTargets(callbacks),
+    materialRequest: (assetId: string, seed: number, sample: EnvironmentSample, targetMeshIndex = 0): SharedMaterialAssignmentRequest =>
       createSharedMaterialAssignmentRequestFromSample(assetId, seed, sample, targetMeshIndex),
   });
 }
