@@ -38,6 +38,7 @@ export interface SettlementServiceInteraction {
     | 'action-unavailable'
     | 'invalid-context';
   requiredQuestIds: readonly string[];
+  missingQuestIds: readonly string[];
   availableActions: readonly SettlementServiceAction[];
 }
 
@@ -93,6 +94,7 @@ export function resolveSettlementServiceInteraction(
 ): SettlementServiceInteraction {
   const requiredQuestIds = freezeIds(context?.requiredQuestIds);
   const completedQuestIds = new Set(freezeIds(context?.completedQuestIds));
+  const missingQuestIds = Object.freeze(requiredQuestIds.filter((questId) => !completedQuestIds.has(questId)));
   const serviceKind = isServiceKind(context?.serviceKind) ? context.serviceKind : 'market';
   const availableActions = freezeActions(serviceKind, context?.availableActions);
   const base = {
@@ -100,6 +102,7 @@ export function resolveSettlementServiceInteraction(
     serviceKind,
     action,
     requiredQuestIds,
+    missingQuestIds,
     availableActions,
   };
 
@@ -120,7 +123,7 @@ export function resolveSettlementServiceInteraction(
     return Object.freeze({ ...base, allowed: false, reason: 'access-denied' });
   }
 
-  if (requiredQuestIds.some((questId) => !completedQuestIds.has(questId))) {
+  if (missingQuestIds.length > 0) {
     return Object.freeze({ ...base, allowed: false, reason: 'quest-locked' });
   }
 
