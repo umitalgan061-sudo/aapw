@@ -15,8 +15,10 @@ describe('resolveSettlementServiceInteraction', () => {
 
     expect(result).toMatchObject({ allowed: true, reason: 'allowed' });
     expect(result.availableActions).toEqual(['craft', 'repair']);
+    expect(result.missingQuestIds).toEqual([]);
     expect(Object.isFrozen(result)).toBe(true);
     expect(Object.isFrozen(result.availableActions)).toBe(true);
+    expect(Object.isFrozen(result.missingQuestIds)).toBe(true);
   });
 
   it('normalizes custom actions for stable UX receipts', () => {
@@ -46,6 +48,23 @@ describe('resolveSettlementServiceInteraction', () => {
     );
 
     expect(result).toMatchObject({ allowed: false, reason: 'action-unavailable' });
+  });
+
+  it('exposes missing quest ids for locked-service UX', () => {
+    const result = resolveSettlementServiceInteraction(
+      {
+        settlementId: 'northwatch',
+        serviceKind: 'market',
+        isOpen: true,
+        hasAccess: true,
+        requiredQuestIds: ['trade-license', 'merchant-charter'],
+        completedQuestIds: ['trade-license'],
+      },
+      'trade',
+    );
+
+    expect(result.reason).toBe('quest-locked');
+    expect(result.missingQuestIds).toEqual(['merchant-charter']);
   });
 
   it('fails closed for closed, inaccessible, or quest-locked services', () => {
@@ -93,6 +112,7 @@ describe('resolveSettlementServiceInteraction', () => {
 
     expect(result).toMatchObject({ allowed: true, reason: 'allowed' });
     expect(result.requiredQuestIds).toEqual(['trade-license']);
+    expect(result.missingQuestIds).toEqual([]);
   });
 
   it('deduplicates quest requirements and rejects malformed contexts', () => {
@@ -109,6 +129,7 @@ describe('resolveSettlementServiceInteraction', () => {
     );
 
     expect(gated.requiredQuestIds).toEqual(['trade-license']);
+    expect(gated.missingQuestIds).toEqual([]);
 
     const invalid = resolveSettlementServiceInteraction(
       { settlementId: '', serviceKind: 'market', isOpen: true, hasAccess: true },
@@ -117,5 +138,6 @@ describe('resolveSettlementServiceInteraction', () => {
 
     expect(invalid).toMatchObject({ allowed: false, reason: 'invalid-context' });
     expect(invalid.availableActions).toEqual(['trade']);
+    expect(invalid.missingQuestIds).toEqual([]);
   });
 });
