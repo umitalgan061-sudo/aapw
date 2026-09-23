@@ -48,13 +48,30 @@ const freezeEvaluation = (
 });
 
 const getQuest = (context: DialogueConditionContext, questId: string) => {
-  const getter = context?.quests && typeof context.quests.get === 'function' ? context.quests.get.bind(context.quests) : null;
-  return getter ? getter(questId) : undefined;
+  try {
+    const getter = context?.quests && typeof context.quests.get === 'function' ? context.quests.get.bind(context.quests) : null;
+    return getter ? getter(questId) : undefined;
+  } catch {
+    return undefined;
+  }
 };
 
 const getAvailableServices = (context: DialogueConditionContext, settlementId: string): readonly string[] => {
-  const available = context?.settlementServices?.[settlementId];
-  return Array.isArray(available) ? available : [];
+  try {
+    const available = context?.settlementServices?.[settlementId];
+    return Array.isArray(available) ? available : [];
+  } catch {
+    return [];
+  }
+};
+
+const getReputationValue = (context: DialogueConditionContext, factionId: string): number => {
+  try {
+    const value = context?.reputation?.[factionId];
+    return typeof value === 'number' ? value : 0;
+  } catch {
+    return 0;
+  }
 };
 
 export const isDialogueConditionMode = (mode: unknown): mode is DialogueConditionMode => mode === 'all' || mode === 'any';
@@ -124,14 +141,15 @@ export const evaluateDialogueConditionDetailed = (
   if (normalized.kind === 'quest-objective-progress') {
     const quest = getQuest(context, normalized.questId);
     if (!quest) return { passed: false, failure: 'missing-quest' };
-    const objective = quest.objectives.find((entry) => entry.id === normalized.objectiveId);
+    const objectives = Array.isArray(quest.objectives) ? quest.objectives : [];
+    const objective = objectives.find((entry) => entry && entry.id === normalized.objectiveId);
     if (!objective) return { passed: false, failure: 'objective-missing' };
     return Number.isFinite(objective.progress) && objective.progress >= normalized.amount
       ? { passed: true, failure: null }
       : { passed: false, failure: 'objective-incomplete' };
   }
   if (normalized.kind === 'reputation-at-least') {
-    const value = context?.reputation?.[normalized.factionId] ?? 0;
+    const value = getReputationValue(context, normalized.factionId);
     return Number.isFinite(value) && value >= normalized.value
       ? { passed: true, failure: null }
       : { passed: false, failure: 'reputation-too-low' };
