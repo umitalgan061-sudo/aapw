@@ -10,6 +10,7 @@ on:
       - 'src/3d/world/photorealismSceneBridge.js'
       - 'src/3d/world/photorealismSceneIntegration.ts'
       - 'src/3d/world/photorealismSceneTargetFactory.ts'
+      - 'src/3d/world/photorealismMaterialAssignmentAdapter.ts'
       - 'src/3d/world/photorealismEnvironmentPass.ts'
       - 'src/3d/world/photorealismAssetClusterPlanner.ts'
       - 'src/3d/world/photorealismRuntimeController.ts'
@@ -27,6 +28,7 @@ on:
       - 'tests/world/photorealismStructuralSuppression.test.ts'
       - 'tests/world/photorealismAcceptanceSampler.test.ts'
       - 'tests/world/photorealismSceneTargetFactory.test.ts'
+      - 'tests/world/photorealismMaterialAssignmentAdapter.test.ts'
       - '.github/workflows/buzul-photorealism-director.yml'
   workflow_dispatch:
 jobs:
@@ -50,10 +52,11 @@ jobs:
           src/3d/world/photorealismSceneBridge.ts
           src/3d/world/photorealismSceneIntegration.ts
           src/3d/world/photorealismSceneTargetFactory.ts
+          src/3d/world/photorealismMaterialAssignmentAdapter.ts
           src/3d/world/photorealismEnvironmentPass.ts
           src/3d/world/photorealismAssetClusterPlanner.ts
           src/3d/world/photorealismRuntimeController.ts
           src/3d/world/photorealismBatchExecutor.ts
           src/3d/world/photorealismStructuralSuppression.ts
           src/3d/world/photorealismAcceptanceSampler.ts
-      - run: npx vitest run tests/modern/photorealismDirector.test.ts tests/modern/photorealismRuntimeAdapter.test.ts tests/modern/photorealismSceneBridge.test.ts tests/world/photorealismEnvironmentPass.test.ts tests/world/photorealismRuntimeController.test.ts tests/world/photorealismStructuralSuppression.test.ts tests/world/photorealismAcceptanceSampler.test.ts tests/world/photorealismSceneTargetFactory.test.ts
+      - run: npx vitest run tests/modern/photorealismDirector.test.ts tests/modern/photorealismRuntimeAdapter.test.ts tests/modern/photorealismSceneBridge.test.ts tests/world/photorealismEnvironmentPass.test.ts tests/world/photorealismRuntimeController.test.ts tests/world/photorealismStructuralSuppression.test.ts tests/world/photorealismAcceptanceSampler.test.ts tests/world/photorealismSceneTargetFactory.test.ts tests/world/photorealismMaterialAssignmentAdapter.test.ts
