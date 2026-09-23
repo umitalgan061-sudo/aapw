@@ -8,6 +8,7 @@ on:
       - 'src/3d/gameplay/playerEquipmentCombatRules.ts'
       - 'src/3d/gameplay/playerEquipmentCombatProfile.ts'
       - 'scripts/checkPlayerEquipmentSocketAttachmentPlan.mjs'
+      - 'scripts/checkPlayerEquipmentSocketAttachmentPlanInvariants.mjs'
       - '.github/workflows/player-equipment-socket-attachment-plan.yml'
   workflow_dispatch:
 
@@ -22,4 +23,5 @@ jobs:
           node-version: 24.21.0
       - run: npm install
       - run: node --experimental-strip-types scripts/checkPlayerEquipmentSocketAttachmentPlan.mjs
+      - run: node --experimental-strip-types scripts/checkPlayerEquipmentSocketAttachmentPlanInvariants.mjs
       - run: npx tsc --noEmit --ignoreConfig --allowImportingTsExtensions --allowJs false --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler src/3d/gameplay/playerEquipmentSocketAttachmentPlan.ts
