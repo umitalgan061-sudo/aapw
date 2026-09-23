@@ -23,6 +23,16 @@ const receipt = resolvePlayerEquipmentTransitionReceipt({ previousEquipment, nex
 if (!isPlayerEquipmentTransitionReceipt(receipt)) throw new Error('live receipt shape invalid');
 if (!validatePlayerEquipmentTransitionReceipt(receipt).ok) throw new Error('live receipt validation failed');
 
+const boundedTamper = {
+  ...receipt,
+  animation: Object.freeze({ ...receipt.animation, crossfadeSeconds: 1.5 }),
+};
+if (isPlayerEquipmentTransitionReceipt(boundedTamper)) throw new Error('shape guard accepted bounded crossfade key tampering');
+const boundedValidation = validatePlayerEquipmentTransitionReceipt(boundedTamper);
+if (boundedValidation.ok || !boundedValidation.errors.includes('transition-key-mismatch')) {
+  throw new Error(`bounded crossfade key tampering was not diagnosed: ${boundedValidation.errors.join(',')}`);
+}
+
 const overBound = {
   ...receipt,
   animation: Object.freeze({ ...receipt.animation, crossfadeSeconds: 2.01 }),
@@ -37,5 +47,6 @@ console.log(JSON.stringify({
   ok: true,
   suite: 'player-equipment-transition-director-crossfade-bound',
   maxCrossfadeSeconds: 2,
+  boundedKeyTamperingRejected: true,
   overBoundRejected: true,
 }));
