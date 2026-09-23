@@ -19,14 +19,17 @@ function finite(value: unknown): value is number {
 export function evaluatePhotorealismRuntimeSafety(
   observation: CanonicalEnvironmentObservation,
 ): RuntimeSafetyDecision {
-  const failure = observation.visibleFailures;
-  if (!failure || typeof failure !== 'object') {
-    return Object.freeze({ safeToApply: false, reason: 'missing-visible-failure-set' });
-  }
-  if (failure.rectangularWater || failure.gridSeam || failure.waterMoire || failure.blackSky) {
+  const failureSet = {
+    rectangularWater: observation.visibleRectangularWater,
+    gridSeam: observation.visibleGridSeam,
+    waterMoire: observation.waterNormalRepeat > 0.72,
+    blackSky: observation.skyLuminance < 0.2,
+  };
+  if (failureSet.rectangularWater || failureSet.gridSeam || failureSet.waterMoire || failureSet.blackSky) {
     return Object.freeze({ safeToApply: false, reason: 'visible-p0-p5-failure' });
   }
-  if (!finite(observation.renderedColliderParityMeters) || observation.renderedColliderParityMeters > 0.35) {
+  const parityError = Math.abs(observation.renderedHeightMeters - observation.colliderHeightMeters);
+  if (!finite(parityError) || parityError > 0.35) {
     return Object.freeze({ safeToApply: false, reason: 'terrain-collider-parity-out-of-bounds' });
   }
   return Object.freeze({ safeToApply: true, reason: null });
