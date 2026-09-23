@@ -82,6 +82,13 @@ export const normalizeDialogueCondition = (condition: unknown): DialogueConditio
     : null;
 };
 
+export const normalizeDialogueConditions = (conditions: unknown): readonly DialogueCondition[] | null => {
+  if (!Array.isArray(conditions)) return null;
+  const normalized = conditions.map(normalizeDialogueCondition);
+  if (normalized.some((condition) => condition === null)) return null;
+  return Object.freeze(normalized as DialogueCondition[]);
+};
+
 export const isDialogueCondition = (condition: unknown): condition is DialogueCondition => normalizeDialogueCondition(condition) !== null;
 
 export const evaluateDialogueConditionDetailed = (
@@ -179,9 +186,8 @@ export const createDialogueConditionGate = (
   mode: DialogueConditionMode = 'all',
 ): DialogueConditionGate | null => {
   if (!isDialogueConditionMode(mode)) return null;
-  const normalized = conditions.map(normalizeDialogueCondition);
-  if (normalized.some((condition) => condition === null)) return null;
-  const safeConditions = Object.freeze(normalized as DialogueCondition[]);
+  const safeConditions = normalizeDialogueConditions(conditions);
+  if (!safeConditions) return null;
   const key = stableDialogueConditionKey(safeConditions, mode);
   return Object.freeze({
     conditions: safeConditions,
