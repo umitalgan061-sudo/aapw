@@ -48,7 +48,14 @@ export function collectTerrainParitySamples(
   const deduped = new Map<string, TerrainParitySample>();
   for (const record of records) {
     const sample = toParitySample(record);
-    deduped.set(`${sample.x}:${sample.z}`, sample);
+    const key = `${sample.x}:${sample.z}`;
+    // The first observation at a world coordinate is the canonical one for
+    // this preparation pass. Later duplicates may come from an overlapping
+    // footprint/island projection and must not replace the already-selected
+    // sample with a different height observation.
+    if (!deduped.has(key)) {
+      deduped.set(key, sample);
+    }
   }
 
   return Object.freeze([...deduped.values()]);
