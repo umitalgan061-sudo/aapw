@@ -10,6 +10,7 @@ on:
       - 'scripts/testPlayerEquipmentTransitionDirectorActionIntegrity.mjs'
       - 'scripts/checkPlayerEquipmentTransitionDirectorBoundary.mjs'
       - 'scripts/checkPlayerEquipmentTransitionDirectorNoOpSemantics.mjs'
+      - 'scripts/checkPlayerEquipmentTransitionDirectorCrossfadeBound.mjs'
       - '.github/workflows/player-equipment-transition-director.yml'
   workflow_dispatch:
 jobs:
@@ -27,4 +28,5 @@ jobs:
       - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorActionIntegrity.mjs
       - run: node --experimental-strip-types scripts/checkPlayerEquipmentTransitionDirectorBoundary.mjs
       - run: node --experimental-strip-types scripts/checkPlayerEquipmentTransitionDirectorNoOpSemantics.mjs
+      - run: node --experimental-strip-types scripts/checkPlayerEquipmentTransitionDirectorCrossfadeBound.mjs
       - run: npx tsc --noEmit --ignoreConfig --allowImportingTsExtensions --allowJs false --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler src/3d/gameplay/playerEquipmentTransitionDirector.ts
