@@ -108,3 +108,7 @@ export function validatePlayerEquipmentSocketAttachmentPlan(value: unknown): Rea
   }
   return Object.freeze({ ok: errors.length === 0, errors: Object.freeze([...new Set(errors)]) });
 }
+
+export function isPlayerEquipmentSocketAttachmentPlan(value: unknown): value is PlayerEquipmentSocketAttachmentPlan {
+  return validatePlayerEquipmentSocketAttachmentPlan(value).ok;
+}
