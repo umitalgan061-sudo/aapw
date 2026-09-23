@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - 'src/3d/world/photorealismLiveSceneRuntime.ts'
+      - 'src/3d/world/photorealismRuntimeSafety.ts'
       - 'src/3d/world/photorealismSceneIntegration.ts'
       - 'src/3d/world/photorealismRuntimeController.ts'
       - 'src/3d/world/photorealismEnvironmentPass.ts'
       - 'src/3d/world/photorealismDirector.ts'
       - 'tests/world/photorealismLiveSceneRuntime.test.ts'
+      - 'tests/world/photorealismRuntimeSafety.test.ts'
       - '.github/workflows/buzul-photorealism-live-runtime.yml'
   workflow_dispatch:
 
@@ -29,5 +31,6 @@ jobs:
           src/3d/world/photorealismEnvironmentPass.ts
           src/3d/world/photorealismRuntimeController.ts
           src/3d/world/photorealismSceneIntegration.ts
+          src/3d/world/photorealismRuntimeSafety.ts
           src/3d/world/photorealismLiveSceneRuntime.ts
-      - run: npx vitest run tests/world/photorealismLiveSceneRuntime.test.ts
+      - run: npx vitest run tests/world/photorealismLiveSceneRuntime.test.ts tests/world/photorealismRuntimeSafety.test.ts
