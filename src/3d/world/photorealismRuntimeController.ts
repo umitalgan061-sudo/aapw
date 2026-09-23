@@ -18,7 +18,8 @@ export type RuntimeOperation =
   | 'apply-material-recipe'
   | 'apply-water-policy'
   | 'apply-vegetation-budget'
-  | 'apply-placement-query';
+  | 'apply-placement-query'
+  | 'apply-performance-budget';
 
 export interface RuntimeTarget {
   readonly id: string;
@@ -78,6 +79,7 @@ function buildOperations(plan:EnvironmentPassPlan, targets:readonly RuntimeTarge
   pushExecution(out,byKind.get('water'),'apply-water-policy',freezeRecord({shorelineFade:plan.p4.shorelineFade,foamWidthMeters:plan.p4.foamWidthMeters,depthBlendMeters:plan.p4.depthBlendMeters,normalScale:plan.p4.normalScale,moireSuppression:plan.p4.moireSuppression,suppressRectangularWater:plan.p0.suppressRectangularWater}));
   pushExecution(out,byKind.get('vegetation'),'apply-vegetation-budget',freezeRecord({canopyDensity:plan.p3.canopyDensity,understoryDensity:plan.p3.understoryDensity,shrubDensity:plan.p3.shrubDensity,grassDensity:plan.p3.grassDensity,instanceBatchSize:plan.p3.instanceBatchSize,lodBias:plan.p3.lodBias,clearingRadiusMeters:plan.p3.clearingRadiusMeters}));
   pushExecution(out,byKind.get('placement'),'apply-placement-query',freezeRecord(plan.placementQuery));
+  pushExecution(out,byKind.get('renderer'),'apply-performance-budget',freezeRecord({targetFrameMs:plan.frame.performance.targetFrameMs,maxDrawCalls:plan.frame.performance.maxDrawCalls,maxTriangles:plan.frame.performance.maxTriangles,maxTextureMb:plan.frame.performance.maxTextureMb,lodBias:plan.frame.performance.lodBias,instanceBatchSize:plan.frame.performance.instanceBatchSize}));
   return out;
 }
 
