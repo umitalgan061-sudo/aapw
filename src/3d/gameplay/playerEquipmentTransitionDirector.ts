@@ -54,6 +54,7 @@ const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(
 const boolean = (value: unknown): value is boolean => typeof value === 'boolean';
 const stringArray = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((item) => typeof item === 'string' && item.length > 0);
 const uniqueErrors = (errors: readonly string[]) => Object.freeze([...new Set(errors)]);
+const canonicalCrossfade = (value: number) => value.toFixed(6);
 
 const buildTransitionKey = (changedSlots: readonly string[], animation: PlayerEquipmentTransitionReceipt['animation']) => [
   changedSlots.join(','),
@@ -62,6 +63,7 @@ const buildTransitionKey = (changedSlots: readonly string[], animation: PlayerEq
   animation.action,
   animation.preserveLocomotion ? 'preserve' : 'rebind',
   animation.hardReset ? 'reset' : 'blend',
+  canonicalCrossfade(animation.crossfadeSeconds),
 ].join('|');
 
 export function resolvePlayerEquipmentTransitionReceipt(input: PlayerEquipmentTransitionInput = {}): PlayerEquipmentTransitionReceipt {
@@ -231,7 +233,7 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
     if (animation.compatible !== true) errors.push('noop-transition-animation-incompatible');
   }
 
-  if (animation && typeof animation.fromFamily === 'string' && typeof animation.toFamily === 'string' && typeof animation.hardReset === 'boolean') {
+  if (animation && typeof animation.fromFamily === 'string' && typeof animation.toFamily === 'string' && typeof animation.hardReset === 'boolean' && typeof animation.crossfadeSeconds === 'number') {
     const expectedKey = buildTransitionKey(changedSlots.filter((slot): slot is string => typeof slot === 'string'), animation as PlayerEquipmentTransitionReceipt['animation']);
     if (candidate.transitionKey !== expectedKey) errors.push('transition-key-mismatch');
   }
