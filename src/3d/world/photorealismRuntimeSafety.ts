@@ -19,6 +19,15 @@ function finite(value: unknown): value is number {
 export function evaluatePhotorealismRuntimeSafety(
   observation: CanonicalEnvironmentObservation,
 ): RuntimeSafetyDecision {
+  const numericInputs = [
+    observation.waterNormalRepeat,
+    observation.skyLuminance,
+    observation.renderedHeightMeters,
+    observation.colliderHeightMeters,
+  ];
+  if (numericInputs.some(value => !finite(value))) {
+    return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
+  }
   const failureSet = {
     rectangularWater: observation.visibleRectangularWater,
     gridSeam: observation.visibleGridSeam,
@@ -29,7 +38,7 @@ export function evaluatePhotorealismRuntimeSafety(
     return Object.freeze({ safeToApply: false, reason: 'visible-p0-p5-failure' });
   }
   const parityError = Math.abs(observation.renderedHeightMeters - observation.colliderHeightMeters);
-  if (!finite(parityError) || parityError > 0.35) {
+  if (parityError > 0.35) {
     return Object.freeze({ safeToApply: false, reason: 'terrain-collider-parity-out-of-bounds' });
   }
   return Object.freeze({ safeToApply: true, reason: null });
