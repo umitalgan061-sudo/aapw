@@ -146,8 +146,12 @@ try {
 }
 if (malformedShapeThrew) failures.push('malformed-shape-threw');
 
+const malformedValidation = validatePlayerEquipmentTransitionReceipt({ changed: true, changedSlots: ['mainHand'], socketsToRefresh: ['mainHand'] });
+if (new Set(malformedValidation.errors).size !== malformedValidation.errors.length) failures.push('validation-errors-not-deduplicated');
+if (!Object.isFrozen(malformedValidation.errors)) failures.push('validation-errors-not-frozen');
+
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
 }
-console.log(JSON.stringify({ ok: true, suite: 'player-equipment-transition-director-runtime', changedSlots: receipt.changedSlots, transitionKey: receipt.transitionKey, shieldSwapSlots: shieldSwap.changedSlots }));
+console.log(JSON.stringify({ ok: true, suite: 'player-equipment-transition-director-runtime', changedSlots: receipt.changedSlots, transitionKey: receipt.transitionKey, shieldSwapSlots: shieldSwap.changedSlots, deduplicatedValidationErrors: true }));
