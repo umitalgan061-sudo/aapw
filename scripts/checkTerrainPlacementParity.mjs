@@ -4,6 +4,10 @@ import {
   evaluateTerrainPlacementParity,
   assertTerrainPlacementParity,
 } from '../src/3d/world/terrainPlacementParity.ts';
+import {
+  collectTerrainParitySamples,
+  evaluatePreparedPlacementParity,
+} from '../src/3d/world/terrainPlacementParityBridge.ts';
 
 const passing = [
   { x: 0, z: 0, renderedHeight: 10, colliderHeight: 10.1 },
@@ -40,5 +44,23 @@ assert.throws(() => assertTerrainPlacementParity(gradeFailure.sampleCount ? [
   { x: 0, z: 0, renderedHeight: 0, colliderHeight: 0 },
   { x: 1, z: 0, renderedHeight: 2, colliderHeight: 2 },
 ] : []), /unsafe-footprint-grade/);
+
+const bridged = collectTerrainParitySamples(
+  { x: 0, z: 0, height: 10, colliderHeight: 10.1 },
+  {
+    samples: [
+      { x: 0, z: 0, renderedHeight: 10, colliderHeight: 10.1 },
+      { x: 1, z: 0, renderedHeight: 10.2, colliderHeight: 10.25 },
+      { x: 1, z: 0, renderedHeight: 99, colliderHeight: 99 },
+    ],
+  },
+);
+assert.equal(bridged.length, 2);
+assert.equal(bridged[0].renderedHeight, 10);
+assert.equal(bridged[1].renderedHeight, 10.2);
+assert.equal(evaluatePreparedPlacementParity(
+  { x: 0, z: 0, height: 10, colliderHeight: 10.1 },
+  { samples: [{ x: 1, z: 0, renderedHeight: 10.2, colliderHeight: 10.25 }] },
+).ok, true);
 
 console.log('Terrain placement parity contract PASS');
