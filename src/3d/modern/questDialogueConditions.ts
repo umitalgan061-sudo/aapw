@@ -47,6 +47,16 @@ const freezeEvaluation = (
   failures: Object.freeze([...evaluation.failures]),
 });
 
+const getQuest = (context: DialogueConditionContext, questId: string) => {
+  const getter = context?.quests && typeof context.quests.get === 'function' ? context.quests.get.bind(context.quests) : null;
+  return getter ? getter(questId) : undefined;
+};
+
+const getAvailableServices = (context: DialogueConditionContext, settlementId: string): readonly string[] => {
+  const available = context?.settlementServices?.[settlementId];
+  return Array.isArray(available) ? available : [];
+};
+
 export const isDialogueConditionMode = (mode: unknown): mode is DialogueConditionMode => mode === 'all' || mode === 'any';
 
 export const normalizeDialogueCondition = (condition: unknown): DialogueCondition | null => {
@@ -98,21 +108,21 @@ export const evaluateDialogueConditionDetailed = (
   const normalized = normalizeDialogueCondition(condition);
   if (!normalized) return { passed: false, failure: 'invalid-condition' };
   if (normalized.kind === 'quest-status') {
-    const quest = context.quests.get(normalized.questId);
+    const quest = getQuest(context, normalized.questId);
     if (!quest) return { passed: false, failure: 'missing-quest' };
     return quest.status === normalized.status
       ? { passed: true, failure: null }
       : { passed: false, failure: 'quest-status-mismatch' };
   }
   if (normalized.kind === 'quest-completed') {
-    const quest = context.quests.get(normalized.questId);
+    const quest = getQuest(context, normalized.questId);
     if (!quest) return { passed: false, failure: 'missing-quest' };
     return quest.status === 'completed'
       ? { passed: true, failure: null }
       : { passed: false, failure: 'quest-status-mismatch' };
   }
   if (normalized.kind === 'quest-objective-progress') {
-    const quest = context.quests.get(normalized.questId);
+    const quest = getQuest(context, normalized.questId);
     if (!quest) return { passed: false, failure: 'missing-quest' };
     const objective = quest.objectives.find((entry) => entry.id === normalized.objectiveId);
     if (!objective) return { passed: false, failure: 'objective-missing' };
@@ -121,13 +131,12 @@ export const evaluateDialogueConditionDetailed = (
       : { passed: false, failure: 'objective-incomplete' };
   }
   if (normalized.kind === 'reputation-at-least') {
-    const value = context.reputation?.[normalized.factionId] ?? 0;
+    const value = context?.reputation?.[normalized.factionId] ?? 0;
     return Number.isFinite(value) && value >= normalized.value
       ? { passed: true, failure: null }
       : { passed: false, failure: 'reputation-too-low' };
   }
-  const available = context.settlementServices?.[normalized.settlementId] ?? [];
-  return available.includes(normalized.service)
+  return getAvailableServices(context, normalized.settlementId).includes(normalized.service)
     ? { passed: true, failure: null }
     : { passed: false, failure: 'service-unavailable' };
 };
