@@ -69,13 +69,29 @@ export function evaluateTerrainPlacementParity(
   }
 
   for (const sample of Array.isArray(samples) ? samples : []) {
-    const values = [sample?.x, sample?.z, sample?.renderedHeight, sample?.colliderHeight];
-    if (normalizedPolicy.requireFinite && values.some((value) => !finite(value))) {
+    if (!sample || typeof sample !== 'object') {
+      failures.push('invalid-sample');
+      continue;
+    }
+
+    const coordinates = [sample.x, sample.z];
+    if (coordinates.some((value) => !finite(value))) {
+      failures.push('invalid-coordinate');
+      continue;
+    }
+
+    const heights = [sample.renderedHeight, sample.colliderHeight];
+    if (normalizedPolicy.requireFinite && heights.some((value) => !finite(value))) {
       failures.push('non-finite-sample');
       continue;
     }
 
     const heightDelta = Math.abs(Number(sample.renderedHeight) - Number(sample.colliderHeight));
+    if (!Number.isFinite(heightDelta)) {
+      failures.push('non-finite-sample');
+      continue;
+    }
+
     maxHeightDeltaMeters = Math.max(maxHeightDeltaMeters, heightDelta);
     minRenderedHeight = Math.min(minRenderedHeight, Number(sample.renderedHeight));
     maxRenderedHeight = Math.max(maxRenderedHeight, Number(sample.renderedHeight));
