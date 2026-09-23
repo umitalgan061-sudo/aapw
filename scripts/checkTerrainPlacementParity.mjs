@@ -34,6 +34,17 @@ const gradeFailure = evaluateTerrainPlacementParity([
 assert.equal(gradeFailure.ok, false);
 assert.deepEqual(gradeFailure.failures, ['unsafe-footprint-grade']);
 
+const colliderOnlyGradeFailure = evaluateTerrainPlacementParity([
+  { x: 0, z: 0, renderedHeight: 10, colliderHeight: 10.1 },
+  { x: 1, z: 0, renderedHeight: 10.2, colliderHeight: 11.5 },
+]);
+assert.equal(colliderOnlyGradeFailure.ok, false);
+assert.deepEqual(colliderOnlyGradeFailure.failures, [
+  'terrain-collider-parity',
+  'unsafe-footprint-grade',
+]);
+assert.equal(colliderOnlyGradeFailure.maxFootprintRangeMeters, 1.5);
+
 const malformed = evaluateTerrainPlacementParity([
   { x: 0, z: 0, renderedHeight: Number.NaN, colliderHeight: 1 },
 ]);
