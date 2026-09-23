@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { evaluatePhotorealismRuntimeSafety } from '../../src/3d/world/photorealismRuntimeSafety.ts';
 
 const base = {
+  shorelineGradient: 0.8,
   waterNormalRepeat: 0.2,
   skyLuminance: 0.7,
   renderedHeightMeters: 10,
@@ -24,6 +25,13 @@ describe('photorealism runtime safety', () => {
 
   it('fails closed for visible P0/P5 failures', () => {
     expect(evaluatePhotorealismRuntimeSafety({ ...base, visibleRectangularWater: true })).toEqual({
+      safeToApply: false,
+      reason: 'visible-p0-p5-failure',
+    });
+  });
+
+  it('fails closed for a stepped shoreline gradient', () => {
+    expect(evaluatePhotorealismRuntimeSafety({ ...base, shorelineGradient: 0.17 })).toEqual({
       safeToApply: false,
       reason: 'visible-p0-p5-failure',
     });
