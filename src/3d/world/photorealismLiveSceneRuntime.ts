@@ -13,10 +13,12 @@ import {
   type PhotorealismSceneIntegration,
 } from './photorealismSceneIntegration.ts';
 import type { RuntimeOperation, RuntimeTarget } from './photorealismRuntimeController.ts';
+import { evaluatePhotorealismRuntimeSafety } from './photorealismRuntimeSafety.ts';
 
 export interface LiveSceneRendererLike {
   toneMappingExposure?: number;
   outputColorSpace?: unknown;
+  userData?: Record<string, unknown>;
 }
 
 export interface LiveSceneFogLike {
@@ -78,7 +80,7 @@ function applyOperation(owners: LiveSceneRuntimeOwners, operation: RuntimeOperat
   }
   if (operation === 'set-light-energy' && typeof value === 'number') return;
   if (operation === 'set-sky-luminance' && typeof value === 'number') {
-    ensureUserData(owners.renderer as unknown as { userData?: Record<string, unknown> }).photorealismSkyLuminance = value;
+    ensureUserData(owners.renderer).photorealismSkyLuminance = value;
     return;
   }
   if (operation === 'apply-material-recipe' && owners.material && typeof value === 'object') {
@@ -126,6 +128,16 @@ export function applyLivePhotorealismFrame(
   owners: LiveSceneRuntimeOwners,
   observation: CanonicalEnvironmentObservation,
 ): LiveSceneRuntimeReceipt {
+  const safety = evaluatePhotorealismRuntimeSafety(observation);
+  if (!safety.safeToApply) {
+    const controllerReceipt = integration.controller.applyObservation(observation, []);
+    return Object.freeze({
+      accepted: false,
+      appliedOperations: 0,
+      rejectedReason: safety.reason,
+      controllerReceipt,
+    });
+  }
   const targets = createLiveSceneRuntimeOwners(owners, integration);
   const controllerReceipt = integration.apply(observation, targets);
   return Object.freeze({
