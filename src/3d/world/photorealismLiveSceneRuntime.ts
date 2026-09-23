@@ -60,8 +60,16 @@ export interface LiveSceneRuntimeReceipt {
   readonly controllerReceipt: ReturnType<PhotorealismSceneIntegration['controller']['applyObservation']>;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function ensureUserData(owner: { userData?: Record<string, unknown> }): Record<string, unknown> {
-  if (!owner.userData) owner.userData = {};
+  // Some live Three.js owners can expose an unexpected primitive/null userData
+  // after external tooling or serializer hydration. Replace that malformed
+  // container before writing the bounded photorealism receipt instead of
+  // throwing from a strict-mode property assignment.
+  if (!isRecord(owner.userData)) owner.userData = {};
   return owner.userData;
 }
 
