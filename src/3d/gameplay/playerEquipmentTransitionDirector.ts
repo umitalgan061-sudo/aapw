@@ -136,7 +136,7 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
   if (!candidate.changed && socketsToRefresh.length !== 0) return false;
   if (!candidate.changed && (candidate.weaponChanged || candidate.defenseChanged || candidate.rangedChanged || candidate.handednessChanged)) return false;
   if (!candidate.changed && (candidate.movementDelta !== 0 || candidate.staminaDrainDelta !== 0 || candidate.poiseDelta !== 0 || candidate.damageDelta !== 0 || candidate.reachDelta !== 0)) return false;
-  if (!candidate.changed && (animation.fromFamily !== animation.toFamily || animation.hardReset || animation.compatible !== true)) return false;
+  if (!candidate.changed && (animation.fromFamily !== animation.toFamily || animation.hardReset || animation.compatible !== true || animation.crossfadeSeconds !== 0)) return false;
 
   const weaponSlotChanged = changedSlots.some((slot) => WEAPON_SOCKETS.has(slot));
   const defenseSlotChanged = changedSlots.some((slot) => DEFENSE_SOCKETS.has(slot));
@@ -199,6 +199,7 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
   };
   for (const [name, numeric] of Object.entries(numericValues)) if (!finite(numeric)) errors.push(`${name}-not-finite`);
   if (!candidate.changed && Object.entries(numericValues).some(([name, numeric]) => name !== 'crossfadeSeconds' && numeric !== 0)) errors.push('noop-transition-has-stat-deltas');
+  if (!candidate.changed && numericValues.crossfadeSeconds !== 0) errors.push('noop-transition-has-crossfade');
   if (typeof animation?.crossfadeSeconds === 'number' && animation.crossfadeSeconds < 0) errors.push('negative-crossfade');
   if (changedSlots.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-changed-slot');
   if (socketsToRefresh.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-socket-slot');
