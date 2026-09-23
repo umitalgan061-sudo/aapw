@@ -10,6 +10,7 @@ import type { CanonicalEnvironmentObservation } from './photorealismEnvironmentP
 export interface RuntimeSafetyDecision {
   readonly safeToApply: boolean;
   readonly reason: string | null;
+  readonly failedChecks: readonly string[];
 }
 
 function finite(value: unknown): value is number {
@@ -28,11 +29,23 @@ function malformedObservation(observation: unknown): boolean {
   return observation === null || typeof observation !== 'object';
 }
 
+function decision(
+  safeToApply: boolean,
+  reason: string | null,
+  failedChecks: readonly string[] = [],
+): RuntimeSafetyDecision {
+  return Object.freeze({
+    safeToApply,
+    reason,
+    failedChecks: Object.freeze([...failedChecks]),
+  });
+}
+
 export function evaluatePhotorealismRuntimeSafety(
   observation: CanonicalEnvironmentObservation,
 ): RuntimeSafetyDecision {
   if (malformedObservation(observation)) {
-    return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
+    return decision(false, 'malformed-observation', ['observation-shape']);
   }
   const numericInputs = [
     observation.shorelineGradient,
@@ -42,14 +55,14 @@ export function evaluatePhotorealismRuntimeSafety(
     observation.colliderHeightMeters,
   ];
   if (numericInputs.some(value => !finite(value))) {
-    return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
+    return decision(false, 'malformed-observation', ['numeric-finiteness']);
   }
   if (
     !boundedUnit(observation.shorelineGradient) ||
     !boundedUnit(observation.waterNormalRepeat) ||
     !boundedUnit(observation.skyLuminance)
   ) {
-    return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
+    return decision(false, 'malformed-observation', ['normalized-range']);
   }
   const visibilityFlags = [
     observation.visibleGridSeam,
@@ -63,7 +76,7 @@ export function evaluatePhotorealismRuntimeSafety(
     observation.visibleMaterialMismatch,
   ];
   if (visibilityFlags.some(value => !boolean(value))) {
-    return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
+    return decision(false, 'malformed-observation', ['visibility-flag-shape']);
   }
   const failureSet = {
     rectangularWater: observation.visibleRectangularWater,
@@ -79,12 +92,15 @@ export function evaluatePhotorealismRuntimeSafety(
     floatingAsset: observation.visibleFloatingAsset,
     materialMismatch: observation.visibleMaterialMismatch,
   };
-  if (Object.values(failureSet).some(Boolean)) {
-    return Object.freeze({ safeToApply: false, reason: 'visible-p0-p5-failure' });
+  const failedChecks = Object.entries(failureSet)
+    .filter(([, failed]) => failed)
+    .map(([name]) => name);
+  if (failedChecks.length > 0) {
+    return decision(false, 'visible-p0-p5-failure', failedChecks);
   }
   const parityError = Math.abs(observation.renderedHeightMeters - observation.colliderHeightMeters);
   if (parityError > 0.35) {
-    return Object.freeze({ safeToApply: false, reason: 'terrain-collider-parity-out-of-bounds' });
+    return decision(false, 'terrain-collider-parity-out-of-bounds', ['terrain-collider-parity']);
   }
-  return Object.freeze({ safeToApply: true, reason: null });
+  return decision(true, null);
 }
