@@ -1,0 +1,19 @@
+name: settlement-dialogue-prompt
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/settlementDialoguePrompt.ts'
+      - 'scripts/checkSettlementDialoguePrompt.mjs'
+      - '.github/workflows/settlement-dialogue-prompt.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run deterministic prompt proof
+        run: node --experimental-strip-types scripts/checkSettlementDialoguePrompt.mjs
