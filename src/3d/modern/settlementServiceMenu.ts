@@ -11,6 +11,7 @@ export interface SettlementServiceMenuEntry {
   enabled: boolean;
   reason: SettlementServiceInteraction['reason'];
   missingQuestIds: readonly string[];
+  hint: string;
 }
 
 const ACTION_LABELS: Readonly<Record<SettlementServiceAction, string>> = {
@@ -51,10 +52,30 @@ export function buildSettlementServiceMenu(
       enabled: receipt.allowed,
       reason: receipt.reason,
       missingQuestIds: receipt.missingQuestIds,
+      hint: buildSettlementServiceHint(receipt),
     });
   });
 
   return Object.freeze(entries);
+}
+
+function buildSettlementServiceHint(receipt: SettlementServiceInteraction): string {
+  switch (receipt.reason) {
+    case 'allowed':
+      return 'Available';
+    case 'service-closed':
+      return 'Service is closed';
+    case 'access-denied':
+      return 'Access denied';
+    case 'quest-locked':
+      return receipt.missingQuestIds.length > 0
+        ? `Requires quest: ${receipt.missingQuestIds.join(', ')}`
+        : 'Requires an unfinished quest';
+    case 'action-unavailable':
+      return 'Action unavailable here';
+    case 'invalid-context':
+      return 'Service unavailable';
+  }
 }
 
 function inferDefaultActions(serviceKind: SettlementServiceContext['serviceKind']): readonly SettlementServiceAction[] {
