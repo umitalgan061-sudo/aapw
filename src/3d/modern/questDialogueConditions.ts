@@ -40,6 +40,13 @@ const positiveFinite = (value: unknown): value is number => typeof value === 'nu
 const services = new Set<SettlementService>(['blacksmith', 'tavern', 'market', 'stable', 'farm', 'barracks']);
 const statuses = new Set<QuestStatus>(['locked', 'available', 'active', 'completed', 'failed', 'abandoned']);
 
+const freezeEvaluation = (
+  evaluation: DialogueConditionsEvaluation,
+): DialogueConditionsEvaluation => Object.freeze({
+  ...evaluation,
+  failures: Object.freeze([...evaluation.failures]),
+});
+
 export const isDialogueConditionMode = (mode: unknown): mode is DialogueConditionMode => mode === 'all' || mode === 'any';
 
 export const normalizeDialogueCondition = (condition: unknown): DialogueCondition | null => {
@@ -129,23 +136,23 @@ export const evaluateDialogueConditionsDetailed = (
   mode: DialogueConditionMode = 'all',
 ): DialogueConditionsEvaluation => {
   if (!isDialogueConditionMode(mode)) {
-    return { passed: false, failure: 'invalid-condition', mode: 'all', failures: ['invalid-condition'] };
+    return freezeEvaluation({ passed: false, failure: 'invalid-condition', mode: 'all', failures: ['invalid-condition'] });
   }
   if (conditions.length === 0) {
     const passed = mode === 'all';
-    return { passed, failure: passed ? null : 'invalid-condition', mode, failures: passed ? [] : ['invalid-condition'] };
+    return freezeEvaluation({ passed, failure: passed ? null : 'invalid-condition', mode, failures: passed ? [] : ['invalid-condition'] });
   }
   const evaluations = conditions.map((condition) => evaluateDialogueConditionDetailed(condition, context));
   const failures = evaluations
     .map((evaluation) => evaluation.failure)
     .filter((failure): failure is DialogueConditionFailure => failure !== null);
   const passed = mode === 'any' ? evaluations.some((evaluation) => evaluation.passed) : evaluations.every((evaluation) => evaluation.passed);
-  return {
+  return freezeEvaluation({
     passed,
     failure: passed ? null : (failures[0] ?? 'invalid-condition'),
     mode,
-    failures: Object.freeze([...new Set(failures)]),
-  };
+    failures: [...new Set(failures)],
+  });
 };
 
 export const evaluateDialogueConditions = (
