@@ -19,21 +19,33 @@ const base = {
 } as any;
 
 describe('photorealism runtime safety', () => {
-  it('accepts bounded observations', () => {
-    expect(evaluatePhotorealismRuntimeSafety(base)).toEqual({ safeToApply: true, reason: null });
-  });
-
-  it('fails closed for visible P0/P5 failures', () => {
-    expect(evaluatePhotorealismRuntimeSafety({ ...base, visibleRectangularWater: true })).toEqual({
-      safeToApply: false,
-      reason: 'visible-p0-p5-failure',
+  it('accepts bounded observations and returns no failed checks', () => {
+    expect(evaluatePhotorealismRuntimeSafety(base)).toEqual({
+      safeToApply: true,
+      reason: null,
+      failedChecks: [],
     });
   });
 
-  it('fails closed for a stepped shoreline gradient', () => {
-    expect(evaluatePhotorealismRuntimeSafety({ ...base, shorelineGradient: 0.17 })).toEqual({
+  it('reports the exact visible failure key before blocking mutation', () => {
+    expect(evaluatePhotorealismRuntimeSafety({ ...base, visibleRectangularWater: true })).toEqual({
       safeToApply: false,
       reason: 'visible-p0-p5-failure',
+      failedChecks: ['rectangularWater'],
+    });
+  });
+
+  it('reports stepped shoreline and water moire together when both are visible', () => {
+    expect(
+      evaluatePhotorealismRuntimeSafety({
+        ...base,
+        shorelineGradient: 0.17,
+        waterNormalRepeat: 0.73,
+      }),
+    ).toEqual({
+      safeToApply: false,
+      reason: 'visible-p0-p5-failure',
+      failedChecks: ['shorelineStep', 'waterMoire'],
     });
   });
 
@@ -50,14 +62,16 @@ describe('photorealism runtime safety', () => {
       expect(evaluatePhotorealismRuntimeSafety({ ...base, [key]: true })).toEqual({
         safeToApply: false,
         reason: 'visible-p0-p5-failure',
+        failedChecks: [key.replace(/^visible/, '').replace(/[A-Z]/g, match => match.toLowerCase())],
       });
     }
   });
 
-  it('fails closed for terrain/collider parity drift', () => {
+  it('fails closed for terrain/collider parity drift with a stable diagnostic key', () => {
     expect(evaluatePhotorealismRuntimeSafety({ ...base, colliderHeightMeters: 10.36 })).toEqual({
       safeToApply: false,
       reason: 'terrain-collider-parity-out-of-bounds',
+      failedChecks: ['terrain-collider-parity'],
     });
   });
 
@@ -65,6 +79,7 @@ describe('photorealism runtime safety', () => {
     expect(evaluatePhotorealismRuntimeSafety({ ...base, skyLuminance: Number.NaN })).toEqual({
       safeToApply: false,
       reason: 'malformed-observation',
+      failedChecks: ['numeric-finiteness'],
     });
   });
 
@@ -72,6 +87,7 @@ describe('photorealism runtime safety', () => {
     expect(evaluatePhotorealismRuntimeSafety({ ...base, waterNormalRepeat: 1.01 })).toEqual({
       safeToApply: false,
       reason: 'malformed-observation',
+      failedChecks: ['normalized-range'],
     });
   });
 
@@ -79,6 +95,7 @@ describe('photorealism runtime safety', () => {
     expect(evaluatePhotorealismRuntimeSafety({ ...base, visibleGridSeam: 0 })).toEqual({
       safeToApply: false,
       reason: 'malformed-observation',
+      failedChecks: ['visibility-flag-shape'],
     });
   });
 
@@ -86,10 +103,12 @@ describe('photorealism runtime safety', () => {
     expect(evaluatePhotorealismRuntimeSafety(null as any)).toEqual({
       safeToApply: false,
       reason: 'malformed-observation',
+      failedChecks: ['observation-shape'],
     });
     expect(evaluatePhotorealismRuntimeSafety('invalid' as any)).toEqual({
       safeToApply: false,
       reason: 'malformed-observation',
+      failedChecks: ['observation-shape'],
     });
   });
 });
