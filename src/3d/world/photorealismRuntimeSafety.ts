@@ -28,6 +28,7 @@ export function evaluatePhotorealismRuntimeSafety(
   observation: CanonicalEnvironmentObservation,
 ): RuntimeSafetyDecision {
   const numericInputs = [
+    observation.shorelineGradient,
     observation.waterNormalRepeat,
     observation.skyLuminance,
     observation.renderedHeightMeters,
@@ -36,12 +37,16 @@ export function evaluatePhotorealismRuntimeSafety(
   if (numericInputs.some(value => !finite(value))) {
     return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
   }
-  if (!boundedUnit(observation.waterNormalRepeat) || !boundedUnit(observation.skyLuminance)) {
+  if (
+    !boundedUnit(observation.shorelineGradient) ||
+    !boundedUnit(observation.waterNormalRepeat) ||
+    !boundedUnit(observation.skyLuminance)
+  ) {
     return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
   }
   const visibilityFlags = [
-    observation.visibleRectangularWater,
     observation.visibleGridSeam,
+    observation.visibleRectangularWater,
     observation.visibleSmoothWall,
     observation.visibleFlatGround,
     observation.visibleSnowSheet,
@@ -56,6 +61,7 @@ export function evaluatePhotorealismRuntimeSafety(
   const failureSet = {
     rectangularWater: observation.visibleRectangularWater,
     gridSeam: observation.visibleGridSeam,
+    shorelineStep: observation.shorelineGradient < 0.18,
     waterMoire: observation.waterNormalRepeat > 0.72,
     blackSky: observation.skyLuminance < 0.2,
     smoothWall: observation.visibleSmoothWall,
