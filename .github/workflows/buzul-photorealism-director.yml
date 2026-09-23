@@ -45,8 +45,8 @@ jobs:
       - run: node scripts/checkPhotorealismRuntimeController.mjs
       - run: node scripts/checkPhotorealismSceneIntegration.mjs
       - run: >-
-          npx tsc --noEmit --ignoreConfig --target ES2024 --module ESNext
-          --moduleResolution Bundler --skipLibCheck
+          npx tsc --noEmit --ignoreConfig --allowImportingTsExtensions
+          --target ES2024 --module ESNext --moduleResolution Bundler --skipLibCheck
           src/3d/world/photorealismDirector.ts
           src/3d/world/photorealismRuntimeAdapter.ts
           src/3d/world/photorealismSceneBridge.ts
