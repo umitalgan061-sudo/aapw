@@ -74,6 +74,28 @@ const getReputationValue = (context: DialogueConditionContext, factionId: string
   }
 };
 
+const getObjectiveProgress = (quest: unknown, objectiveId: string): number | null => {
+  try {
+    const objectives = (quest as { objectives?: unknown } | null | undefined)?.objectives;
+    if (!Array.isArray(objectives)) return null;
+    for (const entry of objectives) {
+      try {
+        if (!entry || typeof entry !== 'object') continue;
+        const candidate = entry as { id?: unknown; progress?: unknown };
+        if (candidate.id !== objectiveId) continue;
+        return typeof candidate.progress === 'number' && Number.isFinite(candidate.progress)
+          ? candidate.progress
+          : null;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 export const isDialogueConditionMode = (mode: unknown): mode is DialogueConditionMode => mode === 'all' || mode === 'any';
 
 export const normalizeDialogueCondition = (condition: unknown): DialogueCondition | null => {
@@ -141,10 +163,9 @@ export const evaluateDialogueConditionDetailed = (
   if (normalized.kind === 'quest-objective-progress') {
     const quest = getQuest(context, normalized.questId);
     if (!quest) return { passed: false, failure: 'missing-quest' };
-    const objectives = Array.isArray(quest.objectives) ? quest.objectives : [];
-    const objective = objectives.find((entry) => entry && entry.id === normalized.objectiveId);
-    if (!objective) return { passed: false, failure: 'objective-missing' };
-    return Number.isFinite(objective.progress) && objective.progress >= normalized.amount
+    const progress = getObjectiveProgress(quest, normalized.objectiveId);
+    if (progress === null) return { passed: false, failure: 'objective-missing' };
+    return progress >= normalized.amount
       ? { passed: true, failure: null }
       : { passed: false, failure: 'objective-incomplete' };
   }
