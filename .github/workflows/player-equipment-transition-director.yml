@@ -7,6 +7,7 @@ on:
       - 'src/3d/gameplay/playerEquipmentCombatProfile.ts'
       - 'scripts/checkPlayerEquipmentTransitionDirector.mjs'
       - 'scripts/testPlayerEquipmentTransitionDirector.mjs'
+      - 'scripts/testPlayerEquipmentTransitionDirectorActionIntegrity.mjs'
       - 'scripts/checkPlayerEquipmentTransitionDirectorBoundary.mjs'
       - 'scripts/checkPlayerEquipmentTransitionDirectorNoOpSemantics.mjs'
       - '.github/workflows/player-equipment-transition-director.yml'
@@ -23,6 +24,7 @@ jobs:
       - run: npm install
       - run: node scripts/checkPlayerEquipmentTransitionDirector.mjs
       - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirector.mjs
+      - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorActionIntegrity.mjs
       - run: node --experimental-strip-types scripts/checkPlayerEquipmentTransitionDirectorBoundary.mjs
       - run: node --experimental-strip-types scripts/checkPlayerEquipmentTransitionDirectorNoOpSemantics.mjs
       - run: npx tsc --noEmit --ignoreConfig --allowImportingTsExtensions --allowJs false --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler src/3d/gameplay/playerEquipmentTransitionDirector.ts
