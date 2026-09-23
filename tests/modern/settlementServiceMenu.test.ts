@@ -79,4 +79,16 @@ describe('buildSettlementServiceMenu', () => {
       { action: 'trade', label: 'Trade', enabled: true, reason: 'allowed', missingQuestIds: [], hint: 'Available' },
     ]);
   });
+
+  it('does not infer defaults when an explicit runtime action list is empty', () => {
+    const menu = buildSettlementServiceMenu({
+      settlementId: 'northwatch',
+      serviceKind: 'blacksmith',
+      isOpen: true,
+      hasAccess: true,
+      availableActions: [],
+    });
+
+    expect(menu).toEqual([]);
+  });
 });
