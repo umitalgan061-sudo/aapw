@@ -106,6 +106,8 @@ describe('quest dialogue conditions', () => {
       mode: 'any',
       failures: ['missing-quest'],
     });
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result.failures)).toBe(true);
   });
 
   it('fails closed for invalid modes at every evaluation boundary', () => {
@@ -175,6 +177,7 @@ describe('quest dialogue conditions', () => {
     });
     expect(Object.isFrozen(gate)).toBe(true);
     expect(Object.isFrozen(gate?.conditions)).toBe(true);
+    expect(Object.isFrozen(gate?.evaluateDetailed(context))).toBe(true);
 
     const anyGate = createDialogueConditionGate([
       { kind: 'quest-completed', questId: 'missing-quest' },
