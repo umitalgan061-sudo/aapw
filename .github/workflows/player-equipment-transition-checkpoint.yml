@@ -1,0 +1,24 @@
+name: Player Equipment Transition Checkpoint
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentTransitionCheckpoint.ts'
+      - 'src/3d/gameplay/playerEquipmentCombatRules.ts'
+      - 'src/3d/gameplay/playerEquipmentCombatProfile.ts'
+      - 'scripts/checkPlayerEquipmentTransitionCheckpoint.mjs'
+      - '.github/workflows/player-equipment-transition-checkpoint.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install
+      - run: node --experimental-strip-types scripts/checkPlayerEquipmentTransitionCheckpoint.mjs
+      - run: npx tsc --noEmit --ignoreConfig --allowImportingTsExtensions --allowJs false --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler src/3d/gameplay/playerEquipmentTransitionCheckpoint.ts
