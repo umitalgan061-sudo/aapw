@@ -50,19 +50,20 @@ describe('photorealism runtime safety', () => {
   });
 
   it('fails closed for any visible P1-P4 acceptance failure', () => {
-    for (const key of [
-      'visibleSmoothWall',
-      'visibleFlatGround',
-      'visibleSnowSheet',
-      'visibleSparseCanopy',
-      'visibleRoadRibbon',
-      'visibleFloatingAsset',
-      'visibleMaterialMismatch',
-    ]) {
-      expect(evaluatePhotorealismRuntimeSafety({ ...base, [key]: true })).toEqual({
+    const cases = [
+      ['visibleSmoothWall', 'smoothWall'],
+      ['visibleFlatGround', 'flatGround'],
+      ['visibleSnowSheet', 'snowSheet'],
+      ['visibleSparseCanopy', 'sparseCanopy'],
+      ['visibleRoadRibbon', 'roadRibbon'],
+      ['visibleFloatingAsset', 'floatingAsset'],
+      ['visibleMaterialMismatch', 'materialMismatch'],
+    ] as const;
+    for (const [inputKey, failureKey] of cases) {
+      expect(evaluatePhotorealismRuntimeSafety({ ...base, [inputKey]: true })).toEqual({
         safeToApply: false,
         reason: 'visible-p0-p5-failure',
-        failedChecks: [key.replace(/^visible/, '').replace(/[A-Z]/g, match => match.toLowerCase())],
+        failedChecks: [failureKey],
       });
     }
   });
