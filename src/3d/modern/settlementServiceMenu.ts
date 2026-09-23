@@ -49,12 +49,13 @@ function isAction(value: unknown): value is SettlementServiceAction {
 export function buildSettlementServiceMenu(
   context: SettlementServiceContext,
 ): readonly SettlementServiceMenuEntry[] {
-  const actions = Array.isArray(context?.availableActions) && context.availableActions.length > 0
+  const hasExplicitActions = Array.isArray(context?.availableActions);
+  const actions = hasExplicitActions
     ? [...new Set(context.availableActions.filter(isAction))]
         .sort((left, right) => ACTION_ORDER.indexOf(left) - ACTION_ORDER.indexOf(right))
     : [];
 
-  const sourceActions = actions.length > 0 ? actions : inferDefaultActions(context?.serviceKind);
+  const sourceActions = hasExplicitActions ? actions : inferDefaultActions(context?.serviceKind);
   const entries = sourceActions.map((action) => {
     const receipt = resolveSettlementServiceInteraction(context, action);
     return Object.freeze({
