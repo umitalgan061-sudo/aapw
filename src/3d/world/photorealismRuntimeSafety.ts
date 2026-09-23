@@ -39,7 +39,18 @@ export function evaluatePhotorealismRuntimeSafety(
   if (!boundedUnit(observation.waterNormalRepeat) || !boundedUnit(observation.skyLuminance)) {
     return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
   }
-  if (!boolean(observation.visibleRectangularWater) || !boolean(observation.visibleGridSeam)) {
+  const visibilityFlags = [
+    observation.visibleRectangularWater,
+    observation.visibleGridSeam,
+    observation.visibleSmoothWall,
+    observation.visibleFlatGround,
+    observation.visibleSnowSheet,
+    observation.visibleSparseCanopy,
+    observation.visibleRoadRibbon,
+    observation.visibleFloatingAsset,
+    observation.visibleMaterialMismatch,
+  ];
+  if (visibilityFlags.some(value => !boolean(value))) {
     return Object.freeze({ safeToApply: false, reason: 'malformed-observation' });
   }
   const failureSet = {
@@ -47,8 +58,15 @@ export function evaluatePhotorealismRuntimeSafety(
     gridSeam: observation.visibleGridSeam,
     waterMoire: observation.waterNormalRepeat > 0.72,
     blackSky: observation.skyLuminance < 0.2,
+    smoothWall: observation.visibleSmoothWall,
+    flatGround: observation.visibleFlatGround,
+    snowSheet: observation.visibleSnowSheet,
+    sparseCanopy: observation.visibleSparseCanopy,
+    roadRibbon: observation.visibleRoadRibbon,
+    floatingAsset: observation.visibleFloatingAsset,
+    materialMismatch: observation.visibleMaterialMismatch,
   };
-  if (failureSet.rectangularWater || failureSet.gridSeam || failureSet.waterMoire || failureSet.blackSky) {
+  if (Object.values(failureSet).some(Boolean)) {
     return Object.freeze({ safeToApply: false, reason: 'visible-p0-p5-failure' });
   }
   const parityError = Math.abs(observation.renderedHeightMeters - observation.colliderHeightMeters);
