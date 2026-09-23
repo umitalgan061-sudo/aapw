@@ -35,6 +35,11 @@ for (const [movementState, attackKind, expectedAction] of cases) {
   if (receipt.animation.action !== expectedAction) failures.push(`${attackKind}:unexpected-action:${receipt.animation.action}`);
   if (receipt.animation.action !== replay.animation.action) failures.push(`${attackKind}:non-deterministic-action`);
   if (JSON.stringify(receipt) !== JSON.stringify(replay)) failures.push(`${attackKind}:non-deterministic-receipt`);
+
+  const tamperedAction = structuredClone(receipt);
+  tamperedAction.animation.action = tamperedAction.animation.action === 'attack-heavy' ? 'attack-light' : 'attack-heavy';
+  if (validatePlayerEquipmentTransitionReceipt(tamperedAction).ok) failures.push(`${attackKind}:tampered-action-accepted`);
+  if (!validatePlayerEquipmentTransitionReceipt(tamperedAction).errors.includes('transition-key-mismatch')) failures.push(`${attackKind}:tampered-action-missing-key-diagnostic`);
 }
 
 const noOp = resolvePlayerEquipmentTransitionReceipt({ previousEquipment: base, nextEquipment: base });
@@ -51,5 +56,6 @@ console.log(JSON.stringify({
   suite: 'player-equipment-transition-director-action-integrity',
   cases: cases.length,
   deterministic: true,
+  transitionKeyBindsAction: true,
   noOpAction: noOp.animation.action,
 }));
