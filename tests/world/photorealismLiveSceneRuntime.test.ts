@@ -69,6 +69,20 @@ describe('photorealism live scene runtime', () => {
     expect(liveOwners.placement?.userData?.photorealismPlacementQuery).toBeDefined();
   });
 
+  it('repairs malformed owner metadata containers before applying a valid frame', () => {
+    const liveOwners = owners() as LiveSceneRuntimeOwners & {
+      renderer: LiveSceneRuntimeOwners['renderer'] & { userData?: unknown };
+      fog: NonNullable<LiveSceneRuntimeOwners['fog']> & { userData?: unknown };
+    };
+    liveOwners.renderer.userData = null;
+    liveOwners.fog!.userData = 'stale-serializer-value';
+    const integration = createPhotorealismSceneIntegration({ seed: 20260923, rejectVisibleFailures: true });
+    const receipt = applyLivePhotorealismFrame(integration, liveOwners, observation);
+    expect(receipt.accepted).toBe(true);
+    expect(liveOwners.renderer.userData).toEqual(expect.objectContaining({ photorealismSkyLuminance: expect.any(Number) }));
+    expect(liveOwners.fog!.userData).toEqual(expect.objectContaining({ photorealismAerialPerspective: expect.any(Number) }));
+  });
+
   it('fails closed and performs no mutation when a visible P0/P5 failure is observed', () => {
     const liveOwners = owners();
     const before = JSON.stringify(liveOwners);
