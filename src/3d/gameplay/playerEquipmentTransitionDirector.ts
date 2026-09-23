@@ -40,6 +40,7 @@ const VALID_EQUIPMENT_SOCKETS = ['head', 'chest', 'back', 'mainHand', 'offHand']
 const DEFENSE_SOCKETS = new Set(['head', 'chest', 'back', 'offHand']);
 const WEAPON_SOCKETS = new Set(['mainHand', 'offHand']);
 const EQUIPMENT_SOCKET_ORDER = new Map(VALID_EQUIPMENT_SOCKETS.map((slot, index) => [slot, index]));
+const MAX_CROSSFADE_SECONDS = 2;
 
 const freeze = <T>(value: T): T => {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
@@ -122,6 +123,7 @@ export function isPlayerEquipmentTransitionReceipt(value: unknown): value is Pla
     && boolean(animation.preserveLocomotion)
     && finite(animation.crossfadeSeconds)
     && animation.crossfadeSeconds >= 0
+    && animation.crossfadeSeconds <= MAX_CROSSFADE_SECONDS
     && stringArray(candidate.socketsToRefresh)
     && Object.isFrozen(candidate.socketsToRefresh)
     && typeof candidate.transitionKey === 'string'
@@ -203,6 +205,7 @@ export function validatePlayerEquipmentTransitionReceipt(value: unknown): Readon
   if (!candidate.changed && Object.entries(numericValues).some(([name, numeric]) => name !== 'crossfadeSeconds' && numeric !== 0)) errors.push('noop-transition-has-stat-deltas');
   if (!candidate.changed && numericValues.crossfadeSeconds !== 0) errors.push('noop-transition-has-crossfade');
   if (typeof animation?.crossfadeSeconds === 'number' && animation.crossfadeSeconds < 0) errors.push('negative-crossfade');
+  if (typeof animation?.crossfadeSeconds === 'number' && animation.crossfadeSeconds > MAX_CROSSFADE_SECONDS) errors.push('crossfade-too-long');
   if (changedSlots.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-changed-slot');
   if (socketsToRefresh.some((slot) => typeof slot !== 'string' || slot.length === 0)) errors.push('invalid-socket-slot');
   for (const [name, flag] of Object.entries({
