@@ -51,7 +51,7 @@ const replay = resolvePlayerEquipmentTransitionReceipt(input);
 if (JSON.stringify(receipt) !== JSON.stringify(replay)) failures.push('non-deterministic-replay');
 
 const noOp = resolvePlayerEquipmentTransitionReceipt({ previousEquipment: base, nextEquipment: base });
-if (noOp.changed || noOp.changedSlots.length !== 0 || noOp.socketsToRefresh.length !== 0 || !validatePlayerEquipmentTransitionReceipt(noOp).ok) failures.push('no-op-transition-invalid');
+if (noOp.changed || noOp.changedSlots.length !== 0 || noOp.socketsToRefresh.length !== 0 || noOp.animation.crossfadeSeconds !== 0 || !validatePlayerEquipmentTransitionReceipt(noOp).ok) failures.push('no-op-transition-invalid');
 
 const shieldSwap = resolvePlayerEquipmentTransitionReceipt({ previousEquipment: base, nextEquipment: shieldSwapSlots });
 if (!shieldSwap.changed || !shieldSwap.changedSlots.includes('offHand') || !shieldSwap.defenseChanged) failures.push('offhand-defense-transition-flags-invalid');
@@ -68,6 +68,10 @@ if (validatePlayerEquipmentTransitionReceipt(noOpSemanticTampered).ok) failures.
 const noOpDeltaTampered = { ...noOp, damageDelta: 1 };
 if (isPlayerEquipmentTransitionReceipt(noOpDeltaTampered)) failures.push('shape-guard-accepted-noop-stat-delta');
 if (validatePlayerEquipmentTransitionReceipt(noOpDeltaTampered).ok) failures.push('noop-stat-delta-accepted');
+
+const noOpCrossfadeTampered = { ...noOp, animation: Object.freeze({ ...noOp.animation, crossfadeSeconds: 0.15 }) };
+if (isPlayerEquipmentTransitionReceipt(noOpCrossfadeTampered)) failures.push('shape-guard-accepted-noop-crossfade');
+if (!validatePlayerEquipmentTransitionReceipt(noOpCrossfadeTampered).errors.includes('noop-transition-has-crossfade')) failures.push('noop-crossfade-not-diagnosed');
 
 const noOpAnimationFamilyTampered = { ...noOp, animation: Object.freeze({ ...noOp.animation, toFamily: `${noOp.animation.toFamily}-drift` }) };
 if (isPlayerEquipmentTransitionReceipt(noOpAnimationFamilyTampered)) failures.push('shape-guard-accepted-noop-animation-family-drift');
@@ -154,4 +158,4 @@ if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
 }
-console.log(JSON.stringify({ ok: true, suite: 'player-equipment-transition-director-runtime', changedSlots: receipt.changedSlots, transitionKey: receipt.transitionKey, shieldSwapSlots: shieldSwap.changedSlots, deduplicatedValidationErrors: true }));
+console.log(JSON.stringify({ ok: true, suite: 'player-equipment-transition-director-runtime', changedSlots: receipt.changedSlots, transitionKey: receipt.transitionKey, shieldSwapSlots: shieldSwap.changedSlots, deduplicatedValidationErrors: true, noopCrossfadeGuard: true }));
