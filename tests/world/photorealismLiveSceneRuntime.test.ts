@@ -88,7 +88,7 @@ describe('photorealism live scene runtime', () => {
     const receipt = applyLivePhotorealismFrame(integration, liveOwners, observation);
     expect(receipt.accepted).toBe(true);
     expect(liveOwners.renderer.userData).toEqual(expect.objectContaining({ photorealismSkyLuminance: expect.any(Number) }));
-    expect(liveOwners.fog!.userData).toEqual(expect.objectContaining({ photorealismAerialPerspective: expect.any(Number }));
+    expect(liveOwners.fog!.userData).toEqual(expect.objectContaining({ photorealismAerialPerspective: expect.any(Number) }));
   });
 
   it('fails closed and performs no mutation when a visible P0/P5 failure is observed', () => {
