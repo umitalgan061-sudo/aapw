@@ -137,6 +137,7 @@ describe('quest dialogue conditions', () => {
   it('normalizes safe keys and rejects malformed conditions', () => {
     expect(normalizeDialogueCondition({ kind: 'quest-completed', questId: '  road  ' })).toEqual({ kind: 'quest-completed', questId: 'road' });
     expect(normalizeDialogueCondition({ kind: 'quest-objective-progress', questId: 'road', objectiveId: 'repair', amount: 0 })).toBeNull();
+    expect(normalizeDialogueCondition({ kind: 'quest-objective-progress', questId: 'road', objectiveId: 'repair', amount: 0.5 })).toBeNull();
     expect(normalizeDialogueCondition({ kind: 'reputation-at-least', factionId: 'guild', value: Number.NaN })).toBeNull();
     expect(isDialogueCondition({ kind: 'settlement-service', settlementId: 'town', service: 'tavern' })).toBe(true);
     expect(isDialogueCondition({ kind: 'settlement-service', settlementId: 'town', service: 'library' })).toBe(false);
