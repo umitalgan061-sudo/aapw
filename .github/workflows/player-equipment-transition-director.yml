@@ -14,6 +14,7 @@ on:
       - 'scripts/testPlayerEquipmentTransitionDirectorHardResetSemantics.mjs'
       - 'scripts/testPlayerEquipmentTransitionDirectorLocomotionSemantics.mjs'
       - 'scripts/testPlayerEquipmentTransitionDirectorSocketRefreshSemantics.mjs'
+      - 'scripts/testPlayerEquipmentTransitionDirectorReceiptSafety.mjs'
       - '.github/workflows/player-equipment-transition-director.yml'
   workflow_dispatch:
 jobs:
@@ -35,4 +36,5 @@ jobs:
       - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorHardResetSemantics.mjs
       - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorLocomotionSemantics.mjs
       - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorSocketRefreshSemantics.mjs
+      - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorReceiptSafety.mjs
       - run: npx tsc --noEmit --ignoreConfig --allowImportingTsExtensions --allowJs false --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler src/3d/gameplay/playerEquipmentTransitionDirector.ts
