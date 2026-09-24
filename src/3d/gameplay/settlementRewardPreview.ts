@@ -38,15 +38,17 @@ const normalizeChain = (chain) => {
 };
 
 export function projectSettlementRewardPreview(input = {}) {
+  const normalized = (Array.isArray(input.chains) ? input.chains : [])
+    .map(normalizeChain)
+    .filter(Boolean)
+    .sort((a, b) => a.id.localeCompare(b.id) || JSON.stringify(a).localeCompare(JSON.stringify(b)));
   const chains = [];
   const seenIds = new Set();
-  for (const candidate of (Array.isArray(input.chains) ? input.chains : [])) {
-    const chain = normalizeChain(candidate);
-    if (!chain || seenIds.has(chain.id)) continue;
+  for (const chain of normalized) {
+    if (seenIds.has(chain.id)) continue;
     seenIds.add(chain.id);
     chains.push(chain);
   }
-  chains.sort((a, b) => a.id.localeCompare(b.id));
   const claimable = chains.filter((chain) => chain.readyToClaim);
   const totals = chains.reduce((acc, chain) => ({
     xp: acc.xp + chain.reward.xp,
