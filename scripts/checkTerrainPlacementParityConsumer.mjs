@@ -80,10 +80,10 @@ const malformedSurface = {
 };
 const malformedSurfaceDecision = evaluatePreparedPlacementForAttach(malformedSurface);
 assert.equal(malformedSurfaceDecision.ok, false);
-assert.deepEqual(malformedSurfaceDecision.failures, ['malformed-surface']);
+assert.deepEqual(malformedSurfaceDecision.failures, ['malformed-sample']);
 assert.throws(
   () => assertPreparedPlacementForAttach(malformedSurface),
-  /Prepared world placement rejected: malformed-surface/,
+  /Prepared world placement rejected: malformed-sample/,
 );
 
 console.log('Terrain placement parity consumer PASS');
