@@ -15,14 +15,31 @@ on:
     branches:
       - 'buzul/terrain-placement-parity-exact-aabc444-20260923'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: buzul-terrain-placement-parity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   parity:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Verify exact checked-out head
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_SHA="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - name: Run terrain placement parity proof
         run: node --experimental-strip-types scripts/checkTerrainPlacementParity.mjs
       - name: Run prepared placement parity proof
