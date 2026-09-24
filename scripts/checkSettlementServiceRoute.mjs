@@ -14,6 +14,7 @@ assert.deepEqual(ready.availableActions, ['craft', 'talk']);
 assert.equal(isSettlementServiceRoute(ready), true);
 assert.equal(Object.isFrozen(ready), true);
 assert.equal(Object.isFrozen(ready.availableActions), true);
+assert.equal(Object.isFrozen(ready.condition), true);
 
 const reordered = projectSettlementServiceRoute({
   serviceId: 'blacksmith',
@@ -53,5 +54,11 @@ assert.deepEqual(original, { availableActions: ['sell', 'buy'] });
 
 const tampered = { ...ready, nextAction: 'sell' };
 assert.equal(isSettlementServiceRoute(tampered), false);
+
+const tamperedFlags = { ...ready, serviceKnown: false };
+assert.equal(isSettlementServiceRoute(tamperedFlags), false);
+
+const tamperedCondition = { ...ready, condition: { ...ready.condition, passed: false } };
+assert.equal(isSettlementServiceRoute(tamperedCondition), false);
 
 console.log('Settlement service route proof passed');

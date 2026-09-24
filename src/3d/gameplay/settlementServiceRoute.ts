@@ -6,15 +6,9 @@
  */
 
 const SERVICES = new Set(['blacksmith', 'tavern', 'market', 'farm', 'barracks', 'stable', 'house', 'gate']);
-const ACTIONS = new Set(['talk', 'trade', 'craft', 'equip', 'rest', 'acceptQuest', 'advanceQuest', 'buy', 'sell', 'interact', 'travel', 'train', 'save', 'enter', 'exit']);
+const ACTIONS = new Set(['talk', 'trade', 'craft', 'equip', 'rest', 'acceptquest', 'advancequest', 'buy', 'sell', 'interact', 'travel', 'train', 'save', 'enter', 'exit']);
 const ROUTE_STAGES = new Set(['approach', 'inside', 'service', 'departure', 'resume']);
 const REASONS = new Set(['ready', 'service-unavailable', 'action-unavailable', 'condition-blocked', 'stage-blocked', 'invalid-input']);
-
-const clampInt = (value, min, max, fallback = 0) => {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return fallback;
-  return Math.max(min, Math.min(max, Math.trunc(number)));
-};
 
 const normalizeId = (value) => typeof value === 'string' ? value.trim().toLowerCase() : '';
 
@@ -45,7 +39,7 @@ export function projectSettlementServiceRoute(input = {}) {
   const availableActions = normalizeActions(input.availableActions);
   const condition = normalizeCondition(input.condition);
   const serviceKnown = SERVICES.has(serviceId);
-  const actionKnown = ACTIONS.has(requestedAction);
+  const actionKnown = !requestedAction || ACTIONS.has(requestedAction);
   const stageReady = stage !== 'departure' || requestedAction === 'travel' || requestedAction === 'exit' || requestedAction === '';
   const actionReady = !requestedAction || availableActions.includes(requestedAction);
 
@@ -53,7 +47,7 @@ export function projectSettlementServiceRoute(input = {}) {
   if (!serviceKnown) reason = 'service-unavailable';
   else if (!stageReady) reason = 'stage-blocked';
   else if (!condition.passed) reason = 'condition-blocked';
-  else if (requestedAction && !actionKnown) reason = 'invalid-input';
+  else if (!actionKnown) reason = 'invalid-input';
   else if (!actionReady) reason = 'action-unavailable';
 
   const nextAction = reason === 'ready'
@@ -80,11 +74,18 @@ export function projectSettlementServiceRoute(input = {}) {
 export function isSettlementServiceRoute(value) {
   if (!value || typeof value !== 'object') return false;
   if (value.version !== 1 || typeof value.routeKey !== 'string' || !REASONS.has(value.reason)) return false;
-  if (typeof value.serviceId !== 'string' || typeof value.stage !== 'string' || !ROUTE_STAGES.has(value.stage)) return false;
+  if (typeof value.serviceId !== 'string' || !SERVICES.has(value.serviceId)) return false;
+  if (typeof value.stage !== 'string' || !ROUTE_STAGES.has(value.stage)) return false;
+  if (typeof value.requestedAction !== 'string' || (value.requestedAction && !ACTIONS.has(value.requestedAction))) return false;
   if (!Array.isArray(value.availableActions) || !Object.isFrozen(value.availableActions)) return false;
   if (value.availableActions.some((action) => typeof action !== 'string' || !ACTIONS.has(action))) return false;
+  if (value.availableActions.some((action, index) => index > 0 && value.availableActions[index - 1] >= action)) return false;
+  if (!value.condition || typeof value.condition !== 'object' || !Object.isFrozen(value.condition)) return false;
+  if (typeof value.condition.key !== 'string' || typeof value.condition.passed !== 'boolean') return false;
+  if (value.serviceKnown !== true || value.actionKnown !== (value.requestedAction === '' || ACTIONS.has(value.requestedAction))) return false;
+  if (typeof value.nextAction !== 'string' || !ACTIONS.has(value.nextAction)) return false;
   if (value.blocked !== (value.reason !== 'ready')) return false;
-  return value.routeKey === stableHash([value.serviceId || 'unknown', value.stage, value.nextAction, value.reason, value.condition?.key ?? ''].join('|'));
+  return value.routeKey === stableHash([value.serviceId, value.stage, value.nextAction, value.reason, value.condition.key].join('|'));
 }
 
 export const SETTLEMENT_SERVICE_ROUTE_LIMITS = freeze({ maxActions: 16, maxIdLength: 48, maxConditionKeyLength: 48 });
