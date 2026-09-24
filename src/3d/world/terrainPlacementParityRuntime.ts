@@ -23,50 +23,59 @@ export type PreparedPlacementObservation = Readonly<{
     colliderHeight?: number;
   }> | null;
   footprint?: Readonly<{
-    samples?: readonly Readonly<{
+    samples?: readonly (Readonly<{
       x?: number;
       z?: number;
       height?: number;
       renderedHeight?: number;
       colliderHeight?: number;
-    }>[];
-    islandSamples?: readonly Readonly<{
+    }> | null | undefined)[];
+    islandSamples?: readonly (Readonly<{
       x?: number;
       z?: number;
       height?: number;
       renderedHeight?: number;
       colliderHeight?: number;
-    }>[];
+    }> | null | undefined)[];
   }> | null;
 }>;
 
-function toSample(record: Readonly<Record<string, unknown>>): TerrainParitySample {
-  const fallbackHeight = record.height;
+function toSample(record: unknown): TerrainParitySample {
+  if (!record || typeof record !== 'object') {
+    return null as unknown as TerrainParitySample;
+  }
+  const source = record as Readonly<Record<string, unknown>>;
+  const fallbackHeight = source.height;
   return {
-    x: Number(record.x),
-    z: Number(record.z),
-    renderedHeight: Number(record.renderedHeight ?? fallbackHeight),
-    colliderHeight: Number(record.colliderHeight ?? fallbackHeight),
+    x: Number(source.x),
+    z: Number(source.z),
+    renderedHeight: Number(source.renderedHeight ?? fallbackHeight),
+    colliderHeight: Number(source.colliderHeight ?? fallbackHeight),
   };
 }
 
 export function collectPreparedPlacementParitySamples(
   prepared: PreparedPlacementObservation | null | undefined,
 ): readonly TerrainParitySample[] {
-  const records = [
+  const records: unknown[] = [
     ...(prepared?.footprint?.samples ?? []),
     ...(prepared?.footprint?.islandSamples ?? []),
     ...(prepared?.surface ? [prepared.surface] : []),
   ];
   const deduped = new Map<string, TerrainParitySample>();
+  const malformed: TerrainParitySample[] = [];
   for (const record of records) {
-    const sample = toSample(record as Readonly<Record<string, unknown>>);
+    if (!record || typeof record !== 'object') {
+      malformed.push(null as unknown as TerrainParitySample);
+      continue;
+    }
+    const sample = toSample(record);
     const key = `${sample.x}:${sample.z}`;
     // The first pipeline observation is the canonical surface sample. Later island or
     // overlapping footprint projections must never replace it with a non-canonical value.
     if (!deduped.has(key)) deduped.set(key, sample);
   }
-  return Object.freeze([...deduped.values()]);
+  return Object.freeze([...malformed, ...deduped.values()]);
 }
 
 export function evaluatePreparedWorldPlacementParity(
