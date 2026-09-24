@@ -1,0 +1,22 @@
+name: Settlement Quest Journal Projection
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementQuestJournalProjection.ts'
+      - 'scripts/checkSettlementQuestJournalProjection.mjs'
+      - '.github/workflows/settlement-quest-journal-projection.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --experimental-strip-types scripts/checkSettlementQuestJournalProjection.mjs
+      - run: node --check scripts/checkSettlementQuestJournalProjection.mjs
+      - run: node --check src/3d/gameplay/settlementQuestJournalProjection.ts
