@@ -1,0 +1,25 @@
+name: player-locomotion-animation-blend
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerLocomotionAnimationBlendIntent.ts'
+      - 'scripts/checkPlayerLocomotionAnimationBlendIntent.mjs'
+      - '.github/workflows/player-locomotion-animation-blend.yml'
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: exact-head ancestry
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          git merge-base --is-ancestor "$(git rev-parse origin/main)" HEAD
+      - name: focused proof
+        run: node --experimental-strip-types scripts/checkPlayerLocomotionAnimationBlendIntent.mjs
+      - name: syntax
+        run: node --check scripts/checkPlayerLocomotionAnimationBlendIntent.mjs
