@@ -33,9 +33,10 @@ const normalizeChain = (chain) => {
   const completedSteps = clampInt(chain?.completedSteps ?? chain?.progress?.completed, 0, totalSteps || 999999);
   const progress = totalSteps > 0 ? Math.min(1, completedSteps / totalSteps) : 0;
   const reward = normalizeReward(chain?.reward);
-  const readyToClaim = Boolean(chain?.readyToClaim ?? (totalSteps > 0 && completedSteps >= totalSteps));
+  const completionReady = totalSteps > 0 && completedSteps >= totalSteps;
+  const readyToClaim = !Boolean(chain?.locked) && completionReady && chain?.readyToClaim !== false;
   const locked = Boolean(chain?.locked);
-  return freeze({ id, service, reward, completedSteps, totalSteps, progress, readyToClaim: !locked && readyToClaim, locked });
+  return freeze({ id, service, reward, completedSteps, totalSteps, progress, readyToClaim, locked });
 };
 
 export function projectSettlementRewardPreview(input = {}) {
