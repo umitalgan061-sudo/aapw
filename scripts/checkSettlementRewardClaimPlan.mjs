@@ -4,7 +4,8 @@ import { isSettlementRewardClaimPlan, projectSettlementRewardClaimPlan } from '.
 const preview = { chains: [
   { id: 'tavern-chain', readyToClaim: true, locked: false, reward: { xp: 40, copper: 10, skillPoints: 1 } },
   { id: 'stable-chain', readyToClaim: true, locked: false, reward: { xp: 60, copper: 20, skillPoints: 2 } },
-  { id: 'locked-chain', readyToClaim: false, locked: true, reward: { xp: 999, copper: 999, skillPoints: 9 } },
+  { id: 'locked-chain', readyToClaim: true, locked: true, reward: { xp: 999, copper: 999, skillPoints: 9 } },
+  { id: 'blocked-chain', readyToClaim: false, locked: false, reward: { xp: 120, copper: 40, skillPoints: 4 } },
 ] };
 const first = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['stable-chain', 'tavern-chain'] });
 const second = projectSettlementRewardClaimPlan({ preview: { chains: [...preview.chains].reverse() }, requestedChainIds: ['tavern-chain', 'stable-chain', 'stable-chain'] });
@@ -36,15 +37,26 @@ assert.equal(duplicateReady.signature, duplicateBlockedFirst.signature);
 assert.equal(duplicateReady.canClaim, true);
 assert.deepEqual(duplicateReady.totals, { xp: 60, copper: 20, skillPoints: 2 });
 
-const blocked = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['locked-chain'] });
+const blocked = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['blocked-chain'] });
 assert.equal(blocked.canClaim, false);
 assert.equal(blocked.reason, 'not-claimable');
-assert.deepEqual(blocked.blockedChainIds, ['locked-chain']);
+assert.deepEqual(blocked.blockedChainIds, ['blocked-chain']);
+
+const locked = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['locked-chain'] });
+assert.equal(locked.canClaim, false);
+assert.equal(locked.reason, 'not-claimable');
+assert.deepEqual(locked.blockedChainIds, ['locked-chain']);
 
 const missing = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['missing-chain'] });
 assert.equal(missing.canClaim, false);
 assert.equal(missing.reason, 'missing-chain');
 assert.deepEqual(missing.missingChainIds, ['missing-chain']);
+
+const mixed = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['tavern-chain', 'blocked-chain'] });
+assert.equal(mixed.canClaim, false);
+assert.equal(mixed.reason, 'not-claimable');
+assert.deepEqual(mixed.claimableChainIds, ['tavern-chain']);
+assert.deepEqual(mixed.blockedChainIds, ['blocked-chain']);
 
 const empty = projectSettlementRewardClaimPlan({ preview, requestedChainIds: [] });
 assert.equal(empty.canClaim, false);
