@@ -1,0 +1,29 @@
+name: Kizil Ufuk Player Combat Reaction Intent
+on:
+  push:
+    branches: [agent/kizil-ufuk-combat-reaction-intent-20260924-r11]
+  pull_request:
+    paths:
+      - src/3d/gameplay/playerCombatReactionIntent.ts
+      - scripts/checkPlayerCombatReactionIntent.mjs
+      - .github/workflows/player-combat-reaction-intent.yml
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact main ancestry
+        shell: bash
+        run: |
+          git fetch origin main --quiet
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Syntax and focused proof
+        run: |
+          node --experimental-strip-types --check src/3d/gameplay/playerCombatReactionIntent.ts
+          node --check scripts/checkPlayerCombatReactionIntent.mjs
+          node --experimental-strip-types scripts/checkPlayerCombatReactionIntent.mjs
