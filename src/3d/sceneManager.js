@@ -14,3 +14,6 @@ export function createScene(canvas) {
   );
   return state;
 }
+
+// Preserve the historical default-export compatibility contract for legacy callers.
+export default createScene;
