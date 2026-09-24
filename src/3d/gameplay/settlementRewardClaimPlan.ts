@@ -103,15 +103,18 @@ export function isSettlementRewardClaimPlan(value) {
     Number.isInteger(value.totals.xp) && value.totals.xp >= 0 &&
     Number.isInteger(value.totals.copper) && value.totals.copper >= 0 &&
     Number.isInteger(value.totals.skillPoints) && value.totals.skillPoints >= 0;
+  const validClaimableIds = stringArray(value?.claimableChainIds);
+  const validMissingIds = stringArray(value?.missingChainIds);
+  const validBlockedIds = stringArray(value?.blockedChainIds);
   const invariant = value?.canClaim === (value?.reason === 'ready') &&
-    (value?.canClaim ? value.claimableChainIds.length > 0 && value.missingChainIds.length === 0 && value.blockedChainIds.length === 0 : true);
+    (value?.canClaim ? validClaimableIds && value.claimableChainIds.length > 0 && validMissingIds && value.missingChainIds.length === 0 && validBlockedIds && value.blockedChainIds.length === 0 : true);
   return Boolean(
     value && Object.isFrozen(value) &&
     value.version === SETTLEMENT_REWARD_CLAIM_PLAN_VERSION &&
     stringArray(value.requestedChainIds) &&
-    stringArray(value.claimableChainIds) &&
-    stringArray(value.missingChainIds) &&
-    stringArray(value.blockedChainIds) &&
+    validClaimableIds &&
+    validMissingIds &&
+    validBlockedIds &&
     stringArray(value.grantedPerks) &&
     validTotals &&
     typeof value.canClaim === 'boolean' &&
