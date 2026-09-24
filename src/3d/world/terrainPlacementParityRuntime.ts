@@ -54,6 +54,16 @@ function toSample(record: unknown): TerrainParitySample {
   };
 }
 
+function isFiniteSample(sample: TerrainParitySample): boolean {
+  return Boolean(
+    sample
+      && Number.isFinite(sample.x)
+      && Number.isFinite(sample.z)
+      && Number.isFinite(sample.renderedHeight)
+      && Number.isFinite(sample.colliderHeight),
+  );
+}
+
 export function collectPreparedPlacementParitySamples(
   prepared: PreparedPlacementObservation | null | undefined,
 ): readonly TerrainParitySample[] {
@@ -70,6 +80,12 @@ export function collectPreparedPlacementParitySamples(
       continue;
     }
     const sample = toSample(record);
+    if (!isFiniteSample(sample)) {
+      // Preserve malformed observations as explicit fail-closed samples instead of
+      // collapsing all NaN coordinates into one deduplication key.
+      malformed.push(null as unknown as TerrainParitySample);
+      continue;
+    }
     const key = `${sample.x}:${sample.z}`;
     // The first pipeline observation is the canonical surface sample. Later island or
     // overlapping footprint projections must never replace it with a non-canonical value.
