@@ -1,0 +1,124 @@
+export const SETTLEMENT_REWARD_CLAIM_PLAN_VERSION = 2;
+
+const finiteInt = (value, fallback = 0, max = 999999) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(0, Math.min(max, Math.trunc(number)));
+};
+
+const text = (value) => typeof value === 'string' && value.trim() ? value.trim() : '';
+const freeze = (value) => Object.freeze(value);
+const stableHash = (value) => {
+  let hash = 2166136261;
+  for (const char of String(value)) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+};
+
+const normalizeIdList = (value) => freeze([...new Set(Array.isArray(value) ? value.map(text).filter(Boolean) : [])].sort());
+const normalizePerks = (value) => freeze([...new Set(Array.isArray(value) ? value.map(text).filter(Boolean) : [])].sort());
+const canonicalChainKey = (chain) => JSON.stringify({
+  id: text(chain?.id),
+  readyToClaim: chain?.readyToClaim === true,
+  locked: chain?.locked === true,
+  reward: {
+    xp: finiteInt(chain?.reward?.xp),
+    copper: finiteInt(chain?.reward?.copper),
+    skillPoints: finiteInt(chain?.reward?.skillPoints, 0, 999),
+    perks: normalizePerks(chain?.reward?.perks),
+  },
+});
+
+const duplicatePreference = (chain) => [
+  chain?.readyToClaim === true ? 0 : 1,
+  chain?.locked === true ? 1 : 0,
+  canonicalChainKey(chain),
+];
+
+const compareDuplicatePreference = (left, right) => {
+  const a = duplicatePreference(left);
+  const b = duplicatePreference(right);
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] < b[index]) return -1;
+    if (a[index] > b[index]) return 1;
+  }
+  return 0;
+};
+
+const normalizeChains = (value) => {
+  const byId = new Map();
+  for (const chain of Array.isArray(value) ? value : []) {
+    const id = text(chain?.id);
+    if (!id) continue;
+    const candidate = { ...chain, id };
+    const previous = byId.get(id);
+    if (!previous || compareDuplicatePreference(candidate, previous) < 0) byId.set(id, candidate);
+  }
+  return byId;
+};
+
+const isSortedUnique = (items) => items.every((item, index) => index === 0 || items[index - 1] < item);
+const planSignature = (value) => stableHash(JSON.stringify({
+  version: SETTLEMENT_REWARD_CLAIM_PLAN_VERSION,
+  requestedIds: value.requestedChainIds,
+  claimableChainIds: value.claimableChainIds,
+  missingChainIds: value.missingChainIds,
+  blockedChainIds: value.blockedChainIds,
+  totals: value.totals,
+  grantedPerks: value.grantedPerks,
+  canClaim: value.canClaim,
+  reason: value.reason,
+}));
+
+export function projectSettlementRewardClaimPlan(input = {}) {
+  const preview = input.preview ?? {};
+  const requestedIds = normalizeIdList(input.requestedChainIds);
+  const available = normalizeChains(preview.chains);
+  const selected = requestedIds.map((id) => available.get(id)).filter(Boolean);
+  const missingChainIds = freeze(requestedIds.filter((id) => !available.has(id)));
+  const blockedChainIds = freeze(selected
+    .filter((chain) => chain.readyToClaim !== true || chain.locked === true)
+    .map((chain) => chain.id)
+    .sort());
+  const claimable = selected.filter((chain) => chain.readyToClaim === true && chain.locked !== true);
+  const claimableChainIds = freeze(claimable.map((chain) => chain.id).sort());
+  const totals = freeze(claimable.reduce((acc, chain) => ({
+    xp: acc.xp + finiteInt(chain.reward?.xp),
+    copper: acc.copper + finiteInt(chain.reward?.copper),
+    skillPoints: acc.skillPoints + finiteInt(chain.reward?.skillPoints, 0, 999),
+  }), { xp: 0, copper: 0, skillPoints: 0 }));
+  const grantedPerks = normalizePerks(claimable.flatMap((chain) => chain.reward?.perks));
+  const canClaim = claimable.length > 0 && missingChainIds.length === 0 && blockedChainIds.length === 0;
+  const reason = canClaim ? 'ready' : missingChainIds.length ? 'missing-chain' : blockedChainIds.length ? 'not-claimable' : 'empty-selection';
+  const signature = planSignature({ requestedChainIds: requestedIds, claimableChainIds, missingChainIds, blockedChainIds, totals, grantedPerks, canClaim, reason });
+  return freeze({ version: SETTLEMENT_REWARD_CLAIM_PLAN_VERSION, requestedChainIds: requestedIds, claimableChainIds, missingChainIds, blockedChainIds, totals, grantedPerks, canClaim, reason, signature });
+}
+
+export function isSettlementRewardClaimPlan(value) {
+  const stringArray = (items) => Array.isArray(items) && Object.isFrozen(items) && items.every((item) => typeof item === 'string') && isSortedUnique(items);
+  const validReason = ['ready', 'missing-chain', 'not-claimable', 'empty-selection'].includes(value?.reason);
+  const validTotals = value?.totals && Object.isFrozen(value.totals) &&
+    Number.isInteger(value.totals.xp) && value.totals.xp >= 0 &&
+    Number.isInteger(value.totals.copper) && value.totals.copper >= 0 &&
+    Number.isInteger(value.totals.skillPoints) && value.totals.skillPoints >= 0;
+  const validClaimableIds = stringArray(value?.claimableChainIds);
+  const validMissingIds = stringArray(value?.missingChainIds);
+  const validBlockedIds = stringArray(value?.blockedChainIds);
+  const invariant = value?.canClaim === (value?.reason === 'ready') &&
+    (value?.canClaim ? validClaimableIds && value.claimableChainIds.length > 0 && validMissingIds && value.missingChainIds.length === 0 && validBlockedIds && value.blockedChainIds.length === 0 : true);
+  return Boolean(
+    value && Object.isFrozen(value) &&
+    value.version === SETTLEMENT_REWARD_CLAIM_PLAN_VERSION &&
+    stringArray(value.requestedChainIds) &&
+    validClaimableIds &&
+    validMissingIds &&
+    validBlockedIds &&
+    stringArray(value.grantedPerks) &&
+    validTotals &&
+    typeof value.canClaim === 'boolean' &&
+    validReason && invariant &&
+    planSignature(value) === value.signature
+  );
+}
