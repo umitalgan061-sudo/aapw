@@ -1,0 +1,39 @@
+name: Player Combat Recovery Receipt
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatRecoveryReceipt.ts'
+      - 'scripts/checkPlayerCombatRecoveryReceipt.mjs'
+      - '.github/workflows/player-combat-recovery-receipt.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-combat-recovery-receipt-**'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact-main ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          BASE=$(git merge-base HEAD origin/main)
+          test -n "$BASE"
+          git diff --name-only "$BASE" HEAD | sort | tee /tmp/changed.txt
+          grep -Fx 'src/3d/gameplay/playerCombatRecoveryReceipt.ts' /tmp/changed.txt
+          grep -Fx 'scripts/checkPlayerCombatRecoveryReceipt.mjs' /tmp/changed.txt
+          grep -Fx '.github/workflows/player-combat-recovery-receipt.yml' /tmp/changed.txt
+          test "$(wc -l < /tmp/changed.txt)" -eq 3
+          test "$(git diff --numstat "$BASE" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - name: TypeScript syntax
+        run: node --experimental-strip-types --check src/3d/gameplay/playerCombatRecoveryReceipt.ts
+      - name: Focused deterministic proof
+        run: node --experimental-strip-types scripts/checkPlayerCombatRecoveryReceipt.mjs
