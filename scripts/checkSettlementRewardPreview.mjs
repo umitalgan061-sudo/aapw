@@ -24,4 +24,13 @@ assert.equal(Object.isFrozen(first), true);
 assert.equal(Object.isFrozen(first.chains[0]), true);
 assert.throws(() => { first.claimableChainIds.push('tamper'); }, TypeError);
 assert.equal(input.chains[0].completedSteps, 2);
+
+const declaredProgress = projectSettlementRewardPreview({
+  chains: [{ id: 'long-chain', service: 'farm', totalSteps: 10, completedSteps: 7, reward: { xp: 1 } }],
+});
+assert.equal(declaredProgress.chains[0].totalSteps, 10);
+assert.equal(declaredProgress.chains[0].completedSteps, 7);
+assert.equal(declaredProgress.chains[0].progress, 0.7);
+assert.equal(declaredProgress.claimableCount, 0);
+
 console.log('settlement reward preview proof passed');
