@@ -1,0 +1,25 @@
+name: Kizil Ufuk - player equipment integrity receipt
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentIntegrityReceipt.ts'
+      - 'scripts/checkPlayerEquipmentIntegrityReceipt.mjs'
+      - '.github/workflows/player-equipment-integrity-receipt.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact base ancestry
+        run: git merge-base --is-ancestor "$GITHUB_BASE_REF" "$GITHUB_SHA"
+      - name: TypeScript syntax
+        run: node --experimental-strip-types --check src/3d/gameplay/playerEquipmentIntegrityReceipt.ts
+      - name: Focused deterministic proof
+        run: node --experimental-strip-types scripts/checkPlayerEquipmentIntegrityReceipt.mjs
