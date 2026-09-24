@@ -126,8 +126,8 @@ export function assertPreparedWorldPlacementParity(
   policy: TerrainParityPolicy = {},
 ): TerrainParityResult {
   const samples = collectPreparedPlacementParitySamples(prepared);
-  return assertTerrainPlacementParity(
+  return withMalformedPreparedPlacementFailure(
     samples,
-    policy,
+    assertTerrainPlacementParity(samples, policy),
   );
 }
