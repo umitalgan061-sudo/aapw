@@ -45,6 +45,19 @@ assert.deepEqual(colliderOnlyGradeFailure.failures, [
 ]);
 assert.equal(colliderOnlyGradeFailure.maxFootprintRangeMeters, 1.5);
 
+const mixedFailureOrder = evaluateTerrainPlacementParity([
+  { x: 0, z: 0, renderedHeight: 0, colliderHeight: 2 },
+  { x: Number.NaN, z: 0, renderedHeight: 10, colliderHeight: 10 },
+  null,
+  { x: 1, z: 0, renderedHeight: 2, colliderHeight: 2 },
+]);
+assert.deepEqual(mixedFailureOrder.failures, [
+  'invalid-sample',
+  'invalid-coordinate',
+  'terrain-collider-parity',
+  'unsafe-footprint-grade',
+]);
+
 const malformed = evaluateTerrainPlacementParity([
   { x: 0, z: 0, renderedHeight: Number.NaN, colliderHeight: 1 },
 ]);
