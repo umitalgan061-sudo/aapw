@@ -6,8 +6,10 @@ on:
       - 'src/3d/world/terrainPlacementParity.ts'
       - 'src/3d/world/terrainPlacementParityBridge.ts'
       - 'src/3d/world/terrainPlacementParityRuntime.ts'
+      - 'src/3d/world/terrainPlacementParityConsumer.ts'
       - 'scripts/checkTerrainPlacementParity.mjs'
       - 'scripts/checkTerrainPlacementParityRuntime.mjs'
+      - 'scripts/checkTerrainPlacementParityConsumer.mjs'
       - '.github/workflows/buzul-terrain-placement-parity.yml'
   push:
     branches:
@@ -25,3 +27,5 @@ jobs:
         run: node --experimental-strip-types scripts/checkTerrainPlacementParity.mjs
       - name: Run prepared placement parity proof
         run: node --experimental-strip-types scripts/checkTerrainPlacementParityRuntime.mjs
+      - name: Run fail-closed placement consumer proof
+        run: node --experimental-strip-types scripts/checkTerrainPlacementParityConsumer.mjs
