@@ -54,4 +54,36 @@ assert.throws(
   /Prepared world placement rejected: malformed-sample/,
 );
 
+const malformedCoordinate = {
+  surface: { x: 0, z: 0, height: 10 },
+  footprint: {
+    samples: [
+      { x: Number.NaN, z: 0, renderedHeight: 10, colliderHeight: 10 },
+    ],
+  },
+};
+const malformedCoordinateDecision = evaluatePreparedPlacementForAttach(malformedCoordinate);
+assert.equal(malformedCoordinateDecision.ok, false);
+assert.deepEqual(malformedCoordinateDecision.failures, ['malformed-sample']);
+assert.throws(
+  () => assertPreparedPlacementForAttach(malformedCoordinate),
+  /Prepared world placement rejected: malformed-sample/,
+);
+
+const malformedSurface = {
+  surface: { x: Number.POSITIVE_INFINITY, z: 0, height: 10 },
+  footprint: {
+    samples: [
+      { x: 0, z: 0, renderedHeight: 10, colliderHeight: 10.1 },
+    ],
+  },
+};
+const malformedSurfaceDecision = evaluatePreparedPlacementForAttach(malformedSurface);
+assert.equal(malformedSurfaceDecision.ok, false);
+assert.deepEqual(malformedSurfaceDecision.failures, ['malformed-surface']);
+assert.throws(
+  () => assertPreparedPlacementForAttach(malformedSurface),
+  /Prepared world placement rejected: malformed-surface/,
+);
+
 console.log('Terrain placement parity consumer PASS');
