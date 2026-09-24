@@ -35,6 +35,15 @@ const DEFAULT_POLICY: Required<TerrainParityPolicy> = Object.freeze({
   requireFinite: true,
 });
 
+const FAILURE_ORDER = Object.freeze([
+  'invalid-sample',
+  'invalid-coordinate',
+  'non-finite-sample',
+  'missing-samples',
+  'terrain-collider-parity',
+  'unsafe-footprint-grade',
+]);
+
 function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
@@ -52,6 +61,11 @@ function normalizePolicy(policy: TerrainParityPolicy = {}): Required<TerrainPari
   }
 
   return Object.freeze({ maxHeightDeltaMeters, maxFootprintRangeMeters, requireFinite });
+}
+
+function orderFailures(failures: readonly string[]): readonly string[] {
+  const present = new Set(failures);
+  return Object.freeze(FAILURE_ORDER.filter((failure) => present.has(failure)));
 }
 
 export function evaluateTerrainPlacementParity(
@@ -112,12 +126,13 @@ export function evaluateTerrainPlacementParity(
     failures.push('unsafe-footprint-grade');
   }
 
+  const orderedFailures = orderFailures(failures);
   return Object.freeze({
-    ok: failures.length === 0,
+    ok: orderedFailures.length === 0,
     maxHeightDeltaMeters,
     maxFootprintRangeMeters,
     sampleCount: Array.isArray(samples) ? samples.length : 0,
-    failures: Object.freeze([...new Set(failures)]),
+    failures: orderedFailures,
   });
 }
 
