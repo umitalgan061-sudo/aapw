@@ -1,0 +1,25 @@
+name: Player Combat Stance Intent
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatStanceIntent.ts'
+      - 'src/3d/gameplay/playerEquipmentCombatRules.ts'
+      - 'scripts/checkPlayerCombatStanceIntent.mjs'
+      - '.github/workflows/player-combat-stance-intent.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-combat-stance-intent-20260924-r11'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact-head proof
+        run: node --experimental-strip-types scripts/checkPlayerCombatStanceIntent.mjs
+      - name: Syntax check
+        run: node --check scripts/checkPlayerCombatStanceIntent.mjs
