@@ -33,4 +33,16 @@ assert.equal(declaredProgress.chains[0].completedSteps, 7);
 assert.equal(declaredProgress.chains[0].progress, 0.7);
 assert.equal(declaredProgress.claimableCount, 0);
 
+const prematureClaim = projectSettlementRewardPreview({
+  chains: [{ id: 'premature-chain', service: 'market', totalSteps: 3, completedSteps: 1, readyToClaim: true, reward: { xp: 5 } }],
+});
+assert.equal(prematureClaim.claimableCount, 0);
+assert.equal(prematureClaim.chains[0].readyToClaim, false);
+
+const explicitCompletionBlock = projectSettlementRewardPreview({
+  chains: [{ id: 'blocked-claim-chain', service: 'blacksmith', totalSteps: 2, completedSteps: 2, readyToClaim: false, reward: { xp: 7 } }],
+});
+assert.equal(explicitCompletionBlock.claimableCount, 0);
+assert.equal(explicitCompletionBlock.chains[0].readyToClaim, false);
+
 console.log('settlement reward preview proof passed');
