@@ -59,7 +59,10 @@ export function projectSettlementRewardClaimPlan(input = {}) {
   const available = normalizeChains(preview.chains);
   const selected = requestedIds.map((id) => available.get(id)).filter(Boolean);
   const missingChainIds = freeze(requestedIds.filter((id) => !available.has(id)));
-  const blockedChainIds = freeze(selected.filter((chain) => chain.readyToClaim !== true).map((chain) => chain.id).sort());
+  const blockedChainIds = freeze(selected
+    .filter((chain) => chain.readyToClaim !== true || chain.locked === true)
+    .map((chain) => chain.id)
+    .sort());
   const claimable = selected.filter((chain) => chain.readyToClaim === true && chain.locked !== true);
   const claimableChainIds = freeze(claimable.map((chain) => chain.id).sort());
   const totals = freeze(claimable.reduce((acc, chain) => ({
