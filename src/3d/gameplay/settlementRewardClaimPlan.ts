@@ -29,6 +29,22 @@ const canonicalChainKey = (chain) => JSON.stringify({
   },
 });
 
+const duplicatePreference = (chain) => [
+  chain?.readyToClaim === true ? 0 : 1,
+  chain?.locked === true ? 1 : 0,
+  canonicalChainKey(chain),
+];
+
+const compareDuplicatePreference = (left, right) => {
+  const a = duplicatePreference(left);
+  const b = duplicatePreference(right);
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] < b[index]) return -1;
+    if (a[index] > b[index]) return 1;
+  }
+  return 0;
+};
+
 const normalizeChains = (value) => {
   const byId = new Map();
   for (const chain of Array.isArray(value) ? value : []) {
@@ -36,7 +52,7 @@ const normalizeChains = (value) => {
     if (!id) continue;
     const candidate = { ...chain, id };
     const previous = byId.get(id);
-    if (!previous || canonicalChainKey(candidate) < canonicalChainKey(previous)) byId.set(id, candidate);
+    if (!previous || compareDuplicatePreference(candidate, previous) < 0) byId.set(id, candidate);
   }
   return byId;
 };
