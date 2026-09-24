@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.21.0
-      - run: node scripts/checkPhotorealismSceneTuning.mjs
+      - run: node --experimental-strip-types scripts/checkPhotorealismSceneTuning.mjs
       - run: node --experimental-strip-types --check src/3d/world/photorealismSceneTuning.ts
       - run: node --check src/3d/sceneManager.js
       - name: Verify exact checkout
