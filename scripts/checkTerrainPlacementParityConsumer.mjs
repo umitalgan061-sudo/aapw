@@ -42,11 +42,16 @@ assert.throws(
   /Prepared world placement rejected: terrain-collider-parity,unsafe-footprint-grade/,
 );
 
-const malformed = evaluatePreparedPlacementForAttach({
+const malformed = {
   surface: { x: 0, z: 0, height: 10 },
   footprint: { samples: [null] },
-});
-assert.equal(malformed.ok, false);
-assert.deepEqual(malformed.failures, ['malformed-sample']);
+};
+const malformedDecision = evaluatePreparedPlacementForAttach(malformed);
+assert.equal(malformedDecision.ok, false);
+assert.deepEqual(malformedDecision.failures, ['malformed-sample']);
+assert.throws(
+  () => assertPreparedPlacementForAttach(malformed),
+  /Prepared world placement rejected: malformed-sample/,
+);
 
 console.log('Terrain placement parity consumer PASS');
