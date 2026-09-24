@@ -42,4 +42,24 @@ assert.throws(
   /terrain-collider-parity/,
 );
 
+const nonFinite = collectPreparedPlacementParitySamples({
+  footprint: {
+    samples: [
+      { x: Number.NaN, z: 0, renderedHeight: 10, colliderHeight: 10 },
+      { x: 0, z: 0, renderedHeight: 10, colliderHeight: 10 },
+      { x: 0, z: 0, renderedHeight: Number.POSITIVE_INFINITY, colliderHeight: 10 },
+    ],
+  },
+});
+assert.equal(nonFinite.length, 3);
+assert.equal(nonFinite.filter((sample) => sample === null).length, 2);
+assert.deepEqual(nonFinite[2], { x: 0, z: 0, renderedHeight: 10, colliderHeight: 10 });
+const nonFiniteDecision = evaluatePreparedWorldPlacementParity({
+  footprint: {
+    samples: [{ x: Number.NaN, z: 0, renderedHeight: 10, colliderHeight: 10 }],
+  },
+});
+assert.equal(nonFiniteDecision.ok, false);
+assert.ok(nonFiniteDecision.failures.includes('malformed-sample'));
+
 console.log('Terrain placement parity runtime adapter PASS');
