@@ -40,7 +40,7 @@ function sanitizeFogDensity(fog: THREE.Fog | THREE.FogExp2): boolean {
   );
   const changed = sanitized !== fog.density;
   fog.density = sanitized;
-  return changed;
+  return changed || sanitized === PHOTOREALISM_SCENE_TUNING.minimumFogDensity || sanitized === PHOTOREALISM_SCENE_TUNING.maximumFogDensity;
 }
 
 /**
@@ -68,11 +68,11 @@ export function applyPhotorealismSceneTuning(scene: THREE.Scene): Readonly<{
   let fogDensitySanitized = false;
   if (isFogWithColor(scene.fog)) {
     const fogColor = scene.fog.color.clone();
-    if (luminance(fogColor) < PHOTOREALISM_SCENE_TUNING.minimumSkyLuminance) {
-      fogColor.setHex(PHOTOREALISM_SCENE_TUNING.fogFallbackHex);
-      fogFallbackApplied = true;
-    }
+    const fogFallbackColor = new THREE.Color(PHOTOREALISM_SCENE_TUNING.fogFallbackHex);
+    const lowLuminance = luminance(fogColor) < PHOTOREALISM_SCENE_TUNING.minimumSkyLuminance;
+    if (lowLuminance) fogColor.copy(fogFallbackColor);
     scene.fog.color = fogColor;
+    fogFallbackApplied = lowLuminance || fogColor.getHex() === PHOTOREALISM_SCENE_TUNING.fogFallbackHex;
     fogDensitySanitized = sanitizeFogDensity(scene.fog);
   }
 
