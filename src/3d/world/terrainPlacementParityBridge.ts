@@ -24,15 +24,17 @@ type SurfaceRecord = Readonly<{
 }>;
 
 type FootprintRecord = Readonly<{
-  samples?: readonly SurfaceRecord[];
+  samples?: readonly (SurfaceRecord | null | undefined | unknown)[];
 }>;
 
-function toParitySample(record: SurfaceRecord): TerrainParitySample {
+function toParitySample(record: unknown): TerrainParitySample | null {
+  if (!record || typeof record !== 'object') return null;
+  const source = record as SurfaceRecord;
   return {
-    x: Number(record.x),
-    z: Number(record.z),
-    renderedHeight: Number(record.renderedHeight ?? record.height),
-    colliderHeight: Number(record.colliderHeight ?? record.height),
+    x: Number(source.x),
+    z: Number(source.z),
+    renderedHeight: Number(source.renderedHeight ?? source.height),
+    colliderHeight: Number(source.colliderHeight ?? source.height),
   };
 }
 
@@ -40,14 +42,26 @@ export function collectTerrainParitySamples(
   surface: SurfaceRecord | null | undefined,
   footprint: FootprintRecord | null | undefined,
 ): readonly TerrainParitySample[] {
-  const records = [
+  const records: unknown[] = [
     ...(footprint?.samples ?? []),
     ...(surface ? [surface] : []),
   ];
 
   const deduped = new Map<string, TerrainParitySample>();
+  const malformed: TerrainParitySample[] = [];
   for (const record of records) {
     const sample = toParitySample(record);
+    if (!sample) {
+      malformed.push(null as unknown as TerrainParitySample);
+      continue;
+    }
+
+    if (!Number.isFinite(sample.x) || !Number.isFinite(sample.z)
+      || !Number.isFinite(sample.renderedHeight) || !Number.isFinite(sample.colliderHeight)) {
+      malformed.push(null as unknown as TerrainParitySample);
+      continue;
+    }
+
     const key = `${sample.x}:${sample.z}`;
     // The first observation at a world coordinate is the canonical one for
     // this preparation pass. Later duplicates may come from an overlapping
@@ -58,7 +72,7 @@ export function collectTerrainParitySamples(
     }
   }
 
-  return Object.freeze([...deduped.values()]);
+  return Object.freeze([...malformed, ...deduped.values()]);
 }
 
 export function evaluatePreparedPlacementParity(
