@@ -21,7 +21,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: true
+          # Governance must be able to run when the repository-wide LFS budget is exhausted.
+          # The gate validates pointer integrity below without forcing a full object download.
+          lfs: false
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
@@ -34,7 +36,7 @@ jobs:
           git fetch origin main
           BASE_SHA="$(git rev-parse origin/main)"
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
-          git lfs fsck
+          git lfs fsck --pointers
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
