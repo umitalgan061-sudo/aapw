@@ -47,10 +47,10 @@ function sanitizeFogDensity(fog: THREE.Fog | THREE.FogExp2): boolean {
  * Applies only the render-owned scene backdrop guardrails. This is deliberately idempotent and
  * does not mutate any terrain, water mesh, collider, material recipe or placement manifest.
  *
- * The background is cloned before tuning so a shared Color instance owned by another renderer
- * or scene cannot be mutated as a side effect of this compatibility boundary. Initial fog density
- * is clamped only for the FogExp2 bootstrap object; the authoritative day/night fog updater remains
- * responsible for per-frame atmospheric evolution after scene creation.
+ * The background and fog colors are cloned before tuning so shared Color instances owned by another
+ * renderer or scene cannot be mutated as a side effect of this compatibility boundary. Initial fog
+ * density is clamped only for the FogExp2 bootstrap object; the authoritative day/night fog updater
+ * remains responsible for per-frame atmospheric evolution after scene creation.
  */
 export function applyPhotorealismSceneTuning(scene: THREE.Scene): Readonly<{
   backgroundHex: number;
@@ -72,7 +72,7 @@ export function applyPhotorealismSceneTuning(scene: THREE.Scene): Readonly<{
       fogColor.setHex(PHOTOREALISM_SCENE_TUNING.fogFallbackHex);
       fogFallbackApplied = true;
     }
-    scene.fog.color.copy(fogColor);
+    scene.fog.color = fogColor;
     fogDensitySanitized = sanitizeFogDensity(scene.fog);
   }
 
