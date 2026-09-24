@@ -24,6 +24,15 @@ const reordered = projectSettlementServiceRoute({
 });
 assert.deepEqual(reordered, ready);
 
+const routeInputsMatter = projectSettlementServiceRoute({
+  serviceId: 'blacksmith',
+  stage: 'inside',
+  availableActions: ['craft', 'talk', 'trade'],
+  requestedAction: 'craft',
+});
+assert.notEqual(routeInputsMatter.routeKey, ready.routeKey);
+assert.equal(isSettlementServiceRoute(routeInputsMatter), true);
+
 const blocked = projectSettlementServiceRoute({
   serviceId: 'tavern',
   stage: 'service',
