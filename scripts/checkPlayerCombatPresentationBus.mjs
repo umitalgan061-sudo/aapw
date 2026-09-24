@@ -1,13 +1,10 @@
 import assert from 'node:assert/strict';
-import { EventTarget, CustomEvent } from 'node:events';
 import {
   createPlayerCombatPresentationBus,
   isPlayerCombatPresentationSnapshot,
   ATTACK_WINDOW_EVENT,
   COMBAT_FEEDBACK_EVENT,
 } from '../src/3d/gameplay/playerCombatPresentationBus.ts';
-
-globalThis.CustomEvent ??= CustomEvent;
 
 const target = new EventTarget();
 const bus = createPlayerCombatPresentationBus({ target, maxHistory: 2 });
