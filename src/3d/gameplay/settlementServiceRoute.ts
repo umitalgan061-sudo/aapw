@@ -32,6 +32,16 @@ const normalizeCondition = (condition) => {
   return freeze({ passed, key });
 };
 
+const createRouteKey = ({ serviceId, stage, requestedAction, availableActions, nextAction, reason, conditionKey }) => stableHash([
+  serviceId || 'unknown',
+  stage,
+  requestedAction,
+  availableActions.join(','),
+  nextAction,
+  reason,
+  conditionKey,
+].join('|'));
+
 export function projectSettlementServiceRoute(input = {}) {
   const serviceId = normalizeId(input.serviceId ?? input.activeServiceId);
   const stage = ROUTE_STAGES.has(normalizeId(input.stage)) ? normalizeId(input.stage) : 'approach';
@@ -53,7 +63,7 @@ export function projectSettlementServiceRoute(input = {}) {
   const nextAction = reason === 'ready'
     ? (requestedAction || availableActions[0] || 'interact')
     : (stage === 'approach' ? 'enter' : stage === 'departure' ? 'exit' : 'talk');
-  const routeKey = stableHash([serviceId || 'unknown', stage, nextAction, reason, condition.key].join('|'));
+  const routeKey = createRouteKey({ serviceId, stage, requestedAction, availableActions, nextAction, reason, conditionKey: condition.key });
 
   return freeze({
     version: 1,
@@ -85,7 +95,7 @@ export function isSettlementServiceRoute(value) {
   if (value.serviceKnown !== true || value.actionKnown !== (value.requestedAction === '' || ACTIONS.has(value.requestedAction))) return false;
   if (typeof value.nextAction !== 'string' || !ACTIONS.has(value.nextAction)) return false;
   if (value.blocked !== (value.reason !== 'ready')) return false;
-  return value.routeKey === stableHash([value.serviceId, value.stage, value.nextAction, value.reason, value.condition.key].join('|'));
+  return value.routeKey === createRouteKey(value);
 }
 
 export const SETTLEMENT_SERVICE_ROUTE_LIMITS = freeze({ maxActions: 16, maxIdLength: 48, maxConditionKeyLength: 48 });
