@@ -1,0 +1,26 @@
+name: player-vitals-combat-frame
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerVitalsCombatFrame.ts'
+      - 'scripts/checkPlayerVitalsCombatFrame.mjs'
+      - '.github/workflows/player-vitals-combat-frame.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify PR ancestry
+        run: git merge-base --is-ancestor "${{ github.event.repository.default_branch }}" HEAD
+      - name: Verify scope budget
+        run: |
+          test "$(git diff --numstat "${{ github.event.pull_request.base.sha }}" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - name: Run deterministic proof
+        run: node --experimental-strip-types scripts/checkPlayerVitalsCombatFrame.mjs
