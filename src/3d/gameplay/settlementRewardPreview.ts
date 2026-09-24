@@ -39,6 +39,27 @@ const normalizeChain = (chain) => {
   return freeze({ id, service, reward, completedSteps, totalSteps, progress, readyToClaim, locked });
 };
 
+const isFrozenReward = (reward) => Boolean(
+  reward &&
+  Object.isFrozen(reward) &&
+  Number.isInteger(reward.xp) && reward.xp >= 0 &&
+  Number.isInteger(reward.copper) && reward.copper >= 0 &&
+  Number.isInteger(reward.skillPoints) && reward.skillPoints >= 0 &&
+  typeof reward.perk === 'string' && typeof reward.skill === 'string',
+);
+
+const isFrozenChain = (chain) => Boolean(
+  chain &&
+  Object.isFrozen(chain) &&
+  typeof chain.id === 'string' && chain.id.length > 0 &&
+  typeof chain.service === 'string' &&
+  isFrozenReward(chain.reward) &&
+  Number.isInteger(chain.completedSteps) && chain.completedSteps >= 0 &&
+  Number.isInteger(chain.totalSteps) && chain.totalSteps >= 0 &&
+  typeof chain.progress === 'number' && Number.isFinite(chain.progress) && chain.progress >= 0 && chain.progress <= 1 &&
+  typeof chain.readyToClaim === 'boolean' && typeof chain.locked === 'boolean',
+);
+
 export function projectSettlementRewardPreview(input = {}) {
   const normalized = (Array.isArray(input.chains) ? input.chains : [])
     .map(normalizeChain)
@@ -69,5 +90,22 @@ export function projectSettlementRewardPreview(input = {}) {
 }
 
 export function isSettlementRewardPreview(value) {
-  return Boolean(value && value.version === SETTLEMENT_REWARD_PREVIEW_VERSION && Array.isArray(value.chains) && Array.isArray(value.claimableChainIds) && typeof value.signature === 'string' && Object.isFrozen(value));
+  return Boolean(
+    value &&
+    value.version === SETTLEMENT_REWARD_PREVIEW_VERSION &&
+    Array.isArray(value.chains) &&
+    Object.isFrozen(value.chains) &&
+    value.chains.every(isFrozenChain) &&
+    Array.isArray(value.claimableChainIds) &&
+    Object.isFrozen(value.claimableChainIds) &&
+    value.claimableChainIds.every((id) => typeof id === 'string' && id.length > 0) &&
+    value.chains.filter((chain) => chain.readyToClaim).map((chain) => chain.id).join('|') === value.claimableChainIds.join('|') &&
+    value.totals && Object.isFrozen(value.totals) &&
+    Number.isInteger(value.totals.xp) && value.totals.xp >= 0 &&
+    Number.isInteger(value.totals.copper) && value.totals.copper >= 0 &&
+    Number.isInteger(value.totals.skillPoints) && value.totals.skillPoints >= 0 &&
+    value.claimableCount === value.claimableChainIds.length &&
+    typeof value.signature === 'string' &&
+    Object.isFrozen(value),
+  );
 }
