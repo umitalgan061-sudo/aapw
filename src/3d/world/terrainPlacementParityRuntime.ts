@@ -94,13 +94,30 @@ export function collectPreparedPlacementParitySamples(
   return Object.freeze([...malformed, ...deduped.values()]);
 }
 
+function withMalformedPreparedPlacementFailure(
+  samples: readonly TerrainParitySample[],
+  result: TerrainParityResult,
+): TerrainParityResult {
+  const malformedCount = samples.filter((sample) => sample === null).length;
+  if (malformedCount === 0) return result;
+
+  const failures = result.failures.filter((failure) => failure !== 'invalid-sample');
+  failures.unshift('malformed-sample');
+  return Object.freeze({
+    ...result,
+    ok: false,
+    failures: Object.freeze([...new Set(failures)]),
+  });
+}
+
 export function evaluatePreparedWorldPlacementParity(
   prepared: PreparedPlacementObservation | null | undefined,
   policy: TerrainParityPolicy = {},
 ): TerrainParityResult {
-  return evaluateTerrainPlacementParity(
-    collectPreparedPlacementParitySamples(prepared),
-    policy,
+  const samples = collectPreparedPlacementParitySamples(prepared);
+  return withMalformedPreparedPlacementFailure(
+    samples,
+    evaluateTerrainPlacementParity(samples, policy),
   );
 }
 
@@ -108,8 +125,9 @@ export function assertPreparedWorldPlacementParity(
   prepared: PreparedPlacementObservation | null | undefined,
   policy: TerrainParityPolicy = {},
 ): TerrainParityResult {
+  const samples = collectPreparedPlacementParitySamples(prepared);
   return assertTerrainPlacementParity(
-    collectPreparedPlacementParitySamples(prepared),
+    samples,
     policy,
   );
 }
