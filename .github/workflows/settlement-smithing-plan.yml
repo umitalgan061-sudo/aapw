@@ -1,0 +1,23 @@
+name: settlement smithing plan
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementSmithingPlan.ts'
+      - 'scripts/checkSettlementSmithingPlan.mjs'
+      - '.github/workflows/settlement-smithing-plan.yml'
+  push:
+    branches:
+      - 'agent/gunbatimi-settlement-smithing-plan-r21-20260924'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --experimental-strip-types scripts/checkSettlementSmithingPlan.mjs
+      - run: node --check scripts/checkSettlementSmithingPlan.mjs
+      - run: node --check src/3d/gameplay/settlementSmithingPlan.ts
