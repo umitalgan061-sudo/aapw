@@ -21,9 +21,15 @@ assert.equal(first.chains.length, 3);
 assert.equal(first.signature, second.signature);
 assert.equal(isSettlementRewardPreview(first), true);
 assert.equal(Object.isFrozen(first), true);
+assert.equal(Object.isFrozen(first.chains), true);
 assert.equal(Object.isFrozen(first.chains[0]), true);
+assert.equal(Object.isFrozen(first.chains[0].reward), true);
+assert.equal(Object.isFrozen(first.totals), true);
 assert.throws(() => { first.claimableChainIds.push('tamper'); }, TypeError);
 assert.equal(input.chains[0].completedSteps, 2);
+
+const tampered = { ...first, chains: [...first.chains, { ...first.chains[0] }] };
+assert.equal(isSettlementRewardPreview(tampered), false);
 
 const declaredProgress = projectSettlementRewardPreview({
   chains: [{ id: 'long-chain', service: 'farm', totalSteps: 10, completedSteps: 7, reward: { xp: 1 } }],
