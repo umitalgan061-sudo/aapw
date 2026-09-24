@@ -50,6 +50,10 @@ const empty = projectSettlementRewardClaimPlan({ preview, requestedChainIds: [] 
 assert.equal(empty.canClaim, false);
 assert.equal(empty.reason, 'empty-selection');
 
+const inconsistentReady = { ...first, canClaim: false };
+assert.equal(isSettlementRewardClaimPlan(inconsistentReady), false);
 const tampered = { ...first, totals: { ...first.totals } };
 assert.equal(isSettlementRewardClaimPlan(tampered), false);
+const reordered = { ...first, claimableChainIds: Object.freeze(['tavern-chain', 'stable-chain']) };
+assert.equal(isSettlementRewardClaimPlan(reordered), false);
 console.log('settlement reward claim plan proof passed');

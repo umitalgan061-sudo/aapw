@@ -41,6 +41,18 @@ const normalizeChains = (value) => {
   return byId;
 };
 
+const isSortedUnique = (items) => items.every((item, index) => index === 0 || items[index - 1] < item);
+const planSignature = (value) => stableHash(JSON.stringify({
+  version: SETTLEMENT_REWARD_CLAIM_PLAN_VERSION,
+  requestedIds: value.requestedChainIds,
+  claimableChainIds: value.claimableChainIds,
+  missingChainIds: value.missingChainIds,
+  blockedChainIds: value.blockedChainIds,
+  totals: value.totals,
+  canClaim: value.canClaim,
+  reason: value.reason,
+}));
+
 export function projectSettlementRewardClaimPlan(input = {}) {
   const preview = input.preview ?? {};
   const requestedIds = normalizeIdList(input.requestedChainIds);
@@ -57,12 +69,19 @@ export function projectSettlementRewardClaimPlan(input = {}) {
   }), { xp: 0, copper: 0, skillPoints: 0 }));
   const canClaim = claimable.length > 0 && missingChainIds.length === 0 && blockedChainIds.length === 0;
   const reason = canClaim ? 'ready' : missingChainIds.length ? 'missing-chain' : blockedChainIds.length ? 'not-claimable' : 'empty-selection';
-  const signature = stableHash(JSON.stringify({ version: SETTLEMENT_REWARD_CLAIM_PLAN_VERSION, requestedIds, claimableChainIds, missingChainIds, blockedChainIds, totals, canClaim, reason }));
+  const signature = planSignature({ requestedChainIds: requestedIds, claimableChainIds, missingChainIds, blockedChainIds, totals, canClaim, reason });
   return freeze({ version: SETTLEMENT_REWARD_CLAIM_PLAN_VERSION, requestedChainIds: requestedIds, claimableChainIds, missingChainIds, blockedChainIds, totals, canClaim, reason, signature });
 }
 
 export function isSettlementRewardClaimPlan(value) {
-  const stringArray = (items) => Array.isArray(items) && Object.isFrozen(items) && items.every((item) => typeof item === 'string');
+  const stringArray = (items) => Array.isArray(items) && Object.isFrozen(items) && items.every((item) => typeof item === 'string') && isSortedUnique(items);
+  const validReason = ['ready', 'missing-chain', 'not-claimable', 'empty-selection'].includes(value?.reason);
+  const validTotals = value?.totals && Object.isFrozen(value.totals) &&
+    Number.isInteger(value.totals.xp) && value.totals.xp >= 0 &&
+    Number.isInteger(value.totals.copper) && value.totals.copper >= 0 &&
+    Number.isInteger(value.totals.skillPoints) && value.totals.skillPoints >= 0;
+  const invariant = value?.canClaim === (value?.reason === 'ready') &&
+    (value?.canClaim ? value.claimableChainIds.length > 0 && value.missingChainIds.length === 0 && value.blockedChainIds.length === 0 : true);
   return Boolean(
     value && Object.isFrozen(value) &&
     value.version === SETTLEMENT_REWARD_CLAIM_PLAN_VERSION &&
@@ -70,10 +89,9 @@ export function isSettlementRewardClaimPlan(value) {
     stringArray(value.claimableChainIds) &&
     stringArray(value.missingChainIds) &&
     stringArray(value.blockedChainIds) &&
-    value.totals && Object.isFrozen(value.totals) &&
-    Number.isInteger(value.totals.xp) && Number.isInteger(value.totals.copper) && Number.isInteger(value.totals.skillPoints) &&
+    validTotals &&
     typeof value.canClaim === 'boolean' &&
-    ['ready', 'missing-chain', 'not-claimable', 'empty-selection'].includes(value.reason) &&
-    /^[0-9a-f]{8}$/.test(value.signature)
+    validReason && invariant &&
+    planSignature(value) === value.signature
   );
 }
