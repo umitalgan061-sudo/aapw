@@ -1,0 +1,36 @@
+name: Buzul Photorealism Scene Tuning
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/sceneManager.js'
+      - 'src/3d/world/photorealismSceneTuning.ts'
+      - 'scripts/checkPhotorealismSceneTuning.mjs'
+      - '.github/workflows/buzul-photorealism-scene-tuning.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buzul-photorealism-scene-tuning-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: node scripts/checkPhotorealismSceneTuning.mjs
+      - run: node --experimental-strip-types --check src/3d/world/photorealismSceneTuning.ts
+      - run: node --check src/3d/sceneManager.js
+      - name: Verify exact checkout
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
