@@ -1,4 +1,4 @@
-export const SETTLEMENT_REWARD_CLAIM_PLAN_VERSION = 1;
+export const SETTLEMENT_REWARD_CLAIM_PLAN_VERSION = 2;
 
 const finiteInt = (value, fallback = 0, max = 999999) => {
   const number = Number(value);
@@ -18,6 +18,7 @@ const stableHash = (value) => {
 };
 
 const normalizeIdList = (value) => freeze([...new Set(Array.isArray(value) ? value.map(text).filter(Boolean) : [])].sort());
+const normalizePerks = (value) => freeze([...new Set(Array.isArray(value) ? value.map(text).filter(Boolean) : [])].sort());
 const canonicalChainKey = (chain) => JSON.stringify({
   id: text(chain?.id),
   readyToClaim: chain?.readyToClaim === true,
@@ -26,6 +27,7 @@ const canonicalChainKey = (chain) => JSON.stringify({
     xp: finiteInt(chain?.reward?.xp),
     copper: finiteInt(chain?.reward?.copper),
     skillPoints: finiteInt(chain?.reward?.skillPoints, 0, 999),
+    perks: normalizePerks(chain?.reward?.perks),
   },
 });
 
@@ -65,6 +67,7 @@ const planSignature = (value) => stableHash(JSON.stringify({
   missingChainIds: value.missingChainIds,
   blockedChainIds: value.blockedChainIds,
   totals: value.totals,
+  grantedPerks: value.grantedPerks,
   canClaim: value.canClaim,
   reason: value.reason,
 }));
@@ -86,10 +89,11 @@ export function projectSettlementRewardClaimPlan(input = {}) {
     copper: acc.copper + finiteInt(chain.reward?.copper),
     skillPoints: acc.skillPoints + finiteInt(chain.reward?.skillPoints, 0, 999),
   }), { xp: 0, copper: 0, skillPoints: 0 }));
+  const grantedPerks = normalizePerks(claimable.flatMap((chain) => chain.reward?.perks));
   const canClaim = claimable.length > 0 && missingChainIds.length === 0 && blockedChainIds.length === 0;
   const reason = canClaim ? 'ready' : missingChainIds.length ? 'missing-chain' : blockedChainIds.length ? 'not-claimable' : 'empty-selection';
-  const signature = planSignature({ requestedChainIds: requestedIds, claimableChainIds, missingChainIds, blockedChainIds, totals, canClaim, reason });
-  return freeze({ version: SETTLEMENT_REWARD_CLAIM_PLAN_VERSION, requestedChainIds: requestedIds, claimableChainIds, missingChainIds, blockedChainIds, totals, canClaim, reason, signature });
+  const signature = planSignature({ requestedChainIds: requestedIds, claimableChainIds, missingChainIds, blockedChainIds, totals, grantedPerks, canClaim, reason });
+  return freeze({ version: SETTLEMENT_REWARD_CLAIM_PLAN_VERSION, requestedChainIds: requestedIds, claimableChainIds, missingChainIds, blockedChainIds, totals, grantedPerks, canClaim, reason, signature });
 }
 
 export function isSettlementRewardClaimPlan(value) {
@@ -108,6 +112,7 @@ export function isSettlementRewardClaimPlan(value) {
     stringArray(value.claimableChainIds) &&
     stringArray(value.missingChainIds) &&
     stringArray(value.blockedChainIds) &&
+    stringArray(value.grantedPerks) &&
     validTotals &&
     typeof value.canClaim === 'boolean' &&
     validReason && invariant &&
