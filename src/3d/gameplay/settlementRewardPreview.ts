@@ -27,11 +27,12 @@ const normalizeChain = (chain) => {
   const id = text(chain?.id || chain?.chainId);
   if (!id) return null;
   const service = SERVICES.includes(text(chain?.service)) ? text(chain.service) : 'unknown';
-  const reward = normalizeReward(chain?.reward);
   const steps = Array.isArray(chain?.steps) ? chain.steps : [];
-  const completedSteps = clampInt(chain?.completedSteps ?? chain?.progress?.completed, 0, steps.length || 999);
-  const totalSteps = Math.max(steps.length, clampInt(chain?.totalSteps ?? chain?.progress?.total, 0));
+  const declaredTotalSteps = clampInt(chain?.totalSteps ?? chain?.progress?.total, 0);
+  const totalSteps = Math.max(steps.length, declaredTotalSteps);
+  const completedSteps = clampInt(chain?.completedSteps ?? chain?.progress?.completed, 0, totalSteps || 999999);
   const progress = totalSteps > 0 ? Math.min(1, completedSteps / totalSteps) : 0;
+  const reward = normalizeReward(chain?.reward);
   const readyToClaim = Boolean(chain?.readyToClaim ?? (totalSteps > 0 && completedSteps >= totalSteps));
   const locked = Boolean(chain?.locked);
   return freeze({ id, service, reward, completedSteps, totalSteps, progress, readyToClaim: !locked && readyToClaim, locked });
