@@ -3,6 +3,7 @@ name: Buzul Photorealism Scene Tuning
 on:
   pull_request:
     paths:
+      - 'package.json'
       - 'src/3d/sceneManager.js'
       - 'src/3d/world/photorealismSceneTuning.ts'
       - 'scripts/checkPhotorealismSceneTuning.mjs'
@@ -28,6 +29,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.21.0
+          cache: npm
+      - name: Install proof dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
       - run: node --experimental-strip-types scripts/checkPhotorealismSceneTuning.mjs
       - run: node --experimental-strip-types --check src/3d/world/photorealismSceneTuning.ts
       - run: node --check src/3d/sceneManager.js
