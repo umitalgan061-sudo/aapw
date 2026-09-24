@@ -18,6 +18,24 @@ assert.equal(Object.isFrozen(first), true);
 assert.equal(Object.isFrozen(first.totals), true);
 assert.throws(() => { first.requestedChainIds.push('tamper'); }, TypeError);
 
+const duplicateReady = projectSettlementRewardClaimPlan({
+  preview: { chains: [
+    { id: 'stable-chain', readyToClaim: true, locked: false, reward: { xp: 60, copper: 20, skillPoints: 2 } },
+    { id: 'stable-chain', readyToClaim: false, locked: true, reward: { xp: 999, copper: 999, skillPoints: 9 } },
+  ] },
+  requestedChainIds: ['stable-chain'],
+});
+const duplicateBlockedFirst = projectSettlementRewardClaimPlan({
+  preview: { chains: [
+    { id: 'stable-chain', readyToClaim: false, locked: true, reward: { xp: 999, copper: 999, skillPoints: 9 } },
+    { id: 'stable-chain', readyToClaim: true, locked: false, reward: { xp: 60, copper: 20, skillPoints: 2 } },
+  ] },
+  requestedChainIds: ['stable-chain'],
+});
+assert.equal(duplicateReady.signature, duplicateBlockedFirst.signature);
+assert.equal(duplicateReady.canClaim, true);
+assert.deepEqual(duplicateReady.totals, { xp: 60, copper: 20, skillPoints: 2 });
+
 const blocked = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['locked-chain'] });
 assert.equal(blocked.canClaim, false);
 assert.equal(blocked.reason, 'not-claimable');
