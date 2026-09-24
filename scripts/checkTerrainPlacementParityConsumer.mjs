@@ -47,6 +47,6 @@ const malformed = evaluatePreparedPlacementForAttach({
   footprint: { samples: [null] },
 });
 assert.equal(malformed.ok, false);
-assert.deepEqual(malformed.failures, ['invalid-sample']);
+assert.deepEqual(malformed.failures, ['malformed-sample']);
 
 console.log('Terrain placement parity consumer PASS');
