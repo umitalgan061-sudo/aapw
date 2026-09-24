@@ -18,12 +18,33 @@ const stableHash = (value) => {
 };
 
 const normalizeIdList = (value) => freeze([...new Set(Array.isArray(value) ? value.map(text).filter(Boolean) : [])].sort());
+const canonicalChainKey = (chain) => JSON.stringify({
+  id: text(chain?.id),
+  readyToClaim: chain?.readyToClaim === true,
+  locked: chain?.locked === true,
+  reward: {
+    xp: finiteInt(chain?.reward?.xp),
+    copper: finiteInt(chain?.reward?.copper),
+    skillPoints: finiteInt(chain?.reward?.skillPoints, 0, 999),
+  },
+});
+
+const normalizeChains = (value) => {
+  const byId = new Map();
+  for (const chain of Array.isArray(value) ? value : []) {
+    const id = text(chain?.id);
+    if (!id) continue;
+    const candidate = { ...chain, id };
+    const previous = byId.get(id);
+    if (!previous || canonicalChainKey(candidate) < canonicalChainKey(previous)) byId.set(id, candidate);
+  }
+  return byId;
+};
 
 export function projectSettlementRewardClaimPlan(input = {}) {
   const preview = input.preview ?? {};
-  const chains = Array.isArray(preview.chains) ? preview.chains : [];
   const requestedIds = normalizeIdList(input.requestedChainIds);
-  const available = new Map(chains.filter((chain) => chain && typeof chain.id === 'string').map((chain) => [chain.id, chain]));
+  const available = normalizeChains(preview.chains);
   const selected = requestedIds.map((id) => available.get(id)).filter(Boolean);
   const missingChainIds = freeze(requestedIds.filter((id) => !available.has(id)));
   const blockedChainIds = freeze(selected.filter((chain) => chain.readyToClaim !== true).map((chain) => chain.id).sort());
@@ -41,15 +62,18 @@ export function projectSettlementRewardClaimPlan(input = {}) {
 }
 
 export function isSettlementRewardClaimPlan(value) {
+  const stringArray = (items) => Array.isArray(items) && Object.isFrozen(items) && items.every((item) => typeof item === 'string');
   return Boolean(
     value && Object.isFrozen(value) &&
     value.version === SETTLEMENT_REWARD_CLAIM_PLAN_VERSION &&
-    Array.isArray(value.requestedChainIds) && Object.isFrozen(value.requestedChainIds) &&
-    Array.isArray(value.claimableChainIds) && Object.isFrozen(value.claimableChainIds) &&
-    Array.isArray(value.missingChainIds) && Object.isFrozen(value.missingChainIds) &&
-    Array.isArray(value.blockedChainIds) && Object.isFrozen(value.blockedChainIds) &&
+    stringArray(value.requestedChainIds) &&
+    stringArray(value.claimableChainIds) &&
+    stringArray(value.missingChainIds) &&
+    stringArray(value.blockedChainIds) &&
     value.totals && Object.isFrozen(value.totals) &&
     Number.isInteger(value.totals.xp) && Number.isInteger(value.totals.copper) && Number.isInteger(value.totals.skillPoints) &&
-    typeof value.canClaim === 'boolean' && typeof value.reason === 'string' && typeof value.signature === 'string'
+    typeof value.canClaim === 'boolean' &&
+    ['ready', 'missing-chain', 'not-claimable', 'empty-selection'].includes(value.reason) &&
+    /^[0-9a-f]{8}$/.test(value.signature)
   );
 }
