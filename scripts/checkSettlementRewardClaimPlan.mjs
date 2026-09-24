@@ -77,4 +77,6 @@ const tamperedPerks = { ...first, grantedPerks: Object.freeze(['night-owl']) };
 assert.equal(isSettlementRewardClaimPlan(tamperedPerks), false);
 const reordered = { ...first, claimableChainIds: Object.freeze(['tavern-chain', 'stable-chain']) };
 assert.equal(isSettlementRewardClaimPlan(reordered), false);
+assert.doesNotThrow(() => isSettlementRewardClaimPlan(Object.freeze({ version: 2, reason: 'ready', canClaim: true })));
+assert.equal(isSettlementRewardClaimPlan(Object.freeze({ version: 2, reason: 'ready', canClaim: true })), false);
 console.log('settlement reward claim plan proof passed');
