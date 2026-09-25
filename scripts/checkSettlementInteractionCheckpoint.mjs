@@ -37,5 +37,8 @@ assert.equal(invalid.ready, false);
 const tampered = { ...ready, ready: false };
 assert.equal(isSettlementInteractionCheckpoint(tampered), false);
 assert.equal(isSettlementInteractionCheckpoint({ ...ready, checkpointKey: 'ffffffff' }), false);
+assert.equal(isSettlementInteractionCheckpoint({ ...ready, availableActions: ['craft', 'repair'] }), false);
+assert.equal(isSettlementInteractionCheckpoint({ ...ready, visitCount: '2' }), false);
+assert.equal(isSettlementInteractionCheckpoint(new Proxy(ready, { get() { throw new Error('poisoned accessor'); } })), false);
 
 console.log(`settlement-interaction-checkpoint: ${10} checks passed`);

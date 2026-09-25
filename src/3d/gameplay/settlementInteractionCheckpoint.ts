@@ -71,7 +71,8 @@ export function createSettlementInteractionCheckpoint(input = {}) {
 }
 
 export function isSettlementInteractionCheckpoint(value) {
-  if (!value || typeof value !== 'object' || !Object.isFrozen(value)) return false;
+  try {
+    if (!value || typeof value !== 'object' || !Object.isFrozen(value)) return false;
   if (value.serviceId !== null && !SERVICES.has(value.serviceId)) return false;
   if (value.stage !== null && !STAGES.has(value.stage)) return false;
   if (value.requestedAction !== null && !ACTIONS.has(value.requestedAction)) return false;
@@ -82,5 +83,8 @@ export function isSettlementInteractionCheckpoint(value) {
   if (typeof value.ready !== 'boolean' || typeof value.actionAllowed !== 'boolean') return false;
   if (value.ready !== (value.reason === 'ready') || value.actionAllowed !== Boolean(value.requestedAction && value.availableActions.includes(value.requestedAction))) return false;
   const expected = createSettlementInteractionCheckpoint(value);
-  return expected.checkpointKey === value.checkpointKey && expected.reason === value.reason;
+    return expected.checkpointKey === value.checkpointKey && expected.reason === value.reason;
+  } catch {
+    return false;
+  }
 }
