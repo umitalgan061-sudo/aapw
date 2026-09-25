@@ -15,6 +15,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            src/3d/gameplay/playerCombatPresentationBus.ts
+            scripts/checkPlayerCombatPresentationBus.mjs
+            .github/workflows/kizil-ufuk-player-combat-presentation-bus.yml
+          sparse-checkout-cone-mode: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
