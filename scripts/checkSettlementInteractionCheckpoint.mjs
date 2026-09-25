@@ -39,6 +39,8 @@ assert.equal(isSettlementInteractionCheckpoint(tampered), false);
 assert.equal(isSettlementInteractionCheckpoint({ ...ready, checkpointKey: 'ffffffff' }), false);
 assert.equal(isSettlementInteractionCheckpoint({ ...ready, availableActions: ['craft', 'repair'] }), false);
 assert.equal(isSettlementInteractionCheckpoint({ ...ready, visitCount: '2' }), false);
+assert.equal(isSettlementInteractionCheckpoint({ ...ready, serviceOpen: 1 }), false);
+assert.equal(isSettlementInteractionCheckpoint(Object.freeze({ ...ready, availableActions: Object.freeze(['craft', 'repair']), checkpointKey: ready.checkpointKey })), false);
 assert.equal(isSettlementInteractionCheckpoint(new Proxy(ready, { get() { throw new Error('poisoned accessor'); } })), false);
 
-console.log(`settlement-interaction-checkpoint: ${10} checks passed`);
+console.log('settlement-interaction-checkpoint: 14 checks passed');

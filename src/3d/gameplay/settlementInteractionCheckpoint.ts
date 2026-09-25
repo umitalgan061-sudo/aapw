@@ -73,17 +73,29 @@ export function createSettlementInteractionCheckpoint(input = {}) {
 export function isSettlementInteractionCheckpoint(value) {
   try {
     if (!value || typeof value !== 'object' || !Object.isFrozen(value)) return false;
-  if (value.serviceId !== null && !SERVICES.has(value.serviceId)) return false;
-  if (value.stage !== null && !STAGES.has(value.stage)) return false;
-  if (value.requestedAction !== null && !ACTIONS.has(value.requestedAction)) return false;
-  if (!Array.isArray(value.availableActions) || !Array.isArray(value.missingQuestIds)) return false;
-  if (value.availableActions.some((action, index, list) => !ACTIONS.has(action) || (index > 0 && list[index - 1] >= action))) return false;
-  if (value.missingQuestIds.some((id, index, list) => typeof id !== 'string' || (index > 0 && list[index - 1] >= id))) return false;
-  if (!REASONS.has(value.reason) || typeof value.checkpointKey !== 'string') return false;
-  if (typeof value.ready !== 'boolean' || typeof value.actionAllowed !== 'boolean') return false;
-  if (value.ready !== (value.reason === 'ready') || value.actionAllowed !== Boolean(value.requestedAction && value.availableActions.includes(value.requestedAction))) return false;
-  const expected = createSettlementInteractionCheckpoint(value);
-    return expected.checkpointKey === value.checkpointKey && expected.reason === value.reason;
+    if (value.serviceId !== null && !SERVICES.has(value.serviceId)) return false;
+    if (value.stage !== null && !STAGES.has(value.stage)) return false;
+    if (value.requestedAction !== null && !ACTIONS.has(value.requestedAction)) return false;
+    if (!Array.isArray(value.availableActions) || !Object.isFrozen(value.availableActions)) return false;
+    if (!Array.isArray(value.missingQuestIds) || !Object.isFrozen(value.missingQuestIds)) return false;
+    if (value.availableActions.some((action, index, list) => !ACTIONS.has(action) || (index > 0 && list[index - 1] >= action))) return false;
+    if (value.missingQuestIds.some((id, index, list) => typeof id !== 'string' || (index > 0 && list[index - 1] >= id))) return false;
+    if (!Number.isInteger(value.visitCount) || value.visitCount < 0 || value.visitCount > 9999) return false;
+    if (!Number.isInteger(value.interactionSequence) || value.interactionSequence < 0 || value.interactionSequence > 999999) return false;
+    if (typeof value.serviceOpen !== 'boolean' || typeof value.accessAllowed !== 'boolean' || typeof value.questSatisfied !== 'boolean') return false;
+    if (!REASONS.has(value.reason) || typeof value.checkpointKey !== 'string') return false;
+    if (typeof value.ready !== 'boolean' || typeof value.actionAllowed !== 'boolean') return false;
+    if (value.ready !== (value.reason === 'ready') || value.actionAllowed !== Boolean(value.requestedAction && value.availableActions.includes(value.requestedAction))) return false;
+    const expected = createSettlementInteractionCheckpoint(value);
+    return expected.checkpointKey === value.checkpointKey && expected.reason === value.reason
+      && expected.serviceId === value.serviceId && expected.stage === value.stage
+      && expected.requestedAction === value.requestedAction
+      && expected.visitCount === value.visitCount && expected.interactionSequence === value.interactionSequence
+      && expected.serviceOpen === value.serviceOpen && expected.accessAllowed === value.accessAllowed
+      && expected.questSatisfied === value.questSatisfied && expected.ready === value.ready
+      && expected.actionAllowed === value.actionAllowed
+      && expected.availableActions.join('|') === value.availableActions.join('|')
+      && expected.missingQuestIds.join('|') === value.missingQuestIds.join('|');
   } catch {
     return false;
   }
