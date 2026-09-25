@@ -1,0 +1,22 @@
+name: Kizil Ufuk player combat feedback projection
+on:
+  push:
+    paths:
+      - 'src/3d/gameplay/playerCombatFeedbackProjection.ts'
+      - 'scripts/checkPlayerCombatFeedbackProjection.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-feedback-projection.yml'
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatFeedbackProjection.ts'
+      - 'scripts/checkPlayerCombatFeedbackProjection.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-feedback-projection.yml'
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Deterministic proof
+        run: node scripts/checkPlayerCombatFeedbackProjection.mjs
