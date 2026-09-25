@@ -1,0 +1,27 @@
+name: settlement-quest-resume
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementQuestResume.ts'
+      - 'scripts/checkSettlementQuestResume.mjs'
+      - '.github/workflows/settlement-quest-resume.yml'
+  workflow_dispatch:
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact ancestry and bounded scope
+        shell: bash
+        run: |
+          git merge-base --is-ancestor origin/main HEAD
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - name: Focused proof
+        run: node --experimental-strip-types scripts/checkSettlementQuestResume.mjs
+      - name: Syntax check
+        run: node --check scripts/checkSettlementQuestResume.mjs
