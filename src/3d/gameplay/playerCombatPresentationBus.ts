@@ -94,13 +94,15 @@ export function createPlayerCombatPresentationBus({ target = globalThis, maxHist
   function snapshot() {
     const latestAttack = attacks.at(-1) ?? null;
     const latestFeedback = feedback.at(-1) ?? null;
+    const attackHistory = freeze([...attacks]);
+    const feedbackHistory = freeze([...feedback]);
     const value = {
       attached,
       latestAttack,
       latestFeedback,
-      attackHistory: freeze([...attacks]),
-      feedbackHistory: freeze([...feedback]),
-      key: hashKey({ latestAttack, latestFeedback, attackCount: attacks.length, feedbackCount: feedback.length }),
+      attackHistory,
+      feedbackHistory,
+      key: hashKey({ attached, attackHistory, feedbackHistory }),
     };
     return freeze(value);
   }
