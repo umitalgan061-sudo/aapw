@@ -26,9 +26,12 @@
  * Run this after adding/removing any file under `assets/` or any entry in `assets_manifest.json`.
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..');
 const MANIFEST_PATH = path.join(ROOT, 'assets_manifest.json');
 const ASSETS_DIR = path.join(ROOT, 'assets');

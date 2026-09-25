@@ -1,0 +1,48 @@
+name: Buzul Terrain Placement Parity
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainPlacementParity.ts'
+      - 'src/3d/world/terrainPlacementParityBridge.ts'
+      - 'src/3d/world/terrainPlacementParityRuntime.ts'
+      - 'src/3d/world/terrainPlacementParityConsumer.ts'
+      - 'scripts/checkTerrainPlacementParity.mjs'
+      - 'scripts/checkTerrainPlacementParityRuntime.mjs'
+      - 'scripts/checkTerrainPlacementParityConsumer.mjs'
+      - '.github/workflows/buzul-terrain-placement-parity.yml'
+  push:
+    branches:
+      - 'buzul/terrain-placement-parity-exact-aabc444-20260923'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buzul-terrain-placement-parity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify exact checked-out head
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_SHA="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Run terrain placement parity proof
+        run: node --experimental-strip-types scripts/checkTerrainPlacementParity.mjs
+      - name: Run prepared placement parity proof
+        run: node --experimental-strip-types scripts/checkTerrainPlacementParityRuntime.mjs
+      - name: Run fail-closed placement consumer proof
+        run: node --experimental-strip-types scripts/checkTerrainPlacementParityConsumer.mjs
