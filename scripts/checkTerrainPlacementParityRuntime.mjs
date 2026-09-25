@@ -61,5 +61,13 @@ const nonFiniteDecision = evaluatePreparedWorldPlacementParity({
 });
 assert.equal(nonFiniteDecision.ok, false);
 assert.ok(nonFiniteDecision.failures.includes('malformed-sample'));
+assert.throws(
+  () => assertPreparedWorldPlacementParity({
+    footprint: {
+      samples: [{ x: Number.NaN, z: 0, renderedHeight: 10, colliderHeight: 10 }],
+    },
+  }),
+  /Prepared world placement rejected: malformed-sample/,
+);
 
 console.log('Terrain placement parity runtime adapter PASS');
