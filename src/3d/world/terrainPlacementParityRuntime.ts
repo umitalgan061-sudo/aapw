@@ -7,7 +7,6 @@
  * can fail closed before attachment without creating a second placement system.
  */
 import {
-  assertTerrainPlacementParity,
   evaluateTerrainPlacementParity,
   type TerrainParityPolicy,
   type TerrainParityResult,
@@ -125,9 +124,9 @@ export function assertPreparedWorldPlacementParity(
   prepared: PreparedPlacementObservation | null | undefined,
   policy: TerrainParityPolicy = {},
 ): TerrainParityResult {
-  const samples = collectPreparedPlacementParitySamples(prepared);
-  return withMalformedPreparedPlacementFailure(
-    samples,
-    assertTerrainPlacementParity(samples, policy),
-  );
+  const result = evaluatePreparedWorldPlacementParity(prepared, policy);
+  if (!result.ok) {
+    throw new Error(`Prepared world placement rejected: ${result.failures.join(',')}`);
+  }
+  return result;
 }
