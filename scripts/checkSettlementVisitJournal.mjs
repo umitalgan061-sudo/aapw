@@ -1,0 +1,15 @@
+import assert from "node:assert/strict";
+import { projectSettlementVisitJournal, isSettlementVisitJournalEntry } from "../src/3d/gameplay/settlementVisitJournal.ts";
+const base={settlementId:"north-watch",serviceId:"blacksmith",stage:"service",requestedAction:"craft",availableActions:["craft","talk","craft"],conditionIds:["quest:forge","quest:forge"],completedConditionIds:["quest:forge"],visitCount:2,interactionCount:4,revision:7};
+const ready=projectSettlementVisitJournal(base);
+assert.equal(ready.reason,"ready");
+assert.equal(ready.availableActions.join(","),"craft,talk");
+assert.equal(isSettlementVisitJournalEntry(ready),true);
+assert.equal(Object.isFrozen(ready),true);
+assert.equal(projectSettlementVisitJournal({...base,availableActions:["talk","craft"]}).journalKey,ready.journalKey);
+assert.equal(projectSettlementVisitJournal({...base,completedConditionIds:[]}).reason,"condition-blocked");
+assert.equal(projectSettlementVisitJournal({...base,requestedAction:"trade"}).reason,"action-unavailable");
+assert.equal(projectSettlementVisitJournal({...base,stage:"departure"}).reason,"service-closed");
+assert.equal(projectSettlementVisitJournal({...base,serviceId:"unknown"}).reason,"invalid-input");
+assert.equal(isSettlementVisitJournalEntry({...ready,reason:"action-unavailable"}),false);
+console.log("Settlement visit journal checks passed: 10");

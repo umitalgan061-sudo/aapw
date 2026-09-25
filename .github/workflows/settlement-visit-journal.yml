@@ -1,0 +1,20 @@
+name: settlement-visit-journal
+
+on:
+  pull_request:
+    paths:
+      - "src/3d/gameplay/settlementVisitJournal.ts"
+      - "scripts/checkSettlementVisitJournal.mjs"
+      - ".github/workflows/settlement-visit-journal.yml"
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: node --experimental-strip-types scripts/checkSettlementVisitJournal.mjs
+      - run: node --check scripts/checkSettlementVisitJournal.mjs
