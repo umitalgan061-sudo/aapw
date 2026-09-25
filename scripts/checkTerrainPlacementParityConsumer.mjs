@@ -86,4 +86,23 @@ assert.throws(
   /Prepared world placement rejected: malformed-sample/,
 );
 
+const throwingObservation = {
+  surface: { x: 0, z: 0, height: 10 },
+  footprint: {
+    samples: [{
+      get x() { throw new Error('untrusted x getter'); },
+      z: 0,
+      renderedHeight: 10,
+      colliderHeight: 10,
+    }],
+  },
+};
+const throwingDecision = evaluatePreparedPlacementForAttach(throwingObservation);
+assert.equal(throwingDecision.ok, false);
+assert.deepEqual(throwingDecision.failures, ['malformed-sample']);
+assert.throws(
+  () => assertPreparedPlacementForAttach(throwingObservation),
+  /Prepared world placement rejected: malformed-sample/,
+);
+
 console.log('Terrain placement parity consumer PASS');
