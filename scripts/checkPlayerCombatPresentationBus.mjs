@@ -35,6 +35,16 @@ const replayA = bus.snapshot();
 const replayB = bus.snapshot();
 assert.equal(replayA.key, replayB.key);
 assert.throws(() => { first.attackHistory.push({}); }, TypeError);
+
+const alternateTarget = new EventTarget();
+const alternateBus = createPlayerCombatPresentationBus({ target: alternateTarget, maxHistory: 2 });
+alternateBus.attach();
+alternateTarget.dispatchEvent(new CustomEvent(ATTACK_WINDOW_EVENT, { detail: { serial: 1, kind: 'light', phase: 'complete' } }));
+alternateTarget.dispatchEvent(new CustomEvent(ATTACK_WINDOW_EVENT, { detail: { serial: 3, kind: 'light', phase: 'complete' } }));
+assert.equal(alternateBus.snapshot().latestAttack.kind, first.latestAttack.kind);
+assert.equal(alternateBus.snapshot().attackHistory.length, first.attackHistory.length);
+assert.notEqual(alternateBus.snapshot().key, first.key);
+
 assert.equal(bus.clear().latestAttack, null);
 assert.equal(bus.clear().feedbackHistory.length, 0);
 assert.equal(bus.detach(), true);
