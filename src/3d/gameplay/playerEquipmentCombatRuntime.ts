@@ -322,3 +322,20 @@ export function composePlayerEquipmentCombatFrame({ playerObject, equipment = {}
 export function isPlayerEquipmentCombatPhase(value) {
   return PLAYER_EQUIPMENT_COMBAT_PHASES.includes(String(value));
 }
+
+
+/** Deterministic observation signal for animation/VFX/UI consumers. */
+export function derivePlayerEquipmentCombatSignal(frame = {}) {
+  const phase = isPlayerEquipmentCombatPhase(frame.phase) ? frame.phase : 'idle';
+  const attack = frame.attack && typeof frame.attack === 'object' ? frame.attack : {};
+  const defense = frame.defense && typeof frame.defense === 'object' ? frame.defense : {};
+  const movement = frame.movement && typeof frame.movement === 'object' ? frame.movement : {};
+  const outcome = frame.outcome && typeof frame.outcome === 'object' ? frame.outcome : null;
+  const revision = Math.max(0, Math.floor(finite(frame.revision, 0)));
+  const staminaRatio = clamp(finite(movement.staminaRatio, 1), 0, 1);
+  const poiseRatio = clamp(finite(movement.poiseRatio, 1), 0, 1);
+  const attackKind = normalizeAttackKind(attack.kind);
+  const comboStep = clamp(Math.floor(finite(attack.comboStep, 0)), 0, 3);
+  const intensity = clamp((attackKind === 'heavy' ? 0.8 : attackKind === 'light' ? 0.45 : 0) + (attack.active ? 0.2 : 0) + (phase === 'hit-stagger' ? 0.25 : 0), 0, 1);
+  return Object.freeze({ version: 1, revision, phase, attackKind, comboStep, attackActive: Boolean(attack.active), guarding: Boolean(defense.guarding), movementState: String(movement.state || 'idle'), grounded: Boolean(movement.grounded ?? true), staminaRatio, poiseRatio, intensity, outcome: outcome ? String(outcome.outcome || 'none') : 'none', key: [revision, phase, attackKind, comboStep, Boolean(attack.active), Boolean(defense.guarding), String(movement.state || 'idle'), outcome ? String(outcome.outcome || 'none') : 'none'].join('|') });
+}
