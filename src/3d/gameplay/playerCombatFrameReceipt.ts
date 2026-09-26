@@ -27,8 +27,9 @@ function normalizeMaterialAudit(audit) {
 
 function materialAuditSignature(audit) {
   if (audit == null) return 'none';
-  if (typeof audit !== 'object') return 'invalid';
+  if (typeof audit !== 'object' || Array.isArray(audit)) return 'invalid';
   return Object.entries(audit)
+    .filter(([key]) => typeof key === 'string')
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}=${String(value)}`)
     .join(';');
@@ -93,7 +94,7 @@ export function validatePlayerCombatFrameReceipt(receipt) {
   const phaseOk = Boolean(value.phaseValid) && RECEIPT_PHASES.includes(value.phase);
   const ratiosOk = [value.staminaRatio, value.poiseRatio].every((ratio) => Number.isFinite(ratio) && ratio >= 0 && ratio <= 1);
   const signatureOk = typeof value.signature === 'string' && value.signature.length > 0;
-  const materialOk = value.materialAudit == null || typeof value.materialAudit === 'object';
+  const materialOk = value.materialAudit == null || (typeof value.materialAudit === 'object' && !Array.isArray(value.materialAudit));
   const equipmentOk = value.equipment != null && typeof value.equipment === 'object'
     && ['mainHandId', 'offHandId', 'chestId', 'headId'].every((key) => typeof value.equipment[key] === 'string');
   const socketOk = Number.isInteger(value.socketCount) && value.socketCount >= 0;
