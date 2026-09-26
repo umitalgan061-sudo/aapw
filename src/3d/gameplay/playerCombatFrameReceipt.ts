@@ -13,6 +13,16 @@ const finite = (value, fallback = 0) => {
 };
 const text = (value) => String(value ?? '').trim();
 
+function materialAuditSignature(audit) {
+  if (audit == null) return 'none';
+  if (typeof audit !== 'object') return 'invalid';
+  const entries = Object.entries(audit)
+    .filter(([key]) => typeof key === 'string')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${String(value)}`);
+  return entries.join(';');
+}
+
 export function createPlayerCombatFrameReceipt({
   playerObject,
   equipment = {},
@@ -27,6 +37,14 @@ export function createPlayerCombatFrameReceipt({
   const phase = text(frame.phase) || 'idle';
   const attackKind = text(frame.attack?.kind) || 'none';
   const comboStep = Math.max(0, Math.floor(finite(frame.attack?.comboStep, 0)));
+  const equipmentSnapshot = Object.freeze({
+    mainHandId: text(frame.equipment?.mainHandId),
+    offHandId: text(frame.equipment?.offHandId),
+    chestId: text(frame.equipment?.chestId),
+    headId: text(frame.equipment?.headId),
+  });
+  const socketCount = Array.isArray(frame.sockets) ? frame.sockets.length : 0;
+  const materialAudit = frame.audit ?? null;
   const receipt = {
     version: PLAYER_COMBAT_FRAME_RECEIPT_VERSION,
     revision: Math.max(0, Math.floor(finite(frame.revision, revision))),
@@ -37,14 +55,9 @@ export function createPlayerCombatFrameReceipt({
     grounded: Boolean(frame.movement?.grounded),
     staminaRatio: Math.max(0, Math.min(1, finite(frame.movement?.staminaRatio, 1))),
     poiseRatio: Math.max(0, Math.min(1, finite(frame.movement?.poiseRatio, 1))),
-    equipment: Object.freeze({
-      mainHandId: text(frame.equipment?.mainHandId),
-      offHandId: text(frame.equipment?.offHandId),
-      chestId: text(frame.equipment?.chestId),
-      headId: text(frame.equipment?.headId),
-    }),
-    socketCount: Array.isArray(frame.sockets) ? frame.sockets.length : 0,
-    materialAudit: frame.audit ?? null,
+    equipment: equipmentSnapshot,
+    socketCount,
+    materialAudit,
   };
   receipt.signature = [
     receipt.revision,
@@ -52,6 +65,10 @@ export function createPlayerCombatFrameReceipt({
     receipt.attackKind,
     receipt.comboStep,
     receipt.grounded ? 1 : 0,
+    receipt.staminaRatio.toFixed(4),
+    receipt.poiseRatio.toFixed(4),
+    receipt.socketCount,
+    materialAuditSignature(receipt.materialAudit),
     receipt.equipment.mainHandId,
     receipt.equipment.offHandId,
     receipt.equipment.chestId,
@@ -66,7 +83,10 @@ export function validatePlayerCombatFrameReceipt(receipt) {
   const ratiosOk = [value.staminaRatio, value.poiseRatio].every((ratio) => Number.isFinite(ratio) && ratio >= 0 && ratio <= 1);
   const signatureOk = typeof value.signature === 'string' && value.signature.length > 0;
   const materialOk = value.materialAudit == null || typeof value.materialAudit === 'object';
-  return Object.freeze({ ok: phaseOk && ratiosOk && signatureOk && materialOk, phaseOk, ratiosOk, signatureOk, materialOk });
+  const equipmentOk = value.equipment != null && typeof value.equipment === 'object'
+    && ['mainHandId', 'offHandId', 'chestId', 'headId'].every((key) => typeof value.equipment[key] === 'string');
+  const socketOk = Number.isInteger(value.socketCount) && value.socketCount >= 0;
+  return Object.freeze({ ok: phaseOk && ratiosOk && signatureOk && materialOk && equipmentOk && socketOk, phaseOk, ratiosOk, signatureOk, materialOk, equipmentOk, socketOk });
 }
 
 export function auditPlayerCombatFrameReceipt(input = {}) {
