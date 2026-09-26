@@ -13,14 +13,25 @@ const finite = (value, fallback = 0) => {
 };
 const text = (value) => String(value ?? '').trim();
 
+function normalizeMaterialAudit(audit) {
+  if (audit == null) return null;
+  if (typeof audit !== 'object' || Array.isArray(audit)) return Object.freeze({ invalid: true });
+  const normalized = Object.fromEntries(
+    Object.entries(audit)
+      .filter(([key]) => typeof key === 'string')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => [key, String(value)]),
+  );
+  return Object.freeze(normalized);
+}
+
 function materialAuditSignature(audit) {
   if (audit == null) return 'none';
   if (typeof audit !== 'object') return 'invalid';
-  const entries = Object.entries(audit)
-    .filter(([key]) => typeof key === 'string')
+  return Object.entries(audit)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => `${key}=${String(value)}`);
-  return entries.join(';');
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join(';');
 }
 
 export function createPlayerCombatFrameReceipt({
@@ -44,7 +55,7 @@ export function createPlayerCombatFrameReceipt({
     headId: text(frame.equipment?.headId),
   });
   const socketCount = Array.isArray(frame.sockets) ? frame.sockets.length : 0;
-  const materialAudit = frame.audit ?? null;
+  const materialAudit = normalizeMaterialAudit(frame.audit);
   const receipt = {
     version: PLAYER_COMBAT_FRAME_RECEIPT_VERSION,
     revision: Math.max(0, Math.floor(finite(frame.revision, revision))),
