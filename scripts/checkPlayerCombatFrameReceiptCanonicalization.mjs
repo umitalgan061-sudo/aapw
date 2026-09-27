@@ -5,8 +5,8 @@ const source = await readFile('src/3d/gameplay/playerCombatFrameReceipt.ts', 'ut
 
 assert.match(
   source,
-  /Object\.entries\(audit\)[\s\S]*?\.filter\(\(\[key\]\) => typeof key === 'string'\)[\s\S]*?\.sort\(\(\[a\], \[b\]\) => a\.localeCompare\(b\)\)/,
-  'material audit keys must be canonicalized in sorted order',
+  /Object\.entries\(audit\)[\s\S]*?\.filter\(\(\[key\]\) => typeof key === 'string'\)[\s\S]*?\.sort\(\(\[a\], \[b\]\) => compareCanonicalKeys\(a, b\)\)/,
+  'material audit keys must be canonicalized with the locale-independent comparator',
 );
 assert.match(
   source,
