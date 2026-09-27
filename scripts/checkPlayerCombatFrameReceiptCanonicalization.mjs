@@ -24,4 +24,15 @@ assert.match(
   'replay identity must include movement resources and equipment socket count',
 );
 
+assert.match(
+  source,
+  /function playerCombatFrameReceiptSignature\(receipt\)[\s\S]*?receipt\.equipment\?\.headId \?\? ''/,
+  'receipt identity must be centralized in one canonical signature helper',
+);
+assert.match(
+  source,
+  /value\.signature === playerCombatFrameReceiptSignature\(value\)/,
+  'validation must reject stale or tampered receipt signatures',
+);
+
 console.log('player combat frame receipt canonicalization proof: PASS');
