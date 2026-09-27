@@ -40,4 +40,15 @@ for (const field of ['receipt.staminaRatio.toFixed(4)', 'receipt.poiseRatio.toFi
   assert.ok(signatureFields[1].includes(field), `signature missing ${field}`);
 }
 
+assert.match(
+  source,
+  /const signatureOk = typeof value\.signature === 'string'[\\s\\S]*?value\.signature === playerCombatFrameReceiptSignature\(value\);/,
+  'receipt validation must recompute and compare the canonical signature',
+);
+assert.match(
+  source,
+  /return Object\.freeze\(\{ ok: phaseOk && ratiosOk && signatureOk && materialOk && equipmentOk && socketOk, phaseOk, ratiosOk, signatureOk, materialOk, equipmentOk, socketOk \}\);/,
+  'receipt validation result must remain immutable and expose signatureOk',
+);
+
 console.log('player combat frame receipt proof: PASS');
