@@ -12,6 +12,7 @@ const finite = (value, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 const text = (value) => String(value ?? '').trim();
+const compareCanonicalKeys = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
 
 function normalizeMaterialAudit(audit) {
   if (audit == null) return null;
@@ -19,7 +20,7 @@ function normalizeMaterialAudit(audit) {
   const normalized = Object.fromEntries(
     Object.entries(audit)
       .filter(([key]) => typeof key === 'string')
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => compareCanonicalKeys(a, b))
       .map(([key, value]) => [key, String(value)]),
   );
   return Object.freeze(normalized);
@@ -30,7 +31,7 @@ function materialAuditSignature(audit) {
   if (typeof audit !== 'object' || Array.isArray(audit)) return 'invalid';
   return Object.entries(audit)
     .filter(([key]) => typeof key === 'string')
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => compareCanonicalKeys(a, b))
     .map(([key, value]) => `${key}=${String(value)}`)
     .join(';');
 }
