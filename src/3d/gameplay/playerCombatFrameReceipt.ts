@@ -72,29 +72,35 @@ export function createPlayerCombatFrameReceipt({
     socketCount,
     materialAudit,
   };
-  receipt.signature = [
+  receipt.signature = playerCombatFrameReceiptSignature(receipt);
+  return Object.freeze(receipt);
+}
+
+function playerCombatFrameReceiptSignature(receipt) {
+  return [
     receipt.revision,
     receipt.phase,
     receipt.attackKind,
     receipt.comboStep,
     receipt.grounded ? 1 : 0,
-    receipt.staminaRatio.toFixed(4),
-    receipt.poiseRatio.toFixed(4),
+    Number(receipt.staminaRatio).toFixed(4),
+    Number(receipt.poiseRatio).toFixed(4),
     receipt.socketCount,
     materialAuditSignature(receipt.materialAudit),
-    receipt.equipment.mainHandId,
-    receipt.equipment.offHandId,
-    receipt.equipment.chestId,
-    receipt.equipment.headId,
+    receipt.equipment?.mainHandId ?? '',
+    receipt.equipment?.offHandId ?? '',
+    receipt.equipment?.chestId ?? '',
+    receipt.equipment?.headId ?? '',
   ].join('|');
-  return Object.freeze(receipt);
 }
 
 export function validatePlayerCombatFrameReceipt(receipt) {
   const value = receipt ?? {};
   const phaseOk = Boolean(value.phaseValid) && RECEIPT_PHASES.includes(value.phase);
   const ratiosOk = [value.staminaRatio, value.poiseRatio].every((ratio) => Number.isFinite(ratio) && ratio >= 0 && ratio <= 1);
-  const signatureOk = typeof value.signature === 'string' && value.signature.length > 0;
+  const signatureOk = typeof value.signature === 'string'
+    && value.signature.length > 0
+    && value.signature === playerCombatFrameReceiptSignature(value);
   const materialOk = value.materialAudit == null || (typeof value.materialAudit === 'object' && !Array.isArray(value.materialAudit));
   const equipmentOk = value.equipment != null && typeof value.equipment === 'object'
     && ['mainHandId', 'offHandId', 'chestId', 'headId'].every((key) => typeof value.equipment[key] === 'string');
