@@ -33,11 +33,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24.21.0
-          cache: npm
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run verify:nextgen:v3
       - run: npm run typecheck:nextgen
@@ -49,7 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Reject unsafe or ambient nondeterminism in nextgen
         run: |
           set -eu
