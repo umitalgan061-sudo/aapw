@@ -378,7 +378,8 @@ export class RuntimeApplication {
     const loader =
       options.moduleLoader ??
       (async () => {
-        const module = (await import('../game3d.js')) as unknown as LegacyGameModuleV18;
+        const legacySpecifier: string = '../game3d.js';
+        const module = (await import(legacySpecifier)) as unknown as LegacyGameModuleV18;
         return module;
       });
 
