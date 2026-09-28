@@ -386,10 +386,10 @@ export class RuntimeApplication {
     const module = await loader();
     const legacyContract: import('./typedLegacyBoundaryV18').LegacyBoundaryModuleV18 = {
       id: 'game3d-legacy',
+      ...(module.initGame3D ? { init: module.initGame3D } : {}),
+      ...(module.disposeGame3D ? { dispose: module.disposeGame3D } : {}),
+      ...(module.shutdownGame3D ? { shutdown: module.shutdownGame3D } : {}),
     };
-    if (module.initGame3D) legacyContract.init = module.initGame3D;
-    if (module.disposeGame3D) legacyContract.dispose = module.disposeGame3D;
-    if (module.shutdownGame3D) legacyContract.shutdown = module.shutdownGame3D;
     this.legacyBoundary.attach(legacyContract);
     this.#legacy = module;
 
