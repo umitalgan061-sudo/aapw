@@ -40,7 +40,7 @@ import {
   validatePlayerDirectionalBlendWeights,
   validatePlayerDirectionalPresentation,
   validatePlayerDirectionalState,
-} from '../src/3d/gameplay/playerDirectionalLocomotionPolicy.js';
+} from '../src/3d/gameplay/playerDirectionalLocomotionPolicy.ts';
 import {
   advancePlayerDirectionalTelemetry,
   buildPlayerDirectionalTelemetryScenario,
