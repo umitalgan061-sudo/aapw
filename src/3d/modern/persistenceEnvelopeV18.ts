@@ -206,7 +206,7 @@ export class PersistenceEnvelopeV18<T> {
     if (!this.#adapter) throw new Error('Persistence adapter is not configured.');
 
     const encoded = this.encode(payload, tick);
-    const parsed = JSON.parse(encoded) as PersistenceEnvelopeV18<T>;
+    const parsed = JSON.parse(encoded) as PersistenceRecordV18<T>;
     await this.#adapter.write(slot, encoded);
 
     return Object.freeze({
