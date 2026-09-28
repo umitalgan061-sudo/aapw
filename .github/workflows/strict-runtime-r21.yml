@@ -1,0 +1,26 @@
+name: Kızıl Ufuk R21 Strict Runtime Core
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/runtime/**'
+      - 'src/3d/modern/modernRuntimeFacade.ts'
+      - 'src/3d/modern/migrationLedgerR21.ts'
+      - 'scripts/checkStrictRuntimeR21.mjs'
+      - 'tests/modern/strictRuntimeR21.test.ts'
+      - 'package.json'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install
+      - run: node scripts/checkStrictRuntimeR21.mjs
+      - run: npm test -- tests/modern/strictRuntimeR21.test.ts
+      - run: npm run typecheck
