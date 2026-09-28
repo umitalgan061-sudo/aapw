@@ -1,134 +1,23 @@
-// @ts-nocheck
-/**
- * Bounded render telemetry collector.
- *
- * Captures frame timing, pass cost, draw/triangle counts, memory pressure and backend recovery
- * signals in a renderer-neutral format. It does not export over the network and does not require
- * browser-only APIs, so the same contract can run in headless CI.
- *
- * @module renderMetricsCollector
- */
-
-const freeze = Object.freeze;
-const finite = (v, f = 0) => Number.isFinite(Number(v)) ? Number(v) : f;
-const clamp = (v, min, max) => Math.min(max, Math.max(min, finite(v, min)));
-
-export const RENDER_METRICS_POLICY = freeze({
-  id: 'render-metrics-2026-09-v1',
-  maxFrames: 240,
-  maxEvents: 128,
-  maxSamples: 512,
-});
-
-function percentile(values, fraction) {
-  if (!values.length) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * fraction))];
-}
-
-function sampleStats(values) {
-  if (!values.length) return { count: 0, min: 0, max: 0, mean: 0, p50: 0, p95: 0, p99: 0 };
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-  return { count: values.length, min, max, mean, p50: percentile(values, 0.5), p95: percentile(values, 0.95), p99: percentile(values, 0.99) };
-}
-
-export function createRenderMetricsCollector(options = {}) {
-  const policy = freeze({ ...RENDER_METRICS_POLICY, ...(options.policy || {}) });
-  const frames = [];
-  const events = [];
-  const samples = new Map();
-  const counters = new Map();
-  const gauges = new Map();
-  let frame = 0;
-  let disposed = false;
-
-  function count(name, delta = 1) {
-    if (disposed) return 0;
-    const next = finite(counters.get(name)) + finite(delta, 1);
-    counters.set(String(name).slice(0, 64), Math.max(0, next));
-    return next;
-  }
-
-  function gauge(name, value) {
-    if (disposed) return 0;
-    const normalized = finite(value);
-    gauges.set(String(name).slice(0, 64), normalized);
-    return normalized;
-  }
-
-  function observe(name, value) {
-    if (disposed) return 0;
-    const key = String(name).slice(0, 64);
-    const list = samples.get(key) || [];
-    list.push(finite(value));
-    while (list.length > policy.maxSamples) list.shift();
-    samples.set(key, list);
-    return list[list.length - 1];
-  }
-
-  function recordFrame(metrics = {}) {
-    if (disposed) return null;
-    frame += 1;
-    const record = freeze({
-      frame,
-      timestampMs: Math.max(0, finite(metrics.timestampMs, frame * 16.67)),
-      frameMs: Math.max(0, finite(metrics.frameMs)),
-      cpuMs: Math.max(0, finite(metrics.cpuMs)),
-      gpuMs: Math.max(0, finite(metrics.gpuMs)),
-      drawCalls: Math.max(0, finite(metrics.drawCalls)),
-      triangles: Math.max(0, finite(metrics.triangles)),
-      instances: Math.max(0, finite(metrics.instances)),
-      renderScale: clamp(metrics.renderScale, 0.5, 1),
-      backend: metrics.backend === 'webgpu' ? 'webgpu' : 'webgl2',
-      tier: String(metrics.tier || 'balanced').slice(0, 32),
-      recoveryState: String(metrics.recoveryState || 'healthy').slice(0, 32),
-    });
-    frames.push(record);
-    while (frames.length > policy.maxFrames) frames.shift();
-    observe('frameMs', record.frameMs);
-    observe('gpuMs', record.gpuMs);
-    observe('cpuMs', record.cpuMs);
-    gauge('drawCalls', record.drawCalls);
-    gauge('triangles', record.triangles);
-    gauge('instances', record.instances);
-    gauge('renderScale', record.renderScale);
-    count(`backend.${record.backend}`);
-    count(`tier.${record.tier}`);
-    return record;
-  }
-
-  function event(name, data = {}, timestampMs = 0) {
-    if (disposed) return null;
-    const fields = {};
-    for (const key of Object.keys(data).slice(0, 12)) {
-      const value = data[key];
-      if (typeof value === 'string') fields[String(key).slice(0, 48)] = value.slice(0, 96);
-      else if (typeof value === 'number' && Number.isFinite(value)) fields[String(key).slice(0, 48)] = value;
-      else if (typeof value === 'boolean') fields[String(key).slice(0, 48)] = value;
-    }
-    const record = freeze({ sequence: events.length, name: String(name || 'render.event').slice(0, 64), timestampMs: Math.max(0, finite(timestampMs)), fields: freeze(fields) });
-    events.push(record);
-    while (events.length > policy.maxEvents) events.shift();
-    return record;
-  }
-
-  function snapshot() {
-    const histogramSummary = {};
-    for (const [name, values] of samples) histogramSummary[name] = freeze(sampleStats(values));
-    return freeze({ policy, disposed, frame, counters: freeze(Object.fromEntries(counters)), gauges: freeze(Object.fromEntries(gauges)), samples: freeze(histogramSummary), recentFrames: freeze(frames.slice(-policy.maxFrames)), events: freeze(events.slice(-policy.maxEvents)) });
-  }
-
-  function reset() {
-    frames.length = 0;
-    events.length = 0;
-    samples.clear();
-    counters.clear();
-    gauges.clear();
-    frame = 0;
-  }
-
-  function dispose() { disposed = true; reset(); }
-  return freeze({ count, gauge, observe, recordFrame, event, snapshot, reset, dispose, get frame() { return frame; }, get disposed() { return disposed; } });
-}
+/** Strictly typed, bounded render telemetry collector for CI and runtime diagnostics. */
+export const RENDER_METRICS_POLICY=Object.freeze({id:'render-metrics-2026-09-v2',maxFrames:240,maxEvents:128,maxSamples:512}) as const;
+export type RenderBackend='webgl2'|'webgpu';
+export interface RenderFrameRecord{readonly frame:number;readonly timestampMs:number;readonly frameMs:number;readonly cpuMs:number;readonly gpuMs:number;readonly drawCalls:number;readonly triangles:number;readonly instances:number;readonly renderScale:number;readonly backend:RenderBackend;readonly tier:string;readonly recoveryState:string;}
+export interface RenderEventRecord{readonly sequence:number;readonly name:string;readonly timestampMs:number;readonly fields:Readonly<Record<string,string|number|boolean>>;}
+export interface SampleStats{readonly count:number;readonly min:number;readonly max:number;readonly mean:number;readonly p50:number;readonly p95:number;readonly p99:number;}
+export interface RenderMetricsCollectorPolicy{readonly id:string;readonly maxFrames:number;readonly maxEvents:number;readonly maxSamples:number;}
+export interface RenderMetricsSnapshot{readonly policy:RenderMetricsCollectorPolicy;readonly disposed:boolean;readonly frame:number;readonly counters:Readonly<Record<string,number>>;readonly gauges:Readonly<Record<string,number>>;readonly samples:Readonly<Record<string,SampleStats>>;readonly recentFrames:readonly RenderFrameRecord[];readonly events:readonly RenderEventRecord[];}
+export interface RenderMetricsCollector{readonly count:(name:string,delta?:number)=>number;readonly gauge:(name:string,value:number)=>number;readonly observe:(name:string,value:number)=>number;readonly recordFrame:(metrics?:Partial<Omit<RenderFrameRecord,'frame'>>)=>RenderFrameRecord|null;readonly event:(name:string,data?:Readonly<Record<string,unknown>>,timestampMs?:number)=>RenderEventRecord|null;readonly snapshot:()=>RenderMetricsSnapshot;readonly reset:()=>void;readonly dispose:()=>void;readonly frame:number;readonly disposed:boolean;}
+const finite=(value:unknown,fallback=0):number=>Number.isFinite(Number(value))?Number(value):fallback;
+const clamp=(value:unknown,min:number,max:number):number=>Math.min(max,Math.max(min,finite(value,min)));
+const freeze=<T extends object>(value:T):Readonly<T>=>Object.freeze(value);
+function percentile(values:readonly number[],fraction:number):number{if(!values.length)return 0;const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.min(sorted.length-1,Math.floor((sorted.length-1)*fraction))]??0;}
+function sampleStats(values:readonly number[]):SampleStats{if(!values.length)return freeze({count:0,min:0,max:0,mean:0,p50:0,p95:0,p99:0});const min=Math.min(...values),max=Math.max(...values),mean=values.reduce((sum,value)=>sum+value,0)/values.length;return freeze({count:values.length,min,max,mean,p50:percentile(values,.5),p95:percentile(values,.95),p99:percentile(values,.99)});}
+const boundedString=(value:unknown,max:number,fallback:string):string=>String(value??fallback).slice(0,max);
+export function createRenderMetricsCollector(options:Readonly<{policy?:Partial<RenderMetricsCollectorPolicy>}>= {}):RenderMetricsCollector{const rawPolicy={...RENDER_METRICS_POLICY,...options.policy};const policy:RenderMetricsCollectorPolicy=freeze({id:boundedString(rawPolicy.id,96,RENDER_METRICS_POLICY.id),maxFrames:Math.max(1,Math.floor(finite(rawPolicy.maxFrames,RENDER_METRICS_POLICY.maxFrames))),maxEvents:Math.max(1,Math.floor(finite(rawPolicy.maxEvents,RENDER_METRICS_POLICY.maxEvents))),maxSamples:Math.max(1,Math.floor(finite(rawPolicy.maxSamples,RENDER_METRICS_POLICY.maxSamples)))});const frames:RenderFrameRecord[]=[],events:RenderEventRecord[]=[],samples=new Map<string,number[]>(),counters=new Map<string,number>(),gauges=new Map<string,number>();let frame=0,disposed=false;
+const count=(name:string,delta=1):number=>{if(disposed)return 0;const key=boundedString(name,64,'counter'),next=Math.max(0,(counters.get(key)??0)+finite(delta,1));counters.set(key,next);return next;};
+const gauge=(name:string,value:number):number=>{if(disposed)return 0;const key=boundedString(name,64,'gauge'),normalized=finite(value);gauges.set(key,normalized);return normalized;};
+const observe=(name:string,value:number):number=>{if(disposed)return 0;const key=boundedString(name,64,'sample'),list=samples.get(key)??[];list.push(finite(value));while(list.length>policy.maxSamples)list.shift();samples.set(key,list);return list[list.length-1]??0;};
+const recordFrame=(metrics:Partial<Omit<RenderFrameRecord,'frame'>>={}):RenderFrameRecord|null=>{if(disposed)return null;frame+=1;const record:RenderFrameRecord=freeze({frame,timestampMs:Math.max(0,finite(metrics.timestampMs,frame*16.67)),frameMs:Math.max(0,finite(metrics.frameMs)),cpuMs:Math.max(0,finite(metrics.cpuMs)),gpuMs:Math.max(0,finite(metrics.gpuMs)),drawCalls:Math.max(0,finite(metrics.drawCalls)),triangles:Math.max(0,finite(metrics.triangles)),instances:Math.max(0,finite(metrics.instances)),renderScale:clamp(metrics.renderScale,0.5,1),backend:metrics.backend==='webgpu'?'webgpu':'webgl2',tier:boundedString(metrics.tier,32,'balanced'),recoveryState:boundedString(metrics.recoveryState,32,'healthy')});frames.push(record);while(frames.length>policy.maxFrames)frames.shift();observe('frameMs',record.frameMs);observe('gpuMs',record.gpuMs);observe('cpuMs',record.cpuMs);gauge('drawCalls',record.drawCalls);gauge('triangles',record.triangles);gauge('instances',record.instances);gauge('renderScale',record.renderScale);count('backend.'+record.backend);count('tier.'+record.tier);return record;};
+const event=(name:string,data:Readonly<Record<string,unknown>>={},timestampMs=0):RenderEventRecord|null=>{if(disposed)return null;const fields:Record<string,string|number|boolean>={};for(const key of Object.keys(data).slice(0,12)){const safeKey=boundedString(key,48,'field'),value=data[key];if(typeof value==='string')fields[safeKey]=value.slice(0,96);else if(typeof value==='number'&&Number.isFinite(value))fields[safeKey]=value;else if(typeof value==='boolean')fields[safeKey]=value;}const record:RenderEventRecord=freeze({sequence:events.length,name:boundedString(name,64,'render.event'),timestampMs:Math.max(0,finite(timestampMs)),fields:freeze(fields)});events.push(record);while(events.length>policy.maxEvents)events.shift();return record;};
+const snapshot=():RenderMetricsSnapshot=>{const summary:Record<string,SampleStats>={};for(const [name,values] of samples)summary[name]=sampleStats(values);return freeze({policy,disposed,frame,counters:freeze(Object.fromEntries(counters)),gauges:freeze(Object.fromEntries(gauges)),samples:freeze(summary),recentFrames:freeze(frames.slice(-policy.maxFrames)),events:freeze(events.slice(-policy.maxEvents))});};
+const reset=():void=>{frames.length=0;events.length=0;samples.clear();counters.clear();gauges.clear();frame=0;};const dispose=():void=>{disposed=true;reset();};return {count,gauge,observe,recordFrame,event,snapshot,reset,dispose,get frame(){return frame;},get disposed(){return disposed;}};}

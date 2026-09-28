@@ -65,7 +65,10 @@
     "verify:ts-source": "node scripts/checkProductionTypeScriptSourceR11.mjs",
     "test:ts-source": "npm test -- tests/modern/typedSourceOfTruthR11.test.ts",
     "check:platform-r11": "npm run verify:ts-source && npm run test:ts-source && npm run test:resilience-r11 && npm run typecheck",
-    "test:resilience-r11": "npm test -- tests/modern/runtimeResilienceR11.test.ts"
+    "test:resilience-r11": "npm test -- tests/modern/runtimeResilienceR11.test.ts",
+    "verify:strict-policy-r19": "node scripts/checkStrictPolicyR19.mjs",
+    "test:strict-policy-r19": "npm test -- tests/modern/strictPolicyR19.test.ts",
+    "check:strict-policy-r19": "npm run verify:strict-policy-r19 && npm run test:strict-policy-r19 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
