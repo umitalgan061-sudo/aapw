@@ -57,7 +57,7 @@ function freeze<T>(value: T): T {
 }
 
 function finite(value: number | undefined | null, fallback = 0): number {
-  return Number.isFinite(value) ? value : fallback;
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
 function resolveNow(target: Window | undefined): number {
