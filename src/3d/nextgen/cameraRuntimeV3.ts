@@ -143,13 +143,14 @@ function blendPose(a: CameraPose, b: CameraPose, t: number): CameraPose {
 function sampleCinematic(keyframes: readonly CinematicKeyframe[], time: number): CameraPose | null {
   if (keyframes.length === 0) return null;
   const sorted = [...keyframes].sort((a, b) => a.at - b.at);
-  if (time <= sorted[0].at) return sanitizePose(sorted[0].pose, sorted[0].pose.distance);
-  const last = sorted[sorted.length - 1];
+  const first = sorted[0]!;
+  if (time <= first.at) return sanitizePose(first.pose, first.pose.distance);
+  const last = sorted[sorted.length - 1]!;
   if (time >= last.at) return sanitizePose(last.pose, last.pose.distance);
   for (let i = 1; i < sorted.length; i += 1) {
-    const next = sorted[i];
+    const next = sorted[i]!;
     if (time <= next.at) {
-      const previous = sorted[i - 1];
+      const previous = sorted[i - 1]!;
       const span = Math.max(0.0001, next.at - previous.at);
       return blendPose(previous.pose, next.pose, (time - previous.at) / span);
     }
@@ -198,9 +199,9 @@ export class CameraRuntimeV3 {
   setTarget(entityId: number | null, target?: CameraTarget): void {
     if (this.#disposed) return;
     this.#targetEntity = entityId;
-    if (target) this.#target = { position: copy(target.position), velocity: target.velocity ? copy(target.velocity) : undefined, forward: target.forward ? copy(target.forward) : undefined, radius: finite(target.radius ?? 0.5, 0.5) };
+    if (target) this.#target = cloneTarget(target);
   }
-  setTargetTransform(target: CameraTarget): void { if (!this.#disposed) this.#target = { position: copy(target.position), velocity: target.velocity ? copy(target.velocity) : undefined, forward: target.forward ? copy(target.forward) : undefined, radius: finite(target.radius ?? 0.5, 0.5) }; }
+  setTargetTransform(target: CameraTarget): void { if (!this.#disposed) this.#target = cloneTarget(target); }
   setInput(input: Partial<CameraInput>): void { if (!this.#disposed) this.#input = { ...this.#input, ...input }; }
   setReducedMotion(enabled: boolean): void { if (!this.#disposed) this.#reducedMotion = Boolean(enabled); }
   setShake(seed: number, intensity: number): void { if (!this.#disposed) { this.#shakeSeed = seed >>> 0; this.#shakeIntensity = clamp(finite(intensity, 0), 0, 1); } }
@@ -218,10 +219,10 @@ export class CameraRuntimeV3 {
     this.#tick += 1;
     this.#applyInput(dt);
     this.#desired = this.#composeDesired(obstacle);
-    const position = criticallyDamped(this.#pose.position, this.#desired.position, this.#positionVelocity, this.config.positionStiffness, dt);
-    this.#positionVelocity = { x: position.velocity.x, y: position.velocity.y, z: position.velocity.z };
-    const target = criticallyDamped(this.#pose.target, this.#desired.target, this.#targetVelocity, this.config.targetStiffness, dt);
-    this.#targetVelocity = { x: target.velocity.x, y: target.velocity.y, z: target.velocity.z };
+    const position = criticallyDampedVec3(this.#pose.position, this.#desired.position, this.#positionVelocity, this.config.positionStiffness, dt);
+    this.#positionVelocity = position.velocity;
+    const target = criticallyDampedVec3(this.#pose.target, this.#desired.target, this.#targetVelocity, this.config.targetStiffness, dt);
+    this.#targetVelocity = target.velocity;
     this.#pose = {
       position: copy(position.value),
       target: copy(target.value),
