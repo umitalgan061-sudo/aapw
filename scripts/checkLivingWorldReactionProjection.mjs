@@ -24,7 +24,7 @@ import {
   normalizeLivingWorldReactionProjectionSnapshot,
   selectLivingWorldReactionForUi,
   summarizeLivingWorldReactionProjection,
-} from '../src/3d/gameplay/livingWorldReactionProjection.js';
+} from '../src/3d/gameplay/livingWorldReactionProjection.ts';
 
 const failures = [];
 let passed = 0;
