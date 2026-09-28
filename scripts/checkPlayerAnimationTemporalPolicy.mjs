@@ -28,7 +28,7 @@ import {
   resolvePlayerAnimationTemporalTransitionReason,
   resolvePlayerAnimationTemporalStep as step,
   validatePlayerAnimationTemporalState,
-} from '../src/3d/gameplay/playerAnimationTemporalPolicy.js';
+} from '../src/3d/gameplay/playerAnimationTemporalPolicy.ts';
 
 function test(name, callback) {
   callback();
