@@ -11,10 +11,13 @@
  */
 
 import {
-  ApplicationKernelV3,
-  type KernelFrameReport,
-  type KernelTaskContext,
-} from './applicationKernelV3';
+  DeterministicKernelV18,
+  type KernelFrameReportV18,
+  type KernelSnapshotV18,
+  type KernelTaskContextV18,
+  type RuntimeKernelAdapterV18,
+  type RuntimeKernelOptionsV18,
+} from './runtimeKernelAdapterV18';
 import {
   InputPipelineV18,
   type InputCommandV18,
@@ -53,7 +56,7 @@ import { TypedLegacyBoundaryV18 } from './typedLegacyBoundaryV18';
 
 export interface RuntimeApplicationOptionsV18 {
   readonly clock?: () => number;
-  readonly kernel?: ConstructorParameters<typeof ApplicationKernelV3>[0];
+  readonly kernel?: RuntimeKernelOptionsV18;
   readonly input?: ConstructorParameters<typeof InputPipelineV18>[0];
   readonly world?: ConstructorParameters<typeof WorldLifecycleV18>[0];
   readonly assets?: ConstructorParameters<typeof AssetLifecycleV18>[0];
@@ -73,14 +76,14 @@ export interface RuntimeApplicationSnapshotV18 {
   readonly assets: AssetLifecycleSnapshotV18;
   readonly render: RenderPolicyDecisionV18;
   readonly topology: ReturnType<RuntimeTopologyV18['snapshot']>;
-  readonly kernel: ReturnType<ApplicationKernelV3['snapshot']>;
+  readonly kernel: KernelSnapshotV18;
 }
 
 export interface RuntimeApplicationDiagnosticsV18 {
   readonly snapshot: RuntimeApplicationSnapshotV18 | null;
   readonly legacyAttached: boolean;
   readonly lastError: string | null;
-  readonly lastFrameReport: KernelFrameReport | null;
+  readonly lastFrameReport: KernelFrameReportV18 | null;
   readonly counters: Readonly<{
     inputAccepted: number;
     inputRejected: number;
@@ -125,7 +128,7 @@ function stateName(
 
 export class RuntimeApplication {
   readonly topology: RuntimeTopologyV18;
-  readonly kernel: ApplicationKernelV3;
+  readonly kernel: RuntimeKernelAdapterV18;
   readonly input: InputPipelineV18;
   readonly world: WorldLifecycleV18;
   readonly assets: AssetLifecycleV18;
@@ -139,7 +142,7 @@ export class RuntimeApplication {
   #state: RuntimeApplicationSnapshotV18['state'] = 'created';
   #legacy: LegacyGameModuleV18 | null = null;
   #snapshot: RuntimeApplicationSnapshotV18 | null = null;
-  #lastFrameReport: KernelFrameReport | null = null;
+  #lastFrameReport: KernelFrameReportV18 | null = null;
   #lastError: string | null = null;
   #inputAccepted = 0;
   #inputRejected = 0;
@@ -149,7 +152,7 @@ export class RuntimeApplication {
     this.#clock = options.clock ?? nowDefault;
 
     this.topology = new RuntimeTopologyV18({ clock: this.#clock });
-    this.kernel = new ApplicationKernelV3({
+    this.kernel = new DeterministicKernelV18({
       fixedStepMs: 1000 / 60,
       maxFrameDeltaMs: 250,
       maxCatchUpSteps: 6,
@@ -692,14 +695,14 @@ export class RuntimeApplication {
     }
   }
 
-  #publish(nowMs: number, report: KernelFrameReport | null): RuntimeApplicationSnapshotV18 {
+  #publish(nowMs: number, report: KernelFrameReportV18 | null): RuntimeApplicationSnapshotV18 {
     this.#snapshot = this.#buildSnapshot(nowMs, report);
     return this.#snapshot;
   }
 
   #buildSnapshot(
     timestampMs: number,
-    report: KernelFrameReport | null = this.#lastFrameReport,
+    report: KernelFrameReportV18 | null = this.#lastFrameReport,
   ): RuntimeApplicationSnapshotV18 {
     const render =
       this.render.diagnostics().lastDecision ??
@@ -788,5 +791,3 @@ export class RuntimeApplication {
     return new MemoryPersistenceAdapterV18();
   }
 }
-
-export type RuntimeApplication = RuntimeApplication;
