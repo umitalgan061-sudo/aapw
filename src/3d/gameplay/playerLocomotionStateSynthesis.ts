@@ -5,7 +5,7 @@
  * Combines existing anticipation/directional contracts with caller-owned contact/traversal cues.
  * No movement, physics, combat, camera, navigation, persistence, asset, mixer or renderer ownership.
  */
-import { PLAYER_DIRECTIONAL_DIRECTIONS, normalizePlayerDirectionalInput } from './playerDirectionalLocomotionPolicy.js';
+import { PLAYER_DIRECTIONAL_DIRECTIONS, normalizePlayerDirectionalInput } from './playerDirectionalLocomotionPolicy.ts';
 import { resolvePlayerLocomotionAnticipationProfile } from './playerLocomotionAnticipationPolicy.js';
 import { resolvePlayerLocomotionAnimationRequest } from './playerLocomotionAnimationBridge.js';
 
