@@ -5,7 +5,7 @@
 const freeze=Object.freeze;
 const clamp01=v=>Math.max(0,Math.min(1,Number.isFinite(Number(v))?Number(v):0));
 const scale=(value,fallback=.5)=>clamp01(value??fallback);
-export const TERRAIN_GROUNDWATER_DETAIL_CALIBRATION_POLICY=freeze({id:'terrain-groundwater-surface-detail-calibration-2026-09-15-v1',renderOnly:true,deterministic:true,canonicalHeightUnchanged:true,canonicalHydrologyUnchanged:true,canonicalCoastlineUnchanged:true,canonicalColliderUnchanged:true,canonicalVegetationPlacementUnchanged:true,newGeographyIntroduced:false,maxMultiplier:1.35,minMultiplier:.65});
+export const TERRAIN_GROUNDWATER_DETAIL_CALIBRATION_POLICY=freeze({id:'terrain-groundwater-surface-detail-calibration-2026-09-15-v1',renderOnly:true,deterministic:true,canonicalHeightUnchanged:true,canonicalHydrologyUnchanged:true,canonicalCoastlineUnchanged:true,canonicalColliderUnchanged:true,canonicalVegetationPlacementUnchanged:true,newGeographyIntroduced:false,maxMultiplier:1.35,minMultiplier:.30});
 export const TERRAIN_GROUNDWATER_DETAIL_CALIBRATION_PROFILES=freeze([
 {id:'wetland-peat',biome:'wetland',substrate:'peat',wetRim:1.18,capillary:1.26,seepage:1.02,puddle:1.3,evaporation:.74,crust:.7,fine:1.08,recovery:1.2,freeze:.9,marsh:1.32,drying:.72,relief:.92},
 {id:'wetland-silt',biome:'wetland',substrate:'silt',wetRim:1.15,capillary:1.12,seepage:1.08,puddle:1.22,evaporation:.78,crust:.76,fine:1.16,recovery:1.12,freeze:.88,marsh:1.25,drying:.76,relief:.96},
