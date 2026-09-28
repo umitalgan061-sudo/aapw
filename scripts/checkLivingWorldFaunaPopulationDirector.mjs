@@ -4,7 +4,7 @@ import {
   applyFaunaPopulationTick,
   auditFaunaPopulationPlan,
   createFaunaPopulationDirector,
-} from '../src/3d/gameplay/livingWorldFaunaPopulationDirector.js';
+} from '../src/3d/gameplay/livingWorldFaunaPopulationDirector.ts';
 
 const input = {
   seed: 'population-proof',
