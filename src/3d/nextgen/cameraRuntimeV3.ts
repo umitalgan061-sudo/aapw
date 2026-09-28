@@ -104,6 +104,30 @@ const zero = (): Vec3 => ({ x: 0, y: 0, z: 0 });
 const copy = (v: Vec3): Vec3 => ({ x: v.x, y: v.y, z: v.z });
 const finite = (value: number, fallback: number): number => Number.isFinite(value) ? value : fallback;
 
+function criticallyDampedVec3(
+  current: Vec3,
+  target: Vec3,
+  velocity: Vec3,
+  smoothTime: number,
+  deltaSeconds: number,
+): { value: Vec3; velocity: Vec3 } {
+  const x = criticallyDamped(current.x, target.x, velocity.x, smoothTime, deltaSeconds);
+  const y = criticallyDamped(current.y, target.y, velocity.y, smoothTime, deltaSeconds);
+  const z = criticallyDamped(current.z, target.z, velocity.z, smoothTime, deltaSeconds);
+  return {
+    value: { x: x.value, y: y.value, z: z.value },
+    velocity: { x: x.velocity, y: y.velocity, z: z.velocity },
+  };
+}
+
+function cloneTarget(target: CameraTarget): CameraTarget {
+  const next: CameraTarget = { position: copy(target.position) };
+  if (target.velocity) next.velocity = copy(target.velocity);
+  if (target.forward) next.forward = copy(target.forward);
+  if (target.radius !== undefined) next.radius = finite(target.radius, 0.5);
+  return next;
+}
+
 function sanitizePose(pose: CameraPose, fallbackDistance: number): CameraPose {
   const normalizedForward = normalize3(sub3(pose.target, pose.position));
   const safeForward = normalizedForward.x === 0 && normalizedForward.y === 0 && normalizedForward.z === 0
