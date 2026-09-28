@@ -5,7 +5,7 @@
  * and slot rotation. Payloads remain renderer-neutral and safe to inspect offline.
  */
 
-export interface PersistenceEnvelopeV18<T> {
+export interface PersistenceRecordV18<T> {
   readonly magic: 'AAPW-SAVE-V18';
   readonly schema: number;
   readonly revision: number;
@@ -92,9 +92,9 @@ export class PersistenceEnvelopeV18<T> {
   readonly #schema: number;
   readonly #maxBytes: number;
   readonly #clock: () => number;
-  readonly #migrate?: PersistenceEnvelopeOptionsV18<T>['migrate'];
-  readonly #validate?: PersistenceEnvelopeOptionsV18<T>['validate'];
-  readonly #adapter?: PersistenceAdapterV18;
+  readonly #migrate: PersistenceEnvelopeOptionsV18<T>['migrate'] | undefined;
+  readonly #validate: PersistenceEnvelopeOptionsV18<T>['validate'] | undefined;
+  readonly #adapter: PersistenceAdapterV18 | undefined;
   #revision = 0;
 
   public constructor(options: PersistenceEnvelopeOptionsV18<T>) {
@@ -123,7 +123,7 @@ export class PersistenceEnvelopeV18<T> {
     };
 
     const checksum = hash(stable(unsigned));
-    const envelope: PersistenceEnvelopeV18<T> = {
+    const envelope: PersistenceRecordV18<T> = {
       ...unsigned,
       checksum,
     };
@@ -275,7 +275,7 @@ export class PersistenceEnvelopeV18<T> {
     });
   }
 
-  #isEnvelope(value: unknown): value is PersistenceEnvelopeV18<unknown> {
+  #isEnvelope(value: unknown): value is PersistenceRecordV18<unknown> {
     if (!value || typeof value !== 'object') return false;
     const record = value as Record<string, unknown>;
 
