@@ -384,12 +384,13 @@ export class RuntimeApplication {
       });
 
     const module = await loader();
-    this.legacyBoundary.attach({
+    const legacyContract: import('./typedLegacyBoundaryV18').LegacyBoundaryModuleV18 = {
       id: 'game3d-legacy',
-      init: module.initGame3D,
-      dispose: module.disposeGame3D,
-      shutdown: module.shutdownGame3D,
-    });
+    };
+    if (module.initGame3D) legacyContract.init = module.initGame3D;
+    if (module.disposeGame3D) legacyContract.dispose = module.disposeGame3D;
+    if (module.shutdownGame3D) legacyContract.shutdown = module.shutdownGame3D;
+    this.legacyBoundary.attach(legacyContract);
     this.#legacy = module;
 
     if (options.autoInitialize ?? true) {
@@ -669,7 +670,7 @@ export class RuntimeApplication {
     });
   }
 
-  #runInputTask(context: KernelTaskContext): void {
+  #runInputTask(context: KernelTaskContextV18): void {
     this.input.setTick(context.simulationTick);
     const commands = this.input.drain();
 
