@@ -195,13 +195,16 @@ export class AssetLifecycleV18 {
       throw new RangeError(`Asset maxBytes must be positive: ${id}`);
     }
 
+    const normalizedHash = normalizeHash(entry.sha256);
     const normalized: AssetManifestEntryV18 = freeze({
       ...entry,
       id,
       url: entry.url.trim(),
       maxBytes: Math.max(1, Math.trunc(entry.maxBytes)),
-      expectedBytes: entry.expectedBytes === undefined ? undefined : Math.max(0, Math.trunc(entry.expectedBytes)),
-      sha256: normalizeHash(entry.sha256),
+      ...(entry.expectedBytes === undefined
+        ? {}
+        : { expectedBytes: Math.max(0, Math.trunc(entry.expectedBytes)) }),
+      ...(normalizedHash === undefined ? {} : { sha256: normalizedHash }),
       tags: freeze([...(entry.tags ?? [])].map((tag) => tag.trim()).filter(Boolean).slice(0, 16)),
       cacheable: entry.cacheable ?? true,
       critical: entry.critical ?? false,
