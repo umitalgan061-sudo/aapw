@@ -279,9 +279,9 @@ export class RuntimeMigrationRegistryV18 {
     if (next === 'blocked') return current !== 'validated';
     if (current === next) return true;
     if (current === 'legacy') return next === 'adapter';
-    if (current === 'adapter') return next === 'shadow' || next === 'blocked';
-    if (current === 'shadow') return next === 'typed' || next === 'blocked';
-    if (current === 'typed') return next === 'validated' || next === 'blocked';
+    if (current === 'adapter') return next === 'shadow';
+    if (current === 'shadow') return next === 'typed';
+    if (current === 'typed') return next === 'validated';
     if (current === 'blocked') return next === 'adapter';
     return false;
   }
