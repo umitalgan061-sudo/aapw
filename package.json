@@ -68,7 +68,11 @@
     "test:resilience-r11": "npm test -- tests/modern/runtimeResilienceR11.test.ts",
     "verify:strict-policy-r19": "node scripts/checkStrictPolicyR19.mjs",
     "test:strict-policy-r19": "npm test -- tests/modern/strictPolicyR19.test.ts",
-    "check:strict-policy-r19": "npm run verify:strict-policy-r19 && npm run test:strict-policy-r19 && npm run typecheck"
+    "check:strict-policy-r19": "npm run verify:strict-policy-r19 && npm run test:strict-policy-r19 && npm run typecheck",
+    "verify:strict-policy-r20": "node scripts/checkStrictPolicyR20.mjs",
+    "typecheck:strict-policy-r20": "tsc -p tsconfig.strict-policy-r20.json --noEmit",
+    "test:strict-policy-r20": "npm test -- tests/modern/strictPolicyR20.test.ts tests/modern/r20StrictPolicyLedger.test.ts",
+    "check:strict-policy-r20": "npm run verify:strict-policy-r20 && npm run typecheck:strict-policy-r20 && npm run test:strict-policy-r20"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

@@ -1,6 +1,4 @@
-/** Production TypeScript owner for src/3d/world/roadSurfaceProfile.js; legacy JS path remains compatibility-only. */
-// @ts-nocheck
-/**
+/** Production TypeScript owner for src/3d/world/roadSurfaceProfile.js; legacy JS path remains compatibility-only. *//**
  * Dense, deterministic road-surface profiling utilities.
  *
  * Road routing works on a coarser search grid for performance, while the rendered road ultimately
@@ -19,25 +17,86 @@ export const ROAD_PROFILE_POLICY = Object.freeze({
   epsilonMeters: 1e-6,
   deterministic: true,
   geographyAuthorityUnchanged: true,
-  heightAuthority: 'world/terrain.js',
+  heightAuthority: 'world/terrain.ts',
 });
 
 const EPSILON = ROAD_PROFILE_POLICY.epsilonMeters;
 
-function finiteNumber(value, label) {
+export interface RoadPoint {
+  readonly x: number;
+  readonly z: number;
+  readonly y: number;
+}
+
+export interface RoadInputPoint {
+  readonly x: number;
+  readonly z: number;
+  readonly y?: number;
+}
+
+export type TerrainSampler = (x: number, z: number) => number;
+
+export interface TerrainSegmentProfile {
+  readonly horizontalMeters: number;
+  readonly subsegmentCount: number;
+  readonly sampleCount: number;
+  readonly maxSpacingMeters: number;
+  readonly startHeightMeters: number;
+  readonly endHeightMeters: number;
+  readonly directGradeDegrees: number;
+  readonly maxGradeDegrees: number;
+  readonly maxRiseMeters: number;
+  readonly totalAscentMeters: number;
+  readonly totalDescentMeters: number;
+  readonly minHeightMeters: number;
+  readonly maxHeightMeters: number;
+  readonly meanHeightMeters: number;
+  readonly meanGradeDegrees: number;
+  readonly rmsStepDeltaMeters: number;
+  readonly elevationRangeMeters: number;
+  readonly samples: readonly TerrainProfileSample[];
+}
+
+export interface TerrainProfileSample {
+  readonly x: number;
+  readonly z: number;
+  readonly y: number;
+  readonly t: number;
+}
+
+export interface RoadProfile {
+  readonly points: readonly RoadPoint[];
+  readonly sourcePointCount: number;
+  readonly densifiedPointCount: number;
+  readonly segmentCount: number;
+  readonly sampledSubsegments?: number;
+  readonly lengthMeters: number;
+  readonly maxGradeDegrees: number;
+  readonly meanGradeDegrees: number;
+  readonly totalAscentMeters: number;
+  readonly totalDescentMeters: number;
+  readonly maxRiseMeters: number;
+  readonly elevationRangeMeters: number;
+  readonly roughnessRmsMeters: number;
+}
+
+
+
+function finiteNumber(value: unknown, label: string): number {
   if (!Number.isFinite(value)) throw new TypeError(`${label} must be finite`);
   return value;
 }
 
-function finitePoint(point, label) {
+function finitePoint(point: unknown, label: string): { x: number; z: number } {
   if (!point || typeof point !== 'object') throw new TypeError(`${label} must be a point`);
+  const candidate = point as { readonly x?: unknown; readonly z?: unknown };
   return {
-    x: finiteNumber(point.x, `${label}.x`),
-    z: finiteNumber(point.z, `${label}.z`),
+    x: finiteNumber(candidate.x, `${label}.x`),
+    z: finiteNumber(candidate.z, `${label}.z`),
   };
 }
 
-export function gradeDegrees(riseMeters, horizontalMeters) {
+export function gradeDegrees(riseMeters: number, horizontalMeters: number): number {
   const rise = Math.abs(finiteNumber(riseMeters, 'riseMeters'));
   const horizontal = finiteNumber(horizontalMeters, 'horizontalMeters');
   if (horizontal < 0) throw new RangeError('horizontalMeters must be >= 0');
@@ -45,7 +104,7 @@ export function gradeDegrees(riseMeters, horizontalMeters) {
   return (Math.atan2(rise, horizontal) * 180) / Math.PI;
 }
 
-export function segmentSampleCount(horizontalMeters, maxSpacingMeters = ROAD_PROFILE_POLICY.maxSampleSpacingMeters) {
+export function segmentSampleCount(horizontalMeters: number, maxSpacingMeters = ROAD_PROFILE_POLICY.maxSampleSpacingMeters): number {
   const horizontal = finiteNumber(horizontalMeters, 'horizontalMeters');
   const spacing = finiteNumber(maxSpacingMeters, 'maxSpacingMeters');
   if (horizontal < 0) throw new RangeError('horizontalMeters must be >= 0');
@@ -62,13 +121,18 @@ export function profileTerrainSegment({
   end,
   sampleHeightMeters,
   maxSpacingMeters = ROAD_PROFILE_POLICY.maxSampleSpacingMeters,
-}) {
+}: {
+  readonly start: RoadInputPoint;
+  readonly end: RoadInputPoint;
+  readonly sampleHeightMeters: TerrainSampler;
+  readonly maxSpacingMeters?: number;
+}): TerrainSegmentProfile {
   if (typeof sampleHeightMeters !== 'function') throw new TypeError('sampleHeightMeters must be a function');
   const a = finitePoint(start, 'start');
   const b = finitePoint(end, 'end');
   const horizontalMeters = Math.hypot(b.x - a.x, b.z - a.z);
   const subsegmentCount = segmentSampleCount(horizontalMeters, maxSpacingMeters);
-  const samples = new Array(subsegmentCount + 1);
+  const samples: TerrainProfileSample[] = new Array(subsegmentCount + 1);
 
   let previousHeight = 0;
   let maxGradeDegrees = 0;
@@ -92,7 +156,7 @@ export function profileTerrainSegment({
     sumHeightMeters += y;
 
     if (index > 0) {
-      const previous = samples[index - 1];
+      const previous = samples[index - 1]!;
       const localHorizontal = Math.hypot(x - previous.x, z - previous.z);
       const signedDelta = y - previousHeight;
       const localGrade = gradeDegrees(signedDelta, localHorizontal);
@@ -106,8 +170,8 @@ export function profileTerrainSegment({
     previousHeight = y;
   }
 
-  const startHeightMeters = samples[0].y;
-  const endHeightMeters = samples.at(-1).y;
+  const startHeightMeters = samples[0]!.y;
+  const endHeightMeters = samples.at(-1)!.y;
   const directGradeDegrees = gradeDegrees(endHeightMeters - startHeightMeters, horizontalMeters);
   const meanHeightMeters = sumHeightMeters / samples.length;
   const meanGradeDegrees = subsegmentCount > 0 ? gradeAccumulator / subsegmentCount : 0;
@@ -137,13 +201,13 @@ export function profileTerrainSegment({
   });
 }
 
-function normalizedInputPoint(point, sampleHeightMeters, label) {
+function normalizedInputPoint(point: RoadInputPoint, sampleHeightMeters: TerrainSampler, label: string): RoadPoint {
   const p = finitePoint(point, label);
-  const y = Number.isFinite(point.y) ? point.y : sampleHeightMeters(p.x, p.z);
+  const y = typeof point.y === 'number' && Number.isFinite(point.y) ? point.y : sampleHeightMeters(p.x, p.z);
   return { x: p.x, z: p.z, y: finiteNumber(y, `${label}.y`) };
 }
 
-function complementaryProfileSpacing(maxSpacingMeters) {
+function complementaryProfileSpacing(maxSpacingMeters: number): number {
   const primary = finiteNumber(maxSpacingMeters, 'maxSpacingMeters');
   const presentation = ROAD_PROFILE_POLICY.presentationSampleSpacingMeters;
   const search = ROAD_PROFILE_POLICY.maxSampleSpacingMeters;
@@ -161,11 +225,15 @@ export function profileRoadPolyline({
   points,
   sampleHeightMeters,
   maxSpacingMeters = ROAD_PROFILE_POLICY.presentationSampleSpacingMeters,
-}) {
+}: {
+  readonly points: readonly RoadInputPoint[];
+  readonly sampleHeightMeters: TerrainSampler;
+  readonly maxSpacingMeters?: number;
+}): RoadProfile {
   if (!Array.isArray(points) || points.length === 0) throw new TypeError('points must be a non-empty array');
   if (typeof sampleHeightMeters !== 'function') throw new TypeError('sampleHeightMeters must be a function');
 
-  const source = points.map((point, index) => normalizedInputPoint(point, sampleHeightMeters, `points[${index}]`));
+  const source: RoadPoint[] = points.map((point, index) => normalizedInputPoint(point, sampleHeightMeters, `points[${index}]`));
   if (source.length === 1) {
     return Object.freeze({
       points: [source[0]],
@@ -183,7 +251,7 @@ export function profileRoadPolyline({
     });
   }
 
-  const densified = [];
+  const densified: RoadPoint[] = [];
   let lengthMeters = 0;
   let maxGradeDegrees = 0;
   let totalAscentMeters = 0;
@@ -197,8 +265,8 @@ export function profileRoadPolyline({
   const auditSpacingMeters = complementaryProfileSpacing(maxSpacingMeters);
 
   for (let segmentIndex = 1; segmentIndex < source.length; segmentIndex += 1) {
-    const start = source[segmentIndex - 1];
-    const end = source[segmentIndex];
+    const start = source[segmentIndex - 1]!;
+    const end = source[segmentIndex]!;
     const profile = profileTerrainSegment({ start, end, sampleHeightMeters, maxSpacingMeters });
     const phaseAudit = Math.abs(auditSpacingMeters - maxSpacingMeters) <= EPSILON
       ? profile
@@ -213,10 +281,10 @@ export function profileRoadPolyline({
 
     for (let sampleIndex = 0; sampleIndex < profile.samples.length; sampleIndex += 1) {
       if (segmentIndex > 1 && sampleIndex === 0) continue;
-      const sample = profile.samples[sampleIndex];
+      const sample = profile.samples[sampleIndex]!;
       densified.push({ x: sample.x, z: sample.z, y: sample.y });
       if (densified.length > 1) {
-        const previous = densified[densified.length - 2];
+        const previous = densified[densified.length - 2]!;
         const horizontal = Math.hypot(sample.x - previous.x, sample.z - previous.z);
         const localGrade = gradeDegrees(sample.y - previous.y, horizontal);
         gradeWeightedDistance += localGrade * horizontal;
@@ -243,7 +311,7 @@ export function profileRoadPolyline({
   });
 }
 
-export function pathIsGradeSafe(profile, maxGradeDegrees) {
+export function pathIsGradeSafe(profile: RoadProfile | null | undefined, maxGradeDegrees: number): boolean {
   if (!profile || !Number.isFinite(profile.maxGradeDegrees)) return false;
   const cap = finiteNumber(maxGradeDegrees, 'maxGradeDegrees');
   if (cap < 0 || cap > 90) throw new RangeError('maxGradeDegrees must be between 0 and 90');
@@ -254,7 +322,7 @@ export function pathIsGradeSafe(profile, maxGradeDegrees) {
  * Measures how much a densified path bends. Large heading changes are useful diagnostic evidence
  * for switchbacks, while a zero value describes a straight path.
  */
-export function summarizePolylineCurvature(points) {
+export function summarizePolylineCurvature(points: readonly RoadPoint[]): { readonly turnCount:number; readonly totalTurnDegrees:number; readonly maxTurnDegrees:number; readonly meanTurnDegrees:number } {
   if (!Array.isArray(points) || points.length < 3) {
     return Object.freeze({ turnCount: 0, totalTurnDegrees: 0, maxTurnDegrees: 0, meanTurnDegrees: 0 });
   }
@@ -262,9 +330,9 @@ export function summarizePolylineCurvature(points) {
   let totalTurnDegrees = 0;
   let maxTurnDegrees = 0;
   for (let index = 1; index < points.length - 1; index += 1) {
-    const a = points[index - 1];
-    const b = points[index];
-    const c = points[index + 1];
+    const a = points[index - 1]!
+    const b = points[index]!
+    const c = points[index + 1]!
     const ax = b.x - a.x;
     const az = b.z - a.z;
     const bx = c.x - b.x;
@@ -287,7 +355,7 @@ export function summarizePolylineCurvature(points) {
   });
 }
 
-export function checksumProfile(profile) {
+export function checksumProfile(profile: Pick<RoadProfile, 'points'|'maxGradeDegrees'|'lengthMeters'>): string {
   if (!profile || !Array.isArray(profile.points)) throw new TypeError('profile.points is required');
   let hash = 2166136261 >>> 0;
   const mix = (value) => {
