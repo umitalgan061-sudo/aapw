@@ -63,7 +63,9 @@ describe('browser runtime bridge V18', () => {
       windowTarget: windowTarget as unknown as Window,
     });
 
-    keyboard.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
+    const keydown = new Event('keydown', { cancelable: true });
+    Object.defineProperty(keydown, 'code', { value: 'KeyW' });
+    keyboard.dispatchEvent(keydown);
 
     expect(bridge.snapshot().inputCommands).toBe(1);
     expect(runtime.input.isActive('move-forward')).toBe(true);
@@ -100,7 +102,7 @@ describe('browser runtime bridge V18', () => {
   });
 
   it('starts and publishes a runtime snapshot', async () => {
-    const windowTarget = new FakeTarget() as unknown as Window;
+    const windowTarget = new FakeTarget();
     const runtime = new RuntimeApplication({
       persistence: new MemoryPersistenceAdapterV18(),
       clock: () => 16.67,
@@ -109,10 +111,13 @@ describe('browser runtime bridge V18', () => {
     const bridge = createBrowserRuntimeBridgeV18({
       runtime,
       canvas: canvas(),
-      windowTarget,
+      windowTarget: windowTarget as unknown as Window,
     });
 
     await bridge.start();
+    windowTarget.flush();
+    await Promise.resolve();
+    await Promise.resolve();
     expect(bridge.snapshot().lastSnapshot?.state).toBe('running');
 
     await bridge.stop();
