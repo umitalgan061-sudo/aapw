@@ -89,9 +89,10 @@ function finiteNumber(value: unknown, label: string): number {
 
 function finitePoint(point: unknown, label: string): { x: number; z: number } {
   if (!point || typeof point !== 'object') throw new TypeError(`${label} must be a point`);
+  const candidate = point as { readonly x?: unknown; readonly z?: unknown };
   return {
-    x: finiteNumber(point.x, `${label}.x`),
-    z: finiteNumber(point.z, `${label}.z`),
+    x: finiteNumber(candidate.x, `${label}.x`),
+    z: finiteNumber(candidate.z, `${label}.z`),
   };
 }
 
@@ -202,7 +203,7 @@ export function profileTerrainSegment({
 
 function normalizedInputPoint(point: RoadInputPoint, sampleHeightMeters: TerrainSampler, label: string): RoadPoint {
   const p = finitePoint(point, label);
-  const y = Number.isFinite(point.y) ? point.y : sampleHeightMeters(p.x, p.z);
+  const y = typeof point.y === 'number' && Number.isFinite(point.y) ? point.y : sampleHeightMeters(p.x, p.z);
   return { x: p.x, z: p.z, y: finiteNumber(y, `${label}.y`) };
 }
 
