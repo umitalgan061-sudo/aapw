@@ -9,7 +9,7 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: /^three$/, replacement: VENDORED_THREE },
-      { find: /^three\/addons(?:\/|$)/, replacement: VENDORED_THREE_ADDONS },
+      { find: /^three\/addons(?:\/|$)/, replacement: `${VENDORED_THREE_ADDONS}/` },
     ],
   },
   build: {
