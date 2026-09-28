@@ -116,8 +116,7 @@ describe('browser runtime bridge V18', () => {
 
     await bridge.start();
     windowTarget.flush();
-    await Promise.resolve();
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(bridge.snapshot().lastSnapshot?.state).toBe('running');
 
     await bridge.stop();
