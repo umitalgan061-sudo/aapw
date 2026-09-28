@@ -107,9 +107,10 @@ export class RuntimeHealthV18 {
     const readyRatio=signals.length===0?1:signals.filter(s=>s.state==='healthy').length/signals.length;
 
     let state:RuntimeHealthStateV18='healthy';
+    const blockedReadyRatio = this.#minimumReadyRatio * 0.75;
     if(criticalFailures.length>0)state='failed';
-    else if(readyRatio<this.#minimumReadyRatio||score<0.5)state='blocked';
-    else if(degradedSignals.length>0||score<this.#minimumHealthyScore)state='degraded';
+    else if(readyRatio<blockedReadyRatio||score<0.5)state='blocked';
+    else if(readyRatio<this.#minimumReadyRatio||degradedSignals.length>0||score<this.#minimumHealthyScore)state='degraded';
 
     return freeze({
       revision:this.#revision,
