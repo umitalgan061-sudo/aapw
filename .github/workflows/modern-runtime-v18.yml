@@ -1,0 +1,38 @@
+name: modern-runtime-v18
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/**'
+      - 'src/3d/game3d.js'
+      - '.github/workflows/modern-runtime-v18.yml'
+      - 'scripts/checkModernPlatformV18.mjs'
+      - 'package.json'
+      - 'tsconfig.json'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/modern/**'
+      - 'src/3d/game3d.js'
+      - '.github/workflows/modern-runtime-v18.yml'
+      - 'scripts/checkModernPlatformV18.mjs'
+      - 'package.json'
+      - 'tsconfig.json'
+permissions:
+  contents: read
+concurrency:
+  group: modern-runtime-v18-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node scripts/checkModernPlatformV18.mjs
+      - run: npm run typecheck
+      - run: npm test -- tests/modern/runtimeApplicationV18.test.ts tests/modern/modernRuntimeV18Governance.test.ts tests/modern/runtimeBrowserBridgeV18.test.ts tests/modern/runtimeHealthV18.test.ts --passWithNoTests
+      - run: npm run build:modern

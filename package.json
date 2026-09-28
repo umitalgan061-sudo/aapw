@@ -72,7 +72,10 @@
     "verify:strict-policy-r20": "node scripts/checkStrictPolicyR20.mjs",
     "typecheck:strict-policy-r20": "tsc -p tsconfig.strict-policy-r20.json --noEmit",
     "test:strict-policy-r20": "npm test -- tests/modern/strictPolicyR20.test.ts tests/modern/r20StrictPolicyLedger.test.ts",
-    "check:strict-policy-r20": "npm run verify:strict-policy-r20 && npm run typecheck:strict-policy-r20 && npm run test:strict-policy-r20"
+    "check:strict-policy-r20": "npm run verify:strict-policy-r20 && npm run typecheck:strict-policy-r20 && npm run test:strict-policy-r20",
+    "verify:modern:v18": "node scripts/checkModernPlatformV18.mjs",
+    "test:modern:v18": "npm test -- tests/modern/runtimeApplicationV18.test.ts tests/modern/modernRuntimeV18Governance.test.ts tests/modern/runtimeBrowserBridgeV18.test.ts tests/modern/runtimeHealthV18.test.ts",
+    "check:modern:v18": "npm run verify:modern:v18 && npm run typecheck && npm run test:modern:v18 && npm run build:modern"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
