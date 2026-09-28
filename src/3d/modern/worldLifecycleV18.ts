@@ -282,7 +282,7 @@ export class WorldLifecycleV18 {
     for (const record of all) {
       if (
         record.state === 'ready' &&
-        (protectedIds.has(record.descriptor.id) || record.descriptor.critical)
+        protectedIds.has(record.descriptor.id)
       ) {
         keep.push(record.descriptor.id);
       }
@@ -290,7 +290,7 @@ export class WorldLifecycleV18 {
       if (
         (record.state === 'absent' || record.state === 'degraded') &&
         protectedIds.has(record.descriptor.id) &&
-        this.#loading.size < this.#loadConcurrency
+        (this.#loading.size + load.length) < this.#loadConcurrency
       ) {
         if (this.#dependenciesReady(record)) {
           load.push(record.descriptor.id);
@@ -332,7 +332,7 @@ export class WorldLifecycleV18 {
       }
     }
 
-    const residentBytes = [...new Set(keep)]
+    const residentBytes = [...new Set([...keep, ...blockedUnload])]
       .reduce((sum, id) => sum + (this.#zones.get(id)?.descriptor.memoryBytes ?? 0), 0);
 
     const pressure = clamp(
