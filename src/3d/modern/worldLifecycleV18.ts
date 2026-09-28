@@ -288,7 +288,7 @@ export class WorldLifecycleV18 {
       }
 
       if (
-        (record.state === 'absent' || record.state === 'evicted' || record.state === 'degraded') &&
+        (record.state === 'absent' || record.state === 'degraded') &&
         protectedIds.has(record.descriptor.id) &&
         this.#loading.size < this.#loadConcurrency
       ) {
