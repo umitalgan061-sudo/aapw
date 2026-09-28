@@ -8,13 +8,13 @@
  * player, combat, renderer and application state.
  */
 
-import { createDeterministicRuntimeScheduler } from './deterministicRuntimeScheduler.js';
+import { createDeterministicRuntimeScheduler } from './deterministicRuntimeScheduler.ts';
 import { createAdaptiveQualityController } from './adaptiveQualityController.js';
 import { createInputCommandBuffer } from './inputCommandBuffer.js';
 import { createRuntimeTelemetryHub } from './runtimeTelemetryHub.js';
-import { createRuntimeHealthMonitor } from './runtimeHealthMonitor.js';
+import { createRuntimeHealthMonitor } from './runtimeHealthMonitor.ts';
 import { createVersionedPersistenceLedger, createLocalStorageAdapter } from './versionedPersistenceLedger.js';
-import { probePlatformCapabilities, classifyPlatformProfile, capabilityWarnings } from './platformCapabilityProbe.js';
+import { probePlatformCapabilities, classifyPlatformProfile, capabilityWarnings } from './platformCapabilityProbe.ts';
 import { clamp, finiteOr, integerOr, createRuntimeSnapshot, createRuntimeId, createDisposer, resolveLogger } from './modernRuntimeContract.js';
 
 function defaultNow() {
