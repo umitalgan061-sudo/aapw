@@ -8,6 +8,7 @@
     "noUncheckedIndexedAccess": true
   },
   "include": [
+    "src/3d/modern/runtimeKernelAdapterV18.ts",
     "src/3d/modern/*V18.ts",
     "src/3d/modern/applicationKernelV3.ts",
     "tests/modern/runtimeApplicationV18.test.ts",
@@ -15,5 +16,9 @@
     "tests/modern/runtimeBrowserBridgeV18.test.ts",
     "tests/modern/runtimeHealthV18.test.ts"
   ],
-  "exclude": ["node_modules", "dist", "coverage"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage"
+  ]
 }
