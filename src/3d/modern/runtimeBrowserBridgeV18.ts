@@ -56,7 +56,7 @@ function freeze<T>(value: T): T {
   return Object.freeze(value);
 }
 
-function finite(value: number, fallback = 0): number {
+function finite(value: number | undefined | null, fallback = 0): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
@@ -217,10 +217,10 @@ export function createBrowserRuntimeBridgeV18(
   }
 
   function installListeners(): void {
-    listen(keyboardTarget, 'keydown', handleKeyboard('pressed'), { passive: false });
-    listen(keyboardTarget, 'keyup', handleKeyboard('released'), { passive: false });
-    listen(pointerTarget, 'pointerdown', handlePointer('pressed'), { passive: true });
-    listen(pointerTarget, 'pointerup', handlePointer('released'), { passive: true });
+    listen(keyboardTarget, 'keydown', handleKeyboard('pressed') as EventListener, { passive: false });
+    listen(keyboardTarget, 'keyup', handleKeyboard('released') as EventListener, { passive: false });
+    listen(pointerTarget, 'pointerdown', handlePointer('pressed') as EventListener, { passive: true });
+    listen(pointerTarget, 'pointerup', handlePointer('released') as EventListener, { passive: true });
     listen(pointerTarget, 'touchstart', handleTouch as EventListener, { passive: true });
     listen(visibilityDocument, 'visibilitychange', handleVisibility as EventListener, { passive: true });
     listen(windowTarget, 'resize', handleResize as EventListener, { passive: true });
