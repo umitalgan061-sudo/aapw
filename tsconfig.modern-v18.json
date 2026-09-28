@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": false,
+    "verbatimModuleSyntax": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "include": [
+    "src/3d/modern/*V18.ts",
+    "src/3d/modern/applicationKernelV3.ts",
+    "tests/modern/runtimeApplicationV18.test.ts",
+    "tests/modern/modernRuntimeV18Governance.test.ts",
+    "tests/modern/runtimeBrowserBridgeV18.test.ts",
+    "tests/modern/runtimeHealthV18.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
