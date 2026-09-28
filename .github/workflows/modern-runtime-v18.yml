@@ -33,6 +33,6 @@ jobs:
           node-version: 24.21.0
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: node scripts/checkModernPlatformV18.mjs
-      - run: npm run typecheck
+      - run: npm run typecheck:modern:v18
       - run: npm test -- tests/modern/runtimeApplicationV18.test.ts tests/modern/modernRuntimeV18Governance.test.ts tests/modern/runtimeBrowserBridgeV18.test.ts tests/modern/runtimeHealthV18.test.ts --passWithNoTests
       - run: npm run build:modern
