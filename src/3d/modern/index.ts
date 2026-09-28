@@ -74,3 +74,4 @@ export * from './runtimeApplicationV18';
 export * from './runtimeBrowserBridgeV18';
 export * from './runtimeHealthV18';
 export * from './v18';
+export * from './runtimeKernelAdapterV18';
