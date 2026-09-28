@@ -68,7 +68,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function finite(value: number, fallback = 0): number {
+function finite(value: number | undefined | null, fallback = 0): number {
   return Number.isFinite(value) ? Number(value) : fallback;
 }
 
