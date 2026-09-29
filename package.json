@@ -104,7 +104,10 @@
     "verify:runtime-hardening-r25": "node scripts/checkRuntimeHardeningV25.mjs",
     "typecheck:runtime-hardening-r25": "tsc -p tsconfig.runtime-hardening-r25.json --noEmit",
     "test:runtime-hardening-r25": "npm test -- tests/modern/runtimeHardeningV25.test.ts",
-    "check:runtime-hardening-r25": "npm run verify:runtime-hardening-r25 && npm run typecheck:runtime-hardening-r25 && npm run test:runtime-hardening-r25"
+    "check:runtime-hardening-r25": "npm run verify:runtime-hardening-r25 && npm run typecheck:runtime-hardening-r25 && npm run test:runtime-hardening-r25",
+    "verify:typed-world-migration-r10b": "node scripts/checkTypedWorldMigrationR10b.mjs",
+    "test:typed-world-migration-r10b": "npm test -- tests/modern/typedWorldMigrationR10b.test.ts",
+    "check:typed-world-migration-r10b": "npm run verify:typed-world-migration-r10b && npm run test:typed-world-migration-r10b && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
