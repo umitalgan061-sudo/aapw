@@ -123,7 +123,7 @@ const WORLD_EVENTS = Object.freeze([
 	{ id: 'old_map_found', icon: '🗺️', title: 'Eski Harita Bulundu', desc: 'Eski bir sandıkta yıpranmış bir harita ortaya çıktı; üzerindeki sınırlar artık hiçbir krallığın bugünküyle uyuşmuyor.', color: '#8a6a3a', weight: WEIGHT.RARE },
 	{ id: 'giant_eagle_sighting', icon: '🦅', title: 'Dev Kartal Görüldü', desc: 'Dağların üzerinde olağandışı büyüklükte bir kartal süzülürken görüldü; nöbetçiler bir süre gözlerini gökten ayıramadı.', color: '#5a4a3a', weight: WEIGHT.RARE, timeOfDay: 'day' },
 	{ id: 'frozen_river_crossing', icon: '🧊', title: 'Donmuş Nehir Geçişi', desc: 'Bu kış nehir o kadar sert dondu ki köylüler üzerinden yürüyerek karşıya geçiyor; herkes buzun ne zaman çatlayacağını merak ediyor.', color: '#6a9ab0', weight: WEIGHT.UNCOMMON },
-]);
+]) satisfies readonly WorldEventDefinition[];
 
 function normalizeNightFactor(nightFactor: number | undefined): number | null | undefined {
 	if (nightFactor === undefined) return undefined;
@@ -153,7 +153,9 @@ function pickWeightedEvent(random: () => number, nightFactor: number | undefined
 		remaining -= event.weight;
 		if (remaining < 0) return event;
 	}
-	return pool[pool.length - 1];
+	const last = pool.at(-1);
+	if (!last) throw new Error('World-event pool unexpectedly empty');
+	return last;
 }
 
 /**
@@ -172,7 +174,7 @@ function avoidImmediateRepeat(picked: WorldEventDefinition, lastEventId: string 
 	if (index < 0) return picked;
 	for (let offset = 1; offset < pool.length; offset += 1) {
 		const candidate = pool[(index + offset) % pool.length];
-		if (candidate.id !== lastEventId) return candidate;
+		if (candidate && candidate.id !== lastEventId) return candidate;
 	}
 	return picked;
 }
