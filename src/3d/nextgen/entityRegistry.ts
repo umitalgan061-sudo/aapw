@@ -1,13 +1,5 @@
-import {
-  EntityId,
-  EntityRecord,
-  LODLevel,
-  StreamTier,
-  Vec3,
-  asEntityId,
-  clamp,
-  stableHash,
-} from './kernelTypes.ts';
+import type { EntityId, EntityRecord, LODLevel, StreamTier, Vec3 } from './kernelTypes.ts';
+import { asEntityId, clamp, stableHash } from './kernelTypes.ts';
 
 export interface EntityBudgetPolicy {
   readonly maxEntities: number;
