@@ -37,7 +37,6 @@ const DEFAULT_POLICY: HardeningPolicy = Object.freeze({
   recoverySamples: 6,
   operationTimeoutMs: 12_000,
   historyCapacity: 96,
-  now: undefined,
 });
 
 const nowMs = (): number => typeof performance !== 'undefined' && typeof performance.now === 'function'
