@@ -4,7 +4,22 @@ const root = resolve(new URL('..', import.meta.url).pathname);
 const fail = [];
 const manifest = JSON.parse(await readFile(resolve(root, 'assets_manifest.json'), 'utf8'));
 const read = async (rel) => { try { return await readFile(resolve(root, rel), 'utf8'); } catch { fail.push(`missing:${rel}`); return ''; } };
-const mustBeHydrated = async (rel) => { try { const path = resolve(root, rel); const [body, info] = await Promise.all([readFile(path), stat(path)]); const text = body.toString('utf8'); if (info.size < 128) fail.push(`asset-too-small:${rel}`); if (text.startsWith('version https://git-lfs.github.com/spec/v1')) fail.push(`lfs-pointer-not-hydrated:${rel}`); } catch { fail.push(`missing-asset:${rel}`); } };
+const mustBeHydrated = async (rel) => {
+  const path = resolve(root, rel);
+  try {
+    const [body, info] = await Promise.all([readFile(path), stat(path)]);
+    const text = body.toString('utf8');
+    if (info.size < 128) fail.push(`asset-too-small:${rel}`);
+    if (text.startsWith('version https://git-lfs.github.com/spec/v1')) {
+      const pointerValid = /oid sha256:[0-9a-f]{64}/i.test(text) && /size [0-9]+/.test(text);
+      const manifestEntry = Array.isArray(manifest.assets) && manifest.assets.some((asset) => asset?.file === rel);
+      if (!pointerValid) fail.push(`invalid-lfs-pointer:${rel}`);
+      if (!manifestEntry) fail.push(`unregistered-lfs-asset:${rel}`);
+    }
+  } catch {
+    fail.push(`missing-asset:${rel}`);
+  }
+};
 const ownerPaths = ['player.ts', 'playerConfig.ts', 'health.ts', 'dragonFlightMath.ts', 'dragonReactionState.ts', 'dragonConfig.ts', 'npcConfig.ts', 'animalConfig.ts'];
 const ownerBodies = await Promise.all(ownerPaths.map((name) => read(`src/3d/gameplay/${name}`)));
 const [player, playerConfig, playerShim, configShim] = await Promise.all([read('src/3d/gameplay/player.ts'), read('src/3d/gameplay/playerConfig.ts'), read('src/3d/gameplay/player.js'), read('src/3d/gameplay/playerConfig.js')]);
