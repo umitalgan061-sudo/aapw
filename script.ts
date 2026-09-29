@@ -1,3 +1,5 @@
+import { createRootApplicationRuntime } from './src/app/rootApplicationRuntime.ts';
+
 /** Production TypeScript owner for the root Westeros strategy application. */
 // @ts-nocheck
 /* ════════ FIREBASE ════════ */
@@ -4383,5 +4385,10 @@ Object.assign(globalThis, WESTEROS_LEGACY_COMMANDS, {
   WesterosGame: Object.freeze({
     version: 'r22-ts-root',
     commands: WESTEROS_LEGACY_COMMANDS,
+    runtime: ROOT_APPLICATION_RUNTIME,
+    snapshot: () => ROOT_APPLICATION_RUNTIME.snapshot(),
   }),
 });
+
+
+ROOT_APPLICATION_RUNTIME.mark('root:strategy-runtime-ready', { commandCount: Object.keys(WESTEROS_LEGACY_COMMANDS).length });
