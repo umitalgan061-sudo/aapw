@@ -1,3 +1,4 @@
+/** Production TypeScript owner for service-worker.js. The .js file is a generated browser artifact. */
 // Günbatımı Ustası regional village architecture offline shell extension.
 // Seven canonical settlement GLBs are now live runtime references from villages.js, so every
 // existing PWA install must precache them rather than silently depending on network availability.
