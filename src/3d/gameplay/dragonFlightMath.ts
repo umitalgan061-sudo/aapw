@@ -1,5 +1,6 @@
 /** Production TypeScript owner for src/3d/gameplay/dragonFlightMath.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
+import * as THREE from 'three';
+
 /**
  * Pure flight-path / reaction-blend math for `gameplay/dragons.js` (run 71, DECISIONS.md ADR-0092).
  * Stateless, deterministic helpers only; no module-level retained state or randomness.
@@ -10,7 +11,10 @@ export const DRAGON_TERRAIN_LOOKAHEAD_METERS = 12;
 export const DRAGON_TERRAIN_PROBE_SPACING_METERS = 1;
 export const DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS = 48;
 
-export function easeBlendToward(currentBlend, targetBlend, delta, transitionSeconds) {
+export interface DragonCenter { x: number; y: number; z: number; }
+export interface DragonDiveOffset { playerX: number; playerZ: number; centerY: number; diveDropMeters: number; lateralPullFraction: number; diveBlend: number; }
+
+export function easeBlendToward(currentBlend: number, targetBlend: number, delta: number, transitionSeconds: number): number {
 	if (transitionSeconds > 0) {
 		const step = delta / transitionSeconds;
 		if (currentBlend < targetBlend) return Math.min(targetBlend, currentBlend + step);
@@ -20,11 +24,11 @@ export function easeBlendToward(currentBlend, targetBlend, delta, transitionSeco
 	return targetBlend;
 }
 
-export function blendScalar(fromValue, toValue, blend) {
+export function blendScalar(fromValue: number, toValue: number, blend: number): number {
 	return fromValue + (toValue - fromValue) * blend;
 }
 
-export function applyCirclePose(object3D, center, radiusMeters, angle, bankAngleRadians) {
+export function applyCirclePose(object3D: THREE.Object3D, center: DragonCenter, radiusMeters: number, angle: number, bankAngleRadians: number): void {
 	object3D.userData ??= {};
 	if (Number.isFinite(object3D.position?.x) && Number.isFinite(object3D.position?.z)) {
 		object3D.userData.dragonPreviousRenderedX = object3D.position.x;
@@ -38,7 +42,7 @@ export function applyCirclePose(object3D, center, radiusMeters, angle, bankAngle
 	object3D.rotation.set(0, Math.atan2(tangentX, tangentZ), bankAngleRadians);
 }
 
-export function stepCenterTowardTarget(center, targetX, targetZ, maxStep) {
+export function stepCenterTowardTarget(center: DragonCenter, targetX: number, targetZ: number, maxStep: number): void {
 	const toTargetX = targetX - center.x;
 	const toTargetZ = targetZ - center.z;
 	const distanceToTarget = Math.hypot(toTargetX, toTargetZ);
@@ -51,7 +55,7 @@ export function stepCenterTowardTarget(center, targetX, targetZ, maxStep) {
 	}
 }
 
-export function alignDiveOrientation(object3D, circleX, circleY, circleZ, circlePitch, circleYaw, diveBlend) {
+export function alignDiveOrientation(object3D: THREE.Object3D, circleX: number, circleY: number, circleZ: number, circlePitch: number, circleYaw: number, diveBlend: number): void {
 	if (diveBlend <= 0) return;
 	const boundedBlend = Math.min(1, Math.max(0, diveBlend));
 	const motionX = object3D.position.x - circleX;
@@ -70,7 +74,7 @@ export function alignDiveOrientation(object3D, circleX, circleY, circleZ, circle
 	object3D.rotation.x = circlePitch + shortestPitchDelta * boundedBlend;
 }
 
-export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropMeters, lateralPullFraction, diveBlend }) {
+export function applyDiveOffset(object3D: THREE.Object3D, { playerX, playerZ, centerY, diveDropMeters, lateralPullFraction, diveBlend }: DragonDiveOffset): void {
 	const circleX = object3D.position.x;
 	const circleZ = object3D.position.z;
 	const circlePitch = object3D.rotation.x;
@@ -86,7 +90,7 @@ export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropM
 	alignDiveOrientation(object3D, circleX, centerY, circleZ, circlePitch, circleYaw, diveBlend);
 }
 
-function sampleSegmentGround(startX, startZ, unitX, unitZ, distanceMeters, spacingMeters, includeStart, includeEndpoint, onProbe) {
+function sampleSegmentGround(startX: number, startZ: number, unitX: number, unitZ: number, distanceMeters: number, spacingMeters: number, includeStart: boolean, includeEndpoint: boolean, onProbe: (x: number, z: number) => void): void {
 	if (distanceMeters <= 1e-8) return;
 	const segmentCount = Math.max(1, Math.ceil(distanceMeters / spacingMeters));
 	const firstSegment = includeStart ? 0 : 1;
@@ -116,15 +120,15 @@ function sampleSegmentGround(startX, startZ, unitX, unitZ, distanceMeters, spaci
  * preserved as before. `lookAheadMeters=0` preserves historical point-only behavior.
  */
 export function clampAltitudeAboveGround(
-	object3D,
-	sampleGroundY,
-	minAltitudeAboveGroundMeters,
+	object3D: THREE.Object3D,
+	sampleGroundY: (worldX: number, worldZ: number) => number,
+	minAltitudeAboveGroundMeters: number,
 	lookAheadMeters = DRAGON_TERRAIN_LOOKAHEAD_METERS,
 	probeSpacingMeters = DRAGON_TERRAIN_PROBE_SPACING_METERS,
-	motionX,
-	motionZ,
+	motionX = Number.NaN,
+	motionZ = Number.NaN,
 	maxTraversedSweepMeters = DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS,
-) {
+): void {
 	object3D.userData ??= {};
 	const previousSafeAltitudeY = object3D.userData.dragonTerrainLastSafeAltitudeY;
 	let terrainSampleCount = 0;
