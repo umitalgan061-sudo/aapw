@@ -1,5 +1,8 @@
 import { createRootApplicationRuntime } from './src/app/rootApplicationRuntime.ts';
 
+const ROOT_APPLICATION_RUNTIME = createRootApplicationRuntime();
+ROOT_APPLICATION_RUNTIME.start();
+
 /** Production TypeScript owner for the root Westeros strategy application. */
 // @ts-nocheck
 /* ════════ FIREBASE ════════ */
