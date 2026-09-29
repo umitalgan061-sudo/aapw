@@ -1,10 +1,5 @@
-import {
-  StreamRegion,
-  StreamTier,
-  Vec3,
-  clamp,
-  stableHash,
-} from './kernelTypes.ts';
+import type { StreamRegion, StreamTier, Vec3 } from './kernelTypes.ts';
+import { stableHash } from './kernelTypes.ts';
 
 export interface StreamPolicy {
   readonly cellSize: number;
