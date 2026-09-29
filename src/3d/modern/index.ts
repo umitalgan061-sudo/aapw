@@ -95,4 +95,3 @@ export * from './r25/networkPrediction.ts';
 export * from './r25/objectPool.ts';
 export * from './r25/browserHost.ts';
 export * from './r25/runtime.ts';
-export * from './r25/index.ts';
