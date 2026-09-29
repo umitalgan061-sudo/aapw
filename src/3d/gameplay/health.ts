@@ -14,11 +14,24 @@
  */
 
 export interface HealthEventBus { on(eventName: string, handler: (payload: unknown) => void): void; off(eventName: string, handler: (payload: unknown) => void): void; emit(eventName: string, payload?: unknown): void; }
-export interface HealthEventPayload extends Record<string, any> { readonly amount?: number; readonly sourceId?: string | null; appliedAmount?: number; }
+export interface DamageResolution extends Record<string, unknown> {
+	readonly amount?: number;
+	readonly rawAmount?: number;
+	readonly blockedAmount?: number;
+	readonly mitigation?: string;
+	readonly sourceId?: string | null;
+	readonly appliedAmount?: number;
+}
+
+export interface HealthEventPayload extends Record<string, unknown> {
+	readonly amount?: number;
+	readonly sourceId?: string | null;
+	appliedAmount?: number;
+}
 export interface HealthStateOptions { readonly eventsBus: HealthEventBus; readonly maxHealth: number; readonly damageEventName: string; readonly healthChangedEventName: string; readonly diedEventName: string; }
 export interface HealthState { readonly current: number; readonly maxHealth: number; readonly isDead: boolean; heal(amount: number): void; reset(): void; dispose(): void; }
 
-const pendingDamageResolutions = new WeakMap<object, Readonly<Record<string, unknown>>>();
+const pendingDamageResolutions = new WeakMap<object, Readonly<DamageResolution>>();
 
 function isObjectPayload(payload: unknown): payload is HealthEventPayload {
 	return payload !== null && (typeof payload === 'object' || typeof payload === 'function');
@@ -37,16 +50,16 @@ function tryWrite(payload: unknown, key: string, value: unknown): boolean {
  * Stage same-event defense/health data without requiring producer payload mutability.
  * Mutable payloads retain the legacy best-effort write-back for existing consumers.
  */
-export function stageDamageResolution(payload: unknown, patch: Record<string, unknown> = {}): Readonly<Record<string, unknown>> | null {
+export function stageDamageResolution(payload: unknown, patch: Record<string, unknown> = {}): Readonly<DamageResolution> | null {
 	if (!isObjectPayload(payload)) return null;
 	const previous = pendingDamageResolutions.get(payload) ?? {};
-	const next = Object.freeze({ ...previous, ...patch });
+	const next = Object.freeze({ ...previous, ...patch }) as Readonly<DamageResolution>;
 	pendingDamageResolutions.set(payload, next);
 	for (const [key, value] of Object.entries(patch)) tryWrite(payload, key, value);
 	return next;
 }
 
-export function readDamageResolution(payload: unknown): Readonly<Record<string, unknown>> | null {
+export function readDamageResolution(payload: unknown): Readonly<DamageResolution> | null {
 	return isObjectPayload(payload) ? (pendingDamageResolutions.get(payload) ?? null) : null;
 }
 
@@ -57,12 +70,14 @@ export function clearDamageResolution(payload: unknown): void {
 function writeDamageAppliedAmount(payload: unknown, appliedAmount: number): boolean {
 	if (!isObjectPayload(payload)) return false;
 	const previous = pendingDamageResolutions.get(payload) ?? {};
-	pendingDamageResolutions.set(payload, Object.freeze({ ...previous, appliedAmount }));
+	pendingDamageResolutions.set(payload, Object.freeze({ ...previous, appliedAmount }) as Readonly<DamageResolution>);
 	return tryWrite(payload, 'appliedAmount', appliedAmount);
 }
 
 function readDamageSourceId(payload: HealthEventPayload, stagedResolution = readDamageResolution(payload)): string | null {
-	return stagedResolution?.sourceId ?? payload?.sourceId ?? null;
+	const staged = stagedResolution?.sourceId;
+	if (typeof staged === 'string') return staged;
+	return typeof payload.sourceId === 'string' ? payload.sourceId : null;
 }
 
 export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }: HealthStateOptions): HealthState {
