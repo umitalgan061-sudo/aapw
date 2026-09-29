@@ -82,7 +82,7 @@ export class ModernRuntimeFacade {
     if (this.#initialized) return { ok: true, value: this.snapshot() };
     try {
       this.lifecycle.start();
-      const renderResult = await this.renderer.initialize({ backend: this.kernel.profile.preferredBackend, canvas: this.#canvas, label: 'aapw-modern-facade' });
+      const renderResult = await this.hardening.guardAsync('renderer.initialize', () => this.renderer.initialize({ backend: this.kernel.profile.preferredBackend, canvas: this.#canvas, label: 'aapw-modern-facade' }));
       if (!renderResult.ok) return renderResult;
       this.#legacyRenderer.setBackend?.(this.renderer.state.backend);
       this.#legacyState.set?.('renderBackend', this.renderer.state.backend);
@@ -91,6 +91,7 @@ export class ModernRuntimeFacade {
       this.#writeLegacyState(snapshot);
       return { ok: true, value: snapshot };
     } catch (cause) {
+      this.hardening.recordFailure('facade.initialize', cause);
       const error: PlatformError = { code: 'MODERN_FACADE_INIT_FAILED', message: String(cause), retryable: true, cause };
       this.kernel.diagnostics.error(error.code, error.message, 'facade');
       return { ok: false, error };
@@ -122,6 +123,7 @@ export class ModernRuntimeFacade {
       await this.renderer.setQuality(result.quality, this.kernel.quality.decision.renderScale);
       return { ok: true, value: state };
     } catch (cause) {
+      this.hardening.recordFailure('facade.frame', cause);
       const error: PlatformError = { code: 'MODERN_FACADE_FRAME_FAILED', message: String(cause), retryable: true, cause };
       this.kernel.diagnostics.error(error.code, error.message, 'facade');
       return { ok: false, error };
