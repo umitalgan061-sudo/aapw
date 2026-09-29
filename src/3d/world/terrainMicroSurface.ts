@@ -13,10 +13,10 @@
 
 import * as THREE from 'three';
 import { TERRAIN_FACIES_POLICY, TERRAIN_FACIES_NAMES, installTerrainSurfaceFacies } from './terrainSurfaceFacies.ts';
-import { TERRAIN_TRANSITION_POLICY, installTerrainTransitionField } from './terrainSurfaceTransitionField.js';
-import { TERRAIN_ROCK_FABRIC_POLICY, installTerrainRockFabric } from './terrainSurfaceRockFabric.js';
-import { TERRAIN_LOWINLAND_FABRIC_POLICY, installTerrainLowlandFabric } from './terrainSurfaceLowlandFabric.js';
-import { TERRAIN_CRYOSPHERE_POLICY, installTerrainCryosphere } from './terrainSurfaceCryosphere.js';
+import { TERRAIN_TRANSITION_POLICY, installTerrainTransitionField } from './terrainSurfaceTransitionField.ts';
+import { TERRAIN_ROCK_FABRIC_POLICY, installTerrainRockFabric } from './terrainSurfaceRockFabric.ts';
+import { TERRAIN_LOWINLAND_FABRIC_POLICY, installTerrainLowlandFabric } from './terrainSurfaceLowlandFabric.ts';
+import { TERRAIN_CRYOSPHERE_POLICY, installTerrainCryosphere } from './terrainSurfaceCryosphere.ts';
 import { WORLD_DEFAULTS } from '../config.ts';
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
