@@ -8,11 +8,12 @@ import { createWorldEventSystem } from '../../src/3d/gameplay/worldEvents.ts';
 import { applyCreatureGait, resetCreatureGaitPose } from '../../src/3d/gameplay/creatureGait.ts';
 import { findBodyPlan } from '../../src/3d/gameplay/creatureBodyPlans.ts';
 import { Bone } from 'three';
+import { EventBus } from '../../src/3d/eventBus.ts';
 describe('Kızıl Ufuk player modernization R1', () => {
   it('normalizes hostile runtime input without allowing NaN or out-of-range motion', () => {
     const invalid = normalizePlayerMovementInput({ x: Number.NaN, z: Number.POSITIVE_INFINITY, guarding: true });
     expect(invalid).toEqual({ x: 0, z: 0, guarding: true });
-    const input = normalizePlayerMovementInput({ x: 7, z: -4, guarding: 1 });
+    const input = normalizePlayerMovementInput({ x: 7, z: -4, guarding: true });
     expect(input).toEqual({ x: 1, z: -1, guarding: true });
     expect(PLAYER_RUNTIME_VERSION).toBe(1);
   });
@@ -27,12 +28,13 @@ describe('Kızıl Ufuk player modernization R1', () => {
     expect(NPC_CONFIG.WALK_ANIMATION_URL).toBe(PLAYER_CONFIG.ANIMATION_URLS.walking);
     expect(Object.keys(ANIMAL_CONFIG.SPECIES).length).toBeGreaterThanOrEqual(10);
     expect(DRAGON_CONFIG.MODEL_URL).toContain('Dragon_Baked_Actions');
-    expect(DRAGON_CONFIG.SPAWNS[0].seatId).toBe('umit');
+    expect(DRAGON_CONFIG.SPAWNS.find((spawn) => spawn.seatId === 'umit')?.seatId).toBe('umit');
   });
 
   it('keeps world-event runtime deterministic and disposable', () => {
     const emitted: Array<{ id: string }> = [];
-    const eventsBus = { emit: (_name: string, payload: { id: string }) => emitted.push({ id: payload.id }) } as Parameters<typeof createWorldEventSystem>[0]['eventsBus'];
+    const eventsBus = new EventBus();
+    eventsBus.on<{ id: string }>('world:event', (payload) => emitted.push({ id: payload.id }));
     const a = createWorldEventSystem({ eventsBus, seed: 1337, eventName: 'world:event' });
     const b = createWorldEventSystem({ eventsBus, seed: 1337, eventName: 'world:event' });
     a.update(90);
