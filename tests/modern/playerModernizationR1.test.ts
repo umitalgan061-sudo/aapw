@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { normalizePlayerMovementInput, PLAYER_RUNTIME_VERSION } from '../../src/3d/gameplay/player.ts';
 import { PLAYER_CONFIG } from '../../src/3d/gameplay/playerConfig.ts';
+import { NPC_CONFIG } from '../../src/3d/gameplay/npcConfig.ts';
+import { ANIMAL_CONFIG } from '../../src/3d/gameplay/animalConfig.ts';
+import { DRAGON_CONFIG } from '../../src/3d/gameplay/dragonConfig.ts';
 describe('Kızıl Ufuk player modernization R1', () => {
   it('normalizes hostile runtime input without allowing NaN or out-of-range motion', () => {
     const invalid = normalizePlayerMovementInput({ x: Number.NaN, z: Number.POSITIVE_INFINITY, guarding: true });
@@ -15,6 +18,14 @@ describe('Kızıl Ufuk player modernization R1', () => {
     expect(PLAYER_CONFIG.WALK_SPEED_MPS).toBeGreaterThan(0);
     expect(PLAYER_CONFIG.RUN_SPEED_MPS).toBeGreaterThan(PLAYER_CONFIG.WALK_SPEED_MPS);
   });
+  it('keeps the gameplay configuration owners typed and internally consistent', () => {
+    expect(NPC_CONFIG.IDLE_ANIMATION_URL).toBe(PLAYER_CONFIG.ANIMATION_URLS.idle);
+    expect(NPC_CONFIG.WALK_ANIMATION_URL).toBe(PLAYER_CONFIG.ANIMATION_URLS.walking);
+    expect(Object.keys(ANIMAL_CONFIG.SPECIES).length).toBeGreaterThanOrEqual(10);
+    expect(DRAGON_CONFIG.MODEL_URL).toContain('Dragon_Baked_Actions');
+    expect(DRAGON_CONFIG.SPAWNS[0].seatId).toBe('umit');
+  });
+
   it('keeps combat-safe grounding and camera bounds finite', () => {
     expect(PLAYER_CONFIG.CAMERA_MIN_DISTANCE_METERS).toBeGreaterThan(1);
     expect(PLAYER_CONFIG.CAMERA_MAX_DISTANCE_METERS).toBeGreaterThan(PLAYER_CONFIG.CAMERA_MIN_DISTANCE_METERS);
