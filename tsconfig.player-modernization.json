@@ -1,23 +1,48 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "ES2024",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "useDefineForClassFields": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
     "noEmit": true,
-    "allowJs": false
+    "allowImportingTsExtensions": true
   },
   "include": [
     "src/3d/gameplay/player.ts",
     "src/3d/gameplay/playerConfig.ts",
+    "src/3d/gameplay/playerPhysics.ts",
     "src/3d/gameplay/health.ts",
     "src/3d/gameplay/dragonFlightMath.ts",
     "src/3d/gameplay/dragonConfig.ts",
-    "tests/modern/playerModernizationR1.test.ts",
     "src/3d/gameplay/dragonReactionState.ts",
-    "src/3d/gameplay/npcConfig.ts",
-    "src/3d/gameplay/animalConfig.ts",
     "src/3d/gameplay/dragonSpawns.ts",
     "src/3d/gameplay/dragonController.ts",
+    "src/3d/gameplay/npcConfig.ts",
+    "src/3d/gameplay/animalConfig.ts",
     "src/3d/gameplay/worldEvents.ts",
-    "src/3d/gameplay/creatureGait.ts"
+    "src/3d/gameplay/creatureGait.ts",
+    "src/3d/gameplay/creatureBodyPlans.ts",
+    "src/3d/gameplay/three-runtime-min.d.ts",
+    "tests/modern/playerModernizationR1.test.ts"
   ],
   "exclude": [
     "node_modules",
