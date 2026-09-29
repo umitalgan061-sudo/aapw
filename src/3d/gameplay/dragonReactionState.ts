@@ -48,7 +48,7 @@ export interface DragonReactionConfig {
 	readonly attackTriggerSeconds: number; readonly attackTransitionSeconds: number; readonly clampedDiveLateralPullFraction: number; readonly diveDropMeters: number;
 	readonly clampedAttackLateralPullFraction: number; readonly attackDropMeters: number; readonly pursuitRadiusMeters: number; readonly pursuitCenterSpeedMps: number;
 	readonly centerX: number; readonly centerZ: number; readonly centerY: number; readonly pursuitCircleRadiusMeters: number; readonly pursuitTransitionSeconds: number; readonly pursuitMaxSeconds: number;
-	readonly cruiseAltitudeAboveGroundMeters: number | null; readonly sampleGroundY: (worldX: number, worldZ: number) => number;
+	readonly cruiseAltitudeAboveGroundMeters: number | null; readonly sampleGroundY?: (worldX: number, worldZ: number) => number;
 	readonly giveUpBankAngleMultiplier: number; readonly giveUpTransitionSeconds: number; readonly playerPosition: DragonReactionPlayerPosition | null;
 }
 
@@ -172,7 +172,7 @@ export function stepDragonReactionState(state: DragonReactionState, delta: numbe
 	// sample returns; track non-finite values separately from thrown provider exceptions.
 	state.pursuitBlend = easeBlendToward(state.pursuitBlend, isEngaged ? 1 : 0, delta, pursuitTransitionSeconds);
 	const currentCircleRadiusMeters = blendScalar(circleRadiusMeters, pursuitCircleRadiusMeters, state.pursuitBlend);
-	if (canPursue && cruiseAltitudeAboveGroundMeters != null) {
+	if (canPursue && cruiseAltitudeAboveGroundMeters != null && sampleGroundY) {
 		let centerGroundY;
 		try {
 			centerGroundY = sampleGroundY(state.center.x, state.center.z);
