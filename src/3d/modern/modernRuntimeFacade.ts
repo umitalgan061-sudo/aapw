@@ -56,6 +56,7 @@ export class ModernRuntimeFacade {
   #canvas: HTMLCanvasElement | undefined;
   #lastSnapshot: ModernRuntimeFacadeSnapshot | null = null;
   #initialized = false;
+  #lastHardening: HardeningDecision;
 
   constructor(options: ModernRuntimeFacadeOptions = {}) {
     this.#legacyState = options.legacyState ?? {};
@@ -177,8 +178,13 @@ export class ModernRuntimeFacade {
       renderer: this.renderer.metrics,
       recovery: this.recovery.state(),
       hardening: this.hardening.snapshot(),
+      hardening: this.hardening.snapshot(),
       assets: this.assets.stats(),
     });
+  }
+
+  #hardeningDefault(): HardeningDecision {
+    return Object.freeze({ state: 'nominal', health: null, throttleFactor: 1, failureCount: 0, retrySuggested: false, reason: 'uninitialized' });
   }
 
   #writeLegacyState(snapshot: ModernRuntimeFacadeSnapshot): void {
