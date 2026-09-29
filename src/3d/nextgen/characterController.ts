@@ -1,19 +1,5 @@
-import {
-  CharacterState,
-  InputIntent,
-  Outcome,
-  Vec3,
-  add3,
-  asEntityId,
-  clamp,
-  dampAlpha,
-  fault,
-  lengthXZ,
-  normalize3,
-  scale3,
-  sub3,
-  vec3,
-} from './kernelTypes.ts';
+import type { CharacterState, InputIntent, Outcome, Vec3 } from './kernelTypes.ts';
+import { add3, asEntityId, clamp, fault, lengthXZ, normalize3, scale3, sub3, vec3 } from './kernelTypes.ts';
 
 export interface GroundQuery {
   readonly sample: (x: number, z: number) => number;
@@ -82,6 +68,7 @@ export interface CharacterControllerInput {
   readonly radius?: number;
   readonly height?: number;
   readonly health?: number;
+  readonly stamina?: number;
   readonly heading?: number;
 }
 
@@ -127,7 +114,7 @@ export class CharacterController {
       velocity: input.velocity ?? vec3(),
       grounded: true,
       groundY,
-      stamina: clamp(input.health ?? policy.maxStamina, 0, policy.maxStamina),
+      stamina: clamp(input.stamina ?? policy.maxStamina, 0, policy.maxStamina),
       health: clamp(input.health ?? 100, 0, 100),
       heading: input.heading ?? 0,
     });
