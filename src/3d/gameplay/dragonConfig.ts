@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/dragonConfig.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * `DRAGON_CONFIG` (FAZ 7) — see `gameplay/dragons.js` and DECISIONS.md ADR-0071. Split out of
  * `gameplay/gameplayConfig.js` (run 77, DECISIONS.md ADR-0100) once that file reached 597/600
@@ -19,6 +18,43 @@
  * file really has 4 clips, `Armature|Walk_New`, `Armature|Run_New`, `Armature|Idel_New` (sic — typo
  * in the source asset itself, not this project's), `Armature|Fly_New`. No `Jump`/`Open Wings` clip
  * exists. `assets_manifest.json`'s entry was corrected this run to match. */
+export interface DragonSpawnConfig {
+	readonly id: string;
+	readonly seatId: string;
+	readonly altitudeMeters: number;
+	readonly circleRadiusMeters: number;
+	readonly speedMps: number;
+	readonly bankAngleRadians: number;
+	readonly noticeRadiusMeters: number;
+	readonly noticeToast: Readonly<{ id: string; icon: string; title: string; desc: string; color: string }>;
+	readonly reactiveSpeedMultiplier: number;
+	readonly reactiveBankAngleRadians: number;
+	readonly reactiveTransitionSeconds: number;
+	readonly alarmRadiusMeters: number;
+	readonly diveDropMeters: number;
+	readonly diveLateralPullFraction: number;
+	readonly diveTransitionSeconds: number;
+	readonly minAltitudeAboveGroundMeters: number;
+	readonly pursuitRadiusMeters: number;
+	readonly pursuitCenterSpeedMps: number;
+	readonly pursuitCircleRadiusMeters: number;
+	readonly pursuitTransitionSeconds: number;
+	readonly pursuitMaxSeconds: number;
+	readonly attackTriggerSeconds: number;
+	readonly biteRadiusMeters: number;
+	readonly biteDamage: number;
+	readonly biteCooldownSeconds: number;
+}
+
+export interface DragonConfig {
+	readonly MODEL_URL: string;
+	readonly TEXTURES_RESOURCE_PATH: string;
+	readonly FLY_CLIP_NAME: string;
+	readonly SCALE: number;
+	readonly TARGET_MAX_DIMENSION_METERS: number;
+	readonly SPAWNS: readonly DragonSpawnConfig[];
+}
+
 export const DRAGON_CONFIG = Object.freeze({
 	MODEL_URL: 'assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx',
 	/** The FBX's embedded material references its textures by bare filename (e.g.
