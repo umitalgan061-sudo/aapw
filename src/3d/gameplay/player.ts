@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/player.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * Playable third-person character controller.
  * Reuses the shipped peasant_girl idle/walk/run family, real ground/collider contracts and the
