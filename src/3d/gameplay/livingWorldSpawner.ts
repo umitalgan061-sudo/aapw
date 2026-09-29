@@ -1,20 +1,8 @@
 /** Production TypeScript owner for src/3d/gameplay/livingWorldSpawner.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
-/**
- * FAZ 5/6/7 + procedural-creature spawn wiring: NPCs, wild animals, the run-329 procedural
- * creature population, and dragons — everything that populates the world with living things
- * around/above the 14 kingdom seats. Extracted from `game3d.js` (run 332) purely to stay under
- * the project's 600-line-per-file cap (`game3d.js` was at 597/600, essentially no headroom left)
- * — a pure relocation, no behavior change; every value this used to read off `initGame3D`'s local
- * scope (`assetLoader`, `state`, `spawnWorld`) is now passed in explicitly instead. Reconciled
- * against ADR-0278 (also run 332, landed concurrently on main), which added `state.playerCollider`
- * threading into the NPC/animal/creature spawn calls this extraction moved — that threading is
- * preserved below, not dropped. Mirrors the
- * same "move a cohesive spawn block into its own module" precedent `gameplay/npc.js`'s
- * `spawnConfiguredNPCs` / `gameplay/animals.js`'s `spawnConfiguredAnimals` already set at run 29
- * (DECISIONS.md ADR-0028) and `gameLoopHelpers.js` set at run 105 for the tick-loop helpers.
- * @module gameplay/livingWorldSpawner
- */
+import type { DragonRuntimeContract } from './dragonController.ts';
+
+/** Typed ownership declaration for the existing dragon runtime authority. */
+export type { DragonRuntimeContract };
 
 import { EVENTS, WORLD_DEFAULTS, SETTLEMENT_CONFIG, CHUNK_CONFIG } from '../config.ts';
 import { NPC_CONFIG, ANIMAL_CONFIG, DRAGON_CONFIG } from './gameplayConfig.ts';
