@@ -219,7 +219,6 @@ export class CameraRuntimeV3 {
     if (target) this.#target = cloneTarget(target);
   }
   setTargetTransform(target: CameraTarget): void { if (!this.#disposed) this.#target = cloneTarget(target); }
-  }
   setInput(input: Partial<CameraInput>): void { if (!this.#disposed) this.#input = { ...this.#input, ...input }; }
   setReducedMotion(enabled: boolean): void { if (!this.#disposed) this.#reducedMotion = Boolean(enabled); }
   setShake(seed: number, intensity: number): void { if (!this.#disposed) { this.#shakeSeed = seed >>> 0; this.#shakeIntensity = clamp(finite(intensity, 0), 0, 1); } }
