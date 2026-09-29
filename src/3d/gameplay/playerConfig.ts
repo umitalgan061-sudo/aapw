@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/playerConfig.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * `PLAYER_CONFIG` (FAZ 4) — playable character: base mesh + Mixamo-retargeted animation clip file
  * paths, movement speeds, and camera/animation tuning. See `gameplay/player.js` and DECISIONS.md
@@ -78,5 +77,18 @@ export const PLAYER_CONFIG = Object.freeze({
 	 * `QUESTIONS_FOR_OWNER.md` for the open feel-calibration question. */
 	MAX_HEALTH: 100,
 });
+
+
+export type PlayerAnimationName = keyof typeof PLAYER_CONFIG.ANIMATION_URLS;
+export type PlayerSpawnConfig = Pick<PlayerConfig, 'SPAWN_MAP_X' | 'SPAWN_MAP_Y'>;
+export type PlayerCameraConfig = Pick<
+	PlayerConfig,
+	'CAMERA_TARGET_HEIGHT_METERS'
+	| 'CAMERA_MIN_DISTANCE_METERS'
+	| 'CAMERA_MAX_DISTANCE_METERS'
+	| 'CAMERA_COLLISION_MARGIN_METERS'
+	| 'CAMERA_COLLISION_MIN_DISTANCE_METERS'
+>;
+
 
 export type PlayerConfig = typeof PLAYER_CONFIG;
