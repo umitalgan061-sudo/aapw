@@ -4,13 +4,14 @@ import {ASSET_PATHS,STORAGE_KEYS} from '../config.ts';
 import {createImmersiveAudioDirector} from './immersiveAudioDirector.ts';
 import type {ImmersiveAudioDirector as ImmersiveAudioDirectorContract} from './immersiveAudioDirector.ts';
 import {createAudioSnapshot,serializeAudioSnapshot} from './audioSnapshot.js';
+import {evaluateAudioGraphHealth,smoothGraphPressure} from './audioGraphSafetyMonitor.ts';
 const CLICK_SOUND_URL=`${ASSET_PATHS.AUDIO}ui-click.wav`,CLICK_VOLUME=.35,DISCOVERY_CHIME_VOLUME=.22,DISCOVERY_CHIME_PLAYBACK_RATE=1.6;
 export type AudioQuality='balanced'|'low'|'medium'|'high'|'ultra'|string; export type AudioEnvironment='plains'|string;
 export interface AudioManagerOptions{readonly camera:THREE.Camera;readonly initialMuted?:boolean;readonly quality?:AudioQuality;readonly reducedMotion?:boolean;readonly coarsePointer?:boolean;readonly environment?:AudioEnvironment;}
-export interface AudioManager{readonly playClick:()=>Promise<void>;readonly playDiscoveryChime:()=>Promise<void>;readonly setMuted:(next:boolean)=>void;readonly isMuted:()=>boolean;readonly update:(deltaSeconds:number,world?:Readonly<Record<string,unknown>>)=>unknown;readonly setEnvironment:(environment:AudioEnvironment,state?:Readonly<Record<string,unknown>>)=>unknown;readonly registerSpatialSource:(source:unknown)=>unknown;readonly updateSpatialSource:(id:string,patch:unknown)=>unknown;readonly removeSpatialSource:(id:string)=>boolean;readonly setAudioDuck:(group:string,active:boolean,options?:unknown)=>unknown;readonly clearAudioDuck:(id:string)=>boolean;readonly applyAudioOcclusion:(result:unknown)=>unknown;readonly playWorldCue:(kind:string,options?:unknown)=>unknown;readonly getImmersiveSnapshot:()=>unknown;readonly getAudioSnapshot:()=>unknown;readonly getAudioSnapshotJson:()=>string;readonly dispose:()=>void;}
+export interface AudioManager{readonly playClick:()=>Promise<void>;readonly playDiscoveryChime:()=>Promise<void>;readonly setMuted:(next:boolean)=>void;readonly isMuted:()=>boolean;readonly update:(deltaSeconds:number,world?:Readonly<Record<string,unknown>>)=>unknown;readonly setEnvironment:(environment:AudioEnvironment,state?:Readonly<Record<string,unknown>>)=>unknown;readonly registerSpatialSource:(source:unknown)=>unknown;readonly updateSpatialSource:(id:string,patch:unknown)=>unknown;readonly removeSpatialSource:(id:string)=>boolean;readonly setAudioDuck:(group:string,active:boolean,options?:unknown)=>unknown;readonly clearAudioDuck:(id:string)=>boolean;readonly applyAudioOcclusion:(result:unknown)=>unknown;readonly playWorldCue:(kind:string,options?:unknown)=>unknown;readonly getImmersiveSnapshot:()=>unknown;readonly getAudioSnapshot:()=>unknown;readonly getAudioSnapshotJson:()=>string;readonly getAudioGraphHealth:()=>Readonly<Record<string,unknown>>;readonly getAudioGraphPressure:()=>number;readonly dispose:()=>void;}
 export function readStoredMuted():boolean{try{return globalThis.localStorage?.getItem(STORAGE_KEYS.SOUND_MUTED)==='1';}catch{return false;}}
 export function createAudioManager({camera,initialMuted=false,quality='balanced',reducedMotion=false,coarsePointer=false,environment='plains'}:AudioManagerOptions):AudioManager{
- let listener:THREE.AudioListener|null=null,audioLoader:THREE.AudioLoader|null=null,muted=Boolean(initialMuted),clickBufferPromise:Promise<AudioBuffer|null>|null=null,audioDirector:ImmersiveAudioDirectorContract|null=null;
+ let listener:THREE.AudioListener|null=null,audioLoader:THREE.AudioLoader|null=null,muted=Boolean(initialMuted),clickBufferPromise:Promise<AudioBuffer|null>|null=null,audioDirector:ImmersiveAudioDirectorContract|null=null,latestGraphHealth:Readonly<Record<string,unknown>>=evaluateAudioGraphHealth(),graphPressure=0;
  try{listener=new THREE.AudioListener();camera.add(listener);listener.setMasterVolume(muted?0:1);try{audioDirector=createImmersiveAudioDirector({listener,quality,reducedMotion,coarsePointer,environment});}catch(error){console.warn('[audioManager] immersive audio director unavailable, legacy cues remain active',error);audioDirector=null;}}catch(error){console.warn('[audioManager] AudioListener unavailable, sound disabled',error);listener=null;}
  const director=():ImmersiveAudioDirectorContract|null=>audioDirector;
  function loadClickBuffer():Promise<AudioBuffer|null>{if(!clickBufferPromise){audioLoader=audioLoader??new THREE.AudioLoader();clickBufferPromise=new Promise<AudioBuffer|null>((resolve,reject)=>audioLoader?.load(CLICK_SOUND_URL,resolve,undefined,reject)).catch(error=>{console.warn('[audioManager] click sound failed to load',error);return null;});}return clickBufferPromise;}
@@ -19,7 +20,22 @@ export function createAudioManager({camera,initialMuted=false,quality='balanced'
  function playDiscoveryChime():Promise<void>{director()?.triggerCue?.('ambience',{gain:DISCOVERY_CHIME_VOLUME});return playBuffer(DISCOVERY_CHIME_VOLUME,DISCOVERY_CHIME_PLAYBACK_RATE);}
  function setMuted(next:boolean):void{muted=Boolean(next);listener?.setMasterVolume(muted?0:1);director()?.setMasterVolume?.(muted?0:1);}
  function isMuted():boolean{return muted;}
- function update(deltaSeconds:number,world:Readonly<Record<string,unknown>>={}):unknown{return director()?.update?.(deltaSeconds,world)??null;}
+ function update(deltaSeconds:number,world:Readonly<Record<string,unknown>>={}):unknown{
+ const result=director()?.update?.(deltaSeconds,world)??null;
+ const snapshot=result&&typeof result==='object'?result as Record<string,unknown>:null;
+ const registry=snapshot?.registry&&typeof snapshot.registry==='object'?snapshot.registry as Record<string,unknown>:null;
+ const sources=Array.isArray(registry?.sources)?registry.sources:[];
+
+ latestGraphHealth=evaluateAudioGraphHealth({
+  sourceCount:typeof registry?.sourceCount==='number'?registry.sourceCount:sources.length,
+  sourceLimit:typeof registry?.maxSources==='number'?registry.maxSources:16,
+  positionalCount:sources.filter((source)=>Boolean(source&&typeof source==='object'&&(source as Record<string,unknown>).positional===true)).length,
+  positionalLimit:typeof registry?.maxPositionalSources==='number'?registry.maxPositionalSources:8,
+  contextState:listener?.context?.state??'unknown',
+ });
+ graphPressure=smoothGraphPressure(graphPressure,typeof latestGraphHealth.ratio==='number'?latestGraphHealth.ratio:0,Math.max(0,Math.min(0.25,Number(deltaSeconds)||0.016)));
+ return result;
+}
  function setEnvironment(nextEnvironment:AudioEnvironment,state:Readonly<Record<string,unknown>>={}):unknown{return director()?.setEnvironment?.(nextEnvironment,state)??null;}
  function registerSpatialSource(source:unknown):unknown{return director()?.registerSource?.(source)??null;}
  function updateSpatialSource(id:string,patch:unknown):unknown{return director()?.updateSource?.(id,patch)??null;}
@@ -31,6 +47,8 @@ export function createAudioManager({camera,initialMuted=false,quality='balanced'
  function getImmersiveSnapshot():unknown{return director()?.snapshot?.()??null;}
  function getAudioSnapshot():unknown{return createAudioSnapshot({director:audioDirector});}
  function getAudioSnapshotJson():string{return serializeAudioSnapshot({director:audioDirector});}
+ function getAudioGraphHealth():Readonly<Record<string,unknown>>{return latestGraphHealth;}
+ function getAudioGraphPressure():number{return Number(graphPressure.toFixed(4));}
  function dispose():void{try{director()?.dispose?.();}catch(error){console.warn('[audioManager] immersive audio dispose failed',error);}audioDirector=null;if(listener)camera.remove(listener);listener=null;}
- return Object.freeze({playClick,playDiscoveryChime,setMuted,isMuted,update,setEnvironment,registerSpatialSource,updateSpatialSource,removeSpatialSource,setAudioDuck,clearAudioDuck,applyAudioOcclusion,playWorldCue,getImmersiveSnapshot,getAudioSnapshot,getAudioSnapshotJson,dispose});
+ return Object.freeze({playClick,playDiscoveryChime,setMuted,isMuted,update,setEnvironment,registerSpatialSource,updateSpatialSource,removeSpatialSource,setAudioDuck,clearAudioDuck,applyAudioOcclusion,playWorldCue,getImmersiveSnapshot,getAudioSnapshot,getAudioSnapshotJson,getAudioGraphHealth,getAudioGraphPressure,dispose});
 }
