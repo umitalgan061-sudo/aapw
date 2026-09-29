@@ -100,7 +100,8 @@
     "verify:modern:v18": "node scripts/checkModernPlatformV18.mjs",
     "test:modern:v18": "npm test -- tests/modern/runtimeApplicationV18.test.ts tests/modern/modernRuntimeV18Governance.test.ts tests/modern/runtimeBrowserBridgeV18.test.ts tests/modern/runtimeHealthV18.test.ts",
     "check:modern:v18": "npm run verify:modern:v18 && npm run typecheck:modern:v18 && npm run test:modern:v18 && npm run build:modern",
-    "typecheck:modern:v18": "tsc -p tsconfig.modern-v18.json --noEmit"
+    "typecheck:modern:v18": "tsc -p tsconfig.modern-v18.json --noEmit",
+    "verify:player-modern-r1": "node scripts/checkPlayerModernizationR1.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
