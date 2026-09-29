@@ -77,6 +77,13 @@
  * yet (no further branching, no state/persistence, no stat effects) — proves the mechanism on a
  * growing pilot subset first, same "pilot on 2 of N, extend later" precedent `NPC_CONFIG.SPAWNS`'
  * own patrol rollout (run 22) already established for this project. */
+export interface DialogueChoice {
+  readonly label: string;
+  readonly response: string;
+}
+
+export type DialogueChoicesByNpcId = Readonly<Record<string, readonly DialogueChoice[]>>;
+
 export const CHOICES_BY_NPC_ID: DialogueChoicesByNpcId = Object.freeze({
 	'umit-guard-1': Object.freeze([
 		Object.freeze({
