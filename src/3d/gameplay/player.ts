@@ -161,6 +161,14 @@ const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
 const ATTACK_WINDOW_EVENT = 'aapw:player-attack-window';
 const COMBAT_FEEDBACK_EVENT = 'aapw:player-combat-feedback';
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
+export function normalizePlayerMovementInput(input: Partial<PlayerMovementInput> | null | undefined): PlayerMovementInput {
+	return Object.freeze({
+		x: clamp(typeof input?.x === 'number' && Number.isFinite(input.x) ? input.x : 0, -1, 1),
+		z: clamp(typeof input?.z === 'number' && Number.isFinite(input.z) ? input.z : 0, -1, 1),
+		guarding: Boolean(input?.guarding),
+	});
+}
 function attackCommitBudget(baseMeters: number, comboStep: number, comboBonusPerStep: number = PLAYER_ACTION_CONFIG.ATTACK_COMBO_COMMIT_BONUS_PER_STEP): number {
 	const base = Math.max(0, Number(baseMeters) || 0), step = Math.max(1, Math.floor(Number(comboStep) || 1)), bonus = Math.max(0, Number(comboBonusPerStep) || 0);
 	return base * (1 + (step - 1) * bonus);
@@ -370,25 +378,26 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		object3D: model,
 		get stamina() { return stamina; }, get maxStamina() { return PLAYER_ACTION_CONFIG.MAX_STAMINA; }, get poise() { return poise; }, get maxPoise() { return PLAYER_ACTION_CONFIG.MAX_POISE; }, get movementState() { return movementState; }, get sprintExhausted() { return sprintExhausted; }, get isDodging() { return dodgeRemaining > 0; }, get isGuarding() { return guarding; }, get isGuardBroken() { return guardBreakRemaining > 0; }, get isAttacking() { return attackRemaining > 0; }, getMotionState: motionSnapshot,
 		update(delta: number, moveDirectionXZ: PlayerMovementInput, isRunning: boolean, jumpRequested = false): void {
-			const dt = clamp(Number.isFinite(delta) ? delta : 0, 0, PLAYER_ACTION_CONFIG.MAX_FRAME_DELTA_SECONDS), frameStartX = model.position.x, frameStartZ = model.position.z;
-			hasMovementInput = moveDirectionXZ.x !== 0 || moveDirectionXZ.z !== 0; runIntent = Boolean(isRunning); lastRunPressAge += dt; dodgeCooldownRemaining = Math.max(0, dodgeCooldownRemaining - dt); regenDelayRemaining = Math.max(0, regenDelayRemaining - dt); poiseRegenDelayRemaining = Math.max(0, poiseRegenDelayRemaining - dt); guardBreakRemaining = Math.max(0, guardBreakRemaining - dt); hitStaggerRemaining = Math.max(0, hitStaggerRemaining - dt); parryWindowRemaining = Math.max(0, parryWindowRemaining - dt); parryFeedbackRemaining = Math.max(0, parryFeedbackRemaining - dt); attackBufferRemaining = Math.max(0, attackBufferRemaining - dt);
+			const safeMoveDirection = normalizePlayerMovementInput(moveDirectionXZ);
+		const dt = clamp(Number.isFinite(delta) ? delta : 0, 0, PLAYER_ACTION_CONFIG.MAX_FRAME_DELTA_SECONDS), frameStartX = model.position.x, frameStartZ = model.position.z;
+			hasMovementInput = safeMoveDirection.x !== 0 || safeMoveDirection.z !== 0; runIntent = Boolean(isRunning); lastRunPressAge += dt; dodgeCooldownRemaining = Math.max(0, dodgeCooldownRemaining - dt); regenDelayRemaining = Math.max(0, regenDelayRemaining - dt); poiseRegenDelayRemaining = Math.max(0, poiseRegenDelayRemaining - dt); guardBreakRemaining = Math.max(0, guardBreakRemaining - dt); hitStaggerRemaining = Math.max(0, hitStaggerRemaining - dt); parryWindowRemaining = Math.max(0, parryWindowRemaining - dt); parryFeedbackRemaining = Math.max(0, parryFeedbackRemaining - dt); attackBufferRemaining = Math.max(0, attackBufferRemaining - dt);
 			if (attackBufferRemaining <= 0 && attackRemaining <= 0) bufferedAttackKind = 'none'; if (sprintExhausted && stamina >= PLAYER_ACTION_CONFIG.SPRINT_RESTART_STAMINA) sprintExhausted = false;
-			const guardIntent = Boolean(moveDirectionXZ.guarding), guardPressed = guardIntent && !wasGuardHeld; guarding = guardIntent && attackRemaining <= 0 && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && parryFeedbackRemaining <= 0 && isGrounded && dodgeRemaining <= 0 && stamina > 0; if (guardPressed && guarding && stamina >= PLAYER_ACTION_CONFIG.PARRY_STAMINA_COST) parryWindowRemaining = PLAYER_ACTION_CONFIG.PARRY_WINDOW_SECONDS; wasGuardHeld = guardIntent;
+			const guardIntent = Boolean(safeMoveDirection.guarding), guardPressed = guardIntent && !wasGuardHeld; guarding = guardIntent && attackRemaining <= 0 && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && parryFeedbackRemaining <= 0 && isGrounded && dodgeRemaining <= 0 && stamina > 0; if (guardPressed && guarding && stamina >= PLAYER_ACTION_CONFIG.PARRY_STAMINA_COST) parryWindowRemaining = PLAYER_ACTION_CONFIG.PARRY_WINDOW_SECONDS; wasGuardHeld = guardIntent;
 			const runPressed = runIntent && !wasRunHeld, runJumpDodgeRequested = Boolean(jumpRequested) && runIntent; if (canStartDodge() && (runJumpDodgeRequested || (runPressed && lastRunPressAge <= PLAYER_ACTION_CONFIG.DODGE_DOUBLE_TAP_WINDOW_SECONDS))) startDodge(moveDirectionXZ); else if (runPressed) lastRunPressAge = 0; wasRunHeld = runIntent; if (attackRemaining <= 0 && hitStaggerRemaining <= 0 && attackBufferRemaining > 0 && bufferedAttackKind !== 'none') startAttack(bufferedAttackKind, false);
 			if (guardBreakRemaining > 0) { guarding = false; movementState = 'guard-break'; playAction('idle', 1); }
 			else if (hitStaggerRemaining > 0) { guarding = false; movementState = 'hit-stagger'; playAction('idle', 1); }
 			else if (dodgeRemaining > 0) { dodgeElapsed += dt; dodgeRemaining = Math.max(0, dodgeRemaining - dt); moveBy(dodgeDirectionX, dodgeDirectionZ, PLAYER_ACTION_CONFIG.DODGE_SPEED_MPS, dt); turnToward(dodgeDirectionX, dodgeDirectionZ, dt); movementState = 'dodge'; playAction('running', PLAYER_ACTION_CONFIG.DODGE_RUN_ANIMATION_TIMESCALE); }
 			else if (parryFeedbackRemaining > 0) { movementState = 'parry'; playAction('idle', 1); }
-			else if (attackRemaining > 0) { guarding = false; updateAttack(dt, moveDirectionXZ); }
+			else if (attackRemaining > 0) { guarding = false; updateAttack(dt, safeMoveDirection); }
 			else if (guarding) {
 				spendStamina(PLAYER_ACTION_CONFIG.GUARD_DRAIN_PER_SECOND * dt);
 				if (stamina <= 0) triggerGuardBreak();
 				else {
-					if (hasMovementInput) { moveBy(moveDirectionXZ.x, moveDirectionXZ.z, PLAYER_CONFIG.WALK_SPEED_MPS * PLAYER_ACTION_CONFIG.GUARD_MOVE_SPEED_MULTIPLIER, dt); turnToward(moveDirectionXZ.x, moveDirectionXZ.z, dt); playAction('walking', 0.65); } else playAction('idle', 1);
+					if (hasMovementInput) { moveBy(safeMoveDirection.x, safeMoveDirection.z, PLAYER_CONFIG.WALK_SPEED_MPS * PLAYER_ACTION_CONFIG.GUARD_MOVE_SPEED_MULTIPLIER, dt); turnToward(safeMoveDirection.x, safeMoveDirection.z, dt); playAction('walking', 0.65); } else playAction('idle', 1);
 					movementState = 'guard';
 				}
 			}
-			else if (hasMovementInput) { const sprinting = runIntent && isGrounded && !sprintExhausted && stamina > 0, speed = sprinting ? PLAYER_ACTION_CONFIG.SPRINT_SPEED_MPS : PLAYER_CONFIG.WALK_SPEED_MPS; moveBy(moveDirectionXZ.x, moveDirectionXZ.z, speed, dt); turnToward(moveDirectionXZ.x, moveDirectionXZ.z, dt); if (sprinting) { spendStamina(PLAYER_ACTION_CONFIG.SPRINT_DRAIN_PER_SECOND * dt); movementState = 'sprint'; playAction('running', 1); } else { movementState = isGrounded && runIntent && sprintExhausted ? 'exhausted' : (isGrounded ? 'walk' : 'airborne'); playAction('walking', 1); } }
+			else if (hasMovementInput) { const sprinting = runIntent && isGrounded && !sprintExhausted && stamina > 0, speed = sprinting ? PLAYER_ACTION_CONFIG.SPRINT_SPEED_MPS : PLAYER_CONFIG.WALK_SPEED_MPS; moveBy(safeMoveDirection.x, safeMoveDirection.z, speed, dt); turnToward(safeMoveDirection.x, safeMoveDirection.z, dt); if (sprinting) { spendStamina(PLAYER_ACTION_CONFIG.SPRINT_DRAIN_PER_SECOND * dt); movementState = 'sprint'; playAction('running', 1); } else { movementState = isGrounded && runIntent && sprintExhausted ? 'exhausted' : (isGrounded ? 'walk' : 'airborne'); playAction('walking', 1); } }
 			else { movementState = isGrounded ? 'idle' : 'airborne'; playAction('idle', 1); }
 			if (attackRemaining <= 0 && dodgeRemaining <= 0 && !guarding && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && jumpRequested && isGrounded) { velocityY = PLAYER_CONFIG.JUMP_SPEED_MPS; isGrounded = false; }
 			({ heightAboveGroundMeters: heightAboveGround, velocityYMps: velocityY, isGrounded } = integrateJumpArc(heightAboveGround, velocityY, dt, PLAYER_CONFIG.GRAVITY_MPS2)); model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z) + heightAboveGround;
