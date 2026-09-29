@@ -6,7 +6,6 @@ const strictOwners = [
   'src/3d/audio/spatialAudioRegistry.ts',
   'src/3d/audio/audioCueRouter.ts',
   'src/3d/audio/audioManager.ts',
-  'src/3d/audio/immersiveAudioDirector.ts',
   'src/3d/rendering/renderHealthSupervisor.ts',
   'src/3d/rendering/gpuPressureModel.ts',
   'src/3d/rendering/dynamicResolutionGovernor.ts',
