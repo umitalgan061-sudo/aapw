@@ -5,6 +5,7 @@ import { RuntimeLifecycle } from './runtimeLifecycle';
 import { AssetRuntime } from './assetRuntime';
 import { RenderBridge } from './renderBridge';
 import { RecoveryController } from './recoveryController';
+import { RuntimeHardeningSupervisorV25, type HardeningDecision } from '../strict/runtimeHardeningV25.ts';
 
 export interface LegacyStateSink {
   set?: (key: string, value: unknown) => void;
@@ -35,6 +36,7 @@ export interface ModernRuntimeFacadeSnapshot {
   readonly streamedCells: number;
   readonly entities: number;
   readonly digest: string;
+  readonly hardening: HardeningDecision;
 }
 
 /**
@@ -47,6 +49,7 @@ export class ModernRuntimeFacade {
   readonly assets: AssetRuntime;
   readonly renderer: RenderBridge;
   readonly recovery: RecoveryController;
+  readonly hardening: RuntimeHardeningSupervisorV25;
 
   #legacyState: LegacyStateSink;
   #legacyRenderer: LegacyRendererSink;
@@ -62,6 +65,7 @@ export class ModernRuntimeFacade {
     this.kernel = new RuntimeKernel({ seed: options.seed, hooks: options.hooks });
     this.assets = new AssetRuntime({ registry: this.kernel.resources, diagnostics: this.kernel.diagnostics });
     this.renderer = new RenderBridge({ backend: this.kernel.profile.preferredBackend, diagnostics: this.kernel.diagnostics, recovery: this.recovery });
+    this.hardening = new RuntimeHardeningSupervisorV25();
     this.lifecycle = new RuntimeLifecycle({ kernel: this.kernel });
     this.kernel.events.on('render:quality-changed', (change) => {
       this.#legacyState.set?.('renderQuality', change.next);
@@ -99,7 +103,19 @@ export class ModernRuntimeFacade {
     }
     try {
       const result = await this.lifecycle.frame(input);
-      const state = this.snapshot(result.frame, result.quality, result.backend, result.pressure.combined, result.streamPlan.retain.length);
+      const hardening = this.hardening.observeFrame({
+        frame: Number(result.frame.frame),
+        frameMs: input.frameMs,
+        cpuMs: input.cpuMs,
+        gpuMs: input.gpuMs ?? 0,
+        drawCalls: input.drawCalls,
+        triangles: input.triangles,
+        memoryPressure: input.memoryPressure ?? result.pressure.memory,
+        entityPressure: Math.min(1, result.snapshot.entities.length / Math.max(1, this.kernel.profile.maxEntities)),
+        assetBacklog: this.assets.stats().pending ?? this.assets.stats().loading ?? 0,
+        networkJitterMs: 0,
+      });
+      const state = this.snapshot(result.frame, result.quality, result.backend, result.pressure.combined, result.streamPlan.retain.length, hardening);
       this.#writeLegacyState(state);
       await this.renderer.setQuality(result.quality, this.kernel.quality.decision.renderScale);
       return { ok: true, value: state };
@@ -131,10 +147,11 @@ export class ModernRuntimeFacade {
     this.lifecycle.stop('shutdown');
     await this.renderer.dispose();
     this.assets.clear();
+    this.hardening.dispose();
     this.#initialized = false;
   }
 
-  snapshot(frame = 0, quality: QualityTier = this.kernel.quality.tier, backend = this.renderer.state.backend, pressure = 0, streamedCells = this.kernel.streaming.loadedKeys().length): ModernRuntimeFacadeSnapshot {
+  snapshot(frame = 0, quality: QualityTier = this.kernel.quality.tier, backend = this.renderer.state.backend, pressure = 0, streamedCells = this.kernel.streaming.loadedKeys().length, hardening = this.hardening?.observeFrame({ frame, frameMs: 0, cpuMs: 0, gpuMs: 0, drawCalls: 0, triangles: 0, memoryPressure: 0, entityPressure: 0, assetBacklog: 0, networkJitterMs: 0 }) ?? this.hardeningSnapshotFallback()): ModernRuntimeFacadeSnapshot {
     const entities = this.kernel.createSnapshot().entities.length;
     const state: ModernRuntimeFacadeSnapshot = Object.freeze({
       phase: this.lifecycle.state.phase,
@@ -145,7 +162,8 @@ export class ModernRuntimeFacade {
       pressure,
       streamedCells,
       entities,
-      digest: checksum({ phase: this.lifecycle.state.phase, frame, quality, backend, streamedCells, entities, pressure }),
+      digest: checksum({ phase: this.lifecycle.state.phase, frame, quality, backend, streamedCells, entities, pressure, hardening: hardening.state }),
+      hardening,
     });
     this.#lastSnapshot = state;
     return state;
@@ -158,6 +176,7 @@ export class ModernRuntimeFacade {
       kernel: this.kernel.diagnosticsSnapshot(),
       renderer: this.renderer.metrics,
       recovery: this.recovery.state(),
+      hardening: this.hardening.snapshot(),
       assets: this.assets.stats(),
     });
   }
