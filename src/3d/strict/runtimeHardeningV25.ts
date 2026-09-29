@@ -114,11 +114,17 @@ export class RuntimeHardeningSupervisorV25 {
   async guardAsync<T>(operation: string, task: (signal: AbortSignal) => Promise<T>): Promise<T> {
     if (this.#disposed) throw new Error('Runtime hardening supervisor is disposed.');
     const controller = new AbortController();
-    const timeoutId = this.policy.operationTimeoutMs > 0
-      ? globalThis.setTimeout(() => controller.abort(), this.policy.operationTimeoutMs)
-      : undefined;
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
     try {
-      return await task(controller.signal);
+      const operationPromise = task(controller.signal);
+      if (this.policy.operationTimeoutMs <= 0) return await operationPromise;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = globalThis.setTimeout(() => {
+          controller.abort();
+          reject(new DOMException(`Operation timed out: ${operation}`, 'TimeoutError'));
+        }, this.policy.operationTimeoutMs);
+      });
+      return await Promise.race([operationPromise, timeoutPromise]);
     } catch (error) {
       this.recordFailure(operation, error);
       throw error;
