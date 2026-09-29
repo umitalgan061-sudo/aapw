@@ -20,8 +20,6 @@
 
 import * as THREE from 'three';
 import type { EventBus } from '../eventBus.ts';
-import type { AssetLoader } from '../assetLoader.ts';
-
 import { AssetLoader } from '../assetLoader.ts';
 import { alignDiveOrientation, applyCirclePose, applyDiveOffset, clampAltitudeAboveGround } from './dragonFlightMath.ts';
 import { createDragonReactionState, stepDragonReactionState, type DragonReactionState } from './dragonReactionState.ts';
@@ -29,9 +27,9 @@ import { createDragonReactionState, stepDragonReactionState, type DragonReaction
 export interface DragonNoticeToast { readonly id: string; readonly icon: string; readonly title: string; readonly desc: string; readonly color: string; }
 export interface DragonPlayerPosition { readonly x: number; readonly y: number; readonly z: number; }
 export interface DragonCreateOptions {
-	readonly assetLoader: AssetLoader;
+	readonly assetLoader: { loadFBXModel: (url: string, options?: { fallbackColor?: number; fallbackSize?: number; resourcePath?: string }) => Promise<THREE.Group>; };
 	readonly modelUrl: string;
-	readonly texturesResourcePath?: string;
+	readonly texturesResourcePath?: string | undefined | undefined;
 	readonly scale: number;
 	readonly flyClipName: string;
 	readonly centerX: number;
@@ -39,41 +37,41 @@ export interface DragonCreateOptions {
 	readonly centerY: number;
 	readonly circleRadiusMeters: number;
 	readonly speedMps: number;
-	readonly bankAngleRadians?: number;
-	readonly startAngleRadians?: number;
-	readonly name?: string;
-	readonly noticeRadiusMeters?: number;
-	readonly eventsBus?: EventBus;
-	readonly eventName?: string;
-	readonly noticeToast?: DragonNoticeToast;
-	readonly reactiveSpeedMultiplier?: number;
-	readonly reactiveBankAngleRadians?: number;
-	readonly reactiveTransitionSeconds?: number;
-	readonly alarmRadiusMeters?: number;
-	readonly sampleGroundY?: (worldX: number, worldZ: number) => number;
-	readonly diveDropMeters?: number;
-	readonly diveLateralPullFraction?: number;
-	readonly diveTransitionSeconds?: number;
-	readonly diveTelegraphSeconds?: number;
-	readonly diveTelegraphTransitionSeconds?: number;
-	readonly attackTriggerSeconds?: number;
-	readonly attackLateralPullFraction?: number;
-	readonly attackDropMeters?: number;
-	readonly attackTransitionSeconds?: number;
-	readonly biteRadiusMeters?: number;
-	readonly biteDamage?: number;
-	readonly biteCooldownSeconds?: number;
-	readonly biteEventName?: string;
-	readonly minAltitudeAboveGroundMeters?: number;
-	readonly pursuitRadiusMeters?: number;
-	readonly pursuitCenterSpeedMps?: number;
-	readonly pursuitCircleRadiusMeters?: number;
-	readonly pursuitTransitionSeconds?: number;
-	readonly pursuitMaxSeconds?: number;
-	readonly giveUpBankAngleMultiplier?: number;
-	readonly giveUpTransitionSeconds?: number;
-	readonly cruiseAltitudeAboveGroundMeters?: number;
-	readonly agitatedWingFlapMultiplier?: number;
+	readonly bankAngleRadians?: number | undefined;
+	readonly startAngleRadians?: number | undefined;
+	readonly name?: string | undefined;
+	readonly noticeRadiusMeters?: number | undefined;
+	readonly eventsBus?: EventBus | undefined;
+	readonly eventName?: string | undefined;
+	readonly noticeToast?: DragonNoticeToast | undefined;
+	readonly reactiveSpeedMultiplier?: number | undefined;
+	readonly reactiveBankAngleRadians?: number | undefined;
+	readonly reactiveTransitionSeconds?: number | undefined;
+	readonly alarmRadiusMeters?: number | undefined;
+	readonly sampleGroundY?: (worldX: number, worldZ: number) => number | undefined;
+	readonly diveDropMeters?: number | undefined;
+	readonly diveLateralPullFraction?: number | undefined;
+	readonly diveTransitionSeconds?: number | undefined;
+	readonly diveTelegraphSeconds?: number | undefined;
+	readonly diveTelegraphTransitionSeconds?: number | undefined;
+	readonly attackTriggerSeconds?: number | undefined;
+	readonly attackLateralPullFraction?: number | undefined;
+	readonly attackDropMeters?: number | undefined;
+	readonly attackTransitionSeconds?: number | undefined;
+	readonly biteRadiusMeters?: number | undefined;
+	readonly biteDamage?: number | undefined;
+	readonly biteCooldownSeconds?: number | undefined;
+	readonly biteEventName?: string | undefined;
+	readonly minAltitudeAboveGroundMeters?: number | undefined;
+	readonly pursuitRadiusMeters?: number | undefined;
+	readonly pursuitCenterSpeedMps?: number | undefined;
+	readonly pursuitCircleRadiusMeters?: number | undefined;
+	readonly pursuitTransitionSeconds?: number | undefined;
+	readonly pursuitMaxSeconds?: number | undefined;
+	readonly giveUpBankAngleMultiplier?: number | undefined;
+	readonly giveUpTransitionSeconds?: number | undefined;
+	readonly cruiseAltitudeAboveGroundMeters?: number | undefined;
+	readonly agitatedWingFlapMultiplier?: number | undefined;
 }
 
 
@@ -393,17 +391,28 @@ export async function createDragon({
 
 			const frame = stepDragonReactionState(state, delta, distanceToPlayer, {
 				canNotice, canDive, canPursue, canBite,
-				noticeRadiusMeters,
-				reactiveSpeedMultiplier, reactiveBankAngleRadians, reactiveTransitionSeconds,
+				noticeRadiusMeters: resolvedNoticeRadiusMeters,
+				reactiveSpeedMultiplier,
+				reactiveBankAngleRadians: reactiveBankAngleRadians ?? bankAngleRadians,
+				reactiveTransitionSeconds: reactiveTransitionSeconds ?? 1.5,
 				bankAngleRadians, speedMps, circleRadiusMeters,
-				alarmRadiusMeters, diveTelegraphSeconds, diveTelegraphTransitionSeconds, diveTransitionSeconds,
-				attackTriggerSeconds, attackTransitionSeconds,
-				clampedDiveLateralPullFraction, diveDropMeters,
-				clampedAttackLateralPullFraction, attackDropMeters,
-				pursuitRadiusMeters, pursuitCenterSpeedMps, centerX, centerZ, centerY,
-				pursuitCircleRadiusMeters, pursuitTransitionSeconds, pursuitMaxSeconds,
-				cruiseAltitudeAboveGroundMeters, sampleGroundY,
-				giveUpBankAngleMultiplier, giveUpTransitionSeconds,
+				alarmRadiusMeters: resolvedAlarmRadiusMeters,
+				diveTelegraphSeconds: diveTelegraphSeconds ?? 0.4,
+				diveTelegraphTransitionSeconds: diveTelegraphTransitionSeconds ?? 0.15,
+				diveTransitionSeconds: diveTransitionSeconds ?? 1,
+				attackTriggerSeconds: attackTriggerSeconds ?? 2.5,
+				attackTransitionSeconds: attackTransitionSeconds ?? 1.5,
+				clampedDiveLateralPullFraction, diveDropMeters: diveDropMeters ?? 25,
+				clampedAttackLateralPullFraction, attackDropMeters: attackDropMeters ?? (diveDropMeters ?? 25),
+				pursuitRadiusMeters: resolvedPursuitRadiusMeters,
+				pursuitCenterSpeedMps: pursuitCenterSpeedMps ?? 10, centerX, centerZ, centerY,
+				pursuitCircleRadiusMeters: pursuitCircleRadiusMeters ?? circleRadiusMeters,
+				pursuitTransitionSeconds: pursuitTransitionSeconds ?? 2,
+				pursuitMaxSeconds: pursuitMaxSeconds ?? 20,
+				cruiseAltitudeAboveGroundMeters: resolvedCruiseAltitudeAboveGroundMeters,
+				sampleGroundY,
+				giveUpBankAngleMultiplier: giveUpBankAngleMultiplier ?? 1.6,
+				giveUpTransitionSeconds: giveUpTransitionSeconds ?? 0.6,
 				playerPosition: playerPosition ?? null,
 			});
 
