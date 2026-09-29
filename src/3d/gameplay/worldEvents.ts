@@ -185,7 +185,7 @@ export function createWorldEventSystem({ eventsBus, seed, eventName }: WorldEven
 	const random = mulberry32(seed);
 	let secondsUntilNext = MIN_INTERVAL_SECONDS + random() * (MAX_INTERVAL_SECONDS - MIN_INTERVAL_SECONDS);
 	let disposed = false;
-	let lastEventId = null;
+	let lastEventId: string | null = null;
 	const system: WorldEventRuntime = {
 
 	system.update = (deltaSeconds: number, nightFactor?: number): void => {
@@ -204,10 +204,10 @@ export function createWorldEventSystem({ eventsBus, seed, eventName }: WorldEven
 		// mutates its payload cannot poison future weighting, time-of-day eligibility, or repeat state.
 		// World-event fields are primitives, so a shallow copy fully isolates the authored catalog.
 		eventsBus.emit(eventName, { ...picked });
-	};
-
-	system.dispose = (): void => {
-		disposed = true;
+		},
+		dispose: (): void => {
+			disposed = true;
+		},
 	};
 
 	return system;
