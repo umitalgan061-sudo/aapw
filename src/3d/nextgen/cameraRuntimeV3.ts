@@ -112,6 +112,14 @@ function criticallyDampedVec3(current: Vec3, target: Vec3, velocity: Vec3, smoot
 }
 const copy = (v: Vec3): Vec3 => ({ x: v.x, y: v.y, z: v.z });
 const finite = (value: number, fallback: number): number => Number.isFinite(value) ? value : fallback;
+function cloneTarget(target: CameraTarget): CameraTarget {
+  const next: CameraTarget = { position: copy(target.position) };
+  if (target.velocity) next.velocity = copy(target.velocity);
+  if (target.forward) next.forward = copy(target.forward);
+  if (target.radius !== undefined) next.radius = finite(target.radius, 0.5);
+  return next;
+}
+
 
 function sanitizePose(pose: CameraPose, fallbackDistance: number): CameraPose {
   const normalizedForward = normalize3(sub3(pose.target, pose.position));
@@ -152,15 +160,13 @@ function blendPose(a: CameraPose, b: CameraPose, t: number): CameraPose {
 function sampleCinematic(keyframes: readonly CinematicKeyframe[], time: number): CameraPose | null {
   if (keyframes.length === 0) return null;
   const sorted = [...keyframes].sort((a, b) => a.at - b.at);
-  const first = sorted[0];
-  const last = sorted.at(-1);
-  if (!first || !last) return null;
+  const first = sorted[0]!;
+  const last = sorted[sorted.length - 1]!;
   if (time <= first.at) return sanitizePose(first.pose, first.pose.distance);
   if (time >= last.at) return sanitizePose(last.pose, last.pose.distance);
   for (let i = 1; i < sorted.length; i += 1) {
-    const next = sorted[i];
-    const previous = sorted[i - 1];
-    if (!next || !previous) continue;
+    const next = sorted[i]!;
+    const previous = sorted[i - 1]!;
     if (time <= next.at) {
       const span = Math.max(0.0001, next.at - previous.at);
       return blendPose(previous.pose, next.pose, (time - previous.at) / span);
@@ -210,23 +216,9 @@ export class CameraRuntimeV3 {
   setTarget(entityId: number | null, target?: CameraTarget): void {
     if (this.#disposed) return;
     this.#targetEntity = entityId;
-    if (target) {
-      this.#target = {
-        position: copy(target.position),
-        ...(target.velocity ? { velocity: copy(target.velocity) } : {}),
-        ...(target.forward ? { forward: copy(target.forward) } : {}),
-        radius: finite(target.radius ?? 0.5, 0.5),
-      };
-    }
+    if (target) this.#target = cloneTarget(target);
   }
-  setTargetTransform(target: CameraTarget): void {
-    if (this.#disposed) return;
-    this.#target = {
-      position: copy(target.position),
-      ...(target.velocity ? { velocity: copy(target.velocity) } : {}),
-      ...(target.forward ? { forward: copy(target.forward) } : {}),
-      radius: finite(target.radius ?? 0.5, 0.5),
-    };
+  setTargetTransform(target: CameraTarget): void { if (!this.#disposed) this.#target = cloneTarget(target); }
   }
   setInput(input: Partial<CameraInput>): void { if (!this.#disposed) this.#input = { ...this.#input, ...input }; }
   setReducedMotion(enabled: boolean): void { if (!this.#disposed) this.#reducedMotion = Boolean(enabled); }

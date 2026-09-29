@@ -92,7 +92,11 @@
     "check:strict-live-core-r23": "npm run verify:strict-live-core-r23 && npm run typecheck:strict-live-core-r23 && npm run test:strict-live-core-r23",
     "verify:tooling-r24": "node scripts/checkTypeScriptToolingR24.mjs",
     "test:tooling-r24": "npm test -- tests/modern/typedToolingMigrationR24.test.ts",
-    "check:tooling-r24": "npm run verify:tooling-r24 && npm run test:tooling-r24 && npm run typecheck"
+    "check:tooling-r24": "npm run verify:tooling-r24 && npm run test:tooling-r24 && npm run typecheck",
+    "verify:modern:v18": "node scripts/checkModernPlatformV18.mjs",
+    "test:modern:v18": "npm test -- tests/modern/runtimeApplicationV18.test.ts tests/modern/modernRuntimeV18Governance.test.ts tests/modern/runtimeBrowserBridgeV18.test.ts tests/modern/runtimeHealthV18.test.ts",
+    "check:modern:v18": "npm run verify:modern:v18 && npm run typecheck:modern:v18 && npm run test:modern:v18 && npm run build:modern",
+    "typecheck:modern:v18": "tsc -p tsconfig.modern-v18.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

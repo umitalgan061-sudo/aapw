@@ -172,7 +172,7 @@ export class AssetOrchestratorV3 {
     if (!id) {
       throw new Error('Asset id cannot be empty');
     }
-    if (!/^https?:\\/\\//i.test(descriptor.url)) {
+    if (!/^https?:\/\//i.test(descriptor.url)) {
       throw new Error(`Asset ${id} must use an absolute http(s) URL`);
     }
     if (this.#descriptors.has(id)) {
