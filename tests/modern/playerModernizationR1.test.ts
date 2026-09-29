@@ -34,7 +34,10 @@ describe('Kızıl Ufuk player modernization R1', () => {
   it('keeps world-event runtime deterministic and disposable', () => {
     const emitted: Array<{ id: string }> = [];
     const eventsBus = new EventBus();
-    eventsBus.on<{ id: string }>('world:event', (payload) => emitted.push({ id: payload.id }));
+    eventsBus.on('world:event', (payload: unknown) => {
+      const event = payload as { id: string };
+      emitted.push({ id: event.id });
+    });
     const a = createWorldEventSystem({ eventsBus, seed: 1337, eventName: 'world:event' });
     const b = createWorldEventSystem({ eventsBus, seed: 1337, eventName: 'world:event' });
     a.update(90);
