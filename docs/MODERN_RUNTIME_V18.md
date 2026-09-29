@@ -78,3 +78,7 @@ CI V18 guardı:
 kontrol eder.
 
 Ayrıca V18 hedef testleri ve modern production build çalıştırılır.
+
+## Current-main synchronization
+
+The V18 runtime branch is synchronized against the latest `main` before merge evaluation; existing live-core changes remain additive and the V18 ownership boundary stays reversible.
