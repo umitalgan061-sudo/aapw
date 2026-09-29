@@ -20,3 +20,6 @@ export * from './liveCoreBridge.ts';
 export * from './strictLiveCorePolicy.ts';
 export * from './bridgeTypes.ts';
 export * from './runtimeHealthBudget.ts';
+
+export * from './runtimeHardeningV25.ts';
+export * from './runtimeHardeningMigrationV25.ts';

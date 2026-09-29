@@ -1,0 +1,54 @@
+name: Runtime Hardening R25
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/**'
+      - 'src/3d/strict/runtimeHardeningV25.ts'
+      - 'src/3d/strict/runtimeHardeningMigrationV25.ts'
+      - 'tests/modern/runtimeHardeningV25.test.ts'
+      - 'scripts/checkRuntimeHardeningV25.mjs'
+      - 'tsconfig.runtime-hardening-r25.json'
+      - 'package.json'
+      - '.github/workflows/runtime-hardening-r25.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/modern/**'
+      - 'src/3d/strict/runtimeHardeningV25.ts'
+      - 'src/3d/strict/runtimeHardeningMigrationV25.ts'
+      - 'tests/modern/runtimeHardeningV25.test.ts'
+      - 'scripts/checkRuntimeHardeningV25.mjs'
+      - 'tsconfig.runtime-hardening-r25.json'
+      - 'package.json'
+      - '.github/workflows/runtime-hardening-r25.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-hardening-r25-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Strict runtime hardening
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v5
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - name: Install toolchain
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Architecture gate
+        run: npm run verify:runtime-hardening-r25
+      - name: Strict TypeScript
+        run: npm run typecheck:runtime-hardening-r25
+      - name: Regression tests
+        run: npm run test:runtime-hardening-r25
+      - name: Diff hygiene
+        run: git diff --check
