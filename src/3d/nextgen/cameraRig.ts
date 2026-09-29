@@ -1,15 +1,5 @@
-import {
-  CameraState,
-  Vec3,
-  clamp,
-  dampAlpha,
-  fault,
-  length3,
-  normalize3,
-  scale3,
-  sub3,
-  vec3,
-} from './kernelTypes.ts';
+import type { CameraState, Vec3 } from './kernelTypes.ts';
+import { clamp, dampAlpha, fault, length3, scale3, sub3, vec3 } from './kernelTypes.ts';
 
 export interface CameraPolicy {
   readonly minDistance: number;
