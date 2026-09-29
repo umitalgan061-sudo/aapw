@@ -135,7 +135,7 @@ export function clampAltitudeAboveGround(
 	let invalidTerrainSampleCount = 0;
 	let terrainSampleExceptionCount = 0;
 	let highestGroundY = Number.NEGATIVE_INFINITY;
-	const probeGround = (x, z) => {
+	const probeGround = (x: number, z: number): void => {
 		terrainSampleCount += 1;
 		let groundY;
 		try {
