@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/worldEvents.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * Periodic world-flavor events (FAZ 8's early piece, priority 9.5 — "OLAY SİSTEMİNİ 3D MODA TAŞI").
  * `script.js`'s 2D `triggerRandomEvents()` picks a random `RANDOM_EVENTS` entry every turn and
@@ -24,7 +23,13 @@
  * @param {number} seed
  * @returns {() => number} Returns a new float in `[0, 1)` each call.
  */
-function mulberry32(seed) {
+import type { EventBus } from '../eventBus.ts';
+
+export type WorldEventTimeOfDay = 'day' | 'night';
+export interface WorldEventDefinition { readonly id: string; readonly icon: string; readonly title: string; readonly desc: string; readonly color: string; readonly weight: number; readonly timeOfDay?: WorldEventTimeOfDay; }
+export interface WorldEventRuntimeOptions { readonly eventsBus: EventBus; readonly seed: number; readonly eventName: string; }
+
+function mulberry32(seed: number): () => number {
 	let a = seed;
 	return () => {
 		a |= 0;
@@ -120,13 +125,13 @@ const WORLD_EVENTS = Object.freeze([
 	{ id: 'frozen_river_crossing', icon: '🧊', title: 'Donmuş Nehir Geçişi', desc: 'Bu kış nehir o kadar sert dondu ki köylüler üzerinden yürüyerek karşıya geçiyor; herkes buzun ne zaman çatlayacağını merak ediyor.', color: '#6a9ab0', weight: WEIGHT.UNCOMMON },
 ]);
 
-function normalizeNightFactor(nightFactor) {
+function normalizeNightFactor(nightFactor: number | undefined): number | null | undefined {
 	if (nightFactor === undefined) return undefined;
 	if (typeof nightFactor !== 'number' || !Number.isFinite(nightFactor)) return null;
 	return Math.min(1, Math.max(0, nightFactor));
 }
 
-function isEligible(event, normalizedNightFactor) {
+function isEligible(event: WorldEventDefinition, normalizedNightFactor: number | null | undefined): boolean {
 	if (event.timeOfDay === undefined || normalizedNightFactor === undefined) return true;
 	if (normalizedNightFactor === null) return false;
 	if (event.timeOfDay === 'night') return normalizedNightFactor >= NIGHT_THRESHOLD;
@@ -134,13 +139,13 @@ function isEligible(event, normalizedNightFactor) {
 	return true;
 }
 
-function eligibleEventPool(nightFactor) {
+function eligibleEventPool(nightFactor: number | undefined): readonly WorldEventDefinition[] {
 	const normalizedNightFactor = normalizeNightFactor(nightFactor);
 	const eligible = WORLD_EVENTS.filter((event) => isEligible(event, normalizedNightFactor));
 	return eligible.length > 0 ? eligible : WORLD_EVENTS;
 }
 
-function pickWeightedEvent(random, nightFactor) {
+function pickWeightedEvent(random: () => number, nightFactor: number | undefined): WorldEventDefinition {
 	const pool = eligibleEventPool(nightFactor);
 	const totalWeight = pool.reduce((sum, event) => sum + event.weight, 0);
 	let remaining = random() * totalWeight;
@@ -160,7 +165,7 @@ function pickWeightedEvent(random, nightFactor) {
  * That preserves seeded frame/interval behavior while avoiding visibly repetitive living-world
  * toasts such as two identical guard changes or raven arrivals in succession.
  */
-function avoidImmediateRepeat(picked, lastEventId, nightFactor) {
+function avoidImmediateRepeat(picked: WorldEventDefinition, lastEventId: string | null, nightFactor: number | undefined): WorldEventDefinition {
 	if (!picked || !lastEventId || picked.id !== lastEventId) return picked;
 	const pool = eligibleEventPool(nightFactor);
 	const index = pool.findIndex((event) => event.id === picked.id);
@@ -176,14 +181,14 @@ const MIN_INTERVAL_SECONDS = 45;
 const MAX_INTERVAL_SECONDS = 90;
 export const MAX_WORLD_EVENT_STEP_SECONDS = 1;
 
-export function createWorldEventSystem({ eventsBus, seed, eventName }) {
+export function createWorldEventSystem({ eventsBus, seed, eventName }: WorldEventRuntimeOptions): WorldEventRuntime {
 	const random = mulberry32(seed);
 	let secondsUntilNext = MIN_INTERVAL_SECONDS + random() * (MAX_INTERVAL_SECONDS - MIN_INTERVAL_SECONDS);
 	let disposed = false;
 	let lastEventId = null;
-	const system = {};
+	const system: WorldEventRuntime = {
 
-	system.update = (deltaSeconds, nightFactor) => {
+	system.update = (deltaSeconds: number, nightFactor?: number): void => {
 		if (disposed) return;
 		const simulationDelta = Number.isFinite(deltaSeconds) && deltaSeconds > 0
 			? Math.min(deltaSeconds, MAX_WORLD_EVENT_STEP_SECONDS)
@@ -201,11 +206,11 @@ export function createWorldEventSystem({ eventsBus, seed, eventName }) {
 		eventsBus.emit(eventName, { ...picked });
 	};
 
-	system.dispose = () => {
+	system.dispose = (): void => {
 		disposed = true;
 	};
 
 	return system;
 }
 
-export interface WorldEventRuntime { update(deltaSeconds:number):void; reset():void; dispose():void }
+export interface WorldEventRuntime { update(deltaSeconds: number, nightFactor?: number): void; dispose(): void; }
