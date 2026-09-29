@@ -40,10 +40,10 @@ export interface DragonSpawnConfig {
 	readonly pursuitCircleRadiusMeters: number;
 	readonly pursuitTransitionSeconds: number;
 	readonly pursuitMaxSeconds: number;
-	readonly attackTriggerSeconds: number;
-	readonly biteRadiusMeters: number;
-	readonly biteDamage: number;
-	readonly biteCooldownSeconds: number;
+	readonly attackTriggerSeconds?: number;
+	readonly biteRadiusMeters?: number;
+	readonly biteDamage?: number;
+	readonly biteCooldownSeconds?: number;
 }
 
 export interface DragonConfig {
@@ -188,4 +188,4 @@ export const DRAGON_CONFIG = Object.freeze({
 });
 
 
-export type DragonConfig = typeof DRAGON_CONFIG;
+export type ResolvedDragonConfig = typeof DRAGON_CONFIG;
