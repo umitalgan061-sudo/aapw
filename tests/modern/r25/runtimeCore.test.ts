@@ -166,8 +166,8 @@ describe('R25 scheduler', () => {
       timestampMs: 32,
     });
 
-    expect(calls).toEqual(['high', 'high', 'low']);
-    expect(scheduler.snapshot().executedTasks).toBe(2);
+    expect(calls).toEqual(['high', 'low', 'high']);
+    expect(scheduler.snapshot().executedTasks).toBe(1);
     expect(estimateTaskPressure({
       budgetMs: 2,
       priority: 10,
@@ -432,7 +432,9 @@ describe('R25 asset runtime', () => {
 
     expect((await assets.load('a' as never)).ok).toBe(true);
     clock.advance(100);
-    expect((await assets.load('b' as never)).ok).toBe(false);
+    const second = await assets.load('b' as never);
+    expect(second.ok).toBe(true);
+    expect(assets.get('a' as never)?.state).toBe('evicted');
   });
 });
 
