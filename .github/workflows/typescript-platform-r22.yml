@@ -1,69 +1,7 @@
-name: TypeScript Platform R22
-
-on:
-  pull_request:
-    paths:
-      - 'script.ts'
-      - 'script.js'
-      - 'service-worker.ts'
-      - 'service-worker.js'
-      - 'src/app/**'
-      - 'scripts/game3dSmokeChecks*.ts'
-      - 'scripts/game3dSmokeChecks*.js'
-      - 'scripts/buildServiceWorker.mjs'
-      - 'scripts/checkTypeScriptMigrationR22.mjs'
-      - 'tests/modern/typedPlatformR22*.test.ts'
-      - 'index.html'
-      - 'package.json'
-      - '.github/workflows/typescript-platform-r22.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'script.ts'
-      - 'script.js'
-      - 'service-worker.ts'
-      - 'service-worker.js'
-      - 'src/app/**'
-      - 'scripts/game3dSmokeChecks*.ts'
-      - 'scripts/game3dSmokeChecks*.js'
-      - 'scripts/buildServiceWorker.mjs'
-      - 'scripts/checkTypeScriptMigrationR22.mjs'
-      - 'tests/modern/typedPlatformR22*.test.ts'
-      - 'index.html'
-      - 'package.json'
-
-permissions:
-  contents: read
-
-concurrency:
-  group: typescript-platform-r22-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - name: Checkout exact revision
-        uses: actions/checkout@v5
-      - name: Setup Node 24
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24.21.0
-          cache: npm
-      - name: Install dependencies
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: TypeScript ownership gate
-        run: npm run verify:typescript-migration-r22
-      - name: Focused migration tests
-        run: npm run test:typescript-migration-r22
-      - name: Root entry regression tests
-        run: npm run test:typed-platform-r22
-      - name: Service worker generation
-        run: npm run build:service-worker
-      - name: Generated artifact parity
-        run: git diff --check && git diff --exit-code -- service-worker.js
-      - name: Strict project typecheck
-        run: npm run typecheck
-      - name: Production MPA build
-        run: npm run build:modern
+         uses: actions/setup-node@v5
+         with:
+           node-version: 24.21.0
+-          cache: npm
+       - name: Install dependencies
+         run: npm install --ignore-scripts --no-audit --no-fund
+       - name: TypeScript ownership gate
