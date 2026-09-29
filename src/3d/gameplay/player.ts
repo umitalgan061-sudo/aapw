@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { PLAYER_CONFIG } from './playerConfig.ts';
 import { AssetLoader } from '../assetLoader.ts';
-import { integrateJumpArc } from '../physics.ts';
+import { integrateJumpArc } from './playerPhysics.ts';
 import { gameEvents } from '../eventBus.ts';
 import { EVENTS } from '../config.ts';
 import { readDamageResolution, stageDamageResolution } from './health.ts';
