@@ -1,5 +1,19 @@
 /** Production TypeScript owner for src/3d/gameplay/creatureGait.js; legacy JS path remains compatibility-only. */
-// @ts-nocheck
+import type { Bone } from 'three';
+import type { CreatureBodyPlan } from './creatureBodyPlans.ts';
+
+export type CreatureGaitName = 'walk' | 'stride' | 'trot' | 'prowl' | 'pace' | 'bound' | 'gallop' | 'sprint' | 'hop' | 'flap';
+export type CreatureGaitLegRole = 'hindL' | 'hindR' | 'foreL' | 'foreR';
+export interface CreatureGaitRig { readonly bones: Partial<Record<string, Bone>>; readonly plan: CreatureBodyPlan; }
+export interface CreatureGaitInput { readonly gaitName: string; readonly elapsedSeconds: number; }
+
+export interface CreatureGaitResult {
+	readonly gait: CreatureGaitName;
+	readonly cyclesPerSecond: number;
+}
+
+const DEFAULT_GAIT: CreatureGaitName = 'walk';
+
 /**
  * Procedural gait animation for `gameplay/creatureRig.js` bodies — the declared next step after
  * run 326/ADR-0272 gave 19 species a real skeleton with nothing driving it. This module never
@@ -73,7 +87,7 @@ export const GAIT_LEG_PHASES = Object.freeze({
 	hop: Object.freeze({ hindL: 0, hindR: 0 }),
 	// Flight: legs tuck into the bind pose and stay there; only the wings move (WING_FLAP_PATTERN).
 	flap: Object.freeze({}),
-});
+}) satisfies Record<CreatureGaitName, Partial<Record<CreatureGaitLegRole, number>>>;
 
 /** Swing amplitude multiplier per gait, layered on top of `LEG_SWING_AMPLITUDE_RADIANS`. A prowl
  * reads as a *low, careful* stalk rather than a brisk trot at the same phase pattern; a gallop/bound
@@ -121,7 +135,7 @@ const LEG_BONE_NAMES = Object.freeze({
  * @param {number} cyclesPerSecond
  * @returns {number}
  */
-function cyclePhase(elapsedSeconds, cyclesPerSecond) {
+function cyclePhase(elapsedSeconds: number, cyclesPerSecond: number): number {
 	const raw = elapsedSeconds * cyclesPerSecond;
 	return raw - Math.floor(raw);
 }
@@ -140,15 +154,15 @@ function cyclePhase(elapsedSeconds, cyclesPerSecond) {
  *   the same value always produces the same pose for the same species+gait (determinism, §8.9).
  * @returns {void}
  */
-export function applyCreatureGait(rig, { gaitName, elapsedSeconds }) {
+export function applyCreatureGait(rig: CreatureGaitRig, { gaitName, elapsedSeconds }: CreatureGaitInput): CreatureGaitResult {
 	const { bones, plan } = rig;
 	const gait = GAIT_LEG_PHASES[gaitName] ? gaitName : 'walk';
 	const pattern = GAIT_LEG_PHASES[gait];
 	const amplitudeScale = GAIT_AMPLITUDE_SCALE[gait] ?? 1;
 	const tier = gait === plan.alertGait ? 'run' : 'walk';
-	const cyclesPerSecond = plan.strideHz ? plan.strideHz[tier] : 1;
+	const cyclesPerSecond = plan.strideHz?.[tier] ?? 1;
 
-	for (const [role, offset] of Object.entries(pattern)) {
+	for (const [role, offset] of Object.entries(pattern) as Array<[CreatureGaitLegRole, number]>) {
 		const [kneeName, ankleName] = LEG_BONE_NAMES[role];
 		const kneeBone = bones[kneeName];
 		const ankleBone = bones[ankleName];
@@ -173,7 +187,8 @@ export function applyCreatureGait(rig, { gaitName, elapsedSeconds }) {
 		const wingSwing = Math.sin(wingPhase * Math.PI * 2);
 		const tipSwing = Math.sin((wingPhase - WING_TIP_LAG_CYCLES) * Math.PI * 2);
 		for (const [suffix, side] of [['L', 1], ['R', -1]]) {
-			bones[`wing${suffix}`].rotation.z = side * wingSwing * WING_FLAP_AMPLITUDE_RADIANS;
+			const wingBone = bones[`wing${suffix}`];
+			if (wingBone) wingBone.rotation.z = side * wingSwing * WING_FLAP_AMPLITUDE_RADIANS;
 			if (bones[`wingTip${suffix}`]) {
 				bones[`wingTip${suffix}`].rotation.z = side * tipSwing * WING_TIP_AMPLITUDE_RADIANS;
 			}
@@ -188,7 +203,7 @@ export function applyCreatureGait(rig, { gaitName, elapsedSeconds }) {
  * @param {{bones: Record<string, import('three').Bone>}} rig
  * @returns {void}
  */
-export function resetCreatureGaitPose(rig) {
+export function resetCreatureGaitPose(rig: Pick<CreatureGaitRig, 'bones'>): void {
 	for (const name of Object.values(LEG_BONE_NAMES).flat()) {
 		if (rig.bones[name]) rig.bones[name].rotation.x = 0;
 	}
