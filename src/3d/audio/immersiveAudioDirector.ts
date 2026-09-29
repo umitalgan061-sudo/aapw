@@ -19,6 +19,37 @@ import { createEnvironmentSoundscape } from './environmentSoundscape.js';
 import { createAudioAccessibilityPolicy, applyAudioAccessibilityGain } from './audioAccessibilityPolicy.js';
 import { evaluateAudioOcclusion, smoothOcclusion } from './audioOcclusionPolicy.js';
 
+export interface ImmersiveAudioDirectorOptions {
+  readonly listener?: unknown;
+  readonly quality?: string;
+  readonly environment?: string;
+  readonly reducedMotion?: boolean;
+  readonly coarsePointer?: boolean;
+  readonly accessibility?: unknown;
+  readonly context?: unknown;
+  readonly seed?: number;
+  readonly maxDistance?: number;
+}
+
+export interface ImmersiveAudioDirectorContract {
+  readonly setListenerPose: (position: unknown, forward?: unknown) => Readonly<Record<string, unknown>>;
+  readonly setEnvironment: (environment: string, state?: Readonly<Record<string, unknown>>) => Readonly<Record<string, unknown>>;
+  readonly registerSource: (request: unknown) => unknown;
+  readonly updateSource: (id: string, patch: unknown) => unknown;
+  readonly removeSource: (id: string) => boolean;
+  readonly setDuck: (group: string, active: boolean, options?: unknown) => unknown;
+  readonly clearDuck: (id: string) => boolean;
+  readonly applyOcclusion: (result: unknown) => unknown;
+  readonly triggerCue: (kind: string, options?: unknown) => unknown;
+  readonly update: (deltaSeconds?: number, world?: Readonly<Record<string, unknown>>) => unknown;
+  readonly allocate: (requests?: readonly unknown[]) => unknown;
+  readonly evaluateSource: (request?: unknown) => unknown;
+  readonly setMasterVolume: (volume: number) => number;
+  readonly setAccessibility: (accessibility: unknown) => unknown;
+  readonly snapshot: () => Readonly<Record<string, unknown>>;
+  readonly dispose: () => void;
+}
+
 const GROUPS = Object.freeze(['music', 'ambience', 'weather', 'water', 'npc', 'player', 'combat', 'dialogue', 'ui', 'debug']);
 const QUALITY = Object.freeze(['minimal', 'balanced', 'high', 'ultra']);
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -164,5 +195,6 @@ export class ImmersiveAudioDirector {
 	}
 }
 
-export function createImmersiveAudioDirector(options) { return new ImmersiveAudioDirector(options); }
+export function createImmersiveAudioDirector(options: ImmersiveAudioDirectorOptions = {}): ImmersiveAudioDirector { return new ImmersiveAudioDirector(options) as unknown as ImmersiveAudioDirector; }
+export type ImmersiveAudioDirector = ImmersiveAudioDirectorContract;
 export function immersiveAudioDirectorConstants() { return freeze({ groups: GROUPS, quality: QUALITY }); }
