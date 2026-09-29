@@ -188,7 +188,7 @@ export function createWorldEventSystem({ eventsBus, seed, eventName }: WorldEven
 	let lastEventId: string | null = null;
 	const system: WorldEventRuntime = {
 
-	system.update = (deltaSeconds: number, nightFactor?: number): void => {
+	update: (deltaSeconds: number, nightFactor?: number): void => {
 		if (disposed) return;
 		const simulationDelta = Number.isFinite(deltaSeconds) && deltaSeconds > 0
 			? Math.min(deltaSeconds, MAX_WORLD_EVENT_STEP_SECONDS)
