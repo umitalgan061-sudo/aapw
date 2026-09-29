@@ -7,7 +7,7 @@
  */
 
 import * as THREE from 'three';
-import { PLAYER_CONFIG } from './gameplayConfig.ts';
+import { PLAYER_CONFIG } from './playerConfig.ts';
 import { AssetLoader } from '../assetLoader.ts';
 import { integrateJumpArc } from '../physics.ts';
 import { gameEvents } from '../eventBus.ts';
@@ -22,7 +22,7 @@ export type PlayerAttackPhase = 'none' | 'windup' | 'active' | 'recovery';
 export type PlayerMovementState =
 	| 'idle' | 'walk' | 'sprint' | 'exhausted' | 'airborne' | 'dodge'
 	| 'guard' | 'parry' | 'guard-break' | 'hit-stagger'
-	| 'attack-light' | 'attack-heavy';
+	| 'attack-none' | 'attack-light' | 'attack-heavy';
 
 export interface PlayerMovementInput {
 	readonly x: number;
@@ -203,8 +203,8 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	const groundY = groundCollider.getGroundHeight(spawn.x, spawn.z);
 	model.position.set(spawn.x, groundY, spawn.z);
 	let heightAboveGround = 0, velocityY = 0, isGrounded = true;
-	let stamina = PLAYER_ACTION_CONFIG.MAX_STAMINA, sprintExhausted = false, regenDelayRemaining = 0;
-	let poise = PLAYER_ACTION_CONFIG.MAX_POISE, poiseRegenDelayRemaining = 0, guardBreakRemaining = 0, hitStaggerRemaining = 0;
+	let stamina: number = PLAYER_ACTION_CONFIG.MAX_STAMINA, sprintExhausted = false, regenDelayRemaining = 0;
+	let poise: number = PLAYER_ACTION_CONFIG.MAX_POISE, poiseRegenDelayRemaining = 0, guardBreakRemaining = 0, hitStaggerRemaining = 0;
 	let dodgeRemaining = 0, dodgeElapsed = 0, dodgeCooldownRemaining = 0, lastRunPressAge = Infinity, wasRunHeld = false;
 	let runIntent = false, hasMovementInput = false, planarSpeedMps = 0, dodgeDirectionX = 0, dodgeDirectionZ = 1;
 	let guarding = false, wasGuardHeld = false, parryWindowRemaining = 0, parryFeedbackRemaining = 0;
