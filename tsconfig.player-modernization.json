@@ -11,7 +11,9 @@
     "src/3d/gameplay/dragonFlightMath.ts",
     "src/3d/gameplay/dragonConfig.ts",
     "tests/modern/playerModernizationR1.test.ts",
-    "src/3d/gameplay/dragonReactionState.ts"
+    "src/3d/gameplay/dragonReactionState.ts",
+    "src/3d/gameplay/npcConfig.ts",
+    "src/3d/gameplay/animalConfig.ts"
   ],
   "exclude": [
     "node_modules",
