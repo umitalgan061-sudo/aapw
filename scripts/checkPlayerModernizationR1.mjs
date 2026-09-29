@@ -20,7 +20,7 @@ const mustBeHydrated = async (rel) => {
     fail.push(`missing-asset:${rel}`);
   }
 };
-const ownerPaths = ['player.ts', 'playerConfig.ts', 'health.ts', 'dragonFlightMath.ts', 'dragonReactionState.ts', 'dragonConfig.ts', 'dragonController.ts', 'dragonSpawns.ts', 'npcConfig.ts', 'animalConfig.ts'];
+const ownerPaths = ['player.ts', 'playerConfig.ts', 'health.ts', 'dragonFlightMath.ts', 'dragonReactionState.ts', 'dragonConfig.ts', 'dragonController.ts', 'dragonSpawns.ts', 'npcConfig.ts', 'animalConfig.ts', 'creatureGait.ts'];
 const ownerBodies = await Promise.all(ownerPaths.map((name) => read(`src/3d/gameplay/${name}`)));
 const [player, playerConfig, playerShim, configShim] = await Promise.all([read('src/3d/gameplay/player.ts'), read('src/3d/gameplay/playerConfig.ts'), read('src/3d/gameplay/player.js'), read('src/3d/gameplay/playerConfig.js')]);
 for (const [name, body] of ownerPaths.map((name, i) => [name, ownerBodies[i]])) { if (body.includes('@ts-nocheck')) fail.push(`${name}:ts-nocheck`); if (!body.includes('Production TypeScript owner')) fail.push(`${name}:owner-marker`); }
