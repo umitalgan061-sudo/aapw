@@ -32,7 +32,7 @@
 
 import * as THREE from 'three';
 import { WORLD_DEFAULTS } from '../config.ts';
-import { findSlopeAwarePath } from './roadPathfinder.ts;
+import { findSlopeAwarePath } from './roadPathfinder.ts';
 import { GEOGRAPHIC_REFERENCE_PALETTE, GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './geographicReferencePalette.js';
 
 /** Ribbon width, in meters, for the single road tier this first pass renders — wide enough to read
