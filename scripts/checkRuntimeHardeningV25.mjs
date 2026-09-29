@@ -2,6 +2,9 @@ import { readFile } from 'node:fs/promises';
 
 const facade = await readFile('src/3d/modern/modernRuntimeFacade.ts', 'utf8');
 const supervisor = await readFile('src/3d/strict/runtimeHardeningV25.ts', 'utf8');
+const workflow = await readFile('.github/workflows/runtime-hardening-r25.yml', 'utf8');
+const tsconfig = await readFile('tsconfig.runtime-hardening-r25.json', 'utf8');
+const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
 const failures = [];
 
 for (const token of [
@@ -22,6 +25,10 @@ for (const token of [
 }
 if (facade.includes('this.kernel.profile.maxEntities')) failures.push('modernRuntimeFacade.ts: stale maxEntities access remains');
 if (facade.includes('.stats().pending') || facade.includes('.stats().loading')) failures.push('modernRuntimeFacade.ts: invalid AssetRuntimeStats field remains');
+if (!workflow.includes('npm run typecheck:runtime-hardening-r25')) failures.push('workflow: strict TypeScript check missing');
+if (!workflow.includes('npm run test:runtime-hardening-r25')) failures.push('workflow: regression test missing');
+if (!tsconfig.includes('runtimeHardeningV25.ts')) failures.push('tsconfig: hardening source is not included');
+if (!packageJson.scripts?.['check:runtime-hardening-r25']) failures.push('package.json: V25 aggregate check is missing');
 
 if (failures.length) {
   console.error('V25 runtime hardening gate failed:');
