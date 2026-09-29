@@ -7,6 +7,8 @@ on:
       - 'src/3d/gameplay/**'
       - 'scripts/checkTypedGameplayR11.mjs'
       - 'tests/modern/typedGameplayR11.test.ts'
+      - 'scripts/checkPlayerModernizationR1.mjs'
+      - 'tests/modern/playerModernizationR1.test.ts'
       - 'package.json'
       - '.github/workflows/r11-typed-gameplay.yml'
   push:
@@ -46,6 +48,8 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Typed gameplay ownership gate
         run: npm run verify:typed-gameplay-r11
+      - name: Kızıl Ufuk player modernization proof
+        run: npm run verify:player-modern-r1
       - name: Typed gameplay regression tests
         run: npm run test:typed-gameplay-r11
       - name: Full TypeScript verification
