@@ -34,6 +34,14 @@ export interface DragonSpawnConfig {
 	readonly diveDropMeters: number;
 	readonly diveLateralPullFraction: number;
 	readonly diveTransitionSeconds: number;
+	readonly diveTelegraphSeconds?: number;
+	readonly diveTelegraphTransitionSeconds?: number;
+	readonly giveUpBankAngleMultiplier?: number;
+	readonly giveUpTransitionSeconds?: number;
+	readonly agitatedWingFlapMultiplier?: number;
+	readonly attackLateralPullFraction?: number;
+	readonly attackDropMeters?: number;
+	readonly attackTransitionSeconds?: number;
 	readonly minAltitudeAboveGroundMeters: number;
 	readonly pursuitRadiusMeters: number;
 	readonly pursuitCenterSpeedMps: number;
