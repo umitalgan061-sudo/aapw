@@ -75,7 +75,10 @@
     "check:strict-policy-r20": "npm run verify:strict-policy-r20 && npm run typecheck:strict-policy-r20 && npm run test:strict-policy-r20",
     "verify:strict-runtime-r21": "node scripts/checkStrictRuntimeR21.mjs",
     "test:strict-runtime-r21": "npm test -- tests/modern/strictRuntimeR21.test.ts",
-    "check:strict-runtime-r21": "npm run verify:strict-runtime-r21 && npm run test:strict-runtime-r21 && npm run typecheck"
+    "check:strict-runtime-r21": "npm run verify:strict-runtime-r21 && npm run test:strict-runtime-r21 && npm run typecheck",
+    "verify:typed-platform-r22": "node scripts/checkTypedPlatformR22.mjs",
+    "test:typed-platform-r22": "npm test -- tests/modern/typedPlatformR22.test.ts",
+    "check:typed-platform-r22": "npm run verify:typed-platform-r22 && npm run test:typed-platform-r22 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
