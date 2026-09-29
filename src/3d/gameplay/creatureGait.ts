@@ -163,7 +163,9 @@ export function applyCreatureGait(rig: CreatureGaitRig, { gaitName, elapsedSecon
 	const cyclesPerSecond = plan.strideHz?.[tier] ?? 1;
 
 	for (const [role, offset] of Object.entries(pattern) as Array<[CreatureGaitLegRole, number]>) {
-		const [kneeName, ankleName] = LEG_BONE_NAMES[role];
+		const boneNames = LEG_BONE_NAMES[role];
+		if (!boneNames) continue;
+		const [kneeName, ankleName] = boneNames;
 		const kneeBone = bones[kneeName];
 		const ankleBone = bones[ankleName];
 		if (!kneeBone) continue; // e.g. a bird has no foreL/foreR bones at all.
