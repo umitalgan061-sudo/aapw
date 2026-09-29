@@ -359,6 +359,10 @@ export async function createDragon({
 	// "the feature's own defining value has no generic default" reasoning `noticeToast` already
 	// follows for the notice tier above.
 	const canBite = Boolean(canDive && biteEventName && eventsBus && typeof biteDamage === 'number');
+	const resolvedNoticeRadiusMeters = noticeRadiusMeters ?? 0;
+	const resolvedAlarmRadiusMeters = alarmRadiusMeters ?? 0;
+	const resolvedPursuitRadiusMeters = pursuitRadiusMeters ?? 0;
+	const resolvedCruiseAltitudeAboveGroundMeters = cruiseAltitudeAboveGroundMeters ?? null;
 
 	// All per-frame notice/reactive/pursuit/give-up/dive/telegraph/attack blend bookkeeping lives
 	// in `gameplay/dragonReactionState.js` (run 109, DECISIONS.md ADR-0136) — this controller only
@@ -403,7 +407,7 @@ export async function createDragon({
 				playerPosition,
 			});
 
-			if (frame.justEnteredNotice) {
+			if (frame.justEnteredNotice && eventsBus && eventName && noticeToast) {
 				eventsBus.emit(eventName, noticeToast);
 			}
 
@@ -454,7 +458,7 @@ export async function createDragon({
 			// lunge, never an incidental close pass during ordinary circling/pursuit.
 			state.biteCooldownRemainingSeconds = Math.max(0, state.biteCooldownRemainingSeconds - delta);
 			let didBiteThisFrame = false;
-			if (canBite && state.attackBlend > 0.95 && state.biteCooldownRemainingSeconds <= 0 && playerPosition) {
+			if (canBite && eventsBus && biteEventName && typeof biteDamage === 'number' && state.attackBlend > 0.95 && state.biteCooldownRemainingSeconds <= 0 && playerPosition) {
 				const dx = model.position.x - playerPosition.x;
 				const dy = model.position.y - playerPosition.y;
 				const dz = model.position.z - playerPosition.z;
