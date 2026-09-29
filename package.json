@@ -92,7 +92,11 @@
     "check:strict-live-core-r23": "npm run verify:strict-live-core-r23 && npm run typecheck:strict-live-core-r23 && npm run test:strict-live-core-r23",
     "verify:tooling-r24": "node scripts/checkTypeScriptToolingR24.mjs",
     "test:tooling-r24": "npm test -- tests/modern/typedToolingMigrationR24.test.ts",
-    "check:tooling-r24": "npm run verify:tooling-r24 && npm run test:tooling-r24 && npm run typecheck"
+    "check:tooling-r24": "npm run verify:tooling-r24 && npm run test:tooling-r24 && npm run typecheck",
+    "verify:strict-runtime-hardening-r24": "node scripts/checkStrictRuntimeHardeningR24.mjs",
+    "typecheck:strict-media-r24": "tsc -p tsconfig.strict-media-r24.json --noEmit",
+    "test:strict-runtime-hardening-r24": "npm test -- tests/modern/strictRuntimeHardeningR24.test.ts",
+    "check:strict-runtime-hardening-r24": "npm run verify:strict-runtime-hardening-r24 && npm run typecheck:strict-media-r24 && npm run test:strict-runtime-hardening-r24"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

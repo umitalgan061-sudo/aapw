@@ -25,6 +25,7 @@ import { negotiateRenderFeatures, renderFeatureDigest } from './renderFeatureNeg
 import { evaluateGpuPressure, pressureRecommendations } from './gpuPressureModel.ts';
 import { createRenderDegradationPolicy, degradationDigest } from './renderDegradationPolicy.js';
 import { createTemporalHistoryController } from './renderTemporalHistoryPolicy.js';
+import { createRenderHealthSupervisor } from './renderHealthSupervisor.ts';
 import { createRenderFramePacket, renderFramePacketDigest } from './renderFramePacket.js';
 
 const freeze = Object.freeze;
@@ -62,6 +63,7 @@ export function createNextGenRenderOrchestrator(options = {}) {
   const metrics = createRenderMetricsCollector(options.metrics);
   const degradation = createRenderDegradationPolicy(options.degradation);
   const temporalHistory = createTemporalHistoryController({ initialScale: options.initialRenderScale ?? 0.85, policy: options.temporalHistory?.policy });
+  const renderHealthSupervisor = createRenderHealthSupervisor();
   let frame = 0;
   let disposed = false;
 
@@ -77,6 +79,16 @@ export function createNextGenRenderOrchestrator(options = {}) {
       memoryUtilization: input.memoryUtilization ?? input.memoryPressure,
       thermalPressure: input.thermalPressure,
       targetFrameMs: target,
+    });
+    const renderHealth = renderHealthSupervisor.evaluate({
+      frameMs: finite(input.frameMs, target),
+      gpuMs: input.gpuMs,
+      cpuMs: input.cpuMs,
+      memoryUtilization: input.memoryUtilization ?? input.memoryPressure,
+      thermalPressure: input.thermalPressure,
+      visibility: input.visibility,
+      saveData: input.saveData,
+      reducedMotion: input.reducedMotion,
     });
     const pressurePacket = degradation.evaluate({
       gpuPressure: pressure.overall,
@@ -153,6 +165,7 @@ export function createNextGenRenderOrchestrator(options = {}) {
       frame,
       backend,
       pressure,
+      renderHealth,
       pressureRecommendations: pressureRecommendations(pressure),
       degradation: pressurePacket,
       resolution,
@@ -185,6 +198,7 @@ export function createNextGenRenderOrchestrator(options = {}) {
       metrics: metrics.snapshot(),
       shader: shaders.snapshot(),
       visibility: visibility.snapshot(),
+      renderHealth: renderHealthSupervisor.snapshot(),
     });
   }
 
@@ -195,7 +209,8 @@ export function createNextGenRenderOrchestrator(options = {}) {
     recovery.dispose();
     metrics.dispose();
     temporalHistory.reset('scene-reset');
+    renderHealthSupervisor.reset();
   }
 
-  return freeze({ renderFrame, diagnostics, dispose, governor, visibility, instances, textures, shaders, recovery, metrics, degradation, temporalHistory, get frame() { return frame; }, get disposed() { return disposed; } });
+  return freeze({ renderFrame, diagnostics, dispose, governor, visibility, instances, textures, shaders, recovery, metrics, degradation, temporalHistory, renderHealthSupervisor, get frame() { return frame; }, get disposed() { return disposed; } });
 }
