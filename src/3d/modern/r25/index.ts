@@ -14,4 +14,4 @@ export * from './renderQueue.ts';
 export * from './health.ts';
 export * from './browserHost.ts';
 export * from './runtime.ts';
-export * from './networkPrediction.ts';\nexport * from './objectPool.ts';\n
+export * from './networkPrediction.ts';export * from './objectPool.ts';\n
