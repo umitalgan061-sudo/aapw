@@ -32,7 +32,7 @@ describe('V25 runtime hardening', () => {
       frame: 4, frameMs: 16, cpuMs: 8, gpuMs: 8, drawCalls: 500, triangles: 500_000,
       memoryPressure: 0.2, entityPressure: 0.2, assetBacklog: 2, networkJitterMs: 5,
     });
-    for (let frame = 5; frame <= 7; frame += 1) {
+    for (let frame = 5; frame <= 8; frame += 1) {
       clock += 100;
       recovered = supervisor.observeFrame({
         frame, frameMs: 16, cpuMs: 8, gpuMs: 8, drawCalls: 500, triangles: 500_000,
