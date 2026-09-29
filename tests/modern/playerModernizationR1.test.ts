@@ -3,7 +3,8 @@ import { normalizePlayerMovementInput, PLAYER_RUNTIME_VERSION } from '../../src/
 import { PLAYER_CONFIG } from '../../src/3d/gameplay/playerConfig.ts';
 describe('Kızıl Ufuk player modernization R1', () => {
   it('normalizes hostile runtime input without allowing NaN or out-of-range motion', () => {
-    expect(normalizePlayerMovementInput({ x: Number.NaN, z: Number.POSITIVE_INFINITY, guarding: 1 }).toEqual ?? true).toBeTruthy();
+    const invalid = normalizePlayerMovementInput({ x: Number.NaN, z: Number.POSITIVE_INFINITY, guarding: true });
+    expect(invalid).toEqual({ x: 0, z: 0, guarding: true });
     const input = normalizePlayerMovementInput({ x: 7, z: -4, guarding: 1 });
     expect(input).toEqual({ x: 1, z: -1, guarding: true });
     expect(PLAYER_RUNTIME_VERSION).toBe(1);
