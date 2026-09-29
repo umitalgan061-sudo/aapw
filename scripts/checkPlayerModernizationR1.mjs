@@ -20,11 +20,12 @@ const mustBeHydrated = async (rel) => {
     fail.push(`missing-asset:${rel}`);
   }
 };
-const ownerPaths = ['player.ts', 'playerConfig.ts', 'health.ts', 'dragonFlightMath.ts', 'dragonReactionState.ts', 'dragonConfig.ts', 'npcConfig.ts', 'animalConfig.ts'];
+const ownerPaths = ['player.ts', 'playerConfig.ts', 'health.ts', 'dragonFlightMath.ts', 'dragonReactionState.ts', 'dragonConfig.ts', 'dragonController.ts', 'dragonSpawns.ts', 'npcConfig.ts', 'animalConfig.ts'];
 const ownerBodies = await Promise.all(ownerPaths.map((name) => read(`src/3d/gameplay/${name}`)));
 const [player, playerConfig, playerShim, configShim] = await Promise.all([read('src/3d/gameplay/player.ts'), read('src/3d/gameplay/playerConfig.ts'), read('src/3d/gameplay/player.js'), read('src/3d/gameplay/playerConfig.js')]);
 for (const [name, body] of ownerPaths.map((name, i) => [name, ownerBodies[i]])) { if (body.includes('@ts-nocheck')) fail.push(`${name}:ts-nocheck`); if (!body.includes('Production TypeScript owner')) fail.push(`${name}:owner-marker`); }
-for (const [name, body, target] of [['player.js', playerShim, './player.ts'], ['playerConfig.js', configShim, './playerConfig.ts']]) { if (!body.includes('TypeScript ownership compatibility boundary.')) fail.push(`${name}:compatibility-marker`); if (!body.includes(`from '${target}'`)) fail.push(`${name}:typed-target`); }
+const dragonShims = await Promise.all([read('src/3d/gameplay/dragonController.js'), read('src/3d/gameplay/dragonSpawns.js')]);
+for (const [name, body, target] of [['player.js', playerShim, './player.ts'], ['playerConfig.js', configShim, './playerConfig.ts'], ['dragonController.js', dragonShims[0], './dragonController.ts'], ['dragonSpawns.js', dragonShims[1], './dragonSpawns.ts']]) { if (!body.includes('TypeScript ownership compatibility boundary.')) fail.push(`${name}:compatibility-marker`); if (!body.includes(`from '${target}'`)) fail.push(`${name}:typed-target`); }
 if (/EditorMaterialStudio|from\s+['"][^'"]*editor/i.test(player)) fail.push('player.ts:editor-runtime-import');
 if (/MaterialAssignmentCore|WorldAssetPlacementPipeline/.test(player)) fail.push('player.ts:duplicate-material-placement-authority');
 const config = await import(resolve(root, 'src/3d/gameplay/playerConfig.ts'));
