@@ -244,13 +244,14 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // fetch+cache both so the game's first sound works offline too, not only on a fresh install.
 // RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
 // Regional village architecture adds seven live settlement GLBs; v20->v21 refreshes existing installs.
-const SHELL_CACHE = 'westeros-shell-v21';
+const SHELL_CACHE = 'westeros-shell-v22';
 const SHELL_FILES = [
     './',
     './index.html',
     './style.css',
     './ios-pwa-fix.css',
     './script.js',
+    './script.ts',
     './manifest.json',
     './logo.png'
 ];
