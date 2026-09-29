@@ -156,7 +156,7 @@ function cyclePhase(elapsedSeconds: number, cyclesPerSecond: number): number {
  */
 export function applyCreatureGait(rig: CreatureGaitRig, { gaitName, elapsedSeconds }: CreatureGaitInput): void {
 	const { bones, plan } = rig;
-	const gait = GAIT_LEG_PHASES[gaitName] ? gaitName : 'walk';
+	const gait: CreatureGaitName = Object.prototype.hasOwnProperty.call(GAIT_LEG_PHASES, gaitName) ? gaitName as CreatureGaitName : DEFAULT_GAIT;
 	const pattern = GAIT_LEG_PHASES[gait];
 	const amplitudeScale = GAIT_AMPLITUDE_SCALE[gait] ?? 1;
 	const tier = gait === plan.alertGait ? 'run' : 'walk';
@@ -186,7 +186,7 @@ export function applyCreatureGait(rig: CreatureGaitRig, { gaitName, elapsedSecon
 		const wingPhase = cyclePhase(elapsedSeconds, cyclesPerSecond);
 		const wingSwing = Math.sin(wingPhase * Math.PI * 2);
 		const tipSwing = Math.sin((wingPhase - WING_TIP_LAG_CYCLES) * Math.PI * 2);
-		for (const [suffix, side] of [['L', 1], ['R', -1]]) {
+		for (const [suffix, side] of [['L', 1], ['R', -1]] as const) {
 			const wingBone = bones[`wing${suffix}`];
 			if (wingBone) wingBone.rotation.z = side * wingSwing * WING_FLAP_AMPLITUDE_RADIANS;
 			if (bones[`wingTip${suffix}`]) {
