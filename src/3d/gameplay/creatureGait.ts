@@ -154,7 +154,7 @@ function cyclePhase(elapsedSeconds: number, cyclesPerSecond: number): number {
  *   the same value always produces the same pose for the same species+gait (determinism, §8.9).
  * @returns {void}
  */
-export function applyCreatureGait(rig: CreatureGaitRig, { gaitName, elapsedSeconds }: CreatureGaitInput): CreatureGaitResult {
+export function applyCreatureGait(rig: CreatureGaitRig, { gaitName, elapsedSeconds }: CreatureGaitInput): void {
 	const { bones, plan } = rig;
 	const gait = GAIT_LEG_PHASES[gaitName] ? gaitName : 'walk';
 	const pattern = GAIT_LEG_PHASES[gait];
