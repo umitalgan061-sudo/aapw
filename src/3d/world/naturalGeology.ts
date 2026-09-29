@@ -11,19 +11,19 @@
  */
 
 import * as THREE from 'three';
-import { AssetLoader } from '../assetLoader.js';
+import { AssetLoader } from '../assetLoader.ts';
 import {
   NATURAL_GEOLOGY_PLACEMENT_POLICY,
   checksumNaturalGeologyPlacements,
   generateNaturalGeologyPlacements,
   sampleTerrainFrame,
-} from './naturalGeologyPlacement.js';
+} from './naturalGeologyPlacement.ts';
 import {
   VALYRIA_GEOLOGY_POLICY,
   applyValyriaSurfaceColor,
   normalizedOwnerMapAtWorldXZ,
   valyriaInfluenceAtWorldXZ,
-} from './valyriaGeology.js';
+} from './valyriaGeology.ts';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   id: 'natural-geology-render-2026-08-27-v1-asset-hydrated-outcrops',
