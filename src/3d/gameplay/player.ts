@@ -87,6 +87,16 @@ export interface PlayerMotionSnapshot {
 	readonly position: Readonly<{ x: number; y: number; z: number }>;
 }
 
+export interface PlayerAttackTuning {
+	readonly cost: number;
+	readonly duration: number;
+	readonly activeStart: number;
+	readonly activeEnd: number;
+	readonly reach: number;
+	readonly commitMeters: number;
+	readonly damageScale: number;
+}
+
 export interface PlayerRuntime {
 	readonly object3D: THREE.Object3D;
 	readonly stamina: number;
@@ -201,7 +211,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	let attackKind: PlayerAttackKind = 'none', attackRemaining = 0, attackElapsed = 0, attackActive = false, attackComboStep = 0, attackSerial = 0, attackCommitRemaining = 0;
 	let bufferedAttackKind: PlayerAttackKind = 'none', attackBufferRemaining = 0;
 	let lastDefenseResult: PlayerDefenseResult = 'none', combatFeedbackSerial = 0, defeatResetQueued = false;
-	let movementState: PlayerMovementState = 'idle', currentActionName = null, lastTelemetryState = '', lastTelemetryStamina = -1, lastTelemetryPoise = -1;
+	let movementState: PlayerMovementState = 'idle', currentActionName: string | null = null, lastTelemetryState = '', lastTelemetryStamina = -1, lastTelemetryPoise = -1;
 
 	function playAction(name: string, timeScale = 1): void {
 		const next = actions[name]; if (!next) return; next.setEffectiveTimeScale(timeScale); if (currentActionName === name) return;
@@ -241,7 +251,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		guarding = false; parryWindowRemaining = 0; guardBreakRemaining = PLAYER_ACTION_CONFIG.GUARD_BREAK_SECONDS;
 		spendStamina(PLAYER_ACTION_CONFIG.GUARD_BREAK_STAMINA_PENALTY); movementState = 'guard-break'; lastDefenseResult = 'guard-break'; playAction('idle', 1);
 	}
-	function attackTuning(kind: PlayerAttackKind) {
+	function attackTuning(kind: PlayerAttackKind): PlayerAttackTuning {
 		return kind === 'heavy'
 			? { cost: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_STAMINA_COST, duration: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_SECONDS, activeStart: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_ACTIVE_START_SECONDS, activeEnd: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_ACTIVE_END_SECONDS, reach: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_REACH_METERS, commitMeters: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_COMMIT_METERS, damageScale: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_DAMAGE_SCALE }
 			: { cost: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_STAMINA_COST, duration: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_SECONDS, activeStart: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_ACTIVE_START_SECONDS, activeEnd: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_ACTIVE_END_SECONDS, reach: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_REACH_METERS, commitMeters: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_COMMIT_METERS, damageScale: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_DAMAGE_SCALE };
