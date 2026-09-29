@@ -107,7 +107,11 @@
     "check:runtime-hardening-r25": "npm run verify:runtime-hardening-r25 && npm run typecheck:runtime-hardening-r25 && npm run test:runtime-hardening-r25",
     "verify:typed-world-migration-r10b": "node scripts/checkTypedWorldMigrationR10b.mjs",
     "test:typed-world-migration-r10b": "npm test -- tests/modern/typedWorldMigrationR10b.test.ts",
-    "check:typed-world-migration-r10b": "npm run verify:typed-world-migration-r10b && npm run test:typed-world-migration-r10b && npm run typecheck"
+    "check:typed-world-migration-r10b": "npm run verify:typed-world-migration-r10b && npm run test:typed-world-migration-r10b && npm run typecheck",
+    "verify:player-modern-r1": "node scripts/checkPlayerModernizationR1.mjs",
+    "typecheck:player-modern": "tsc -p tsconfig.player-modernization.json --noEmit",
+    "test:player-modern": "vitest run tests/modern/playerModernizationR1.test.ts",
+    "check:player-modern": "npm run verify:player-modern-r1 && npm run typecheck:player-modern && npm run test:player-modern"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
