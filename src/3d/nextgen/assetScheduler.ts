@@ -1,12 +1,5 @@
-import {
-  AssetRecord,
-  AssetId,
-  Outcome,
-  asAssetId,
-  clamp,
-  fault,
-  stableHash,
-} from './kernelTypes.ts';
+import type { AssetRecord, AssetId, Outcome } from './kernelTypes.ts';
+import { asAssetId, clamp, fault, stableHash } from './kernelTypes.ts';
 
 export interface AssetRequest {
   readonly id?: string;
@@ -215,7 +208,7 @@ export class AssetScheduler {
       return { ok: false, error: fault('budget', 'Resident asset budget cannot fit completed asset.', true, { id, bytes }) };
     }
     this.#residentBytes += bytes;
-    const next = Object.freeze({ ...record, state: 'resident' as const, residentBytes: bytes, lastUsedTick: tick, retryAtTick: undefined, ...('evicted' in { evicted } ? {} : {}) });
+    const next = Object.freeze({ ...record, state: 'resident' as const, residentBytes: bytes, lastUsedTick: tick });
     this.#records.set(id, next);
     return { ok: true, value: next };
   }
