@@ -104,7 +104,10 @@
     "verify:runtime-hardening-r25": "node scripts/checkRuntimeHardeningV25.mjs",
     "typecheck:runtime-hardening-r25": "tsc -p tsconfig.runtime-hardening-r25.json --noEmit",
     "test:runtime-hardening-r25": "npm test -- tests/modern/runtimeHardeningV25.test.ts",
-    "check:runtime-hardening-r25": "npm run verify:runtime-hardening-r25 && npm run typecheck:runtime-hardening-r25 && npm run test:runtime-hardening-r25"
+    "check:runtime-hardening-r25": "npm run verify:runtime-hardening-r25 && npm run typecheck:runtime-hardening-r25 && npm run test:runtime-hardening-r25",
+    "typecheck:player-modern": "tsc -p tsconfig.player-modernization.json --noEmit",
+    "test:player-modern": "vitest run tests/modern/playerModernizationR1.test.ts",
+    "check:player-modern": "npm run verify:player-modern-r1 && npm run typecheck:player-modern && npm run test:player-modern"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
