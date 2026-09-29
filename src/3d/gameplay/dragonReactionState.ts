@@ -48,7 +48,7 @@ export interface DragonReactionConfig {
 	readonly attackTriggerSeconds: number; readonly attackTransitionSeconds: number; readonly clampedDiveLateralPullFraction: number; readonly diveDropMeters: number;
 	readonly clampedAttackLateralPullFraction: number; readonly attackDropMeters: number; readonly pursuitRadiusMeters: number; readonly pursuitCenterSpeedMps: number;
 	readonly centerX: number; readonly centerZ: number; readonly centerY: number; readonly pursuitCircleRadiusMeters: number; readonly pursuitTransitionSeconds: number; readonly pursuitMaxSeconds: number;
-	readonly cruiseAltitudeAboveGroundMeters: number | null; readonly sampleGroundY?: (worldX: number, worldZ: number) => number;
+	readonly cruiseAltitudeAboveGroundMeters: number | null; readonly sampleGroundY?: ((worldX: number, worldZ: number) => number) | undefined;
 	readonly giveUpBankAngleMultiplier: number; readonly giveUpTransitionSeconds: number; readonly playerPosition: DragonReactionPlayerPosition | null;
 }
 
