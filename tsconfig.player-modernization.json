@@ -16,7 +16,8 @@
     "src/3d/gameplay/animalConfig.ts",
     "src/3d/gameplay/dragonSpawns.ts",
     "src/3d/gameplay/dragonController.ts",
-    "src/3d/gameplay/worldEvents.ts"
+    "src/3d/gameplay/worldEvents.ts",
+    "src/3d/gameplay/creatureGait.ts"
   ],
   "exclude": [
     "node_modules",
