@@ -4,6 +4,7 @@ import { PLAYER_CONFIG } from '../../src/3d/gameplay/playerConfig.ts';
 import { NPC_CONFIG } from '../../src/3d/gameplay/npcConfig.ts';
 import { ANIMAL_CONFIG } from '../../src/3d/gameplay/animalConfig.ts';
 import { DRAGON_CONFIG } from '../../src/3d/gameplay/dragonConfig.ts';
+import { createWorldEventSystem } from '../../src/3d/gameplay/worldEvents.ts';
 describe('Kızıl Ufuk player modernization R1', () => {
   it('normalizes hostile runtime input without allowing NaN or out-of-range motion', () => {
     const invalid = normalizePlayerMovementInput({ x: Number.NaN, z: Number.POSITIVE_INFINITY, guarding: true });
@@ -24,6 +25,21 @@ describe('Kızıl Ufuk player modernization R1', () => {
     expect(Object.keys(ANIMAL_CONFIG.SPECIES).length).toBeGreaterThanOrEqual(10);
     expect(DRAGON_CONFIG.MODEL_URL).toContain('Dragon_Baked_Actions');
     expect(DRAGON_CONFIG.SPAWNS[0].seatId).toBe('umit');
+  });
+
+  it('keeps world-event runtime deterministic and disposable', () => {
+    const emitted: Array<{ id: string }> = [];
+    const eventsBus = { emit: (_name: string, payload: { id: string }) => emitted.push({ id: payload.id }) } as Parameters<typeof createWorldEventSystem>[0]['eventsBus'];
+    const a = createWorldEventSystem({ eventsBus, seed: 1337, eventName: 'world:event' });
+    const b = createWorldEventSystem({ eventsBus, seed: 1337, eventName: 'world:event' });
+    a.update(90);
+    b.update(90);
+    expect(emitted[0]?.id).toBe(emitted[1]?.id);
+    a.dispose();
+    const before = emitted.length;
+    a.update(999);
+    expect(emitted.length).toBe(before);
+    b.dispose();
   });
 
   it('keeps combat-safe grounding and camera bounds finite', () => {
