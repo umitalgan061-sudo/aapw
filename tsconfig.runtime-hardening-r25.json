@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "include": [
+    "src/3d/strict/runtimeHardeningV25.ts",
+    "src/3d/modern/modernRuntimeFacade.ts",
+    "tests/modern/runtimeHardeningV25.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
