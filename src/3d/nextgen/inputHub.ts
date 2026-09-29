@@ -1,14 +1,5 @@
-import {
-  InputIntent,
-  InputSource,
-  Outcome,
-  Result,
-  RuntimeFault,
-  clamp,
-  fault,
-  radialAxis,
-  stableHash,
-} from './kernelTypes.ts';
+import type { InputIntent, InputSource, Outcome, Result } from './kernelTypes.ts';
+import { clamp, fault, radialAxis, stableHash } from './kernelTypes.ts';
 
 export interface RawSample {
   readonly source: InputSource;
