@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/dragonController.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * A single flying dragon's controller (FAZ 7) — model/rig loading, the per-frame flight + reaction
  * update loop (notice/reactive/dive/pursuit/give-up), and disposal. Split out of
@@ -20,9 +19,63 @@
  */
 
 import * as THREE from 'three';
+import type { EventBus } from '../eventBus.ts';
+import type { AssetLoader } from '../assetLoader.ts';
+
 import { AssetLoader } from '../assetLoader.ts';
 import { alignDiveOrientation, applyCirclePose, applyDiveOffset, clampAltitudeAboveGround } from './dragonFlightMath.ts';
-import { createDragonReactionState, stepDragonReactionState } from './dragonReactionState.ts';
+import { createDragonReactionState, stepDragonReactionState, type DragonReactionState } from './dragonReactionState.ts';
+
+export interface DragonNoticeToast { readonly id: string; readonly icon: string; readonly title: string; readonly desc: string; readonly color: string; }
+export interface DragonPlayerPosition { readonly x: number; readonly y: number; readonly z: number; }
+export interface DragonCreateOptions {
+	readonly assetLoader: AssetLoader;
+	readonly modelUrl: string;
+	readonly texturesResourcePath?: string;
+	readonly scale: number;
+	readonly flyClipName: string;
+	readonly centerX: number;
+	readonly centerZ: number;
+	readonly centerY: number;
+	readonly circleRadiusMeters: number;
+	readonly speedMps: number;
+	readonly bankAngleRadians?: number;
+	readonly startAngleRadians?: number;
+	readonly name?: string;
+	readonly noticeRadiusMeters?: number;
+	readonly eventsBus?: EventBus;
+	readonly eventName?: string;
+	readonly noticeToast?: DragonNoticeToast;
+	readonly reactiveSpeedMultiplier?: number;
+	readonly reactiveBankAngleRadians?: number;
+	readonly reactiveTransitionSeconds?: number;
+	readonly alarmRadiusMeters?: number;
+	readonly sampleGroundY?: (worldX: number, worldZ: number) => number;
+	readonly diveDropMeters?: number;
+	readonly diveLateralPullFraction?: number;
+	readonly diveTransitionSeconds?: number;
+	readonly diveTelegraphSeconds?: number;
+	readonly diveTelegraphTransitionSeconds?: number;
+	readonly attackTriggerSeconds?: number;
+	readonly attackLateralPullFraction?: number;
+	readonly attackDropMeters?: number;
+	readonly attackTransitionSeconds?: number;
+	readonly biteRadiusMeters?: number;
+	readonly biteDamage?: number;
+	readonly biteCooldownSeconds?: number;
+	readonly biteEventName?: string;
+	readonly minAltitudeAboveGroundMeters?: number;
+	readonly pursuitRadiusMeters?: number;
+	readonly pursuitCenterSpeedMps?: number;
+	readonly pursuitCircleRadiusMeters?: number;
+	readonly pursuitTransitionSeconds?: number;
+	readonly pursuitMaxSeconds?: number;
+	readonly giveUpBankAngleMultiplier?: number;
+	readonly giveUpTransitionSeconds?: number;
+	readonly cruiseAltitudeAboveGroundMeters?: number;
+	readonly agitatedWingFlapMultiplier?: number;
+}
+
 
 /**
  * Loads the dragon model, places it on its circling flight path, and returns a small controller
@@ -282,7 +335,7 @@ export async function createDragon({
 	giveUpTransitionSeconds = 0.6,
 	cruiseAltitudeAboveGroundMeters,
 	agitatedWingFlapMultiplier = 1.5,
-}) {
+}: DragonCreateOptions): Promise<DragonRuntimeContract> {
 	const clampedDiveLateralPullFraction = Math.min(1, Math.max(0, diveLateralPullFraction));
 	const clampedAttackLateralPullFraction = Math.min(1, Math.max(0, attackLateralPullFraction));
 	const model = await assetLoader.loadFBXModel(modelUrl, {
@@ -321,7 +374,7 @@ export async function createDragon({
 		 * @param {{x: number, y: number, z: number}} [playerPosition] Current player world position —
 		 *   only read when this dragon has player-awareness configured (`noticeRadiusMeters`).
 		 */
-		update(delta, playerPosition) {
+		update(delta: number, playerPosition?: DragonPlayerPosition): void {
 			// Distance check runs first, against the dragon's position as of the end of the previous
 			// frame — same real distance the original run-54 check used, reused by
 			// `stepDragonReactionState` for the reactive/dive/pursuit blend targets, not only the
@@ -442,7 +495,7 @@ export async function createDragon({
 }
 
 export interface DragonRuntimeContract {
-  readonly object3D: unknown;
-  update(deltaSeconds: number, target?: unknown): void;
-  dispose(): void;
+	readonly object3D: THREE.Object3D;
+	update(deltaSeconds: number, playerPosition?: DragonPlayerPosition): void;
+	dispose(): void;
 }
