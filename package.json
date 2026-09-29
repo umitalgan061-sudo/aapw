@@ -78,7 +78,11 @@
     "check:strict-runtime-r21": "npm run verify:strict-runtime-r21 && npm run test:strict-runtime-r21 && npm run typecheck",
     "verify:typed-platform-r22": "node scripts/checkTypedPlatformR22.mjs",
     "test:typed-platform-r22": "npm test -- tests/modern/typedPlatformR22.test.ts",
-    "check:typed-platform-r22": "npm run verify:typed-platform-r22 && npm run test:typed-platform-r22 && npm run typecheck"
+    "check:typed-platform-r22": "npm run verify:typed-platform-r22 && npm run test:typed-platform-r22 && npm run typecheck",
+    "build:service-worker": "node scripts/buildServiceWorker.mjs",
+    "verify:typescript-migration-r22": "node scripts/checkTypeScriptMigrationR22.mjs",
+    "test:typescript-migration-r22": "npm test -- tests/modern/typedPlatformR22Integration.test.ts",
+    "check:platform-r22": "npm run verify:typescript-migration-r22 && npm run verify:typed-platform-r22 && npm run verify:typed-creature-runtime && npm run test:typescript-migration-r22 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
