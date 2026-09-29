@@ -1,3 +1,4 @@
 #!/usr/bin/env node
 /* TypeScript ownership compatibility boundary. */
-await import('./checkTechnicalDebt.ts');
+const mod = await import('./checkTechnicalDebt.ts');
+mod.main();
