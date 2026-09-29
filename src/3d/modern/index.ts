@@ -76,3 +76,5 @@ export * from './runtimeHealthV18';
 export * from './v18';
 export * from './runtimeKernelAdapterV18';
 export * from './v15/index.ts';
+
+export * from './r25/index.ts';
