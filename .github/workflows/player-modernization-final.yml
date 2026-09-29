@@ -12,6 +12,8 @@ on:
       - 'src/3d/gameplay/dragonFlightMath.ts'
       - 'src/3d/gameplay/dragonReactionState.ts'
       - 'src/3d/gameplay/dragonConfig.ts'
+      - 'src/3d/gameplay/npcConfig.ts'
+      - 'src/3d/gameplay/animalConfig.ts'
       - 'tests/modern/playerModernizationR1.test.ts'
       - 'scripts/checkPlayerModernizationR1.mjs'
       - 'tsconfig.player-modernization.json'
