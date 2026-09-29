@@ -1,0 +1,63 @@
+name: strict-live-core-r23
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/strict/**'
+      - 'tests/modern/strict-live-core/**'
+      - 'scripts/checkStrictLiveCoreR23.mjs'
+      - 'tsconfig.strict-live-core-r23.json'
+      - 'package.json'
+      - '.github/workflows/strict-live-core-r23.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/strict/**'
+      - 'tests/modern/strict-live-core/**'
+      - 'scripts/checkStrictLiveCoreR23.mjs'
+      - 'tsconfig.strict-live-core-r23.json'
+      - 'package.json'
+      - '.github/workflows/strict-live-core-r23.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: strict-live-core-r23-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  strict-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:strict-live-core-r23
+      - run: npm run typecheck:strict-live-core-r23
+      - run: npm run test:strict-live-core-r23
+      - run: npm run typecheck
+      - run: npm test -- --passWithNoTests
+      - run: npm run build:modern
+
+  determinism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: |
+          set -eu
+          if grep -RInE 'Math\.random\(|Date\.now\(' src/3d/strict; then
+            echo "Strict sources contain ambient nondeterminism."
+            exit 1
+          fi
+          if grep -RInE '@ts-nocheck|@ts-ignore' src/3d/strict; then
+            echo "Strict core contains a TypeScript escape hatch."
+            exit 1
+          fi

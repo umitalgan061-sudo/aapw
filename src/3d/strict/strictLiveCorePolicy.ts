@@ -1,0 +1,33 @@
+import type { InputPolicy, PhysicsPolicy, RenderPolicy, RuntimeBudgets, RuntimeError } from './liveCoreTypes.ts';
+import { clamp, stableHash } from './liveCoreTypes.ts';
+import { DEFAULT_CAMERA_POLICY, DEFAULT_CAMERA_LIMITS } from './cameraRuntime.ts';
+import { DEFAULT_INPUT_POLICY } from './inputRuntime.ts';
+import { DEFAULT_PHYSICS_POLICY } from './physicsRuntime.ts';
+import { DEFAULT_ASSET_POLICY } from './assetRuntime.ts';
+import { DEFAULT_TELEMETRY_POLICY } from './runtimeTelemetry.ts';
+import { DEFAULT_STREAM_POLICY } from './streamingRuntime.ts';
+
+export interface CoreBudgetPolicy { readonly frameMs:number; readonly simulationMs:number; readonly renderMs:number; readonly inputMs:number; readonly assetMs:number; readonly telemetryMs:number; readonly memoryBytes:number; readonly networkBytesPerSecond:number; }
+export interface CoreSafetyPolicy { readonly maxCommandsPerFrame:number; readonly maxEntityCount:number; readonly maxInputAgeSeconds:number; readonly maxSnapshotAgeTicks:number; readonly maxRollbackTicks:number; readonly rejectNaN:boolean; readonly rejectInfinite:boolean; }
+export interface StrictLiveCorePolicy { readonly budgets:CoreBudgetPolicy; readonly safety:CoreSafetyPolicy; readonly input:InputPolicy; readonly physics:PhysicsPolicy; readonly renderDefaults:RenderPolicy; readonly camera:typeof DEFAULT_CAMERA_POLICY; readonly cameraLimits:typeof DEFAULT_CAMERA_LIMITS; readonly assets:typeof DEFAULT_ASSET_POLICY; readonly telemetry:typeof DEFAULT_TELEMETRY_POLICY; readonly streaming:typeof DEFAULT_STREAM_POLICY; readonly revision:string; }
+export interface PolicyObservation { readonly frameTimeMs:number; readonly memoryBytes:number; readonly networkBytesPerSecond:number; readonly thermalPressure:number; readonly droppedInputs:number; readonly backendLost:boolean; readonly commandsThisFrame:number; }
+export interface PolicyRecommendation { readonly action:'hold'|'reduce-render-scale'|'reduce-quality'|'pause-background-streaming'|'shed-telemetry'|'enter-recovery'; readonly reason:string; readonly severity:'info'|'warning'|'critical'; readonly renderScaleMultiplier:number; readonly allowNewLoads:boolean; }
+
+export const DEFAULT_CORE_BUDGETS:CoreBudgetPolicy=Object.freeze({frameMs:16.67,simulationMs:5.5,renderMs:8,inputMs:.75,assetMs:1.5,telemetryMs:.5,memoryBytes:768*1024*1024,networkBytesPerSecond:2*1024*1024});
+export const DEFAULT_CORE_SAFETY:CoreSafetyPolicy=Object.freeze({maxCommandsPerFrame:64,maxEntityCount:20000,maxInputAgeSeconds:.25,maxSnapshotAgeTicks:12,maxRollbackTicks:12,rejectNaN:true,rejectInfinite:true});
+
+export const DEFAULT_STRICT_LIVE_CORE_POLICY:StrictLiveCorePolicy=Object.freeze({
+  budgets:DEFAULT_CORE_BUDGETS,safety:DEFAULT_CORE_SAFETY,input:DEFAULT_INPUT_POLICY,physics:DEFAULT_PHYSICS_POLICY,
+  renderDefaults:Object.freeze({backend:'webgl2',tier:'high',renderScale:.92,pixelRatioCap:2,shadows:true,postProcessing:true,temporalEffects:true,maxVisibleInstances:5200,maxTextureMegabytes:768}),
+  camera:DEFAULT_CAMERA_POLICY,cameraLimits:DEFAULT_CAMERA_LIMITS,assets:DEFAULT_ASSET_POLICY,telemetry:DEFAULT_TELEMETRY_POLICY,streaming:DEFAULT_STREAM_POLICY,revision:'r23-strict-live-core-2026-09-29',
+});
+
+export const validateCorePolicy=(policy:StrictLiveCorePolicy):readonly RuntimeError[]=>{const errors:RuntimeError[]=[];if(policy.budgets.frameMs<=0||policy.budgets.frameMs>100)return [...errors,Object.freeze({code:'INVALID_FRAME',message:'frame budget invalid',recoverable:false})];if(policy.budgets.simulationMs+policy.budgets.renderMs+policy.budgets.inputMs+policy.budgets.assetMs+policy.budgets.telemetryMs>policy.budgets.frameMs)return [...errors,Object.freeze({code:'INVALID_FRAME',message:'sub-budgets exceed frame budget',recoverable:false})];if(policy.safety.maxCommandsPerFrame<1||policy.safety.maxEntityCount<1)return [...errors,Object.freeze({code:'INVALID_FRAME',message:'safety cardinality invalid',recoverable:false})];if(policy.input.maximumActionCount<1)return [...errors,Object.freeze({code:'INVALID_INPUT',message:'input action limit invalid',recoverable:false})];return Object.freeze(errors);};
+
+export const validateObservation=(obs:PolicyObservation,policy:StrictLiveCorePolicy=DEFAULT_STRICT_LIVE_CORE_POLICY):Readonly<{ok:boolean;errors:readonly string[]}>=>
+{const errors:string[]=[];const checks:[boolean,string][]=[[Number.isFinite(obs.frameTimeMs)||!policy.safety.rejectNaN,'frame-time-nonfinite'],[Number.isFinite(obs.memoryBytes)||!policy.safety.rejectNaN,'memory-nonfinite'],[Number.isFinite(obs.networkBytesPerSecond)||!policy.safety.rejectNaN,'network-nonfinite'],[obs.commandsThisFrame<=policy.safety.maxCommandsPerFrame,'command-rate'],[obs.memoryBytes<=policy.budgets.memoryBytes,'memory-budget'],[obs.networkBytesPerSecond<=policy.budgets.networkBytesPerSecond,'network-budget']];for(const [condition,name] of checks)if(!condition)errors.push(name);return Object.freeze({ok:errors.length===0,errors:Object.freeze(errors)});};
+
+export const recommendPolicy=(obs:PolicyObservation,policy:StrictLiveCorePolicy=DEFAULT_STRICT_LIVE_CORE_POLICY):readonly PolicyRecommendation[]=>{const recs:PolicyRecommendation[]=[];const frameRatio=obs.frameTimeMs/policy.budgets.frameMs;if(obs.backendLost)recs.push(Object.freeze({action:'enter-recovery',reason:'render backend was lost',severity:'critical',renderScaleMultiplier:.75,allowNewLoads:false}));if(frameRatio>1.25)recs.push(Object.freeze({action:'reduce-quality',reason:'frame budget exceeded by more than 25%',severity:'critical',renderScaleMultiplier:.8,allowNewLoads:false}));else if(frameRatio>1.05)recs.push(Object.freeze({action:'reduce-render-scale',reason:'frame budget exceeded',severity:'warning',renderScaleMultiplier:.9,allowNewLoads:true}));if(obs.memoryBytes>policy.budgets.memoryBytes*.9)recs.push(Object.freeze({action:'pause-background-streaming',reason:'resident memory is above 90% of budget',severity:'warning',renderScaleMultiplier:.95,allowNewLoads:false}));if(obs.networkBytesPerSecond>policy.budgets.networkBytesPerSecond*.9)recs.push(Object.freeze({action:'shed-telemetry',reason:'network budget is near exhaustion',severity:'warning',renderScaleMultiplier:1,allowNewLoads:true}));if(obs.droppedInputs>8)recs.push(Object.freeze({action:'reduce-render-scale',reason:'input samples are being dropped',severity:'warning',renderScaleMultiplier:.92,allowNewLoads:true}));return Object.freeze(recs);};
+
+export const effectiveRenderScale=(base:number,recommendations:readonly PolicyRecommendation[])=>clamp(recommendations.reduce((scale,rec)=>scale*rec.renderScaleMultiplier,base),.5,1);
+export const policyDigest=(policy:StrictLiveCorePolicy)=>stableHash(policy);
