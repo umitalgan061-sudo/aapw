@@ -9,6 +9,7 @@ export interface HardeningPolicy {
   readonly recoverySamples: number;
   readonly operationTimeoutMs: number;
   readonly historyCapacity: number;
+  readonly now?: () => number;
 }
 
 export interface HardeningDecision {
@@ -36,6 +37,7 @@ const DEFAULT_POLICY: HardeningPolicy = Object.freeze({
   recoverySamples: 6,
   operationTimeoutMs: 12_000,
   historyCapacity: 96,
+  now: undefined,
 });
 
 const nowMs = (): number => typeof performance !== 'undefined' && typeof performance.now === 'function'
@@ -56,6 +58,7 @@ export class RuntimeHardeningSupervisorV25 {
   #disposed = false;
   #healthySamples = 0;
   #lastFailure: { readonly operation: string; readonly message: string; readonly atMs: number } | undefined;
+  #now: () => number;
 
   constructor(options: Partial<HardeningPolicy> = {}) {
     this.policy = Object.freeze({
@@ -66,7 +69,9 @@ export class RuntimeHardeningSupervisorV25 {
       recoverySamples: Math.max(1, Math.floor(finite(options.recoverySamples, DEFAULT_POLICY.recoverySamples))),
       operationTimeoutMs: Math.max(0, finite(options.operationTimeoutMs, DEFAULT_POLICY.operationTimeoutMs)),
       historyCapacity: Math.max(16, Math.floor(finite(options.historyCapacity, DEFAULT_POLICY.historyCapacity))),
+      ...(options.now ? { now: options.now } : {}),
     });
+    this.#now = options.now ?? nowMs;
     this.health = new StrictRuntimeHealthBudget({
       windowSize: Math.min(64, this.policy.historyCapacity),
       recoveryAfterHealthySamples: this.policy.recoverySamples,
@@ -76,7 +81,7 @@ export class RuntimeHardeningSupervisorV25 {
   observeFrame(observation: StrictHealthObservation): HardeningDecision {
     if (this.#disposed) return this.#decision(null, 0, 'disposed');
     const snapshot = this.health.observe(observation);
-    this.#expireFailures(observation.frame);
+    this.#expireFailures(this.#now());
     if (snapshot.state === 'critical' || this.#failures.length >= this.policy.maxFailuresPerWindow) {
       this.#state = 'critical';
       this.#throttleFactor = 0.35;
@@ -138,7 +143,7 @@ export class RuntimeHardeningSupervisorV25 {
     const event = Object.freeze({
       operation: String(operation).slice(0, 120),
       message: error instanceof Error ? error.message : String(error),
-      atMs: nowMs(),
+      atMs: this.#now(),
     });
     this.#lastFailure = event;
     this.#failures.push(event);
