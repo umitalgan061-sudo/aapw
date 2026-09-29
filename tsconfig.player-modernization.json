@@ -8,6 +8,8 @@
     "src/3d/gameplay/player.ts",
     "src/3d/gameplay/playerConfig.ts",
     "src/3d/gameplay/health.ts",
+    "src/3d/gameplay/dragonFlightMath.ts",
+    "src/3d/gameplay/dragonConfig.ts",
     "tests/modern/playerModernizationR1.test.ts"
   ],
   "exclude": [
