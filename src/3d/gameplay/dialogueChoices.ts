@@ -1,82 +1,9 @@
-/** Production TypeScript owner for src/3d/gameplay/dialogueChoices.js; legacy JS path remains compatibility-only. */
-/**
- * `INTERACTION_CONFIG.CHOICES_BY_NPC_ID` — split out of `gameplay/gameplayConfig.js` (run 50,
- * DECISIONS.md ADR-0066) once that file reached 566/600 lines with only 34 headroom left, this
- * block's own biggest remaining growth driver (~30 lines per 2-NPC pair) and the one most likely to
- * blow the cap before FAZ 7 needs its own room in `gameplayConfig.js`. `GREETINGS_BY_NPC_ID` stays in
- * `gameplayConfig.js` (much smaller per-entry, one line each vs. ~4) — this file owns only the
- * heavier branching-choice content. Re-exported through `gameplayConfig.js`'s `INTERACTION_CONFIG.
- * CHOICES_BY_NPC_ID` so every existing caller (`game3d.js`, `gameplay/interaction.js`) is unchanged.
- * @module gameplay/dialogueChoices
- */
+export interface DialogueChoice {
+  readonly label: string;
+  readonly response: string;
+}
+export type DialogueChoicesByNpcId = Readonly<Record<string, readonly DialogueChoice[]>>;
 
-/** FAZ 5's real branching pilot (started run 44, DECISIONS.md ADR-0058; grown run 46 to 4,
- * DECISIONS.md ADR-0060; grown run 47 to 6, DECISIONS.md ADR-0062; grown run 48 to 8,
- * DECISIONS.md ADR-0063; grown run 49 to 10, DECISIONS.md ADR-0064; grown run 50 to 12,
- * DECISIONS.md ADR-0067; grown run 51 to 13, DECISIONS.md ADR-0069; run 80, DECISIONS.md
- * ADR-0103, gave `umit-guard-1` a 3rd choice — the pilot's first NPC to use the 3rd of
- * `interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES` slots, which has been reachable since run 44 but
- * never exercised; run 88, DECISIONS.md ADR-0114, gave `berkalp-guard-1` a 3rd choice too, its
- * theme deliberately a personal/duty question — same angle ADR-0103 used for `umit-guard-1` — rather
- * than a 3rd lore fact, so the two 3-choice NPCs read as distinct from each other, not just from the
- * 2-choice majority; run 89, DECISIONS.md ADR-0115, gave `twin-guard-1` a 3rd choice too, its theme
- * a paranoid toll-keeper's own suspicion — the exact angle ADR-0114's own "Alternatives considered"
- * logged as this NPC's fitting next lever ("has anyone ever slipped through unnoticed?") — the
- * pilot's 3rd NPC and 1st non-Stark/non-player-seat NPC to reach the 3rd slot; run 91, DECISIONS.md
- * ADR-0117, gave `olena-guard-1` a 3rd choice too, its theme a sharp-tongued Tyrell guard's own
- * regret about her wit — the exact angle ADR-0115's own "Alternatives considered" logged as this
- * NPC's fitting next lever ("has your wit ever gotten you in trouble?"); run 93, DECISIONS.md
- * ADR-0119, gave `stannis-guard-1` a 3rd choice too, its theme a stern justice-loyalist's own
- * private conviction ("have you ever doubted Stannis's cause?") rather than a 3rd fact about his
- * legal code — the pilot's 5th NPC and 1st Baratheon seat to reach the 3rd slot; run 94, DECISIONS.md
- * ADR-0120, gave `cersei-guard-1` a 3rd choice too, its theme a fear-under-a-ruthless-queen angle
- * ("what happens if you defy Cersei?") rather than a 3rd fact about Lannister wealth/rule — the
- * exact angle ADR-0119's own "Alternatives considered" logged as this NPC's fitting next candidate —
- * the pilot's 6th NPC and 1st Lannister seat to reach the 3rd slot; run 95, DECISIONS.md
- * ADR-0121, gave `doran-guard-1` a 3rd choice too, its theme a personal cost-of-isolation confession
- * ("has staying this independent ever cost you?") rather than a 3rd fact about Dorne's politics — the
- * pilot's 7th NPC and 1st Dornish seat to reach the 3rd slot; run 96, DECISIONS.md ADR-0122, gave
- * `xaro-guard-1` a 3rd choice too, its theme a gatekeeper's own restlessness ("have you ever thought
- * about walking out through your own gate?") rather than a 3rd fact about Qarth's gates/trust — the
- * pilot's 8th NPC and only non-Seven-Kingdoms seat to reach the 3rd slot; run 97, DECISIONS.md
- * ADR-0123, gave `stannis-guard-2` a 3rd choice too, its theme a solitary hilltop watchman's own
- * loneliness ("does keeping watch alone up here ever make you feel isolated?") rather than a 3rd fact
- * about the watch itself — the pilot's 9th NPC and 2nd Baratheon seat to reach the 3rd slot; run 98,
- * DECISIONS.md ADR-0124, gave `balon-guard-1` a 3rd choice too, its theme a stern Ironborn guard's own
- * private doubt about the Old Way ("has the Old Way ever cost your house more than it won?") rather
- * than a 3rd fact about the Iron Price/reaving — the pilot's 10th NPC and first Iron Islands seat to
- * reach the 3rd slot; run 99, DECISIONS.md ADR-0125, gave `robin-guard-1` a 3rd choice too, its theme
- * a height-guard's own quiet homesickness for lower ground ("doesn't keeping watch this high up ever
- * unsettle you?") rather than a 3rd fact about the Eyrie's eagles — the pilot's 11th NPC and first
- * Vale seat to reach the 3rd slot; run 99, DECISIONS.md ADR-0126, gave `ziya-guard-1` a 3rd choice
- * too, its theme a garden-guard's own worry that abundance itself draws envy/danger ("doesn't being
- * this fertile make you a target?") rather than a 3rd fact about the harvest — the pilot's 12th NPC
- * and 2nd Reach seat to reach the 3rd slot; run 100, DECISIONS.md ADR-0128, gave `berk-guard-1` a
- * 3rd choice too, its theme a gate-guard's own memory of misjudging someone's intent ("have you ever
- * let the wrong person in?") rather than a 3rd fact about Reach hospitality — the pilot's 13th and
- * final NPC to reach the 3rd slot, completing every choice-enabled seat (only `jon-guard-1`'s
- * deliberate single-line exclusion below remains uncovered); no NPC below is left at exactly 2). 13
- * of
- * 14 NPCs
- * (`umit-guard-1`/`berkalp-guard-1` — the player's home seat and the Stark seat the wolves already
- * patrol at;
- * `robin-guard-1` — Arryn's Eyrie height, the pilot's first Vale seat; `ziya-guard-1`/`berk-guard-1`/
- * `olena-guard-1` — Tyrell's gardens/growing-power flavor, now voiced at all 3 of its Reach seats;
- * `twin-guard-1` — the Twins' crossing/toll flavor, its own distinct Lannister-house seat, not
- * reusing `cersei-guard-1`'s gold-mine angle) get at least 2
- * numbered choices after their greeting (all 13 choice-enabled NPCs — `umit-guard-1`/`berkalp-guard-1`/
- * `twin-guard-1`/`olena-guard-1`/`stannis-guard-1`/`cersei-guard-1`/`doran-guard-1`/`xaro-guard-1`/
- * `stannis-guard-2`/`balon-guard-1`/`robin-guard-1`/`ziya-guard-1`/`berk-guard-1` — now get 3);
- * picking one (Digit1/Digit2/Digit3 — see
- * `gameplay/interaction.js`'s `DIALOGUE_CHOICE_KEY_CODES`) shows that choice's own response line,
- * replacing `{name}` the same way `GREETINGS_BY_NPC_ID` does. Every other NPC has no entry here —
- * an absent/empty array means the old greeting-then-close-on-E behavior, unchanged.
- * `jon-guard-1` deliberately excluded again (see ADR-0058's "Alternatives considered": its
- * ominous one-liner reads better staying a single line) — the pilot's last genuinely uncovered
- * NPC. Not a real dialogue tree/quest system
- * yet (no further branching, no state/persistence, no stat effects) — proves the mechanism on a
- * growing pilot subset first, same "pilot on 2 of N, extend later" precedent `NPC_CONFIG.SPAWNS`'
- * own patrol rollout (run 22) already established for this project. */
 export const CHOICES_BY_NPC_ID: DialogueChoicesByNpcId = Object.freeze({
 	'umit-guard-1': Object.freeze([
 		Object.freeze({
