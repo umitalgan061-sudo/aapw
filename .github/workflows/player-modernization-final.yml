@@ -15,6 +15,7 @@ on:
       - 'src/3d/gameplay/npcConfig.ts'
       - 'src/3d/gameplay/animalConfig.ts'
       - 'src/3d/gameplay/worldEvents.ts'
+      - 'src/3d/gameplay/creatureGait.ts'
       - 'tests/modern/playerModernizationR1.test.ts'
       - 'scripts/checkPlayerModernizationR1.mjs'
       - 'tsconfig.player-modernization.json'
