@@ -14,7 +14,7 @@ import {
 	buildRiverAvoidanceField,
 	profileRiverExposure,
 	riverCostMultiplier,
-} from './roadPathfinderRiverAvoidance.ts;
+} from './roadPathfinderRiverAvoidance.ts';
 
 /**
  * Deterministic, terrain-profiled A* routing for the live road network.

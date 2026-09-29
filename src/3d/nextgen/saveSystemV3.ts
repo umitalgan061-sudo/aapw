@@ -110,9 +110,9 @@ export class SaveSystemV3<T extends object = WorldSaveState> {
     return { valid: true, reason: null, checksum, bytes };
   }
 
-  private normalizeState<S extends object>(value: S): S {
+  private normalizeState(value: object): T {
     if (!value || typeof value !== 'object') throw new Error('save state must be an object');
-    return JSON.parse(stableJson(value)) as S;
+    return JSON.parse(stableJson(value)) as T;
   }
 }
 

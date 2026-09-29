@@ -217,7 +217,7 @@ export class ProceduralSoundBank {
 		return true;
 	}
 
-	triggerPulse(kind, { gain = 0.25, frequency = null, duration = 0.08 } = {}) {
+	triggerPulse(kind, { gain: pulseGain = 0.25, frequency = null, duration = 0.08 } = {}) {
 		if (this.disposed || !this.supported) return false;
 		const outputLayer = this.ensureLayer(kind);
 		if (!outputLayer) return false;
@@ -229,7 +229,8 @@ export class ProceduralSoundBank {
 		connect(osc, gain); connect(gain, output);
 		const now = finiteOr(this.context.currentTime, 0);
 		safeParam(gain.gain, 0);
-		try { gain.gain.setValueAtTime?.(0, now); gain.gain.linearRampToValueAtTime?.(clamp(gain, 0, this.masterGain), now + 0.01); gain.gain.exponentialRampToValueAtTime?.(0.0001, now + seconds); } catch { safeParam(gain.gain, clamp(finiteOr(gain, 0.25), 0, this.masterGain)); }
+		const peak = clamp(finiteOr(pulseGain, 0.25), 0, this.masterGain);
+		try { gain.gain.setValueAtTime?.(0, now); gain.gain.linearRampToValueAtTime?.(peak, now + 0.01); gain.gain.exponentialRampToValueAtTime?.(0.0001, now + seconds); } catch { safeParam(gain.gain, peak); }
 		try { osc.start(now); osc.stop(now + seconds + 0.02); } catch { try { osc.start(); } catch {} }
 		this.liveNodes.add(osc); this.liveNodes.add(gain);
 		this.sequence += 1;
