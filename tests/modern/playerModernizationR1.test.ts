@@ -5,6 +5,9 @@ import { NPC_CONFIG } from '../../src/3d/gameplay/npcConfig.ts';
 import { ANIMAL_CONFIG } from '../../src/3d/gameplay/animalConfig.ts';
 import { DRAGON_CONFIG } from '../../src/3d/gameplay/dragonConfig.ts';
 import { createWorldEventSystem } from '../../src/3d/gameplay/worldEvents.ts';
+import { applyCreatureGait, resetCreatureGaitPose } from '../../src/3d/gameplay/creatureGait.ts';
+import { findBodyPlan } from '../../src/3d/gameplay/creatureBodyPlans.ts';
+import { Bone } from 'three';
 describe('Kızıl Ufuk player modernization R1', () => {
   it('normalizes hostile runtime input without allowing NaN or out-of-range motion', () => {
     const invalid = normalizePlayerMovementInput({ x: Number.NaN, z: Number.POSITIVE_INFINITY, guarding: true });
@@ -40,6 +43,23 @@ describe('Kızıl Ufuk player modernization R1', () => {
     a.update(999);
     expect(emitted.length).toBe(before);
     b.dispose();
+  });
+
+  it('keeps creature gait deterministic and resettable', () => {
+    const bones = Object.fromEntries([
+      ['hindKneeL', new Bone()], ['hindKneeR', new Bone()], ['foreKneeL', new Bone()], ['foreKneeR', new Bone()],
+      ['hindAnkleL', new Bone()], ['hindAnkleR', new Bone()], ['foreAnkleL', new Bone()], ['foreAnkleR', new Bone()],
+      ['tailBase', new Bone()], ['wingL', new Bone()], ['wingR', new Bone()], ['wingTipL', new Bone()], ['wingTipR', new Bone()],
+    ]);
+    const rig = { bones, plan: findBodyPlan('wolf') };
+    applyCreatureGait(rig, { gaitName: 'gallop', elapsedSeconds: 1.25 });
+    const first = rig.bones.hindKneeL?.rotation.x ?? 0;
+    applyCreatureGait(rig, { gaitName: 'gallop', elapsedSeconds: 1.25 });
+    expect(rig.bones.hindKneeL?.rotation.x).toBe(first);
+    expect(Number.isFinite(first)).toBe(true);
+    resetCreatureGaitPose(rig);
+    expect(rig.bones.hindKneeL?.rotation.x).toBe(0);
+    expect(rig.bones.tailBase?.rotation.y).toBe(0);
   });
 
   it('keeps combat-safe grounding and camera bounds finite', () => {
