@@ -274,7 +274,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 			const payloadApplied = typeof payload.appliedAmount === 'number' && Number.isFinite(payload.appliedAmount) ? payload.appliedAmount : null;
 			const stagedAmount = typeof staged?.amount === 'number' && Number.isFinite(staged.amount) ? staged.amount : 0;
 			const payloadAmount = typeof payload.amount === 'number' && Number.isFinite(payload.amount) ? payload.amount : 0;
-			const appliedAmount = Math.max(0, stagedApplied ?? payloadApplied ?? stagedAmount || payloadAmount);
+			const appliedAmount = Math.max(0, stagedApplied ?? payloadApplied ?? (stagedAmount || payloadAmount));
 			publishCombatFeedback(outcome, rawAmount, appliedAmount, blockedAmount, context);
 		});
 	}
