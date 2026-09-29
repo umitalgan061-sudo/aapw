@@ -835,7 +835,7 @@ function occupancyPlan(habitats, stats) {
 			occupancy: round(total / Math.max(1, habitat.quality * LIVING_WORLD_ECOLOGY_POLICY.maxGroupSize * 4)),
 			species,
 			totalActors: total,
-		}));
+		});
 	}));
 }
 
