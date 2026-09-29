@@ -1,3 +1,4 @@
 #!/usr/bin/env node
 /* TypeScript ownership compatibility boundary. */
-await import('./checkAssetsManifest.ts');
+const mod = await import('./checkAssetsManifest.ts');
+mod.main();
