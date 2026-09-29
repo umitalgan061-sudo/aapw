@@ -44,6 +44,16 @@ describe('V25 runtime hardening', () => {
     expect(recovered.throttleFactor).toBe(1);
   });
 
+  it('aborts operations that exceed the hard timeout', async () => {
+    const supervisor = new RuntimeHardeningSupervisorV25({ operationTimeoutMs: 5 });
+    await expect(supervisor.guardAsync('slow-operation', async (signal) => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 25));
+      expect(signal.aborted).toBe(true);
+      return 'never';
+    })).rejects.toMatchObject({ name: 'TimeoutError' });
+    expect(supervisor.snapshot().lastFailure?.operation).toBe('slow-operation');
+  });
+
   it('opens a critical guard state after repeated failures, then expires failures by time', () => {
     let clock = 0;
     const supervisor = new RuntimeHardeningSupervisorV25({
