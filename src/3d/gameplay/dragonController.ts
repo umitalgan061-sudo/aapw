@@ -404,7 +404,7 @@ export async function createDragon({
 				pursuitCircleRadiusMeters, pursuitTransitionSeconds, pursuitMaxSeconds,
 				cruiseAltitudeAboveGroundMeters, sampleGroundY,
 				giveUpBankAngleMultiplier, giveUpTransitionSeconds,
-				playerPosition,
+				playerPosition: playerPosition ?? null,
 			});
 
 			if (frame.justEnteredNotice && eventsBus && eventName && noticeToast) {
