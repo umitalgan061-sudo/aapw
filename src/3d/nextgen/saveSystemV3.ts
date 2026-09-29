@@ -43,7 +43,7 @@ function checksumText(value: string): number {
   return deterministicHash(numbers);
 }
 
-export class SaveSystemV3<T extends object> {
+export class SaveSystemV3<T extends object = WorldSaveState> {
   readonly currentSchema: number;
   readonly maxBytes: number;
   #migrations: SaveMigration<object, object>[] = [];
@@ -110,9 +110,9 @@ export class SaveSystemV3<T extends object> {
     return { valid: true, reason: null, checksum, bytes };
   }
 
-  private normalizeState(value: object): object {
+  private normalizeState<S extends object>(value: S): S {
     if (!value || typeof value !== 'object') throw new Error('save state must be an object');
-    return JSON.parse(stableJson(value)) as object;
+    return JSON.parse(stableJson(value)) as S;
   }
 }
 
