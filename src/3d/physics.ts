@@ -257,12 +257,5 @@ export function createComposedCollider(initialColliders = []) {
  *   `isGrounded` is true exactly when the arc has landed back at height 0 this frame (velocity
  *   reset to 0 too) — the caller uses this to gate whether a new jump can start.
  */
-export function integrateJumpArc(heightAboveGroundMeters, velocityYMps, delta, gravityMps2) {
-	const nextVelocityYMps = velocityYMps + gravityMps2 * delta;
-	const nextHeightAboveGroundMeters = heightAboveGroundMeters + nextVelocityYMps * delta;
-	if (nextHeightAboveGroundMeters <= 0) {
-		return { heightAboveGroundMeters: 0, velocityYMps: 0, isGrounded: true };
-	}
-	return { heightAboveGroundMeters: nextHeightAboveGroundMeters, velocityYMps: nextVelocityYMps, isGrounded: false };
-}
-
+/** Strict jump/gravity owner; shared by player runtime and the legacy physics compatibility surface. */
+export { integrateJumpArc } from './gameplay/playerPhysics.ts';
