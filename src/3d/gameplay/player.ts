@@ -12,7 +12,7 @@ import { AssetLoader } from '../assetLoader.ts';
 import { integrateJumpArc } from '../physics.ts';
 import { gameEvents } from '../eventBus.ts';
 import { EVENTS } from '../config.ts';
-import { readDamageResolution, stageDamageResolution } from './health.js';
+import { readDamageResolution, stageDamageResolution } from './health.ts';
 
 
 export type PlayerAttackKind = 'none' | 'light' | 'heavy';
@@ -85,6 +85,8 @@ export interface PlayerMotionSnapshot {
 	readonly regenDelayRemaining: number;
 	readonly position: Readonly<{ x: number; y: number; z: number }>;
 }
+
+export const PLAYER_RUNTIME_VERSION = 1 as const;
 
 export interface PlayerRuntime {
 	readonly object3D: THREE.Object3D;
@@ -294,7 +296,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		return (kind === 'light' || kind === 'heavy') && attackRemaining <= 0 && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && dodgeRemaining <= 0 && parryFeedbackRemaining <= 0 && !guarding && isGrounded && stamina >= tuning.cost;
 	}
 	function startAttack(kind: PlayerAttackKind, chained = false): boolean {
-		if (!canStartAttack(kind)) return false;
+		if (kind === 'none' || !canStartAttack(kind)) return false;
 		const tuning = attackTuning(kind), previousComboStep = attackComboStep;
 		spendStamina(tuning.cost); attackKind = kind; attackRemaining = tuning.duration; attackElapsed = 0; attackActive = false; attackSerial += 1;
 		attackComboStep = chained ? Math.min(PLAYER_ACTION_CONFIG.ATTACK_COMBO_MAX_STEPS, previousComboStep + 1) : 1;
