@@ -1,4 +1,4 @@
-import { StrictRuntimeHealthBudget, type StrictHealthObservation, type StrictHealthSnapshot } from '../strict/runtimeHealthBudget.ts';
+import { StrictRuntimeHealthBudget, type StrictHealthObservation, type StrictHealthSnapshot } from './runtimeHealthBudget.ts';
 import { checksum, stableStringify } from '../modern/deterministic.ts';
 
 export type HardeningState = 'nominal' | 'throttled' | 'recovering' | 'critical' | 'disposed';
