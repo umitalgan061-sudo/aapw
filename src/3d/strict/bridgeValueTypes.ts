@@ -1,0 +1,1 @@
+export type CameraTarget = { readonly position:{readonly x:number;readonly y:number;readonly z:number}; readonly lookAt:{readonly x:number;readonly y:number;readonly z:number}; readonly yaw:number; readonly pitch:number };

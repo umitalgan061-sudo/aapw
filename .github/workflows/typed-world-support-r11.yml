@@ -1,0 +1,30 @@
+name: Kızıl Ufuk Typed World Support R11
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/weather.ts'
+      - 'src/3d/world/weather.js'
+      - 'src/3d/world/roadSurfaceProfile.ts'
+      - 'src/3d/world/roadSurfaceProfile.js'
+      - 'src/3d/world/worldReferenceMap.ts'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'src/3d/world/valyriaEcology.ts'
+      - 'src/3d/world/valyriaEcology.js'
+      - 'src/3d/modern/migrationLedgerR11.ts'
+      - 'scripts/checkTypedWorldSupportR11.mjs'
+      - 'tests/modern/typedWorldSupportR11.test.ts'
+      - 'package.json'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install
+      - run: node scripts/checkTypedWorldSupportR11.mjs
+      - run: npm run typecheck
+      - run: npm test -- tests/modern/typedWorldSupportR11.test.ts

@@ -1,0 +1,18 @@
+/** Unified read-only journey activity packet. */
+import { createWorldActivityContext } from './worldActivityContext.js';
+import { createWorldActivityCadence } from './worldActivityCadence.js';
+import { createWorldShelterContext } from './worldShelterContext.js';
+export const WORLD_JOURNEY_ACTIVITY_VERSION=1;
+export const WORLD_JOURNEY_ACTIVITY_MODES=Object.freeze(['travel','approach','arrival','settlement','return','recovery']);
+const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
+const c=v=>Math.max(0,Math.min(1,n(v)));
+const freeze=(v,s=new Set())=>{if(!v||typeof v!=='object'||s.has(v))return v;s.add(v);Object.freeze(v);for(const x of Object.values(v))freeze(x,s);return v;};
+const stable=v=>v===null||typeof v!=='object'?JSON.stringify(v):Array.isArray(v)?`[${v.map(stable).join(',')}]`:`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;
+const digest=v=>{let h=2166136261,s=stable(v);for(let i=0;i<s.length;i+=1){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(16).padStart(8,'0');};
+function mode(a){if(a.stage==='far')return'travel';if(a.stage==='approach'||a.stage==='threshold')return'aarrival'.replace('aarrival','arrival');if(a.stage==='inside'||a.stage==='service')return'settlement';if(a.stage==='departure')return'return';return'recovery';}
+function focus(activity,shelter,cadence){if(shelter.shelterNeed>.72)return'find-shelter';if(cadence.state==='urgent')return'slow-and-observe';if(activity.topActivity==='trade'||activity.topActivity==='craft')return'follow-service';return activity.topActivity;}
+function confidence(activity,cadence,shelter){return Math.round(c(activity.readiness*.5+(1-shelter.shelterNeed)*.2+(1-(cadence.state==='urgent'?.5:0))*cadence.pulse*.3)*1000)/1000;}
+export function createWorldJourneyActivity(options={}){const activity=createWorldActivityContext(options);const cadence=createWorldActivityCadence(options);const shelter=createWorldShelterContext(options);const journeyMode=mode(activity);const p={version:1,settlementId:activity.settlementId,stage:activity.stage,mode:journeyMode,lane:activity.lane,weather:activity.weather,topActivity:activity.topActivity,cadenceState:cadence.state,shelter:shelter.shelter,focus:focus(activity,shelter,cadence),confidence:c(confidence(activity,cadence,shelter)),activities:activity.activities.slice(0,8),signals:activity.signals.slice(0,8),ownership:{readOnly:true,noWorldMutation:true,noMovementMutation:true,noShelterSpawn:true,noActorSpawn:true,noSaveMutation:true}};return freeze({...p,fingerprint:digest(p)});}
+export function validateWorldJourneyActivity(v){const s=v&&typeof v==='object'?v:{};const e=[];if(!WORLD_JOURNEY_ACTIVITY_MODES.includes(s.mode))e.push('mode');if(s.confidence<0||s.confidence>1)e.push('confidence');if(!s.ownership?.readOnly||!s.ownership?.noWorldMutation||!s.ownership?.noActorSpawn)e.push('ownership');if(!Array.isArray(s.activities)||s.activities.length>8)e.push('activity-cap');return freeze({ok:e.length===0,errors:e,fingerprint:s.fingerprint??digest(s)});}
+export function summarizeWorldJourneyActivity(o={}){const x=createWorldJourneyActivity(o);return freeze({settlementId:x.settlementId,stage:x.stage,mode:x.mode,lane:x.lane,weather:x.weather,focus:x.focus,confidence:x.confidence,cadenceState:x.cadenceState,shelter:x.shelter,activityCount:x.activities.length,fingerprint:x.fingerprint});}
+export const WORLD_JOURNEY_ACTIVITY_API=Object.freeze({version:1,modes:[...WORLD_JOURNEY_ACTIVITY_MODES],create:'createWorldJourneyActivity',validate:'validateWorldJourneyActivity',summary:'summarizeWorldJourneyActivity'});

@@ -1,0 +1,29 @@
+name: TypeScript Tooling R24
+on:
+  pull_request:
+    paths:
+      - 'scripts/devServerHelper.ts'
+      - 'scripts/devServerHelper.js'
+      - 'scripts/checkTechnicalDebt.ts'
+      - 'scripts/checkTechnicalDebt.js'
+      - 'scripts/checkAssetsManifest.ts'
+      - 'scripts/checkAssetsManifest.js'
+      - 'scripts/checkPwaInstallability.ts'
+      - 'scripts/checkPwaInstallability.js'
+      - 'scripts/checkTypeScriptToolingR24.mjs'
+      - 'tests/modern/typedToolingMigrationR24.test.ts'
+      - 'package.json'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install
+      - run: node scripts/checkTypeScriptToolingR24.mjs
+      - run: npm run test:tooling-r24
+      - run: npm run typecheck

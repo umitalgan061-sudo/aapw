@@ -1,8 +1,4 @@
-const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
-export const V66_RESONANCE_POLICY=Object.freeze({id:'environment-runtime-resonance-v66-2026-09-15',version:66,deterministic:true,mutation:false});
-export const normalizeResonanceV66=(s={})=>({slope:clamp(s.slope/90),moisture:clamp(s.moisture),wind:clamp(s.wind),vegetation:clamp(s.vegetationCover??s.vegetation),waterDistance:Math.max(0,Number(s.waterDistance)||99999),elevation:Number(s.elevation)||0,temperature:clamp(s.temperature??.5),biome:s.biome||'grassland'});
-export const computeEnvironmentalResonanceV66=(sample={},weather={})=>{const s=normalizeResonanceV66({...sample,...weather});const wind=clamp(s.wind);const wet=clamp(s.moisture);const cover=s.vegetation;const water=clamp(1-s.waterDistance/240);const terrain=clamp(s.slope);const cold=clamp((.36-s.temperature)*1.8);return{windMotion:clamp(wind*.58+(1-cover)*.22+terrain*.2),wetGround:clamp(wet*.5+water*.25+(weather.precipitation??0)*.25),thermalContrast:clamp(cold*.62+terrain*.18+(1-cover)*.2),ambientActivity:clamp(cover*.34+water*.28+(1-s.terrain)*.1+(1-cold)*.28),biomePulse:clamp((s.biome==='wetland'||s.biome==='coastal'?water:cover)*.62+wet*.38)};};
-export const buildResonanceFieldV66=({samples=[],weather={}}={})=>samples.map((sample,index)=>({index,...computeEnvironmentalResonanceV66(sample,weather)}));
-export const validateResonanceRuntimeV66=(runtime)=>{const errors=[];if(runtime?.policy!==V66_RESONANCE_POLICY.id)errors.push('policy');if(runtime?.deterministic!==true)errors.push('determinism');for(const item of runtime?.field||[])for(const value of Object.values(item).filter((v)=>typeof v==='number'))if(value<0||value>1)errors.push('range');return{ok:errors.length===0,errors};};
-export const resonanceTelemetryV66=(runtime)=>({samples:runtime?.field?.length||0,meanMotion:runtime?.field?.length?Number((runtime.field.reduce((s,i)=>s+i.windMotion,0)/runtime.field.length).toFixed(4)):0,meanWetGround:runtime?.field?.length?Number((runtime.field.reduce((s,i)=>s+i.wetGround,0)/runtime.field.length).toFixed(4)):0});
-export const getV66ResonanceSummary=()=>Object.freeze({contract:V66_RESONANCE_POLICY,features:['wind-motion','wet-ground','thermal-contrast','ambient-activity','biome-pulse']});
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './environmentRuntimeResonanceV66.ts';
+export * from './environmentRuntimeResonanceV66.ts';
+export default __typed.default;

@@ -1,0 +1,191 @@
+/** Production TypeScript owner for src/3d/assetLoader.js. Legacy .js remains compatibility-only. */
+// @ts-nocheck
+/**
+ * Wraps Three.js loading primitives behind a single, fault-tolerant API.
+ *
+ * Every load method degrades gracefully: a missing or corrupt file never throws past this
+ * module — it logs, emits an `asset:error` event, and (for models) returns a visible placeholder
+ * mesh so the world still renders instead of crashing.
+ * @module assetLoader
+ */
+
+import * as THREE from 'three';
+import { gameEvents } from './eventBus.ts';
+import { EVENTS } from './config.ts';
+
+/** Relative path used for the lazy/dynamic import of GLTFLoader — only paid for once actually needed. */
+const GLTF_LOADER_MODULE_PATH = './vendor/three/addons/loaders/GLTFLoader.js';
+
+/** Relative path used for the lazy/dynamic import of FBXLoader — only paid for once a Mixamo-style
+ * character/animation FBX is first requested (FAZ 4). */
+const FBX_LOADER_MODULE_PATH = './vendor/three/addons/loaders/FBXLoader.js';
+
+export class AssetLoader {
+	/**
+	 * @param {object} [options]
+	 * @param {import('./eventBus.js').EventBus} [options.events] Bus to broadcast progress/errors on.
+	 */
+	constructor({ events = gameEvents } = {}) {
+		this.events = events;
+		this.manager = new THREE.LoadingManager();
+		this.textureLoader = new THREE.TextureLoader(this.manager);
+		/** @type {Promise<import('./vendor/three/addons/loaders/GLTFLoader.js').GLTFLoader>|null} */
+		this._gltfLoaderPromise = null;
+		/** @type {Promise<import('./vendor/three/addons/loaders/FBXLoader.js').FBXLoader>|null} */
+		this._fbxLoaderPromise = null;
+
+		this.manager.onProgress = (url, loaded, total) => {
+			this.events.emit(EVENTS.ASSET_PROGRESS, { url, loaded, total, ratio: total > 0 ? loaded / total : 1 });
+		};
+		this.manager.onLoad = () => {
+			this.events.emit(EVENTS.ASSETS_READY);
+		};
+		this.manager.onError = (url) => {
+			this.events.emit(EVENTS.ASSET_ERROR, { url });
+			console.warn(`[AssetLoader] failed to load "${url}"`);
+		};
+	}
+
+	/** Lazily imports and constructs the GLTFLoader so it's never bundled/parsed until a model is requested. */
+	async _getGLTFLoader() {
+		if (!this._gltfLoaderPromise) {
+			this._gltfLoaderPromise = import(GLTF_LOADER_MODULE_PATH).then(
+				({ GLTFLoader }) => new GLTFLoader(this.manager)
+			);
+		}
+		return this._gltfLoaderPromise;
+	}
+
+	/** Lazily imports and constructs the FBXLoader so it's never bundled/parsed until a character/animation FBX is requested. */
+	async _getFBXLoader() {
+		if (!this._fbxLoaderPromise) {
+			this._fbxLoaderPromise = import(FBX_LOADER_MODULE_PATH).then(
+				({ FBXLoader }) => new FBXLoader(this.manager)
+			);
+		}
+		return this._fbxLoaderPromise;
+	}
+
+	/**
+	 * Load an FBX file (Mixamo character mesh or skin-less animation clip). Returns the loaded
+	 * `Group` as-is: for a character mesh, traverse it for the skinned mesh/skeleton; for an
+	 * animation-only file, read `.animations[0]`. Falls back to a placeholder box on failure so a
+	 * missing/corrupt character asset degrades the same way a missing GLTF model does.
+	 * @param {string} url
+	 * @param {object} [options]
+	 * @param {number} [options.fallbackColor]
+	 * @param {number} [options.fallbackSize]
+	 * @param {string} [options.resourcePath] Overrides where `FBXLoader` looks for the textures an
+	 *   FBX's embedded material references resolve to — needed when those textures live in a
+	 *   subfolder of the FBX's own directory (`FBXLoader`'s default is the FBX file's own directory,
+	 *   via its base `Loader.setPath`; see `gameplay/dragons.js`'s `black_dragon` load, whose
+	 *   textures live in a `textures/` subfolder — found via 404s in a real headless-Chromium run,
+	 *   not assumed). Omit for the default (same directory as `url`), matching every prior caller.
+	 * @returns {Promise<THREE.Group>}
+	 */
+	async loadFBXModel(url, { fallbackColor = 0xff00ff, fallbackSize = 1, resourcePath } = {}) {
+		try {
+			const loader = await this._getFBXLoader();
+			loader.setResourcePath(resourcePath ?? '');
+			const object3D = await loader.loadAsync(url);
+			this.events.emit(EVENTS.ASSET_LOADED, { url, type: 'fbx' });
+			return object3D;
+		} catch (error) {
+			console.error(`[AssetLoader] loadFBXModel("${url}") failed, using placeholder box.`, error);
+			this.events.emit(EVENTS.ASSET_ERROR, { url, type: 'fbx', error });
+			return this._createPlaceholder(fallbackColor, fallbackSize);
+		}
+	}
+
+	/**
+	 * Load a GLTF/GLB model. Falls back to a simple colored box if the file is missing or invalid.
+	 * `GLTFLoader` returns clips as a separate top-level `gltf.animations` array, not attached to
+	 * `gltf.scene` — this stashes them onto the returned scene's own `.animations` (an `Object3D`
+	 * property that defaults to `[]`) the same way `FBXLoader` already does for FBX groups, so
+	 * callers can use `THREE.AnimationClip.findByName(model.animations, ...)` regardless of which
+	 * loader produced the model (see `gameplay/animals.js`, FAZ 6).
+	 * @param {string} url
+	 * @param {object} [options]
+	 * @param {number} [options.fallbackColor]
+	 * @param {number} [options.fallbackSize]
+	 * @returns {Promise<THREE.Object3D>}
+	 */
+	async loadModel(url, { fallbackColor = 0xff00ff, fallbackSize = 1 } = {}) {
+		try {
+			const loader = await this._getGLTFLoader();
+			const gltf = await loader.loadAsync(url);
+			this.events.emit(EVENTS.ASSET_LOADED, { url, type: 'model' });
+			gltf.scene.animations = gltf.animations;
+			return gltf.scene;
+		} catch (error) {
+			console.error(`[AssetLoader] loadModel("${url}") failed, using placeholder box.`, error);
+			this.events.emit(EVENTS.ASSET_ERROR, { url, type: 'model', error });
+			return this._createPlaceholder(fallbackColor, fallbackSize);
+		}
+	}
+
+	/**
+	 * Load a texture. Returns null on failure so callers can decide their own fallback material.
+	 * @param {string} url
+	 * @returns {Promise<THREE.Texture|null>}
+	 */
+	async loadTexture(url) {
+		try {
+			const texture = await this.textureLoader.loadAsync(url);
+			this.events.emit(EVENTS.ASSET_LOADED, { url, type: 'texture' });
+			return texture;
+		} catch (error) {
+			console.error(`[AssetLoader] loadTexture("${url}") failed.`, error);
+			this.events.emit(EVENTS.ASSET_ERROR, { url, type: 'texture', error });
+			return null;
+		}
+	}
+
+	/**
+	 * Mixamo FBX exports store geometry in centimeters; `FBXLoader` itself does not auto-convert
+	 * this — it only stashes the file's own conversion factor in `userData.unitScaleFactor`. Shared
+	 * by `gameplay/player.js` and `gameplay/npc.js` (both load Mixamo character FBXes) so the
+	 * correction lives in one place rather than two independently hand-copied blocks, and any future
+	 * Mixamo-sourced model gets it for free too.
+	 * @param {THREE.Object3D} model
+	 */
+	static correctMixamoFbxScale(model) {
+		const unitScaleFactor = model.userData.unitScaleFactor || 1;
+		const metersPerFbxUnit = unitScaleFactor / 100;
+		if (Math.abs(metersPerFbxUnit - 1) > 1e-6) {
+			model.scale.setScalar(metersPerFbxUnit);
+		}
+	}
+
+	/** @private */
+	_createPlaceholder(color, size) {
+		const geometry = new THREE.BoxGeometry(size, size, size);
+		const material = new THREE.MeshStandardMaterial({ color });
+		const mesh = new THREE.Mesh(geometry, material);
+		mesh.userData.isPlaceholder = true;
+		return mesh;
+	}
+
+	/**
+	 * Recursively disposes geometry/material/texture resources of an Object3D graph.
+	 * Call this for anything removed from the scene to avoid GPU memory leaks.
+	 * @param {THREE.Object3D} object
+	 */
+	static disposeObject3D(object) {
+		if (!object) return;
+		object.traverse((node) => {
+			if (node.geometry) node.geometry.dispose();
+			if (node.material) {
+				const materials = Array.isArray(node.material) ? node.material : [node.material];
+				for (const material of materials) {
+					for (const key of Object.keys(material)) {
+						const value = material[key];
+						if (value && typeof value.dispose === 'function') value.dispose();
+					}
+					material.dispose();
+				}
+			}
+		});
+	}
+}
+

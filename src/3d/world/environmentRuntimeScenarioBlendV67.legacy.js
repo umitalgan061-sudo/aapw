@@ -1,0 +1,17 @@
+import { clamp01, finiteV67, hashV67 } from './environmentRuntimeV67.js';
+
+export const SCENARIO_BLEND_V67=Object.freeze({id:'scenario-blend-v67',version:67,deterministic:true,noWorldMutation:true});
+export const blendNumberV67=(a=0,b=0,t=.5)=>{const w=clamp01(t);return finiteV67(a)*(1-w)+finiteV67(b)*w;};
+export const blendScenarioV67=(a={},b={},t=.5)=>{const w=clamp01(t);return{id:`blend:${a.id??'a'}:${b.id??'b'}`,clock:blendNumberV67(a.clock,b.clock,w),dayOfYear:Math.round(blendNumberV67(a.dayOfYear,b.dayOfYear,w)),precipitation:clamp01(blendNumberV67(a.precipitation,b.precipitation,w)),wind:clamp01(blendNumberV67(a.wind,b.wind,w)),visibility:clamp01(blendNumberV67(a.visibility,b.visibility,w)),temperature:blendNumberV67(a.temperature,b.temperature,w)};};
+export const scenarioTransitionV67=(from={},to={},steps=4)=>Array.from({length:Math.max(2,Math.floor(steps))},(_,i)=>blendScenarioV67(from,to,i/Math.max(1,steps-1)));
+export const temporalEaseV67=(t=0)=>{const x=clamp01(t);return x*x*(3-2*x);};
+export const easedScenarioTransitionV67=(from={},to={},steps=6)=>Array.from({length:Math.max(2,Math.floor(steps))},(_,i)=>blendScenarioV67(from,to,temporalEaseV67(i/Math.max(1,steps-1))));
+export const scenarioContinuityScoreV67=(sequence=[])=>{if(sequence.length<2)return 1;let score=0;for(let i=1;i<sequence.length;i++){const a=sequence[i-1],b=sequence[i];score+=clamp01(1-Math.abs(finiteV67(a.temperature)-finiteV67(b.temperature))/20-Math.abs(finiteV67(a.wind)-finiteV67(b.wind))/60-Math.abs(clamp01(a.visibility)-clamp01(b.visibility))*.4);}return score/(sequence.length-1);};
+export const scenarioShockV67=(from={},to={})=>clamp01(Math.abs(finiteV67(from.temperature)-finiteV67(to.temperature))/24*.35+Math.abs(finiteV67(from.wind)-finiteV67(to.wind))/50*.25+Math.abs(finiteV67(from.precipitation)-finiteV67(to.precipitation))*.25+Math.abs(finiteV67(from.visibility)-finiteV67(to.visibility))*.15);
+export const scenarioTransitionClassV67=(shock=0)=>shock>.72?'abrupt':shock>.42?'active':'smooth';
+export const transitionSeedV67=(from={},to={})=>hashV67(`${JSON.stringify(from)}:${JSON.stringify(to)}`);
+export const buildScenarioTransitionV67=(from={},to={},steps=6)=>{const sequence=easedScenarioTransitionV67(from,to,steps);return{from:from.id??'from',to:to.id??'to',steps:sequence.length,shock:scenarioShockV67(from,to),class:scenarioTransitionClassV67(scenarioShockV67(from,to)),continuity:scenarioContinuityScoreV67(sequence),seed:transitionSeedV67(from,to),sequence};};
+export const scenarioTransitionTelemetryV67=(transition={})=>({policy:SCENARIO_BLEND_V67.id,valid:Array.isArray(transition.sequence),summary:{steps:transition.steps??0,shock:transition.shock??0,class:transition.class??'unknown',continuity:transition.continuity??0}});
+export const validateScenarioTransitionV67=(transition={})=>{const errors=[];if(!Array.isArray(transition.sequence)||transition.sequence.length<2)errors.push('sequence');if(transition.shock<0||transition.shock>1)errors.push('shock');if(transition.continuity<0||transition.continuity>1)errors.push('continuity');return{ok:errors.length===0,errors};};
+export const transitionVisualIntentV67=(transition={})=>({interpolate:transition.class!=='abrupt',blendStrength:clamp01(1-(transition.shock??0)),continuity:clamp01(transition.continuity??0)});
+export const stableScenarioPairV67=(a={},b={},threshold=.45)=>scenarioShockV67(a,b)<=threshold;

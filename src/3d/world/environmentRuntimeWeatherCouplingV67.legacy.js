@@ -1,0 +1,18 @@
+import { clamp01, finiteV67, meanV67, normalizeSampleV67 } from './environmentRuntimeV67.js';
+import { precipitationIntensityV67 } from './environmentRuntimeWeatherV67.js';
+import { wetEdgeV67, tractionV67 } from './environmentRuntimeSurfaceV67.js';
+import { floodDepthV67 } from './environmentRuntimeHydrologyV67.js';
+import { ecologicalPressureV67 } from './environmentRuntimeEcologyV67.js';
+export const WEATHER_COUPLING_V67=Object.freeze({id:'weather-coupling-v67',version:67,deterministic:true,noWorldMutation:true});
+export const surfaceWetnessResponseV67=(sample={},weather={})=>{const s=normalizeSampleV67(sample);return clamp01(s.moisture*.62+precipitationIntensityV67({...s,...weather})*.28+wetEdgeV67(s.waterDistance)*.1);};
+export const runoffResponseV67=(sample={},weather={})=>{const s=normalizeSampleV67(sample);return clamp01(precipitationIntensityV67({...s,...weather})*.55+(1-s.moisture)*.15+s.slope*.2+floodDepthV67({...s,...weather})*.1);};
+export const vegetationStressResponseV67=(sample={},weather={})=>{const s=normalizeSampleV67(sample);return clamp01(ecologicalPressureV67(s)*.45+Math.abs(precipitationIntensityV67({...s,...weather})-.42)*.55);};
+export const tractionResponseV67=(sample={},weather={})=>{const wet=surfaceWetnessResponseV67(sample,weather);return clamp01(tractionV67({...sample,moisture:wet})-.18*wet);};
+export const buildCoupledSampleV67=(sample={},weather={})=>{const wet=surfaceWetnessResponseV67(sample,weather);const runoff=runoffResponseV67(sample,weather);const stress=vegetationStressResponseV67(sample,weather);return{id:normalizeSampleV67(sample).id,wet,runoff,vegetationStress:stress,traction:tractionResponseV67(sample,weather),interaction:clamp01(wet*.32+runoff*.38+stress*.3)};};
+export const buildCouplingFieldV67=(samples=[],weather={})=>samples.map(sample=>buildCoupledSampleV67(sample,weather));
+export const couplingSummaryV67=(field=[])=>({samples:field.length,meanWet:meanV67(field.map(x=>x.wet)),meanRunoff:meanV67(field.map(x=>x.runoff)),meanStress:meanV67(field.map(x=>x.vegetationStress)),tractionFloor:Math.min(1,...field.map(x=>x.traction))});
+export const couplingClassV67=(interaction=0)=>interaction>.78?'compound':interaction>.54?'linked':interaction>.3?'light':'stable';
+export const validateCouplingV67=(field=[])=>{const errors=[];if(!Array.isArray(field))errors.push('field');if(field.some(x=>x.interaction<0||x.interaction>1))errors.push('interaction');if(field.some(x=>x.traction<0||x.traction>1))errors.push('traction');return{ok:errors.length===0,errors};};
+export const couplingTelemetryV67=(field=[])=>({policy:WEATHER_COUPLING_V67.id,valid:validateCouplingV67(field).ok,summary:couplingSummaryV67(field),classes:field.reduce((a,x)=>(a[couplingClassV67(x.interaction)]=(a[couplingClassV67(x.interaction)]??0)+1,a),{})});
+export const couplingDeltaV67=(before={},after={})=>({wet:finiteV67(after.wet)-finiteV67(before.wet),runoff:finiteV67(after.runoff)-finiteV67(before.runoff),stress:finiteV67(after.vegetationStress)-finiteV67(before.vegetationStress)});
+export const weatherGroundIntentV67=(sample={},weather={})=>({roughening:clamp01(runoffResponseV67(sample,weather)*.62),wetEdge:wetEdgeV67(sample.waterDistance),traction:tractionResponseV67(sample,weather)});
