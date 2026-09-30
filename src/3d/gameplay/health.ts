@@ -127,6 +127,20 @@ function readNumericResolutionField(resolution: Readonly<DamageResolution> | nul
 	return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
+export function createHealthSnapshot(current: unknown, maxHealth: unknown, defeated: unknown, revision: unknown): HealthSnapshot {
+	const max = Number(maxHealth);
+	const safeMax = Number.isFinite(max) && max > 0 ? max : 1;
+	const safeCurrent = Math.max(0, Math.min(safeMax, Number.isFinite(Number(current)) ? Number(current) : 0));
+	const safeRevision = Number.isInteger(Number(revision)) && Number(revision) >= 0 ? Number(revision) : 0;
+	return Object.freeze({
+		current: safeCurrent,
+		max: safeMax,
+		ratio: Number((safeCurrent / safeMax).toFixed(4)),
+		defeated: Boolean(defeated),
+		revision: safeRevision,
+	});
+}
+
 export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }: HealthStateOptions): HealthState {
 	if (!Number.isFinite(maxHealth) || !(maxHealth > 0)) {
 		throw new RangeError('createHealthState maxHealth must be a finite positive number');
@@ -217,7 +231,7 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 		get isDead() { return hasDied; },
 		get revision() { return revision; },
 		getSnapshot() {
-			return Object.freeze({ current, max: maxHealth, ratio: Number((current / maxHealth).toFixed(4)), defeated: hasDied, revision });
+			return createHealthSnapshot(current, maxHealth, hasDied, revision);
 		},
 		heal(amount: number) {
 			if (!Number.isFinite(amount) || !(amount > 0)) return;
