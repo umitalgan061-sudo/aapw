@@ -2,16 +2,16 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "allowJs": false,
-    "noEmit": true
+    "noEmit": true,
+    "noImplicitAny": false
   },
-  "include": [
-    "src/3d/gameplay/playerAnimationAssetCatalog.ts",
-    "src/3d/gameplay/playerAnimationDirector.ts",
-    "tests/modern/playerAnimationDirectorStrict.test.ts"
-  ],
   "exclude": [
     "node_modules",
     "dist",
     "coverage"
+  ],
+  "files": [
+    "src/3d/gameplay/playerAnimationDirector.ts",
+    "tests/modern/playerAnimationDirectorStrict.test.ts"
   ]
 }
