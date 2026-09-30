@@ -10,6 +10,9 @@ on:
       - 'src/3d/gameplay/playerCombatActionRouter.ts'
       - 'src/3d/gameplay/playerCombatActionRouter.legacy.js'
       - 'src/3d/gameplay/playerAnimationBlendDiagnostics.ts'
+      - 'tests/modern/playerAnimationSignalSanitizerStrict.test.ts'
+      - 'src/3d/gameplay/playerAnimationSignalSanitizer.legacy.js'
+      - 'src/3d/gameplay/playerAnimationSignalSanitizer.ts'
       - 'src/3d/gameplay/playerAnimationBlendDiagnostics.legacy.js'
       - 'tests/modern/playerPresentationPoliciesStrict.test.ts'
       - 'tsconfig.player-presentation-policies.json'
@@ -47,6 +50,8 @@ jobs:
         run: npm run test:player-presentation-policies
       - name: Typed health regression
         run: npm run test:health-typed
+      - name: Signal sanitizer regression
+        run: npm run test:player-animation-signals
       - name: Legacy escape-hatch scan
         run: '! grep -R "@ts-nocheck" src/3d/gameplay/playerAnimationOneShotPolicy.ts src/3d/gameplay/playerCombatActionRouter.ts src/3d/gameplay/playerAnimationBlendDiagnostics.ts'
       - name: Diff hygiene
