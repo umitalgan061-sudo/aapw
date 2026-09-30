@@ -1,0 +1,47 @@
+name: Kızıl Ufuk Player Combat Animation Blend Strict
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatAnimationBlend.ts'
+      - 'src/3d/gameplay/playerCombatAnimationBlend.js'
+      - 'src/3d/gameplay/playerCombatAnimationBlend.legacy.js'
+      - 'scripts/checkPlayerCombatAnimationBlend.mjs'
+      - 'tests/modern/playerCombatAnimationBlendStrict.test.ts'
+      - 'tsconfig.player-combat-animation-blend.json'
+      - 'package.json'
+      - '.github/workflows/kizil-ufuk-player-combat-animation-blend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kizil-ufuk-player-combat-animation-blend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: package.json
+      - name: Install toolchain
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Strict blend typecheck
+        run: npx tsc -p tsconfig.player-combat-animation-blend.json --noEmit
+      - name: Blend regression
+        run: npx vitest run tests/modern/playerCombatAnimationBlendStrict.test.ts
+      - name: Production blend proof
+        run: node --experimental-strip-types scripts/checkPlayerCombatAnimationBlend.mjs
+      - name: Diff hygiene
+        run: git diff --check

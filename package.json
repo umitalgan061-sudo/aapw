@@ -156,7 +156,10 @@
     "test:tooling-r32": "npm test -- tests/modern/typedToolingMigrationR32.test.ts",
     "verify:service-worker-artifact": "node scripts/checkServiceWorkerArtifact.mjs",
     "build:service-worker:r32": "npm run build:service-worker && npm run verify:service-worker-artifact",
-    "check:tooling-r32": "npm run verify:tooling-r32 && npm run typecheck:tooling-r32 && npm run test:tooling-r32 && npm run verify:service-worker-artifact"
+    "check:tooling-r32": "npm run verify:tooling-r32 && npm run typecheck:tooling-r32 && npm run test:tooling-r32 && npm run verify:service-worker-artifact",
+    "typecheck:player-blend": "tsc -p tsconfig.player-combat-animation-blend.json --noEmit",
+    "test:player-blend": "vitest run tests/modern/playerCombatAnimationBlendStrict.test.ts",
+    "check:player-blend": "npm run typecheck:player-blend && npm run test:player-blend"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
