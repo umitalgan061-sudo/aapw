@@ -119,7 +119,14 @@
     "test:modern:r28": "vitest run tests/modern/r28 --passWithNoTests",
     "check:modern:r28": "npm run verify:modern:r28 && npm run test:modern:r28 && npm run typecheck",
     "health": "node --experimental-strip-types scripts/projectHealth.ts",
-    "check:health": "npm run health"
+    "check:health": "npm run health",
+    "verify:active-typescript-r30": "node scripts/checkActiveTypeScriptOwnershipR30.mjs",
+    "typecheck:strict-world-r30": "tsc -p tsconfig.strict-world-r30.json --noEmit",
+    "test:strict-world-r30": "npm test -- tests/modern/strictWorldR30.test.ts",
+    "check:strict-world-r30": "npm run verify:active-typescript-r30 && npm run typecheck:strict-world-r30 && npm run test:strict-world-r30",
+    "verify:modern:r29": "node scripts/checkModernRuntimeR29.mjs",
+    "test:modern:r29": "vitest run tests/modern/r29 --passWithNoTests",
+    "check:modern:r29": "npm run verify:modern:r29 && npm run test:modern:r29 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
