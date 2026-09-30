@@ -1,0 +1,40 @@
+name: Platform Health
+
+on:
+  pull_request:
+    paths:
+      - 'src/**/*.ts'
+      - 'tests/**/*.ts'
+      - 'scripts/**/*.ts'
+      - 'package.json'
+      - 'tsconfig*.json'
+      - '.github/workflows/platform-health.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-health-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+      - name: Install
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Unified platform health
+        run: npm run health
+      - name: Full production build
+        run: npm run build:full
