@@ -10,6 +10,9 @@
  * @module gameplay/dialogueChoices
  */
 
+export interface DialogueChoice { readonly label: string; readonly response: string; }
+export type DialogueChoicesByNpcId = Readonly<Record<string, readonly DialogueChoice[]>>;
+
 /** FAZ 5's real branching pilot (started run 44, DECISIONS.md ADR-0058; grown run 46 to 4,
  * DECISIONS.md ADR-0060; grown run 47 to 6, DECISIONS.md ADR-0062; grown run 48 to 8,
  * DECISIONS.md ADR-0063; grown run 49 to 10, DECISIONS.md ADR-0064; grown run 50 to 12,
