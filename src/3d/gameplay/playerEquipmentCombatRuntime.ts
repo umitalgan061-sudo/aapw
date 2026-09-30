@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/playerEquipmentCombatRuntime.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * Runtime composition adapter for the existing player combat event stream.
  *
@@ -14,6 +13,36 @@
  *
  * @module gameplay/playerEquipmentCombatRuntime
  */
+
+type UnknownRecord = Record<string, unknown>;
+type PlayerObjectLike = { userData?: UnknownRecord; position?: { x: number; y: number; z: number }; getMotionState?: () => UnknownRecord };
+type EquipmentProvider = (() => unknown) | unknown;
+type RuntimeTarget = {
+  addEventListener?: (type: string, handler: EventListenerOrEventListenerObject) => void;
+  removeEventListener?: (type: string, handler: EventListenerOrEventListenerObject) => void;
+  dispatchEvent?: (event: Event) => boolean;
+  CustomEvent?: typeof CustomEvent;
+};
+type MotionSnapshot = UnknownRecord;
+type AttackSnapshot = UnknownRecord;
+type OutcomeSnapshot = UnknownRecord;
+type CombatPhase = 'idle' | 'windup' | 'active' | 'recovery' | 'defense' | 'dodge' | 'hit-stagger';
+
+export interface PlayerEquipmentCombatFrame {
+  readonly version: 1;
+  readonly revision: number;
+  readonly timestamp: number;
+  readonly phase: CombatPhase;
+  readonly attack: Readonly<UnknownRecord>;
+  readonly defense: Readonly<UnknownRecord>;
+  readonly movement: Readonly<UnknownRecord>;
+  readonly animation: unknown;
+  readonly equipment: Readonly<UnknownRecord>;
+  readonly sockets: unknown;
+  readonly material: unknown;
+  readonly outcome: Readonly<UnknownRecord> | null;
+  readonly audit: Readonly<{ ok: boolean; errors: readonly string[]; warnings: readonly string[] }>;
+}
 
 import {
   buildPlayerEquipmentRuntimeSnapshot,
@@ -31,10 +60,10 @@ export const PLAYER_EQUIPMENT_COMBAT_PHASES = Object.freeze(['idle', 'windup', '
 const MAX_HISTORY = 32;
 const MAX_DT = 0.1;
 const MIN_DT = 0;
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+const clamp = (value: unknown, min: number, max: number): number => Math.max(min, Math.min(max, finite(value, min)));
+const finite = (value: unknown, fallback = 0): number => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
-function normalizePhase(motion, attack) {
+function normalizePhase(motion: MotionSnapshot, attack: AttackSnapshot): CombatPhase {
   if (motion?.state === 'dodge') return 'dodge';
   if (motion?.state === 'parry' || motion?.state === 'guard' || motion?.state === 'guard-break') return 'defense';
   if (motion?.state === 'hit-stagger') return 'hit-stagger';
@@ -43,11 +72,11 @@ function normalizePhase(motion, attack) {
   return 'idle';
 }
 
-function normalizeAttackKind(value) {
+function normalizeAttackKind(value: unknown): 'none' | 'light' | 'heavy' {
   return value === 'heavy' ? 'heavy' : value === 'light' ? 'light' : 'none';
 }
 
-function readEquipmentProvider(provider) {
+function readEquipmentProvider(provider: EquipmentProvider): UnknownRecord {
   try {
     if (typeof provider === 'function') return provider() || {};
     return provider || {};
@@ -56,21 +85,21 @@ function readEquipmentProvider(provider) {
   }
 }
 
-function stableHistoryAppend(history, value) {
+function stableHistoryAppend(history: PlayerEquipmentCombatFrame[], value: PlayerEquipmentCombatFrame): void {
   history.push(Object.freeze(value));
   if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
 }
 
-function cloneEquipmentSnapshot(equipment) {
-  if (!equipment || typeof equipment !== 'object') return {};
-  const output = {};
+function cloneEquipmentSnapshot(equipment: unknown): UnknownRecord {
+  const source = equipment && typeof equipment === 'object' && !Array.isArray(equipment) ? equipment as UnknownRecord : {};
+  const output: UnknownRecord = {};
   for (const key of ['head', 'chest', 'back', 'mainHand', 'offHand', 'helmet', 'weapon', 'shield']) {
-    if (equipment[key] != null) output[key] = equipment[key];
+    if (source[key] != null) output[key] = source[key];
   }
   return output;
 }
 
-function readRootForMaterial(rootOrGetter) {
+function readRootForMaterial(rootOrGetter: unknown): unknown {
   try {
     return typeof rootOrGetter === 'function' ? rootOrGetter() : rootOrGetter;
   } catch {
@@ -86,7 +115,15 @@ function buildFrame({
   outcome,
   timestamp,
   revision,
-}) {
+}: {
+  playerObject: PlayerObjectLike;
+  equipment: UnknownRecord;
+  motion: MotionSnapshot;
+  attack: AttackSnapshot;
+  outcome: OutcomeSnapshot | null;
+  timestamp: unknown;
+  revision: number;
+}): PlayerEquipmentCombatFrame {
   const profile = resolvePlayerEquipmentCombatProfile(equipment);
   const attackKind = normalizeAttackKind(attack?.kind ?? motion?.attackKind);
   const tuning = resolvePlayerAttackTuning(null, profile, attackKind === 'none' ? 'light' : attackKind);
@@ -194,13 +231,13 @@ export function createPlayerEquipmentCombatRuntime({
   const history = [];
   const listeners = [];
 
-  function subscribe(type, handler) {
+  function subscribe(type: string, handler: EventListener): void {
     if (typeof target?.addEventListener !== 'function' || typeof handler !== 'function') return;
     target.addEventListener(type, handler);
     listeners.push([type, handler]);
   }
 
-  function publish(nextFrame) {
+  function publish(nextFrame: PlayerEquipmentCombatFrame): void {
     stableHistoryAppend(history, nextFrame);
     if (typeof onFrame === 'function') {
       try { onFrame(nextFrame); } catch { /* consumer isolation */ }
@@ -219,7 +256,7 @@ export function createPlayerEquipmentCombatRuntime({
     }
   }
 
-  function compose(timestamp = now(), { force = false, publishFrame = false } = {}) {
+  function compose(timestamp: unknown = now(), { force = false, publishFrame = false }: { force?: boolean; publishFrame?: boolean } = {}): PlayerEquipmentCombatFrame {
     if (disposed) return frame;
     const providerSnapshot = cloneEquipmentSnapshot(readEquipmentProvider(equipmentProvider));
     const equipmentChanged = JSON.stringify(providerSnapshot) !== JSON.stringify(equipment);
@@ -238,12 +275,12 @@ export function createPlayerEquipmentCombatRuntime({
     return frame;
   }
 
-  function onMotion(event) {
+  function onMotion(event: Event): void {
     currentMotion = Object.freeze(event?.detail || {});
     compose(event?.detail?.timestamp ?? now(), { publishFrame: true });
   }
 
-  function onAttackWindow(event) {
+  function onAttackWindow(event: Event): void {
     const detail = event?.detail || {};
     currentAttack = Object.freeze({
       kind: normalizeAttackKind(detail.kind),
@@ -258,7 +295,7 @@ export function createPlayerEquipmentCombatRuntime({
     compose(now(), { publishFrame: true });
   }
 
-  function onFeedback(event) {
+  function onFeedback(event: Event): void {
     currentOutcome = event?.detail ? Object.freeze({ ...event.detail }) : null;
     compose(now(), { publishFrame: true });
   }
@@ -267,7 +304,7 @@ export function createPlayerEquipmentCombatRuntime({
   subscribe('aapw:player-attack-window', onAttackWindow);
   subscribe('aapw:player-combat-feedback', onFeedback);
 
-  function update(delta = 0, timestamp = now()) {
+  function update(delta: unknown = 0, timestamp: unknown = now()): PlayerEquipmentCombatFrame {
     if (disposed) return frame;
     const dt = clamp(finite(delta, 0), MIN_DT, MAX_DT);
     if (dt === 0) {
@@ -277,7 +314,7 @@ export function createPlayerEquipmentCombatRuntime({
     return compose(timestamp);
   }
 
-  function refreshEquipment(timestamp = now()) {
+  function refreshEquipment(timestamp: unknown = now()): PlayerEquipmentCombatFrame {
     if (disposed) return frame;
     equipment = cloneEquipmentSnapshot(readEquipmentProvider(equipmentProvider));
     revision += 1;
@@ -294,16 +331,16 @@ export function createPlayerEquipmentCombatRuntime({
     return frame;
   }
 
-  function read() { return frame; }
-  function readHistory() { return Object.freeze([...history]); }
+  function read(): PlayerEquipmentCombatFrame { return frame; }
+  function readHistory(): readonly PlayerEquipmentCombatFrame[] { return Object.freeze([...history]); }
 
-  function materialAudit() {
+  function materialAudit(): unknown {
     const nextProfile = resolvePlayerEquipmentCombatProfile(equipment);
     const socketPlan = buildPlayerEquipmentSocketPlan(player.object3D, nextProfile);
     return buildPlayerMaterialAssignmentMetadata({ object: player.object3D, profile: nextProfile });
   }
 
-  function dispose() {
+  function dispose(): void {
     if (disposed) return;
     disposed = true;
     for (const [type, handler] of listeners.splice(0)) target.removeEventListener?.(type, handler);
@@ -314,11 +351,11 @@ export function createPlayerEquipmentCombatRuntime({
   return Object.freeze({ update, refreshEquipment, read, readHistory, materialAudit, dispose });
 }
 
-export function composePlayerEquipmentCombatFrame({ playerObject, equipment = {}, motion = {}, attack = {}, outcome = null, timestamp = 0, revision = 0 } = {}) {
+export function composePlayerEquipmentCombatFrame({ playerObject, equipment = {}, motion = {}, attack = {}, outcome = null, timestamp = 0, revision = 0 }: { playerObject: PlayerObjectLike; equipment?: unknown; motion?: MotionSnapshot; attack?: AttackSnapshot; outcome?: OutcomeSnapshot | null; timestamp?: unknown; revision?: number } ): PlayerEquipmentCombatFrame {
   if (!playerObject) throw new TypeError('composePlayerEquipmentCombatFrame requires playerObject');
   return buildFrame({ playerObject, equipment: cloneEquipmentSnapshot(equipment), motion, attack, outcome, timestamp, revision });
 }
 
-export function isPlayerEquipmentCombatPhase(value) {
+export function isPlayerEquipmentCombatPhase(value: unknown): value is CombatPhase {
   return PLAYER_EQUIPMENT_COMBAT_PHASES.includes(String(value));
 }
