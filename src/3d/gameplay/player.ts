@@ -193,15 +193,15 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	const groundY = groundCollider.getGroundHeight(spawn.x, spawn.z);
 	model.position.set(spawn.x, groundY, spawn.z);
 	let heightAboveGround = 0, velocityY = 0, isGrounded = true;
-	let stamina = PLAYER_ACTION_CONFIG.MAX_STAMINA, sprintExhausted = false, regenDelayRemaining = 0;
-	let poise = PLAYER_ACTION_CONFIG.MAX_POISE, poiseRegenDelayRemaining = 0, guardBreakRemaining = 0, hitStaggerRemaining = 0;
+	let stamina: number = PLAYER_ACTION_CONFIG.MAX_STAMINA, sprintExhausted = false, regenDelayRemaining = 0;
+	let poise: number = PLAYER_ACTION_CONFIG.MAX_POISE, poiseRegenDelayRemaining = 0, guardBreakRemaining = 0, hitStaggerRemaining = 0;
 	let dodgeRemaining = 0, dodgeElapsed = 0, dodgeCooldownRemaining = 0, lastRunPressAge = Infinity, wasRunHeld = false;
 	let runIntent = false, hasMovementInput = false, planarSpeedMps = 0, dodgeDirectionX = 0, dodgeDirectionZ = 1;
 	let guarding = false, wasGuardHeld = false, parryWindowRemaining = 0, parryFeedbackRemaining = 0;
 	let attackKind: PlayerAttackKind = 'none', attackRemaining = 0, attackElapsed = 0, attackActive = false, attackComboStep = 0, attackSerial = 0, attackCommitRemaining = 0;
 	let bufferedAttackKind: PlayerAttackKind = 'none', attackBufferRemaining = 0;
 	let lastDefenseResult: PlayerDefenseResult = 'none', combatFeedbackSerial = 0, defeatResetQueued = false;
-	let movementState: PlayerMovementState = 'idle', currentActionName = null, lastTelemetryState = '', lastTelemetryStamina = -1, lastTelemetryPoise = -1;
+	let movementState: PlayerMovementState = 'idle', currentActionName: string | null = null, lastTelemetryState = '', lastTelemetryStamina = -1, lastTelemetryPoise = -1;
 
 	function playAction(name: string, timeScale = 1): void {
 		const next = actions[name]; if (!next) return; next.setEffectiveTimeScale(timeScale); if (currentActionName === name) return;
@@ -241,7 +241,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		guarding = false; parryWindowRemaining = 0; guardBreakRemaining = PLAYER_ACTION_CONFIG.GUARD_BREAK_SECONDS;
 		spendStamina(PLAYER_ACTION_CONFIG.GUARD_BREAK_STAMINA_PENALTY); movementState = 'guard-break'; lastDefenseResult = 'guard-break'; playAction('idle', 1);
 	}
-	function attackTuning(kind: PlayerAttackKind) {
+	function attackTuning(kind: PlayerAttackKind): Readonly<{ cost: number; duration: number; activeStart: number; activeEnd: number; reach: number; commitMeters: number; damageScale: number }> {
 		return kind === 'heavy'
 			? { cost: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_STAMINA_COST, duration: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_SECONDS, activeStart: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_ACTIVE_START_SECONDS, activeEnd: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_ACTIVE_END_SECONDS, reach: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_REACH_METERS, commitMeters: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_COMMIT_METERS, damageScale: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_DAMAGE_SCALE }
 			: { cost: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_STAMINA_COST, duration: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_SECONDS, activeStart: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_ACTIVE_START_SECONDS, activeEnd: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_ACTIVE_END_SECONDS, reach: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_REACH_METERS, commitMeters: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_COMMIT_METERS, damageScale: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_DAMAGE_SCALE };
@@ -308,7 +308,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		spendStamina(tuning.cost); attackKind = kind; attackRemaining = tuning.duration; attackElapsed = 0; attackActive = false; attackSerial += 1;
 		attackComboStep = chained ? Math.min(PLAYER_ACTION_CONFIG.ATTACK_COMBO_MAX_STEPS, previousComboStep + 1) : 1;
 		attackCommitRemaining = attackCommitBudget(tuning.commitMeters, attackComboStep);
-		bufferedAttackKind = 'none'; attackBufferRemaining = 0; guarding = false; parryWindowRemaining = 0; movementState = `attack-${kind}`; playAction('idle', 1); publishAttackWindow('start'); return true;
+		bufferedAttackKind = 'none'; attackBufferRemaining = 0; guarding = false; parryWindowRemaining = 0; movementState = (`attack-${kind}` as PlayerMovementState); playAction('idle', 1); publishAttackWindow('start'); return true;
 	}
 	function updateAttack(dt: number, moveDirectionXZ: PlayerMovementInput): void {
 		if (attackRemaining <= 0) return;
