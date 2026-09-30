@@ -86,11 +86,16 @@ const clamp = (value: unknown, min: number, max: number): number => Math.max(min
 const finite = (value: unknown, fallback = 0): number => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 function normalizePhase(motion: MotionSnapshot, attack: AttackSnapshot): CombatPhase {
-  if (motion?.state === 'dodge') return 'dodge';
-  if (motion?.state === 'parry' || motion?.state === 'guard' || motion?.state === 'guard-break') return 'defense';
-  if (motion?.state === 'hit-stagger') return 'hit-stagger';
-  if (attack?.attackKind && attack?.attackPhase && attack.attackPhase !== 'none') return attack.attackPhase;
-  if (motion?.state?.startsWith?.('attack-')) return 'windup';
+  const motionState = typeof motion?.state === 'string' ? motion.state : '';
+  const attackPhase = typeof attack?.attackPhase === 'string' ? attack.attackPhase : '';
+  const attackKind = typeof attack?.attackKind === 'string' ? attack.attackKind : '';
+  if (motionState === 'dodge') return 'dodge';
+  if (motionState === 'parry' || motionState === 'guard' || motionState === 'guard-break') return 'defense';
+  if (motionState === 'hit-stagger') return 'hit-stagger';
+  if (attackKind && attackPhase && attackPhase !== 'none') {
+    return PLAYER_EQUIPMENT_COMBAT_PHASES.includes(attackPhase) ? attackPhase as CombatPhase : 'recovery';
+  }
+  if (motionState.startsWith('attack-')) return 'windup';
   return 'idle';
 }
 
@@ -101,7 +106,7 @@ function normalizeAttackKind(value: unknown): 'none' | 'light' | 'heavy' {
 function readEquipmentProvider(provider: EquipmentProvider): UnknownRecord {
   try {
     if (typeof provider === 'function') return provider() || {};
-    return provider || {};
+    return provider && typeof provider === 'object' && !Array.isArray(provider) ? provider as UnknownRecord : {};
   } catch {
     return {};
   }
@@ -248,9 +253,9 @@ export function createPlayerEquipmentCombatRuntime({
 
   let disposed = false;
   let revision = 0;
-  let currentMotion = Object.freeze(player.getMotionState?.() || {});
-  let currentAttack = Object.freeze({ kind: 'none', attackPhase: 'none', comboStep: 0, active: false, serial: 0 });
-  let currentOutcome = null;
+  let currentMotion: MotionSnapshot = Object.freeze((player.getMotionState?.() || {}) as MotionSnapshot);
+  let currentAttack: AttackSnapshot = Object.freeze({ kind: 'none', attackPhase: 'none', comboStep: 0, active: false, serial: 0 });
+  let currentOutcome: OutcomeSnapshot | null = null;
   let equipment = cloneEquipmentSnapshot(readEquipmentProvider(equipmentProvider));
   let equipmentFingerprintValue = equipmentFingerprint(equipment);
   let frame = buildFrame({
@@ -314,19 +319,20 @@ export function createPlayerEquipmentCombatRuntime({
   }
 
   function onMotion(event: Event): void {
-    currentMotion = Object.freeze(event?.detail || {});
-    compose(event?.detail?.timestamp ?? now(), { publishFrame: true });
+    const detail = event instanceof CustomEvent ? ((event as CustomEvent<UnknownRecord>).detail ?? {}) : {};
+    currentMotion = Object.freeze(detail);
+    compose(typeof detail.timestamp === 'number' ? detail.timestamp : now(), { publishFrame: true });
   }
 
   function onAttackWindow(event: Event): void {
-    const detail = event?.detail || {};
+    const detail = event instanceof CustomEvent ? ((event as CustomEvent<UnknownRecord>).detail ?? {}) : {};
     currentAttack = Object.freeze({
       kind: normalizeAttackKind(detail.kind),
       attackPhase: String(detail.phase || 'none'),
       comboStep: clamp(Math.floor(finite(detail.comboStep, 0)), 0, 3),
       active: Boolean(detail.active),
       serial: Math.max(0, Math.floor(finite(detail.serial, 0))),
-      stamina: finite(detail.stamina, currentMotion?.stamina ?? 0),
+      stamina: finite(detail.stamina, finite(currentMotion?.stamina, 0)),
       reachMeters: finite(detail.reachMeters, 0),
       damageScale: finite(detail.damageScale, 1),
     });
@@ -334,7 +340,8 @@ export function createPlayerEquipmentCombatRuntime({
   }
 
   function onFeedback(event: Event): void {
-    currentOutcome = event?.detail ? Object.freeze({ ...event.detail }) : null;
+    const detail = event instanceof CustomEvent ? ((event as CustomEvent<UnknownRecord>).detail ?? {}) : {};
+    currentOutcome = Object.keys(detail).length ? Object.freeze({ ...detail }) : null;
     compose(now(), { publishFrame: true });
   }
 
