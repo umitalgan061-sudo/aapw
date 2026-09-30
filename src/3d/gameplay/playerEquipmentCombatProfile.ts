@@ -387,6 +387,16 @@ const MATERIAL_SURFACE_FALLBACKS = freezeDeep({
   'wood-metal': ['wood', 'metal'],
 });
 
+function sanitizeEquipmentValue(value: unknown): unknown {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (Array.isArray(value)) return value.map(sanitizeEquipmentValue);
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(Object.entries(record).map(([key, child]) => [key, sanitizeEquipmentValue(child)]));
+  }
+  return value;
+}
+
 function readItemId(item: unknown, fallback: string): string {
   const source = asRecord(item);
   return normalizeId(source.profileId ?? source.equipmentId ?? source.itemId ?? source.id ?? source.slug ?? fallback, fallback);
@@ -451,7 +461,7 @@ function normalizeSlotSnapshot(snapshot: unknown = {}): PlayerEquipmentSlots {
   for (const slot of Object.keys(aliases) as SlotName[]) {
     const aliasSet = new Set(aliases[slot]);
     const candidate = Object.entries(source).find(([key]) => aliasSet.has(normalizeId(key, '')))?.[1];
-    result[slot] = candidate && typeof candidate === 'object' && !Array.isArray(candidate) ? candidate as EquipmentItem : null;
+    result[slot] = candidate && typeof candidate === 'object' && !Array.isArray(candidate) ? sanitizeEquipmentValue(candidate) as EquipmentItem : null;
   }
   return Object.freeze(result) as PlayerEquipmentSlots;
 }
