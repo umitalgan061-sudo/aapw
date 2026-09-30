@@ -1,0 +1,87 @@
+name: Kızıl Ufuk Player Modernization
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/game3d.ts'
+      - 'src/3d/gameplay/player.ts'
+      - 'src/3d/gameplay/player.js'
+      - 'src/3d/gameplay/health.ts'
+      - 'src/3d/gameplay/health.js'
+      - 'src/3d/gameplay/playerEquipmentCombatRules.ts'
+      - 'src/3d/gameplay/playerEquipmentCombatRules.js'
+      - 'src/3d/gameplay/playerEquipmentCombatProfile.ts'
+      - 'src/3d/gameplay/playerEquipmentCombatProfile.js'
+      - 'src/3d/gameplay/playerAnimationDirector.ts'
+      - 'src/3d/gameplay/playerAnimationSurfaceEvidence.ts'
+      - 'src/3d/gameplay/playerEnvironmentalAnimationProfile.ts'
+      - 'src/3d/gameplay/playerAnimationAssetCatalog.ts'
+      - 'src/3d/gameplay/playerAnimationDirector.js'
+      - 'src/3d/gameplay/playerAnimationDirector.legacy.js'
+      - 'tests/modern/playerModernizationR1.test.ts'
+      - 'tests/modern/playerEquipmentCombatRulesStrict.test.ts'
+      - 'tests/modern/playerAnimationDirectorStrict.test.ts'
+      - 'scripts/checkPlayerModernizationR1.mjs'
+      - 'scripts/checkPlayerStrictOwnershipR1.mjs'
+      - 'tsconfig.player-modernization.json'
+      - 'tsconfig.player-equipment-strict.json'
+      - 'tsconfig.player-animation-strict.json'
+      - 'package.json'
+      - '.github/workflows/kizil-ufuk-player-modernization.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kizil-ufuk-player-modernization-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      # Exact-head quality gate note 2026-09-30: asset bytes stay LFS-backed; code gate stays LFS-independent.
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+      # Asset binaries remain Git LFS-backed. This gate validates pointer integrity and code/runtime
+      # contracts without downloading bytes, so repository-wide LFS quota does not mask code failures.
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: package.json
+      - name: Install toolchain
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Player asset ownership proof
+        run: npm run verify:player-modern-r1
+      - name: Strict TypeScript ownership proof
+        run: node scripts/checkPlayerStrictOwnershipR1.mjs
+      - name: Strict player typecheck
+        run: npm run typecheck:player-modern
+      - name: Strict player regression
+        run: npm run test:player-modern
+      - name: Strict equipment typecheck
+        run: npm run typecheck:player-equipment-strict
+      - name: Strict equipment regression
+        run: npm run test:player-equipment-strict
+      - name: Strict animation typecheck
+        run: npm run typecheck:player-animation-strict
+      - name: Strict animation regression
+        run: npm run test:player-animation-strict
+      - name: Existing equipment rules proof
+        run: node --experimental-strip-types scripts/checkPlayerEquipmentCombatRules.mjs
+      - name: Existing equipment material contract proof
+        run: node scripts/checkPlayerEquipmentMaterialAcceptance.mjs
+      - name: Shipped scene equipment/combat contract
+        run: node scripts/checkPlayerEquipmentCombatSceneContract.mjs
+      - name: Existing animation contract proof
+        run: node scripts/checkPlayerAnimationDirector.mjs
+      - name: Diff hygiene
+        run: git diff --check

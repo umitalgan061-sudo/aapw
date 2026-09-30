@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "noEmit": true,
+    "checkJs": false
+  },
+  "include": [
+    "src/3d/gameplay/player.ts",
+    "src/3d/gameplay/health.ts",
+    "tests/modern/playerModernizationR1.test.ts",
+    "src/3d/gameplay/playerPhysics.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage"
+  ]
+}
