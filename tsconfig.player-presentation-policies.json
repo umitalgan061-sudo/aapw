@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "noEmit": true
+  },
+  "include": [
+    "src/3d/gameplay/playerAnimationOneShotPolicy.ts",
+    "src/3d/gameplay/playerCombatActionRouter.ts",
+    "src/3d/gameplay/playerAnimationBlendDiagnostics.ts",
+    "tests/modern/playerPresentationPoliciesStrict.test.ts",
+    "src/3d/gameplay/health.ts",
+    "tests/modern/healthTyped.test.ts",
+    "src/3d/gameplay/playerAnimationSignalSanitizer.ts",
+    "tests/modern/playerAnimationSignalSanitizerStrict.test.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage"
+  ]
+}

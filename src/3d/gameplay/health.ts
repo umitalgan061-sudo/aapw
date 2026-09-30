@@ -13,12 +13,67 @@
  * @module gameplay/health
  */
 
-export interface HealthEventBus { on(eventName: string, handler: (payload: unknown) => void): void; off(eventName: string, handler: (payload: unknown) => void): void; emit(eventName: string, payload?: unknown): void; }
-export interface HealthEventPayload extends Record<string, unknown> { readonly amount?: number; readonly sourceId?: string | null; appliedAmount?: number; }
-export interface HealthStateOptions { readonly eventsBus: HealthEventBus; readonly maxHealth: number; readonly damageEventName: string; readonly healthChangedEventName: string; readonly diedEventName: string; }
-export interface HealthState { readonly current: number; readonly maxHealth: number; readonly isDead: boolean; heal(amount: number): void; reset(): void; dispose(): void; }
+export interface HealthEventBus {
+	readonly on: (eventName: string, handler: (payload: unknown) => void) => void;
+	readonly off: (eventName: string, handler: (payload: unknown) => void) => void;
+	readonly emit: (eventName: string, payload?: unknown) => void;
+}
+export interface DamageResolution extends Record<string, unknown> {
+	readonly amount?: number;
+	readonly rawAmount?: number;
+	readonly blockedAmount?: number;
+	readonly mitigation?: string;
+	readonly sourceId?: string | null;
+	readonly appliedAmount?: number;
+}
+export interface HealthEventPayload extends Record<string, unknown> {
+	readonly amount?: number;
+	readonly sourceId?: string | null;
+	readonly appliedAmount?: number;
+}
+export interface HealthSnapshot {
+	readonly current: number;
+	readonly max: number;
+	readonly ratio: number;
+	readonly defeated: boolean;
+	readonly revision: number;
+}
+export interface HealthChangeReceipt {
+	readonly current: number;
+	readonly maxHealth: number;
+	readonly ratio: number;
+	readonly delta: number;
+	readonly reason: 'sync' | 'damage' | 'heal' | 'reset';
+	readonly appliedAmount: number;
+	readonly sourceId: string | null;
+	readonly revision: number;
+}
+export interface HealthDeathReceipt {
+	readonly current: number;
+	readonly maxHealth: number;
+	readonly appliedAmount: number;
+	readonly sourceId: string | null;
+	readonly revision: number;
+}
+export interface HealthStateOptions {
+	readonly eventsBus: HealthEventBus;
+	readonly maxHealth: number;
+	readonly damageEventName: string;
+	readonly healthChangedEventName: string;
+	readonly diedEventName: string;
+}
+export interface HealthState {
+	readonly current: number;
+	readonly maxHealth: number;
+	readonly isDead: boolean;
+	readonly revision: number;
+	readonly getSnapshot: () => HealthSnapshot;
+	readonly heal: (amount: number) => void;
+	readonly reset: () => void;
+	readonly dispose: () => void;
+}
 
-const pendingDamageResolutions = new WeakMap<object, Readonly<Record<string, unknown>>>();
+const pendingDamageResolutions = new WeakMap<object, Readonly<DamageResolution>>();
 
 function isObjectPayload(payload: unknown): payload is HealthEventPayload {
 	return payload !== null && (typeof payload === 'object' || typeof payload === 'function');
@@ -37,16 +92,16 @@ function tryWrite(payload: unknown, key: string, value: unknown): boolean {
  * Stage same-event defense/health data without requiring producer payload mutability.
  * Mutable payloads retain the legacy best-effort write-back for existing consumers.
  */
-export function stageDamageResolution(payload: unknown, patch: Record<string, unknown> = {}): Readonly<Record<string, unknown>> | null {
+export function stageDamageResolution(payload: unknown, patch: Partial<DamageResolution> = {}): Readonly<DamageResolution> | null {
 	if (!isObjectPayload(payload)) return null;
 	const previous = pendingDamageResolutions.get(payload) ?? {};
-	const next = Object.freeze({ ...previous, ...patch });
+	const next = Object.freeze({ ...previous, ...patch }) as Readonly<DamageResolution>;
 	pendingDamageResolutions.set(payload, next);
 	for (const [key, value] of Object.entries(patch)) tryWrite(payload, key, value);
 	return next;
 }
 
-export function readDamageResolution(payload: unknown): Readonly<Record<string, unknown>> | null {
+export function readDamageResolution(payload: unknown): Readonly<DamageResolution> | null {
 	return isObjectPayload(payload) ? (pendingDamageResolutions.get(payload) ?? null) : null;
 }
 
@@ -57,17 +112,33 @@ export function clearDamageResolution(payload: unknown): void {
 function writeDamageAppliedAmount(payload: unknown, appliedAmount: number): boolean {
 	if (!isObjectPayload(payload)) return false;
 	const previous = pendingDamageResolutions.get(payload) ?? {};
-	pendingDamageResolutions.set(payload, Object.freeze({ ...previous, appliedAmount }));
+	pendingDamageResolutions.set(payload, Object.freeze({ ...previous, appliedAmount }) as Readonly<DamageResolution>);
 	return tryWrite(payload, 'appliedAmount', appliedAmount);
 }
 
-function readDamageSourceId(payload: HealthEventPayload, stagedResolution = readDamageResolution(payload)): string | null {
+function readDamageSourceId(payload: HealthEventPayload | null, stagedResolution: Readonly<DamageResolution> | null = payload ? readDamageResolution(payload) : null): string | null {
 	const stagedSourceId = stagedResolution?.sourceId;
-	return typeof stagedSourceId === 'string' ? stagedSourceId : stagedSourceId === null ? null : payload?.sourceId ?? null;
+	if (typeof stagedSourceId === 'string') return stagedSourceId;
+	if (stagedSourceId === null) return null;
+	return typeof payload?.sourceId === 'string' ? payload.sourceId : null;
 }
-function readNumericResolutionField(resolution: Readonly<Record<string, unknown>> | null, key: string): number | undefined {
+function readNumericResolutionField(resolution: Readonly<DamageResolution> | null, key: keyof DamageResolution): number | undefined {
 	const value = resolution?.[key];
-	return typeof value === 'number' ? value : undefined;
+	return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+export function createHealthSnapshot(current: unknown, maxHealth: unknown, defeated: unknown, revision: unknown): HealthSnapshot {
+	const max = Number(maxHealth);
+	const safeMax = Number.isFinite(max) && max > 0 ? max : 1;
+	const safeCurrent = Math.max(0, Math.min(safeMax, Number.isFinite(Number(current)) ? Number(current) : 0));
+	const safeRevision = Number.isInteger(Number(revision)) && Number(revision) >= 0 ? Number(revision) : 0;
+	return Object.freeze({
+		current: safeCurrent,
+		max: safeMax,
+		ratio: Number((safeCurrent / safeMax).toFixed(4)),
+		defeated: Boolean(defeated),
+		revision: safeRevision,
+	});
 }
 
 export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }: HealthStateOptions): HealthState {
@@ -76,6 +147,7 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 	}
 	let current = maxHealth;
 	let hasDied = false;
+	let revision = 0;
 
 	function clearResolutionAfterSameEvent(payload: unknown): void {
 		// Preserve the authoritative snapshot through the first microtask wave so listeners
@@ -88,16 +160,26 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 		}));
 	}
 
-	function emitHealthChanged({ previous = current, reason = 'sync', sourceId = null }: { readonly previous?: number; readonly reason?: string; readonly sourceId?: string | null } = {}) {
+	function emitHealthChanged({
+		previous = current,
+		reason = 'sync',
+		sourceId = null,
+	}: {
+		readonly previous?: number;
+		readonly reason?: HealthChangeReceipt['reason'];
+		readonly sourceId?: string | null;
+	} = {}): void {
 		const delta = current - previous;
-		const receipt = { current, maxHealth };
-		Object.defineProperties(receipt, {
-			ratio: { value: Number((current / maxHealth).toFixed(4)), enumerable: false },
-			delta: { value: delta, enumerable: false },
-			reason: { value: reason, enumerable: false },
-			appliedAmount: { value: reason === 'damage' ? Math.max(0, -delta) : 0, enumerable: false },
-			sourceId: { value: sourceId, enumerable: false },
-		});
+		const receipt: HealthChangeReceipt = {
+			current,
+			maxHealth,
+			ratio: Number((current / maxHealth).toFixed(4)),
+			delta,
+			reason,
+			appliedAmount: reason === 'damage' ? Math.max(0, -delta) : 0,
+			sourceId,
+			revision,
+		};
 		eventsBus.emit(healthChangedEventName, Object.freeze(receipt));
 	}
 
@@ -122,18 +204,20 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 		const previous = current;
 		const sourceId = eventPayload ? readDamageSourceId(eventPayload, stagedResolution) : null;
 		current = Math.max(0, current - amount);
+		revision += 1;
 		const appliedAmount = previous - current;
 		writeDamageAppliedAmount(eventPayload, appliedAmount);
 		emitHealthChanged({ previous, reason: 'damage', sourceId });
 		if (current === 0 && !hasDied) {
 			hasDied = true;
-			const deathReceipt = { sourceId };
-			Object.defineProperties(deathReceipt, {
-				current: { value: current, enumerable: false },
-				maxHealth: { value: maxHealth, enumerable: false },
-				appliedAmount: { value: appliedAmount, enumerable: false },
+			const deathReceipt: HealthDeathReceipt = Object.freeze({
+				current,
+				maxHealth,
+				appliedAmount,
+				sourceId,
+				revision,
 			});
-			eventsBus.emit(diedEventName, Object.freeze(deathReceipt));
+			eventsBus.emit(diedEventName, deathReceipt);
 		}
 		clearResolutionAfterSameEvent(payload);
 	}
@@ -145,12 +229,17 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 		get current() { return current; },
 		get maxHealth() { return maxHealth; },
 		get isDead() { return hasDied; },
-		heal(amount) {
+		get revision() { return revision; },
+		getSnapshot() {
+			return createHealthSnapshot(current, maxHealth, hasDied, revision);
+		},
+		heal(amount: number) {
 			if (!Number.isFinite(amount) || !(amount > 0)) return;
 			const previous = current;
 			const next = Math.min(maxHealth, current + amount);
 			if (next === current) return;
 			current = next;
+			revision += 1;
 			if (current > 0) hasDied = false;
 			emitHealthChanged({ previous, reason: 'heal' });
 		},
@@ -158,12 +247,11 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 			const previous = current;
 			current = maxHealth;
 			hasDied = false;
+			revision += 1;
 			emitHealthChanged({ previous, reason: 'reset' });
 		},
-		dispose() {
+		dispose(): void {
 			eventsBus.off(damageEventName, onDamage);
 		},
 	};
 }
-
-export interface HealthSnapshot { readonly current:number; readonly max:number; readonly ratio:number; readonly defeated:boolean }
