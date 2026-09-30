@@ -106,3 +106,4 @@ export * from './r26/runtimeControlPlane.ts';
 export * from './r26/worldSpatialRuntime.ts';
 export * from './r26/inputRuntime.ts';
 export * from './r26/observability.ts';
+export * from './r27/index.ts';
