@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "allowJs": false, "noEmit": true },
+  "include": [
+    "src/3d/gameplay/playerThirdPersonCameraPolicy.ts",
+    "tests/modern/playerThirdPersonCameraPolicyStrict.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
