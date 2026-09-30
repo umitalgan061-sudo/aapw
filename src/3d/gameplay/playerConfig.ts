@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/playerConfig.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * `PLAYER_CONFIG` (FAZ 4) — playable character: base mesh + Mixamo-retargeted animation clip file
  * paths, movement speeds, and camera/animation tuning. See `gameplay/player.js` and DECISIONS.md
