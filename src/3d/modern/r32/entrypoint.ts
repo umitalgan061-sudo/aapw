@@ -1,6 +1,7 @@
-import { BrowserRuntimeBridge } from './browserBridge.ts';
-import { R32Application, R32ApplicationState } from './application.ts';
-import { RuntimeDiagnostics } from './contracts.ts';
+import {BrowserRuntimeBridge} from './browserBridge.ts';
+import {R32Application} from './application.ts';
+import type {R32ApplicationState} from './application.ts';
+import type {RuntimeDiagnostics} from './contracts.ts';
 
 export interface R32EntrypointOptions {
   readonly initialState?: R32ApplicationState;
