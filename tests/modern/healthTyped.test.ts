@@ -95,7 +95,7 @@ describe('Kızıl Ufuk typed health contract', () => {
     bus.emit('damage', payload);
     expect(payload.appliedAmount).toBe(40);
 
-    const healthEvent = bus.emitted.find((entry) => entry.name === 'health')?.payload as HealthChangeReceipt;
+    const healthEvent = bus.emitted.filter((entry) => entry.name === 'health').at(-1)?.payload as HealthChangeReceipt;
     expect(healthEvent).toMatchObject({ current: 10, appliedAmount: 40, sourceId: 'axe-02', revision: 1 });
 
     await Promise.resolve();
