@@ -41,7 +41,7 @@ export function readBrowserCapabilities(): BrowserCapabilities {
     webgpu: detectWebGpu(),
     worker: typeof Worker !== 'undefined',
     sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
-    hardwareConcurrency: Math.max(1, Number(navigator?.hardwareConcurrency ?? 1)),
+    hardwareConcurrency: Math.max(1, Number(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency ?? 1 : 1)),
     deviceMemoryGb: Number.isFinite(memory) ? memory : null,
     touch: typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0,
     saveStorage: storage,
