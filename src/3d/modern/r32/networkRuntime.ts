@@ -1,4 +1,6 @@
-import {NetworkAckWindow,NetworkChannel,NetworkPacket,NetworkReceipt,NetworkSessionOptions,NetworkTransport,PredictionFrame,ReconciliationResult,RuntimeError,Sequence,SessionId,Tick,asSequence,asSessionId} from './contracts.ts';
+import {RuntimeError,asSequence,asSessionId} from './contracts.ts';
+import type {NetworkAckWindow,NetworkChannel,NetworkPacket,NetworkReceipt,NetworkSessionOptions,NetworkTransport,PredictionFrame,ReconciliationResult,Sequence,SessionId,Tick} from './contracts.ts';
+
 interface Sent<T>{readonly packet:NetworkPacket<T>;lastSentTick:Tick;attempts:number;}
 export interface NetworkStats{readonly sent:number;readonly received:number;readonly dropped:number;readonly retransmits:number;readonly inFlight:number;readonly bufferedInputs:number;readonly highestReceived:Sequence;}
 export interface ReconciliationAdapter<TState>{readonly hash:(state:TState)=>string;readonly simulate:(state:TState,input:unknown)=>TState;}
