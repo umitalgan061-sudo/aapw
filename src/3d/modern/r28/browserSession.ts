@@ -1,5 +1,5 @@
 import { BrowserRuntimeHost, type BrowserHostOptions } from './browserHost.ts';
-import { RuntimeLifecycleController } from './lifecycle.ts';
+import { RuntimeLifecycleController, type LifecycleState } from './lifecycle.ts';
 import { RuntimeRecoveryController } from './errorRecovery.ts';
 import { RuntimeResourceRegistry } from './resourceRegistry.ts';
 import { RuntimeTelemetry } from './telemetry.ts';
@@ -11,7 +11,7 @@ export interface BrowserSessionOptions extends BrowserHostOptions {
 }
 
 export interface BrowserSessionState {
-  readonly lifecycle: ReturnType<RuntimeLifecycleController['state']>;
+  readonly lifecycle: LifecycleState;
   readonly running: boolean;
   readonly connected: boolean;
   readonly tick: number;
