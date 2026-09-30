@@ -26,7 +26,7 @@ import { evaluateGpuPressure, pressureRecommendations } from './gpuPressureModel
 import { createRenderDegradationPolicy, degradationDigest } from './renderDegradationPolicy.js';
 import { createTemporalHistoryController } from './renderTemporalHistoryPolicy.js';
 import { createRenderHealthSupervisor } from './renderHealthSupervisor.ts';
-import { createRenderFramePacket, renderFramePacketDigest } from './renderFramePacket.js';
+import { createRenderFramePacket, renderFramePacketDigest, validateRenderFramePacket } from './renderFramePacket.ts';
 
 const freeze = Object.freeze;
 const finite = (v, f = 0) => Number.isFinite(Number(v)) ? Number(v) : f;
@@ -184,7 +184,8 @@ export function createNextGenRenderOrchestrator(options = {}) {
       metrics: record,
     });
     const packet = createRenderFramePacket(detailed);
-    return freeze({ ...detailed, packet, packetDigest: renderFramePacketDigest(packet), degradationDigest: degradationDigest(pressurePacket) });
+    if (!validateRenderFramePacket(packet)) throw new Error('Canonical render frame packet failed presentation-boundary validation');
+    return freeze({ ...detailed, packet, packetValid: true, packetDigest: renderFramePacketDigest(packet), degradationDigest: degradationDigest(pressurePacket) });
   }
 
   function diagnostics() {
