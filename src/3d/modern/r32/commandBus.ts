@@ -1,4 +1,6 @@
-import {CommandContext,CommandEnvelope,CommandExecutionOptions,CommandExecutionReceipt,CommandHandler,CommandId,CommandMiddleware,RuntimeError,Tick,asCommandId,stableHash} from './contracts.ts';
+import {RuntimeError,asCommandId,stableHash} from './contracts.ts';
+import type {CommandContext,CommandEnvelope,CommandExecutionOptions,CommandExecutionReceipt,CommandHandler,CommandId,CommandMiddleware,Tick} from './contracts.ts';
+
 interface Receipt { readonly commandId:CommandId; readonly result:unknown; readonly durationMilliseconds:number; }
 interface Entry { readonly type:string; readonly handler:CommandHandler<unknown,unknown>; }
 interface QueueEntry { readonly command:CommandEnvelope<unknown>; readonly resolve:(v:CommandExecutionReceipt<unknown>)=>void; readonly reject:(e:unknown)=>void; }
