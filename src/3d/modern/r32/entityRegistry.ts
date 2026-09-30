@@ -1,4 +1,6 @@
-import {
+import {asEntityId,stableHash} from './contracts.ts';
+import type {EntityId,Vec3} from './contracts.ts';
+
   EntityId,
   Vec3,
   asEntityId,
