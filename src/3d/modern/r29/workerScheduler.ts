@@ -21,17 +21,24 @@ export interface R29WorkerSnapshot {
   readonly timedOut: number;
 }
 
+interface PendingTask<T> extends R29WorkerTask<T> {
+  readonly resolve: (value: T) => void;
+  readonly reject: (error: unknown) => void;
+  readonly enqueueOrder: number;
+}
+
 export class R29WorkerScheduler {
   readonly concurrency: number;
   readonly maxQueue: number;
   readonly timeoutMs: number;
 
-  #queue: Array<R29WorkerTask<unknown>> = [];
+  #queue: Array<PendingTask<unknown>> = [];
   #running = 0;
   #completed = 0;
   #failed = 0;
   #timedOut = 0;
-  #draining = false;
+  #drainScheduled = false;
+  #enqueueOrder = 0;
 
   constructor(options: R29WorkerSchedulerOptions = {}) {
     this.concurrency = clampR29(Math.floor(options.concurrency ?? 4), 1, 16);
@@ -40,30 +47,18 @@ export class R29WorkerScheduler {
   }
 
   submit<T>(task: R29WorkerTask<T>): Promise<T> {
+    if (!task.id.trim()) return Promise.reject(new Error('R29_WORK_TASK_ID_EMPTY'));
     if (this.#queue.length >= this.maxQueue) return Promise.reject(new Error('R29_WORK_QUEUE_FULL'));
     return new Promise<T>((resolve, reject) => {
-      const wrapped: R29WorkerTask<unknown> = {
+      this.#queue.push({
         id: task.id,
-        priority: task.priority,
-        run: async () => {
-          try {
-            return await task.run();
-          } catch (error) {
-            throw error;
-          }
-        },
-      };
-      this.#queue.push(wrapped);
-      this.#queue.sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
-      const original = wrapped.run;
-      wrapped.run = async () => {
-        const value = await original();
-        resolve(value as T);
-        return value;
-      };
-      const originalRejecting = wrapped.run;
-      void originalRejecting.catch((error) => reject(error));
-      void this.#drain();
+        priority: Number.isFinite(task.priority) ? task.priority : 0,
+        run: task.run,
+        resolve,
+        reject,
+        enqueueOrder: this.#enqueueOrder++,
+      });
+      this.#scheduleDrain();
     });
   }
 
@@ -80,32 +75,42 @@ export class R29WorkerScheduler {
 
   clear(): void {
     const pending = this.#queue.splice(0);
-    for (const task of pending) void task;
+    for (const task of pending) task.reject(new Error('R29_WORK_QUEUE_CLEARED'));
   }
 
   async drain(): Promise<void> {
-    while (this.#queue.length > 0 || this.#running > 0) await new Promise<void>((resolve) => setTimeout(resolve, 0));
-  }
-
-  async #drain(): Promise<void> {
-    if (this.#draining) return;
-    this.#draining = true;
-    try {
-      while (this.#queue.length > 0 && this.#running < this.concurrency) {
-        const task = this.#queue.shift();
-        if (!task) break;
-        this.#running += 1;
-        void this.#execute(task).finally(() => {
-          this.#running -= 1;
-          void this.#drain();
-        });
-      }
-    } finally {
-      this.#draining = false;
+    while (this.#queue.length > 0 || this.#running > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
   }
 
-  async #execute(task: R29WorkerTask<unknown>): Promise<void> {
+  #scheduleDrain(): void {
+    if (this.#drainScheduled) return;
+    this.#drainScheduled = true;
+    queueMicrotask(() => {
+      this.#drainScheduled = false;
+      void this.#drain();
+    });
+  }
+
+  async #drain(): Promise<void> {
+    this.#queue.sort((a, b) =>
+      b.priority - a.priority ||
+      a.enqueueOrder - b.enqueueOrder ||
+      a.id.localeCompare(b.id),
+    );
+    while (this.#queue.length > 0 && this.#running < this.concurrency) {
+      const task = this.#queue.shift();
+      if (!task) break;
+      this.#running += 1;
+      void this.#execute(task).finally(() => {
+        this.#running -= 1;
+        this.#scheduleDrain();
+      });
+    }
+  }
+
+  async #execute(task: PendingTask<unknown>): Promise<void> {
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
       const value = await Promise.race([
@@ -113,15 +118,16 @@ export class R29WorkerScheduler {
         new Promise<never>((_, reject) => {
           timeout = setTimeout(() => {
             this.#timedOut += 1;
-            reject(new Error(`R29_WORK_TASK_TIMEOUT:${task.id}`));
+            reject(new Error('R29_WORK_TASK_TIMEOUT:' + task.id));
           }, this.timeoutMs);
         }),
       ]);
-      void value;
       this.#completed += 1;
+      task.resolve(value);
     } catch (error) {
       this.#failed += 1;
-      void error;
+      if (error instanceof Error && error.message.startsWith('R29_WORK_TASK_TIMEOUT:')) task.reject(error);
+      else task.reject(error);
     } finally {
       if (timeout) clearTimeout(timeout);
     }

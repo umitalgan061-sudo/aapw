@@ -1,5 +1,3 @@
-import { readFile } from 'node:fs/promises';
-
 export type R29MigrationStatus = 'typed' | 'shim' | 'legacy' | 'missing-owner';
 
 export interface R29MigrationEntry {
@@ -18,57 +16,52 @@ export interface R29MigrationAudit {
   readonly entries: readonly R29MigrationEntry[];
 }
 
+export interface R29MigrationReader {
+  readonly readText: (path: string) => Promise<string>;
+}
+
+export interface R29MigrationSource {
+  readonly javascriptPath: string;
+  readonly javascriptSource: string;
+  readonly typescriptExists: boolean;
+}
+
 const isLegacy = (path: string): boolean =>
   path.endsWith('.legacy.js') || path.includes('/vendor/') || path.includes('/third_party/');
 
 const isShim = (source: string): boolean =>
   source.includes('export * from') && source.includes('.ts') && source.length < 1200;
 
-export async function auditR29JavaScriptOwnership(paths: readonly string[]): Promise<R29MigrationAudit> {
-  const javascriptPaths = paths
-    .filter((path) => path.startsWith('src/') && path.endsWith('.js'))
-    .filter((path) => !isLegacy(path))
-    .sort();
-
-  const entries: R29MigrationEntry[] = [];
-  for (const javascriptPath of javascriptPaths) {
-    const typescriptPath = javascriptPath.replace(/\.js$/, '.ts');
-    try {
-      const source = await readFile(javascriptPath, 'utf8');
-      if (isShim(source)) {
-        entries.push(Object.freeze({
-          javascriptPath,
+export function evaluateR29MigrationSources(sources: readonly R29MigrationSource[]): R29MigrationAudit {
+  const entries: R29MigrationEntry[] = sources
+    .filter((item) => item.javascriptPath.startsWith('src/') && item.javascriptPath.endsWith('.js'))
+    .filter((item) => !isLegacy(item.javascriptPath))
+    .map((item) => {
+      const typescriptPath = item.javascriptPath.replace(/\.js$/, '.ts');
+      if (isShim(item.javascriptSource)) {
+        return Object.freeze({
+          javascriptPath: item.javascriptPath,
           typescriptPath,
-          status: 'shim',
+          status: 'shim' as const,
           reason: 'JavaScript entrypoint delegates ownership to TypeScript.',
-        }));
-        continue;
+        });
       }
-      try {
-        await readFile(typescriptPath, 'utf8');
-        entries.push(Object.freeze({
-          javascriptPath,
+      if (item.typescriptExists) {
+        return Object.freeze({
+          javascriptPath: item.javascriptPath,
           typescriptPath,
-          status: 'typed',
+          status: 'typed' as const,
           reason: 'TypeScript owner exists beside the compatibility entrypoint.',
-        }));
-      } catch {
-        entries.push(Object.freeze({
-          javascriptPath,
-          typescriptPath: null,
-          status: 'missing-owner',
-          reason: 'Production JavaScript source has no TypeScript owner.',
-        }));
+        });
       }
-    } catch {
-      entries.push(Object.freeze({
-        javascriptPath,
+      return Object.freeze({
+        javascriptPath: item.javascriptPath,
         typescriptPath: null,
-        status: 'missing-owner',
-        reason: 'JavaScript source could not be read.',
-      }));
-    }
-  }
+        status: 'missing-owner' as const,
+        reason: 'Production JavaScript source has no TypeScript owner.',
+      });
+    })
+    .sort((a, b) => a.javascriptPath.localeCompare(b.javascriptPath));
 
   return Object.freeze({
     scanned: entries.length,
@@ -78,6 +71,25 @@ export async function auditR29JavaScriptOwnership(paths: readonly string[]): Pro
     missingOwner: entries.filter((entry) => entry.status === 'missing-owner').length,
     entries: Object.freeze(entries),
   });
+}
+
+export async function auditR29JavaScriptOwnership(
+  paths: readonly string[],
+  reader: R29MigrationReader,
+): Promise<R29MigrationAudit> {
+  const sources: R29MigrationSource[] = [];
+  const javascriptPaths = paths
+    .filter((path) => path.startsWith('src/') && path.endsWith('.js'))
+    .filter((path) => !isLegacy(path))
+    .sort();
+
+  for (const javascriptPath of javascriptPaths) {
+    const javascriptSource = await reader.readText(javascriptPath).catch(() => '');
+    const typescriptPath = javascriptPath.replace(/\.js$/, '.ts');
+    const typescriptExists = await reader.readText(typescriptPath).then(() => true).catch(() => false);
+    sources.push({ javascriptPath, javascriptSource, typescriptExists });
+  }
+  return evaluateR29MigrationSources(sources);
 }
 
 export function assertR29MigrationReady(audit: R29MigrationAudit): void {

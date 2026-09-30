@@ -34,7 +34,7 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: node scripts/checkModernRuntimeR29.mjs
       - run: npx tsc --noEmit
-      - run: npx vitest run tests/modern/r29Runtime.test.ts tests/modern/r29Subsystems.test.ts tests/modern/r29Advanced.test.ts tests/modern/r29PersistenceAndMigration.test.ts tests/modern/r29BrowserAndSecurity.test.ts tests/modern/r29Verification.test.ts
+      - run: npm run test:modern:r29
       - run: npm run build:modern
 
   deterministic-boundary:

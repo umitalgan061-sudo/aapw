@@ -1,6 +1,12 @@
 import { distanceSqR29, freezeR29, type R29EntityRecord, type R29EntityTransform, type R29StreamingPlan, type R29Vector3, type R29WorldInterest, type R29WorldZone } from './contracts.ts';
 
-interface MutableZone extends R29WorldZone {
+interface MutableZone {
+  id: string;
+  x: number;
+  z: number;
+  radiusMeters: number;
+  estimatedBytes: number;
+  priority: number;
   state: R29WorldZone['state'];
   lastTouchedTick: number;
   generation: number;

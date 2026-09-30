@@ -1,4 +1,5 @@
-import type { R29Backend, R29RenderBackendAdapter, R29RuntimeCapabilities } from './contracts.ts';
+import type { R29Backend, R29RuntimeCapabilities } from './contracts.ts';
+import type { R29RenderBackendAdapter } from './renderCoordinator.ts';
 import { createHeadlessR29Backend } from './renderCoordinator.ts';
 
 export function detectR29Capabilities(): R29RuntimeCapabilities {

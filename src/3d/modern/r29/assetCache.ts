@@ -1,6 +1,7 @@
 import { clampR29, type R29AssetManifestEntry, type R29AssetRecord, type R29AssetState, type R29ResourceStats } from './contracts.ts';
 
-interface MutableAsset extends R29AssetRecord {
+interface MutableAsset {
+  manifest: R29AssetManifestEntry;
   state: R29AssetState;
   lastUsedTick: number;
   refCount: number;

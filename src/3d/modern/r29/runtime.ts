@@ -77,8 +77,8 @@ export class R29Runtime implements R29LifecycleComponent {
   #started = false;
   #disposed = false;
   #frame = 0;
-  #lastPlan = this.worldPlan(0);
-  #lastRenderPlan = this.renderer.plan();
+  #lastPlan: ReturnType<R29WorldRuntime['plan']>;
+  #lastRenderPlan: ReturnType<R29RenderCoordinator['plan']>;
   #lastFrameMs = 0;
   #lastNetworkMs = 0;
   #lastSimulationMs = 0;
@@ -125,6 +125,8 @@ export class R29Runtime implements R29LifecycleComponent {
     this.telemetry = new R29Telemetry();
     this.services = new R29ServiceRegistry();
     this.#hooks = hooks;
+    this.#lastPlan = this.worldPlan(0);
+    this.#lastRenderPlan = this.renderer.plan();
     this.services.register({ service: this.inputService(), eager: false });
     this.services.register({ service: this.worldService(), eager: false });
     this.services.register({ service: this.assetService(), eager: false });
