@@ -22,6 +22,7 @@ on:
       - 'tests/modern/playerEquipmentCombatRulesStrict.test.ts'
       - 'tests/modern/playerAnimationDirectorStrict.test.ts'
       - 'scripts/checkPlayerModernizationR1.mjs'
+      - 'scripts/checkPlayerStrictOwnershipR1.mjs'
       - 'tsconfig.player-modernization.json'
       - 'tsconfig.player-equipment-strict.json'
       - 'tsconfig.player-animation-strict.json'
@@ -59,6 +60,8 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Player asset ownership proof
         run: npm run verify:player-modern-r1
+      - name: Strict TypeScript ownership proof
+        run: node scripts/checkPlayerStrictOwnershipR1.mjs
       - name: Strict player typecheck
         run: npm run typecheck:player-modern
       - name: Strict player regression
