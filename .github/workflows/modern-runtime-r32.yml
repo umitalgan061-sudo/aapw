@@ -1,0 +1,84 @@
+name: modern-runtime-r32
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/r32/**'
+      - 'tests/modern/r32/**'
+      - 'scripts/checkModernPlatformR32.mjs'
+      - 'tsconfig.modern-r32.json'
+      - 'package.json'
+      - '.github/workflows/modern-runtime-r32.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/3d/modern/r32/**'
+      - 'tests/modern/r32/**'
+      - 'scripts/checkModernPlatformR32.mjs'
+      - 'tsconfig.modern-r32.json'
+      - 'package.json'
+      - '.github/workflows/modern-runtime-r32.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r32-${ github.workflow }-${ github.ref }
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: R32 static + type + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Static runtime boundary
+        run: npm run verify:r32
+
+      - name: TypeScript R32 contract
+        run: npm run typecheck:r32
+
+      - name: R32 regression suite
+        run: npm run test:r32
+
+      - name: Full project typecheck
+        run: npm run typecheck
+
+  determinism:
+    name: R32 deterministic surface
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+
+      - name: Guard deterministic/security primitives
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r file; do
+            if grep -nE 'Math\\.random\\(|Date\\.now\\(|eval\\(|new[[:space:]]+Function\\(' "$file"; then
+              echo "Forbidden primitive found in R32 surface: $file"
+              exit 1
+            fi
+          done < <(find src/3d/modern/r32 -name '*.ts' -type f | sort)
+
+          echo "R32 deterministic/security primitive guard passed."
