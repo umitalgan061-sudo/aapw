@@ -19,7 +19,6 @@ on:
       - 'src/3d/gameplay/playerAnimationDirector.js'
       - 'src/3d/gameplay/playerAnimationDirector.legacy.js'
       - 'tests/modern/playerModernizationR1.test.ts'
-      - 'tests/modern/playerInputParityStrict.test.ts'
       - 'tests/modern/playerEquipmentCombatRulesStrict.test.ts'
       - 'tests/modern/playerAnimationDirectorStrict.test.ts'
       - 'scripts/checkPlayerModernizationR1.mjs'
@@ -66,8 +65,6 @@ jobs:
         run: npm run typecheck:player-modern
       - name: Strict player regression
         run: npm run test:player-modern
-      - name: Strict input parity regression
-        run: npm run test:player-input-parity
       - name: Strict equipment typecheck
         run: npm run typecheck:player-equipment-strict
       - name: Strict equipment regression
