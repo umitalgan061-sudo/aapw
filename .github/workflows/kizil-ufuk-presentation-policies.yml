@@ -3,6 +3,8 @@ name: Kızıl Ufuk Presentation Policies Strict
 on:
   pull_request:
     paths:
+      - 'src/3d/gameplay/health.ts'
+      - 'tests/modern/healthTyped.test.ts'
       - 'src/3d/gameplay/playerAnimationOneShotPolicy.ts'
       - 'src/3d/gameplay/playerAnimationOneShotPolicy.legacy.js'
       - 'src/3d/gameplay/playerCombatActionRouter.ts'
@@ -43,6 +45,8 @@ jobs:
         run: npm run typecheck:player-presentation-policies
       - name: Strict regression tests
         run: npm run test:player-presentation-policies
+      - name: Typed health regression
+        run: npm run test:health-typed
       - name: Legacy escape-hatch scan
         run: '! grep -R "@ts-nocheck" src/3d/gameplay/playerAnimationOneShotPolicy.ts src/3d/gameplay/playerCombatActionRouter.ts src/3d/gameplay/playerAnimationBlendDiagnostics.ts'
       - name: Diff hygiene
