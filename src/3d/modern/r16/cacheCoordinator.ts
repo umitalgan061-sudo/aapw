@@ -17,7 +17,7 @@ export class R16CacheCoordinator{
     const resident=[...this.#items.values()].filter(i=>i.resident).sort((a,b)=>b.priority-a.priority||Number(b.pinned)-Number(a.pinned)||b.lastUsedTick-a.lastUsedTick||a.id.localeCompare(b.id));
     let bytes=0,pinnedBytes=0;const retained:string[]=[],evict:string[]=[];
     for(const item of resident){
-      if(item.pinned&&pinnedBytes+item.bytes<=this.#budget.maxPinnedBytes){retained.push(item.id);bytes+=item.bytes;pinnedBytes+=item.bytes;continue;}
+      if(item.pinned&&pinnedBytes+item.bytes<=this.#budget.maxPinnedBytes&&bytes+item.bytes<=this.#budget.maxBytes&&retained.length<this.#budget.maxItems){retained.push(item.id);bytes+=item.bytes;pinnedBytes+=item.bytes;continue;}
       if(bytes+item.bytes<=this.#budget.maxBytes&&retained.length<this.#budget.maxItems){retained.push(item.id);bytes+=item.bytes;continue;}
       if(!item.pinned)evict.push(item.id);else retained.push(item.id);
     }
