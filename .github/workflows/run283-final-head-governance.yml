@@ -17,6 +17,8 @@ jobs:
   final-head-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    env:
+      GIT_LFS_SKIP_SMUDGE: "1"
     steps:
       - uses: actions/checkout@v4
         with:
