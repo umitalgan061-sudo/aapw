@@ -43,7 +43,7 @@ export function createPlayerCombatActionRouter({
   const queueLimit = Math.max(1, Math.min(128, Math.floor(finite(maxQueue, 16))));
   const ttl = Math.max(0, finite(ttlMs, 750));
 
-  const enqueue = (action: unknown, source = 'unknown', timestamp = now()): boolean => {
+  const enqueue = (action: unknown, source: unknown = 'unknown', timestamp: unknown = now()): boolean => {
     const kind = normalizeAction(action);
     if (!kind) return false;
     const safeTimestamp = finite(timestamp, now());
@@ -55,12 +55,12 @@ export function createPlayerCombatActionRouter({
 
   const drain = ({ currentTime = now(), max = queueLimit }: { readonly currentTime?: unknown; readonly max?: unknown } = {}): readonly PlayerCombatInputEvent[] => {
     const cutoff = finite(currentTime, now()) - ttl;
-    while (queue.length && queue[0].timestamp < cutoff) queue.shift();
+    while (queue.length && (queue[0]?.timestamp ?? Infinity) < cutoff) queue.shift();
     const count = Math.max(0, Math.min(queueLimit, Math.floor(finite(max, queueLimit))));
     return Object.freeze(queue.splice(0, count));
   };
 
-  const emit = (action: unknown, source = 'unknown', timestamp = now()): boolean => {
+  const emit = (action: unknown, source: unknown = 'unknown', timestamp: unknown = now()): boolean => {
     if (!enqueue(action, source, timestamp)) return false;
     const [event] = drain({ currentTime: timestamp, max: 1 });
     const Constructor = target.CustomEvent ?? CustomEvent;
