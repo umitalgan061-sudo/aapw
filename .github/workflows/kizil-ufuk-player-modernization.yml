@@ -3,6 +3,7 @@ name: Kızıl Ufuk Player Modernization
 on:
   pull_request:
     paths:
+      - 'src/3d/game3d.ts'
       - 'src/3d/gameplay/player.ts'
       - 'src/3d/gameplay/player.js'
       - 'src/3d/gameplay/health.ts'
@@ -68,6 +69,8 @@ jobs:
         run: node scripts/checkPlayerEquipmentCombatRules.mjs
       - name: Existing equipment material contract proof
         run: node scripts/checkPlayerEquipmentMaterialAcceptance.mjs
+      - name: Shipped scene equipment/combat contract
+        run: node scripts/checkPlayerEquipmentCombatSceneContract.mjs
       - name: Existing animation contract proof
         run: node scripts/checkPlayerAnimationDirector.mjs
       - name: Diff hygiene
