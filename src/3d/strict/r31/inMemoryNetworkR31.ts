@@ -13,7 +13,7 @@ export class InMemoryNetworkPortR31 {
   }
 
   connect(): void { this.#connected = true; }
-  connected(): boolean { return this.#connected && this.#peer?.#connected === true; }
+  connected(): boolean { return this.#connected && this.#peer !== null && this.#peer.#connected === true; }
 
   send(bytes: Uint8Array): void {
     if (!this.connected()) throw new Error('network-disconnected');
