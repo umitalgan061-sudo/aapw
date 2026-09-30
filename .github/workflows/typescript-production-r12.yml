@@ -1,0 +1,45 @@
+name: typescript-production-r12
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/runtime/**'
+      - 'src/3d/rendering/**'
+      - 'src/3d/materials/**'
+      - 'src/3d/ui/**'
+      - 'src/3d/persistence/**'
+      - 'src/3d/sky.js'
+      - 'src/3d/sky.ts'
+      - 'src/3d/fog.js'
+      - 'src/3d/fog.ts'
+      - 'src/3d/renderBackendCapability.js'
+      - 'src/3d/renderBackendCapability.ts'
+      - 'scripts/checkSourceLanguageMigrationR12.mjs'
+      - 'tests/modern/sourceLanguageMigrationR12.test.ts'
+      - 'tsconfig.json'
+      - 'vite.config.ts'
+      - 'vitest.config.ts'
+      - '.github/workflows/typescript-production-r12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: typescript-production-r12-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node scripts/checkSourceLanguageMigrationR12.mjs
+      - run: npm run typecheck
+      - run: npm test -- --passWithNoTests
+      - run: npm run build:modern

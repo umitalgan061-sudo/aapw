@@ -1,0 +1,22 @@
+import { clamp01, normalizeSampleV67 } from './environmentRuntimeV67.js';
+import { shelterScoreV67 } from './environmentRuntimeShelterV67.js';
+import { tractionV67 } from './environmentRuntimeSurfaceV67.js';
+import { hazardRoutePenaltyV67 } from './environmentRuntimeHazardsV67.js';
+import { resourceAbundanceV67 } from './environmentRuntimeResourcesV67.js';
+
+export const INTERACTION_V67=Object.freeze({id:'interaction-v67',version:67,deterministic:true,noWorldMutation:true});
+export const canClimbV67=(sample={})=>{const s=normalizeSampleV67(sample);return s.slope<.58&&tractionV67(s)>.46;};
+export const canFordV67=(sample={})=>{const s=normalizeSampleV67(sample);return s.waterDistance<18&&s.slope<.3&&tractionV67(s)>.38;};
+export const canShelterV67=(sample={})=>shelterScoreV67(sample)>.44;
+export const canHarvestV67=(sample={},resource='forage')=>{if(!['water','wood','stone','forage'].includes(resource))return false;return resourceAbundanceV67(sample)>.24;};
+export const canInspectV67=(sample={})=>normalizeSampleV67(sample).visibility>.18;
+export const canTrackV67=(sample={})=>{const s=normalizeSampleV67(sample);return s.canopy>.12&&s.humanPressure<.68;};
+export const interactionSafetyV67=(sample={})=>clamp01((tractionV67(sample)*.35+shelterScoreV67(sample)*.2+normalizeSampleV67(sample).visibility*.2+(1-Math.min(1,hazardRoutePenaltyV67(sample.hazard??0)/4))*.25));
+export const interactionPriorityV67=(sample={})=>clamp01(interactionSafetyV67(sample)*.6+resourceAbundanceV67(sample)*.24+canInspectV67(sample)*.16);
+export const buildInteractionSampleV67=(sample={})=>{const s=normalizeSampleV67(sample);const safety=interactionSafetyV67(sample);return{id:s.id,safety,climb:canClimbV67(sample),ford:canFordV67(sample),shelter:canShelterV67(sample),harvest:{water:canHarvestV67(sample,'water'),wood:canHarvestV67(sample,'wood'),stone:canHarvestV67(sample,'stone'),forage:canHarvestV67(sample,'forage')},inspect:canInspectV67(sample),track:canTrackV67(sample),priority:interactionPriorityV67(sample)};};
+export const buildInteractionFieldV67=(samples=[])=>samples.map(buildInteractionSampleV67);
+export const interactionSummaryV67=(field=[])=>({samples:field.length,meanSafety:field.reduce((a,x)=>a+x.safety,0)/Math.max(1,field.length),climbable:field.filter(x=>x.climb).length,fordable:field.filter(x=>x.ford).length,shelters:field.filter(x=>x.shelter).length,trackable:field.filter(x=>x.track).length});
+export const validateInteractionV67=(field=[])=>{const errors=[];if(!Array.isArray(field))errors.push('field');if(field.some(x=>x.safety<0||x.safety>1))errors.push('safety');if(field.some(x=>typeof x.climb!=='boolean'||typeof x.ford!=='boolean'))errors.push('affordance');return{ok:errors.length===0,errors};};
+export const interactionTelemetryV67=(field=[])=>({policy:INTERACTION_V67.id,valid:validateInteractionV67(field).ok,summary:interactionSummaryV67(field)});
+export const affordanceMaskV67=(sample={})=>({move:true,climb:canClimbV67(sample),ford:canFordV67(sample),shelter:canShelterV67(sample),inspect:canInspectV67(sample),track:canTrackV67(sample),harvest:resourceAbundanceV67(sample)>.24});
+export const safestInteractionV67=(sample={})=>{const mask=affordanceMaskV67(sample);const priority=interactionPriorityV67(sample);if(priority<.35)return 'move';if(mask.shelter)return 'shelter';if(mask.harvest)return 'harvest';if(mask.inspect)return 'inspect';if(mask.track)return 'track';if(mask.climb)return 'climb';if(mask.ford)return 'ford';return 'move';};

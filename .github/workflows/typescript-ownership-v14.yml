@@ -1,0 +1,24 @@
+name: typescript-ownership-v14
+on:
+  pull_request:
+    paths: ['src/3d/**','scripts/checkFullTypeScriptOwnershipV14.mjs','tests/modern/typescriptOwnershipV14.test.ts','tests/modern/runtimeControlPlaneV14.test.ts','package.json','tsconfig.typed-legacy.json','.github/workflows/typescript-ownership-v14.yml']
+  push:
+    branches: [main]
+    paths: ['src/3d/**','scripts/checkFullTypeScriptOwnershipV14.mjs','tests/modern/typescriptOwnershipV14.test.ts','tests/modern/runtimeControlPlaneV14.test.ts','package.json','tsconfig.typed-legacy.json','.github/workflows/typescript-ownership-v14.yml']
+permissions:
+  contents: read
+jobs:
+  ownership:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:typescript-ownership
+      - run: npm run typecheck:typed-legacy
+      - run: npm run typecheck
+      - run: npm test -- --passWithNoTests
+      - run: npm run build:full

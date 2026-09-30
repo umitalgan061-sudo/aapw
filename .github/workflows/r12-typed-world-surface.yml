@@ -1,0 +1,52 @@
+name: R12 Typed World Surface
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/vegetation.ts'
+      - 'src/3d/world/vegetation.js'
+      - 'src/3d/world/terrainBiomeShading.ts'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/worldReferenceSurfacePindexes.ts'
+      - 'src/3d/world/worldReferenceSurfacePindexes.js'
+      - 'src/3d/world/terrain.ts'
+      - 'src/3d/world/villages.ts'
+      - 'src/3d/modern/migrationLedgerR12World.ts'
+      - 'tests/modern/typedWorldSurfaceR12.test.ts'
+      - 'scripts/checkTypedWorldSurfaceR12.mjs'
+      - '.github/workflows/r12-typed-world-surface.yml'
+      - 'package.json'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/3d/world/vegetation.ts'
+      - 'src/3d/world/terrainBiomeShading.ts'
+      - 'src/3d/world/worldReferenceSurfacePindexes.ts'
+      - 'src/3d/modern/migrationLedgerR12World.ts'
+      - 'tests/modern/typedWorldSurfaceR12.test.ts'
+      - 'scripts/checkTypedWorldSurfaceR12.mjs'
+      - '.github/workflows/r12-typed-world-surface.yml'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r12-world-surface-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:typed-world-surface-r12
+      - run: npm run test:typed-world-surface-r12
+      - run: npm run typecheck
+      - run: npm run build:modern

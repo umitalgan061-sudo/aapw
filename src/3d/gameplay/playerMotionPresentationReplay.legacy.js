@@ -1,0 +1,9 @@
+/** Deterministic replay facade for composite player motion presentation. */
+import { buildPlayerMotionPresentationState, comparePlayerMotionPresentationState } from './playerMotionPresentationState.js';
+export const PLAYER_MOTION_PRESENTATION_REPLAY_VERSION='2026-09-15-v1';
+function finite(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}function freeze(v){return Object.freeze(v);}
+export function replayPlayerMotionInputs(inputs=[]){let previous=null;const outputs=[];for(let i=0;i<inputs.length;i+=1){const state=buildPlayerMotionPresentationState(previous,inputs[i]);outputs.push(freeze({index:i,input:freeze({...inputs[i]}),state}));previous=state;}return freeze(outputs);}
+export function comparePlayerMotionReplays(a=[],b=[]){if(a.length!==b.length)return false;return a.every((x,i)=>x.index===b[i].index&&JSON.stringify(x.state)===JSON.stringify(b[i].state));}
+export function createPlayerMotionReplaySnapshot(inputs=[]){const outputs=replayPlayerMotionInputs(inputs);return freeze({version:PLAYER_MOTION_PRESENTATION_REPLAY_VERSION,count:outputs.length,outputs,finalState:outputs.at(-1)?.state??null});}
+export function validatePlayerMotionReplay(snapshot={}){const errors=[];if(snapshot.version!==PLAYER_MOTION_PRESENTATION_REPLAY_VERSION)errors.push('version');if(finite(snapshot.count)!==(snapshot.outputs?.length??0))errors.push('count');for(let i=1;i<(snapshot.outputs?.length??0);i+=1){if(!snapshot.outputs[i].state||!snapshot.outputs[i-1].state)errors.push(`state:${i}`);}return freeze({valid:errors.length===0,errors:freeze(errors)});}
+export function replayEquivalence(inputs=[]){const a=createPlayerMotionReplaySnapshot(inputs);const b=createPlayerMotionReplaySnapshot(inputs);return freeze({equivalent:comparePlayerMotionReplays(a.outputs,b.outputs),sameFinal:comparePlayerMotionPresentationState(a.finalState,b.finalState),validation:validatePlayerMotionReplay(a)});}

@@ -1,0 +1,12 @@
+import {describe,expect,it} from 'vitest';
+import * as THREE from 'three';
+import {celestialAltitudeWeightFromY,CELESTIAL_ASSET_POLICY,CELESTIAL_GEOGRAPHIC_RESPONSE_POLICY} from '../../src/3d/lighting.ts';
+import {createStarfield,updateStarfield,disposeStarfield,STARFIELD_POLICY} from '../../src/3d/stars.ts';
+import {installNightVisualEnhancement,updateNightVisualEnhancement,getNightVisualEnhancementSnapshot} from '../../src/3d/nightVisualEnhancement.ts';
+import {getCelestialLightState,publishCelestialLightState} from '../../src/3d/celestialLightState.ts';
+describe('typed render/audio migration wave 12',()=>{
+ it('keeps celestial policies physically bounded',()=>{expect(CELESTIAL_ASSET_POLICY.moonLightingAltitudeModulated).toBe(true);expect(CELESTIAL_GEOGRAPHIC_RESPONSE_POLICY.materialAuthorityUnchanged).toBe(true);expect(celestialAltitudeWeightFromY(-26)).toBe(0);expect(celestialAltitudeWeightFromY(198)).toBeGreaterThan(0);expect(celestialAltitudeWeightFromY(198)).toBeLessThanOrEqual(1);});
+ it('keeps the starfield deterministic for the same seed',()=>{const a=createStarfield(20260921),b=createStarfield(20260921);expect(STARFIELD_POLICY.deterministic).toBe(true);expect(Array.from(a.geometry.getAttribute('position').array.slice(0,18))).toEqual(Array.from(b.geometry.getAttribute('position').array.slice(0,18)));expect(a.geometry.getAttribute('aPhase').array).toEqual(b.geometry.getAttribute('aPhase').array);expect(a.geometry.getAttribute('aFreq').array).toEqual(b.geometry.getAttribute('aFreq').array);updateStarfield(a,new THREE.Vector3(10,20,30),12.5,.8);expect(a.position.x).toBe(10);expect(a.material.uniforms.uTime.value).toBe(12.5);expect(a.material.uniforms.uNightFactor.value).toBe(.8);disposeStarfield(a);disposeStarfield(b);});
+ it('keeps night readability attached to the canonical hemisphere light',()=>{const hemisphere=new THREE.HemisphereLight(0xffffff,0x000000,1);const fill=installNightVisualEnhancement(hemisphere);expect(fill.parent).toBe(hemisphere);expect(updateNightVisualEnhancement(hemisphere,1)).toBeCloseTo(.72,6);expect(getNightVisualEnhancementSnapshot(hemisphere).installed).toBe(true);});
+ it('keeps shared celestial state deterministic and frozen',()=>{const first=publishCelestialLightState({sunPosition:{x:0,y:100,z:0},sunColor:{r:1,g:1,b:1},sunIntensity:1,moonPosition:{x:0,y:-100,z:0},moonColor:{r:.8,g:.9,b:1},moonIntensity:.2,nightFactor:.25});expect(first).toBe(getCelestialLightState());expect(Object.isFrozen(first)).toBe(true);expect(first.intensity).toBe(1);expect(first.source).toBe('sun');});
+});

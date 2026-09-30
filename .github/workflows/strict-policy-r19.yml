@@ -1,0 +1,25 @@
+name: Kızıl Ufuk Strict Production Policy R19
+on:
+  pull_request:
+    paths:
+      - 'src/3d/audio/audioCurveMath.ts'
+      - 'src/3d/audio/audioCueScheduler.ts'
+      - 'src/3d/rendering/gpuPassBudget.ts'
+      - 'src/3d/rendering/renderMetricsCollector.ts'
+      - 'scripts/checkStrictPolicyR19.mjs'
+      - 'tests/modern/strictPolicyR19.test.ts'
+      - 'package.json'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install
+      - run: node scripts/checkStrictPolicyR19.mjs
+      - run: npm test -- tests/modern/strictPolicyR19.test.ts
+      - run: npm run typecheck

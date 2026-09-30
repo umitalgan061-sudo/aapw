@@ -1,19 +1,4 @@
-/** Deterministic read-only scheduler for authored environmental activity hints. */
-import { createWorldJourneyActivity } from './worldJourneyActivity.js';
-export const WORLD_ACTIVITY_SCHEDULER_VERSION=1;
-export const WORLD_ACTIVITY_WINDOWS=Object.freeze(['dawn','morning','midday','afternoon','dusk','evening','night']);
-export const WORLD_ACTIVITY_SCHEDULER_LIMITS=Object.freeze({maxEntries:16,maxPriority:5});
-const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
-const c=v=>Math.max(0,Math.min(1,n(v)));
-const freeze=(v,s=new Set())=>{if(!v||typeof v!=='object'||s.has(v))return v;s.add(v);Object.freeze(v);for(const x of Object.values(v))freeze(x,s);return v;};
-const stable=v=>v===null||typeof v!=='object'?JSON.stringify(v):Array.isArray(v)?`[${v.map(stable).join(',')}]`:`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;
-const digest=v=>{let h=2166136261,s=stable(v);for(let i=0;i<s.length;i+=1){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(16).padStart(8,'0');};
-function windowFor(hour){const h=((n(hour,12)%24)+24)%24;if(h<6)return'night';if(h<8)return'dawn';if(h<12)return'morning';if(h<15)return'midday';if(h<18)return'afternoon';if(h<20)return'dusk';return'evening';}
-const WINDOW_TYPES=Object.freeze({dawn:['travel','observe','farm'],morning:['farm','trade','gather','craft'],midday:['trade','social','travel'],afternoon:['farm','gather','craft','guard'],dusk:['travel','social','guard'],evening:['rest','social','craft'],night:['rest','observe','guard','quiet']});
-const WEATHER_BOOST=Object.freeze({clear:{observe:.1,gather:.12},cloud:{observe:.04},fog:{observe:-.2,guard:.14},rain:{rest:.2,farm:.08},snow:{rest:.24,observe:.04},storm:{rest:.34,guard:.28,observe:-.16},wind:{observe:.06},sleet:{rest:.22}});
-function scheduleScore(type,context,window,weather){const inWindow=WINDOW_TYPES[window]?.includes(type)?1:.46;const boost=WEATHER_BOOST[weather]?.[type]??0;const fatigue=c(n(context.activities?.find(a=>a.type==='rest')?.score,0));return c(.45*inWindow+.35*context.confidence+.2*fatigue+boost);}
-function entry(type,index,context,window,weather,mobile){const score=Math.round(scheduleScore(type,context,window,weather)*1000)/1000;const offset=Math.round((index+1)*(mobile?.75:1)*6);return{id:`${context.settlementId}:schedule:${window}:${type}:${index+1}`,type,window,weather,score,priority:Math.round((score+(type==='rest'&&weather==='storm'?.16:0))*1000)/1000,offsetMinutes:offset,mobile};}
-export function createWorldActivitySchedule(options={}){const context=createWorldJourneyActivity(options);const hour=n(options.hour,12);const window=windowFor(hour);const types=[...(WINDOW_TYPES[window]??[]),context.focus,context.topActivity];const unique=[...new Set(types)];const rows=unique.map((type,i)=>entry(type,i,context,window,context.weather,Boolean(options.mobile))).filter(x=>x.score>.3).sort((a,b)=>b.priority-a.priority||a.id.localeCompare(b.id)).slice(0,WORLD_ACTIVITY_SCHEDULER_LIMITS.maxEntries);const payload={version:1,settlementId:context.settlementId,stage:context.stage,mode:context.mode,window,weather:context.weather,entryCount:rows.length,entries:rows,priority:rows.slice(0,WORLD_ACTIVITY_SCHEDULER_LIMITS.maxPriority),ownership:{readOnly:true,noTimerOwnership:true,noWorldMutation:true,noActivityMutation:true}};return freeze({...payload,fingerprint:digest(payload)});}
-export function validateWorldActivitySchedule(v){const s=v&&typeof v==='object'?v:{};const e=[];if(!WORLD_ACTIVITY_WINDOWS.includes(s.window))e.push('window');if(s.entryCount>16)e.push('entry-cap');if(s.priority?.length>5)e.push('priority-cap');if(s.entries?.some(x=>x.score<0||x.score>1))e.push('score');if(!s.ownership?.readOnly||!s.ownership?.noWorldMutation)e.push('ownership');return freeze({ok:e.length===0,errors:e,fingerprint:s.fingerprint??digest(s)});}
-export function summarizeWorldActivitySchedule(o={}){const x=createWorldActivitySchedule(o);return freeze({settlementId:x.settlementId,window:x.window,weather:x.weather,mode:x.mode,top:x.priority[0]?.type??null,entryCount:x.entryCount,fingerprint:x.fingerprint});}
-export const WORLD_ACTIVITY_SCHEDULER_API=Object.freeze({version:1,windows:[...WORLD_ACTIVITY_WINDOWS],maxEntries:16,maxPriority:5,create:'createWorldActivitySchedule',validate:'validateWorldActivitySchedule',summary:'summarizeWorldActivitySchedule'});
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './worldActivityScheduler.ts';
+export * from './worldActivityScheduler.ts';
+export default __typed.default;

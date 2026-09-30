@@ -1,0 +1,28 @@
+name: Kızıl Ufuk Strict Render Hardening R11
+on:
+  pull_request:
+    paths:
+      - 'src/3d/rendering/gpuPressureModel.ts'
+      - 'src/3d/rendering/gpuPressureModel.js'
+      - 'src/3d/rendering/renderPassBudgetPlanner.ts'
+      - 'src/3d/rendering/renderPassBudgetPlanner.js'
+      - 'src/3d/rendering/dynamicResolutionGovernor.ts'
+      - 'src/3d/rendering/dynamicResolutionGovernor.js'
+      - 'src/3d/rendering/nextGenRenderOrchestrator.ts'
+      - 'src/3d/modern/migrationLedgerR11.ts'
+      - 'scripts/checkStrictRenderHardeningR11.mjs'
+      - 'tests/modern/strictRenderHardeningR11.test.ts'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install
+      - run: node scripts/checkStrictRenderHardeningR11.mjs
+      - run: npm run typecheck
+      - run: npm test -- tests/modern/strictRenderHardeningR11.test.ts

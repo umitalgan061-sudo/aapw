@@ -1,0 +1,97 @@
+name: Modern Game3D Entry R1
+
+on:
+  pull_request:
+    paths:
+      - 'game3d.html'
+      - 'src/3d/modern/**'
+      - 'scripts/checkModernGameEntry.mjs'
+      - 'scripts/generateModernGameEntryMatrix.mjs'
+      - '.github/workflows/modern-game-entry-r1.yml'
+  push:
+    branches:
+      - agent/modern-game-entry-cutover-r1-20260916
+    paths:
+      - 'game3d.html'
+      - 'src/3d/modern/**'
+      - 'scripts/checkModernGameEntry.mjs'
+      - 'scripts/generateModernGameEntryMatrix.mjs'
+      - '.github/workflows/modern-game-entry-r1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: modern-game-entry-r1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - name: Install
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Modern platform verification
+        run: npm run verify:modern
+      - name: Strict TypeScript check
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test -- --passWithNoTests
+      - name: Modern production build
+        run: npm run build:modern
+      - name: Generate 4,096-case entry corpus
+        run: node scripts/generateModernGameEntryMatrix.mjs
+      - name: Entry acceptance
+        run: node scripts/checkModernGameEntry.mjs
+      - name: Structural diff guard
+        run: |
+          git diff --check
+          test -s artifacts/modern-game-entry-r1/entry-policy.matrix
+          test "$(grep -c '^{' artifacts/modern-game-entry-r1/entry-policy.matrix)" -eq 4096
+          test "$(grep -c '^entry-' artifacts/modern-game-entry-r1/entry-policy.matrix)" -eq 4096
+      - name: Materialize acceptance corpus
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f artifacts/modern-game-entry-r1/entry-policy.matrix
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "test(modern): materialize 4096 entry cases [skip ci]"
+          git push origin HEAD:agent/modern-game-entry-cutover-r1-20260916
+
+  determinism:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Rebuild and execute entry acceptance twice
+        run: |
+          npm run typecheck
+          npm run build:modern
+          node scripts/checkModernGameEntry.mjs
+          node scripts/checkModernGameEntry.mjs
+      - name: Guard unsafe entry primitives
+        run: |
+          set -eu
+          for file in src/3d/modern/gameEntry.ts src/3d/modern/entryGate.ts; do
+            if grep -nE 'eval\(|new Function\(|document\.write\(' "$file"; then
+              echo "Unsafe dynamic entry primitive found in $file"
+              exit 1
+            fi
+          done
