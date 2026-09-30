@@ -36,7 +36,7 @@ export class R16SaveMigrationPipeline{
   migrate(envelope:R16SaveEnvelope,target=this.#latest):R16Result<R16SaveEnvelope>{
     const validation=this.validate(envelope);if(!validation.accepted)return{ok:false,error:{code:'SAVE_INVALID',message:validation.reason??'Invalid save envelope',retryable:false}};
     const boundedTarget=Math.min(this.#latest,Math.max(validation.version,Math.trunc(target)));let state=envelope.state;let version=validation.version;
-    while(version<boundedTarget){const step=this.#steps.get(version);if(!step)return{ok:false,error:{code:'SAVE_MIGRATION_MISSING',message:'Missing migration from v'+version,retryable:false};}state=freezeState(step.apply(state));version=step.to;}
+    while(version<boundedTarget){const step=this.#steps.get(version);if(!step)return{ok:false,error:{code:'SAVE_MIGRATION_MISSING',message:'Missing migration from v'+version,retryable:false}};state=freezeState(step.apply(state));version=step.to;}
     const createdTick=toInt(envelope.createdTick);const digest=digestValue({schema:this.#schema,version,createdTick,state});
     return{ok:true,value:Object.freeze({schema:this.#schema,version,createdTick,state,digest})};
   }
