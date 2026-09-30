@@ -17,7 +17,7 @@
 
 type UnknownRecord = Record<string, unknown>;
 type EquipmentItem = UnknownRecord;
-type PlayerObject3DLike = { userData?: UnknownRecord; name?: string };
+type PlayerObject3DLike = { userData: UnknownRecord; name?: string; traverse?: (callback: (node: unknown) => void) => void };
 type AttackKind = 'light' | 'heavy';
 type SlotName = 'head' | 'chest' | 'back' | 'mainHand' | 'offHand';
 type PlayerEquipmentSlots = Readonly<Record<SlotName, EquipmentItem | null>>;
@@ -530,21 +530,24 @@ export function resolvePlayerAttackTuning(base: unknown, profile: PlayerResolved
 export function resolvePlayerAnimationPlan(profile: PlayerResolvedEquipmentProfile | null | undefined, { movementState = 'idle', attackKind = 'none', comboStep = 0, speedMps = 0, grounded = true }: { movementState?: string; attackKind?: string; comboStep?: unknown; speedMps?: unknown; grounded?: unknown } = {}): PlayerAnimationPlan {
   const resolved = profile || resolvePlayerEquipmentCombatProfile();
   const family = resolved.mainHand.animationFamily || resolved.armor.animationFamily || 'light';
-  const aliases = ANIMATION_FAMILY_ALIASES[family] || ANIMATION_FAMILY_ALIASES['arming-sword'];
+  const animationFamilies = ANIMATION_FAMILY_ALIASES as unknown as Record<string, AnimationAliasSet>;
+  const aliases = animationFamilies[family] ?? animationFamilies['arming-sword']!;
   let action = aliases.idle;
   if (movementState === 'dodge') action = aliases.dodge;
   else if (movementState === 'parry') action = aliases.parry;
   else if (movementState === 'hit-stagger' || movementState === 'guard-break') action = aliases.hit;
   else if (movementState === 'guard') action = aliases.guard;
   else if (attackKind === 'light' || attackKind === 'heavy') action = aliases[attackKind] || aliases.idle;
-  else if (speedMps > 4.2) action = aliases.running;
-  else if (speedMps > 0.15) action = aliases.walking;
-  const weight = attackKind === 'none' ? 1 : clamp(0.84 + Math.min(0.16, Math.max(0, comboStep - 1) * 0.08), 0, 1);
+  const safeSpeedMps = finiteOr(speedMps, 0);
+  const safeComboStep = finiteOr(comboStep, 0);
+  if (attackKind !== 'light' && attackKind !== 'heavy' && speedMps > 4.2) action = aliases.running;
+  else if (attackKind !== 'light' && attackKind !== 'heavy' && safeSpeedMps > 0.15) action = aliases.walking;
+  const weight = attackKind === 'none' ? 1 : clamp(0.84 + Math.min(0.16, Math.max(0, safeComboStep - 1) * 0.08), 0, 1);
   const timeScale = attackKind === 'heavy' ? 0.92 : attackKind === 'light' ? 1 : movementState === 'dodge' ? 1.45 : 1;
   return freezeDeep({
     family,
     action,
-    comboStep: clamp(Math.floor(finiteOr(comboStep, 0)), 0, 3),
+    comboStep: clamp(Math.floor(safeComboStep), 0, 3),
     weight,
     timeScale,
     grounded: Boolean(grounded),
@@ -653,7 +656,8 @@ export function auditPlayerEquipmentProfile(profile: PlayerResolvedEquipmentProf
 export function createPlayerEquipmentRuntime({ getEquipment = () => ({}), object3D = null, now = () => 0 }: { getEquipment?: (() => unknown) | unknown; object3D?: PlayerObject3DLike | null; now?: () => number } = {}) {
   let disposed = false;
   let revision = 0;
-  let snapshot = buildPlayerEquipmentRuntimeSnapshot({ object: object3D, equipment: getEquipment?.() || {}, now });
+  const initialEquipment = typeof getEquipment === 'function' ? getEquipment() : getEquipment;
+  let snapshot = buildPlayerEquipmentRuntimeSnapshot({ object: object3D, equipment: initialEquipment || {}, now });
 
   function refresh(): PlayerEquipmentRuntimeSnapshot {
     if (disposed) return snapshot;
@@ -672,11 +676,13 @@ export function createPlayerEquipmentRuntime({ getEquipment = () => ({}), object
 }
 
 export function isSupportedPlayerWeaponId(value: unknown): boolean {
-  return Boolean(PLAYER_WEAPON_PROFILES[normalizeId(value, '')]);
+  const table = PLAYER_WEAPON_PROFILES as unknown as Record<string, PlayerWeaponProfile>;
+  return Boolean(table[normalizeId(value, '')]);
 }
 
 export function isSupportedPlayerArmorId(value: unknown): boolean {
-  return Boolean(PLAYER_ARMOR_PROFILES[normalizeId(value, '')]);
+  const table = PLAYER_ARMOR_PROFILES as unknown as Record<string, PlayerArmorProfile>;
+  return Boolean(table[normalizeId(value, '')]);
 }
 
 export { SLOT_ALIASES, SOCKET_CANDIDATES, ANIMATION_FAMILY_ALIASES };
