@@ -34,3 +34,7 @@ export * from './securityAudit.js';
 export * from './runtimeGuard.js';
 export * from './replayController.js';
 export * from './platformSnapshot.js';
+export * from './determinismMonitor.js';
+export * from './faultInjection.js';
+export * from './renderBudgetBridge.js';
+export * from './assetIntegrity.js';
