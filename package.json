@@ -142,7 +142,11 @@
     "verify:strict-core-r15": "node scripts/checkStrictCoreR15.mjs",
     "typecheck:strict-core-r15": "tsc -p tsconfig.strict-core-r15.json --noEmit",
     "test:strict-render-r15": "vitest run tests/modern/strictRenderFramePacketR15.test.ts",
-    "check:strict-core-r15": "npm run verify:strict-core-r15 && npm run typecheck:strict-core-r15 && npm run test:strict-render-r15"
+    "check:strict-core-r15": "npm run verify:strict-core-r15 && npm run typecheck:strict-core-r15 && npm run test:strict-render-r15",
+    "verify:r31": "node scripts/checkStrictRuntimeR31.mjs",
+    "typecheck:r31": "tsc -p tsconfig.strict-runtime-r31.json --noEmit",
+    "test:r31": "vitest run tests/modern/r31 --passWithNoTests",
+    "check:r31": "npm run verify:r31 && npm run typecheck:r31 && npm run test:r31"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
