@@ -134,7 +134,11 @@
     "verify:player-modern-r1": "node scripts/checkPlayerModernizationR1.mjs",
     "verify:typed-world-migration-r10b": "node scripts/checkTypedWorldMigrationR10b.mjs",
     "test:typed-world-migration-r10b": "npm test -- tests/modern/typedWorldMigrationR10b.test.ts",
-    "check:typed-world-migration-r10b": "npm run verify:typed-world-migration-r10b && npm run test:typed-world-migration-r10b && npm run typecheck"
+    "check:typed-world-migration-r10b": "npm run verify:typed-world-migration-r10b && npm run test:typed-world-migration-r10b && npm run typecheck",
+    "verify:strict-core-r15": "node scripts/checkStrictCoreR15.mjs",
+    "typecheck:strict-core-r15": "tsc -p tsconfig.strict-core-r15.json --noEmit",
+    "test:strict-render-r15": "vitest run tests/modern/strictRenderFramePacketR15.test.ts",
+    "check:strict-core-r15": "npm run verify:strict-core-r15 && npm run typecheck:strict-core-r15 && npm run test:strict-render-r15"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
