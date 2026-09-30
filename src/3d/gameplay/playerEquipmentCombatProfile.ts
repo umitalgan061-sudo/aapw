@@ -17,6 +17,7 @@
 
 type UnknownRecord = Record<string, unknown>;
 type EquipmentItem = UnknownRecord;
+type PlayerObject3DLike = { userData?: UnknownRecord; name?: string };
 type AttackKind = 'light' | 'heavy';
 type SlotName = 'head' | 'chest' | 'back' | 'mainHand' | 'offHand';
 type PlayerEquipmentSlots = Readonly<Record<SlotName, EquipmentItem | null>>;
@@ -396,7 +397,7 @@ function readWeaponProfile(item: unknown): PlayerWeaponProfile {
   const id = readItemId(source, DEFAULT_WEAPON_ID);
   const explicitType = normalizeId(source.weaponType ?? source.type ?? source.category, '');
   const weaponTable = PLAYER_WEAPON_PROFILES as unknown as Record<string, PlayerWeaponProfile>;
-  const profile = weaponTable[id] ?? weaponTable[explicitType] ?? Object.values(weaponTable).find((candidate) => candidate.id === id) ?? weaponTable[DEFAULT_WEAPON_ID];
+  const profile = (weaponTable[id] ?? weaponTable[explicitType] ?? Object.values(weaponTable).find((candidate) => candidate.id === id) ?? weaponTable[DEFAULT_WEAPON_ID])!;
   const overrides = asRecord(source.combat ?? source.stats ?? source.weaponStats);
   return {
     ...profile,
@@ -425,7 +426,7 @@ function readArmorProfile(items: PlayerEquipmentSlots): PlayerArmorProfile {
   const sourceRecord = asRecord(source);
   const explicitType = normalizeId(sourceRecord.armorType ?? sourceRecord.type ?? sourceRecord.category, '');
   const armorTable = PLAYER_ARMOR_PROFILES as unknown as Record<string, PlayerArmorProfile>;
-  const profile = armorTable[id] ?? armorTable[explicitType] ?? Object.values(armorTable).find((candidate) => candidate.id === id) ?? armorTable[DEFAULT_ARMOR_ID];
+  const profile = (armorTable[id] ?? armorTable[explicitType] ?? Object.values(armorTable).find((candidate) => candidate.id === id) ?? armorTable[DEFAULT_ARMOR_ID])!;
   const stats = asRecord(sourceRecord.armor ?? sourceRecord.stats ?? sourceRecord.armorStats);
   const extraPoise = finiteOr(stats.poiseBonus, 0);
   return {
@@ -450,7 +451,7 @@ function normalizeSlotSnapshot(snapshot: unknown = {}): PlayerEquipmentSlots {
   for (const slot of Object.keys(aliases) as SlotName[]) {
     const aliasSet = new Set(aliases[slot]);
     const candidate = Object.entries(source).find(([key]) => aliasSet.has(normalizeId(key, '')))?.[1];
-    result[slot] = asRecord(candidate);
+    result[slot] = candidate && typeof candidate === 'object' && !Array.isArray(candidate) ? candidate as EquipmentItem : null;
   }
   return Object.freeze(result) as PlayerEquipmentSlots;
 }
@@ -486,7 +487,7 @@ export function resolvePlayerEquipmentCombatProfile(snapshot: unknown = {}): Pla
 
 function phaseFor(kind: AttackKind): Readonly<{ activeStart: number; activeEnd: number; duration: number; reach: number; damageScale: number; commitMeters: number }> {
   const phases = ATTACK_PHASES as unknown as Record<AttackKind, Readonly<{ activeStart: number; activeEnd: number; duration: number; reach: number; damageScale: number; commitMeters: number }>>;
-  return phases[kind] ?? phases[DEFAULT_ATTACK_KIND];
+  return (phases[kind] ?? phases[DEFAULT_ATTACK_KIND])!;
 }
 
 export function resolvePlayerAttackTuning(base: unknown, profile: PlayerResolvedEquipmentProfile | null | undefined, kind: AttackKind = DEFAULT_ATTACK_KIND): PlayerAttackTuning {
@@ -552,7 +553,7 @@ export function resolvePlayerAnimationPlan(profile: PlayerResolvedEquipmentProfi
   });
 }
 
-function findSocketName(root: unknown, slot: SlotName): string | null {
+function findSocketName(root: PlayerObject3DLike | unknown, slot: SlotName): string | null {
   const candidates = new Set((SOCKET_CANDIDATES as unknown as Record<SlotName, readonly string[]>)[slot] ?? []);
   let found: string | null = null;
   const traverse = (asRecord(root).traverse);
@@ -649,7 +650,7 @@ export function auditPlayerEquipmentProfile(profile: PlayerResolvedEquipmentProf
   return freezeDeep({ ok: errors.length === 0, errors, warnings });
 }
 
-export function createPlayerEquipmentRuntime({ getEquipment = () => ({}), object3D = null, now = () => 0 }: { getEquipment?: (() => unknown) | unknown; object3D?: UnknownRecord | null; now?: () => number } = {}) {
+export function createPlayerEquipmentRuntime({ getEquipment = () => ({}), object3D = null, now = () => 0 }: { getEquipment?: (() => unknown) | unknown; object3D?: PlayerObject3DLike | null; now?: () => number } = {}) {
   let disposed = false;
   let revision = 0;
   let snapshot = buildPlayerEquipmentRuntimeSnapshot({ object: object3D, equipment: getEquipment?.() || {}, now });
