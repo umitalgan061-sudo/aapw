@@ -150,7 +150,11 @@
     "verify:r31": "node scripts/checkStrictRuntimeR31.mjs",
     "typecheck:r31": "tsc -p tsconfig.strict-runtime-r31.json --noEmit",
     "test:r31": "vitest run tests/modern/r31 --passWithNoTests",
-    "check:r31": "npm run verify:r31 && npm run typecheck:r31 && npm run test:r31"
+    "check:r31": "npm run verify:r31 && npm run typecheck:r31 && npm run test:r31",
+    "verify:r32": "node scripts/checkModernPlatformR32.mjs",
+    "typecheck:r32": "tsc -p tsconfig.modern-r32.json --noEmit",
+    "test:r32": "vitest run tests/modern/r32",
+    "check:r32": "npm run verify:r32 && npm run typecheck:r32 && npm run test:r32"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
