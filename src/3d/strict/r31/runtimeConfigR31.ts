@@ -42,8 +42,8 @@ export const DEFAULT_RUNTIME_CONFIG_R31: RuntimeConfigR31 = Object.freeze({
 });
 
 export function normalizeRuntimeConfigR31(input: Partial<RuntimeConfigR31>): RuntimeConfigR31 {
-  const quality = input.quality ?? {};
-  const sourceBudget = input.budget ?? {};
+  const quality = (input.quality ?? {}) as Partial<RuntimeQualityConfigR31>;
+  const sourceBudget = (input.budget ?? {}) as Partial<RuntimeBudgetR31>;
   return Object.freeze({
     version: 31,
     worldSeed: Number.isFinite(input.worldSeed) ? Math.trunc(input.worldSeed as number) : DEFAULT_RUNTIME_CONFIG_R31.worldSeed,
