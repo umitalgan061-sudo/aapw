@@ -8,6 +8,7 @@ import {
   validatePlayerEquipmentRuntimeInput,
 } from '../../src/3d/gameplay/playerEquipmentCombatRules.ts';
 import { resolvePlayerEquipmentCombatProfile } from '../../src/3d/gameplay/playerEquipmentCombatProfile.ts';
+import { createPlayerEquipmentCombatRuntime } from '../../src/3d/gameplay/playerEquipmentCombatRuntime.ts';
 
 const longswordShieldPlate = {
   mainHand: { id: 'longsword' },
@@ -16,6 +17,22 @@ const longswordShieldPlate = {
 };
 
 describe('Kızıl Ufuk strict equipment/combat rules', () => {
+  it('does not treat equivalent equipment objects with different key order as changes', () => {
+    const target = new EventTarget();
+    const model = { name: 'player', userData: {}, position: { x: 0, y: 0, z: 0 }, traverse() {} };
+    const player = { object3D: model, getMotionState: () => ({ state: 'idle', stamina: 100, staminaRatio: 1, poise: 100, poiseRatio: 1, isGrounded: true, speedMps: 0, attackKind: 'none', attackActive: false, attackComboStep: 0, guarding: false, defenseResult: 'none' }) };
+    let equipment: Record<string, unknown> = { mainHand: { id: 'longsword' }, offHand: { id: 'shield' }, chest: { id: 'plate' } };
+    const runtime = createPlayerEquipmentCombatRuntime({ player, target, equipmentProvider: () => equipment, now: () => 100, emitFrames: false });
+    const initialRevision = runtime.read().revision;
+    equipment = { chest: { id: 'plate' }, offHand: { id: 'shield' }, mainHand: { id: 'longsword' } };
+    runtime.update(0.016, 101);
+    expect(runtime.read().revision).toBe(initialRevision);
+    equipment = { mainHand: { id: 'greatsword' }, offHand: { id: 'shield' }, chest: { id: 'plate' } };
+    runtime.update(0.016, 102);
+    expect(runtime.read().revision).toBe(initialRevision + 1);
+    runtime.dispose();
+  });
+
   it('keeps empty equipment slots nullable while resolving an unarmed baseline', () => {
     const profile = resolvePlayerEquipmentCombatProfile({});
     expect(profile.slots.mainHand).toBeNull();
