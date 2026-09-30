@@ -23,7 +23,7 @@ export class ServiceWorkerClient {
   }
 
   async register(): Promise<ServiceWorkerRegistrationResult> {
-    if (!('serviceWorker' in navigator)) {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
       return { supported: false, registered: false, controlled: false, reason: 'service-worker-unavailable' };
     }
     try {
