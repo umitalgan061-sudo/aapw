@@ -147,7 +147,8 @@
     "test:player-presentation-policies": "vitest run tests/modern/playerPresentationPoliciesStrict.test.ts",
     "check:player-presentation-policies": "npm run typecheck:player-presentation-policies && npm run test:player-presentation-policies",
     "test:health-typed": "vitest run tests/modern/healthTyped.test.ts",
-    "check:health-typed": "npm run typecheck:player-presentation-policies && npm run test:health-typed"
+    "check:health-typed": "npm run typecheck:player-presentation-policies && npm run test:health-typed",
+    "test:player-animation-signals": "vitest run tests/modern/playerAnimationSignalSanitizerStrict.test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
