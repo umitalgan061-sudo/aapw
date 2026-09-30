@@ -62,6 +62,7 @@ export class WorldSpatialRuntimeR26 {
   readonly #cellSize: number;
   readonly #items = new Map<string, SpatialItemR26>();
   readonly #cells = new Map<string, Set<string>>();
+  #maxRadius = 0;
   #revision = 0;
 
   constructor(cellSizeMeters = 32) {
@@ -87,6 +88,7 @@ export class WorldSpatialRuntimeR26 {
       tags: Object.freeze([...new Set(item.tags.map(clean).filter(Boolean))].sort()),
     });
     this.#items.set(id, normalized);
+    this.#maxRadius = Math.max(this.#maxRadius, normalized.radius);
     this.#cellAdd(normalized);
     this.#revision += 1;
   }
@@ -114,6 +116,10 @@ export class WorldSpatialRuntimeR26 {
     if (!current) return false;
     this.#items.delete(key);
     this.#cellRemove(current);
+    if (current.radius >= this.#maxRadius) {
+      this.#maxRadius = 0;
+      for (const item of this.#items.values()) this.#maxRadius = Math.max(this.#maxRadius, item.radius);
+    }
     this.#revision += 1;
     return true;
   }
@@ -236,12 +242,14 @@ export class WorldSpatialRuntimeR26 {
     if (snapshot.version !== 1) throw new Error('R26_SPATIAL_VERSION');
     this.#items.clear();
     this.#cells.clear();
+    this.#maxRadius = 0;
     for (const item of snapshot.items) {
       const normalized = Object.freeze({
         ...item,
         tags: Object.freeze([...item.tags].sort()),
       });
       this.#items.set(normalized.id, normalized);
+      this.#maxRadius = Math.max(this.#maxRadius, normalized.radius);
       this.#cellAdd(normalized);
     }
     this.#revision += 1;
@@ -276,11 +284,13 @@ export class WorldSpatialRuntimeR26 {
   clear(): void {
     this.#items.clear();
     this.#cells.clear();
+    this.#maxRadius = 0;
     this.#revision += 1;
   }
 
   #candidateIds(center: { x: number; y: number; z: number }, radius: number): readonly string[] {
-    const cells = this.queryCells(center, Math.ceil(radius / this.#cellSize));
+    const searchRadius = radius + this.#maxRadius;
+    const cells = this.queryCells(center, Math.ceil(searchRadius / this.#cellSize));
     const ids = new Set<string>();
     for (const cell of cells) {
       for (const id of this.#cells.get(cell) ?? []) ids.add(id);

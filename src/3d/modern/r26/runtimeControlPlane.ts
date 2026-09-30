@@ -1,5 +1,7 @@
 import type { AssetPipelineR26 } from './assetPipeline.ts';
 import type { NetworkSessionR26 } from './networkTransport.ts';
+
+type NetworkStatsProviderR26 = Pick<NetworkSessionR26<unknown>, 'stats'>;
 import type { RenderPipelineR26 } from './renderPipeline.ts';
 import type { SimulationKernelR26 } from './simulationKernel.ts';
 
@@ -60,7 +62,7 @@ export class RuntimeControlPlaneR26 {
   readonly #simulation: SimulationKernelR26;
   readonly #renderer: RenderPipelineR26;
   readonly #assets: AssetPipelineR26;
-  readonly #network: NetworkSessionR26<unknown>;
+  readonly #network: NetworkStatsProviderR26;
   readonly #policy: RuntimeControlPolicyR26;
 
   #mode: RuntimeModeR26 = 'boot';

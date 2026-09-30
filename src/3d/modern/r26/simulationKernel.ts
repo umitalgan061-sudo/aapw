@@ -340,13 +340,44 @@ export class SimulationKernelR26 {
   }
 
   #orderedTasks(phase: SimulationPhaseR26): readonly SimulationTaskR26[] {
-    return [...this.#tasks.values()]
-      .filter((task) => task.phase === phase)
-      .sort((a, b) =>
-        b.priority - a.priority ||
-        a.dependencies.length - b.dependencies.length ||
-        a.id.localeCompare(b.id),
-      );
+    const phaseTasks = [...this.#tasks.values()].filter((task) => task.phase === phase);
+    const ids = new Set(phaseTasks.map((task) => task.id));
+    const indegree = new Map<string, number>();
+    const dependents = new Map<string, string[]>();
+
+    for (const task of phaseTasks) {
+      const dependencies = task.dependencies.filter((dependency) => ids.has(dependency));
+      indegree.set(task.id, dependencies.length);
+      for (const dependency of dependencies) {
+        const list = dependents.get(dependency) ?? [];
+        list.push(task.id);
+        dependents.set(dependency, list);
+      }
+    }
+
+    const ready = phaseTasks
+      .filter((task) => (indegree.get(task.id) ?? 0) === 0)
+      .sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
+    const ordered: SimulationTaskR26[] = [];
+
+    while (ready.length) {
+      const next = ready.shift()!;
+      ordered.push(next);
+      for (const dependentId of [...(dependents.get(next.id) ?? [])].sort()) {
+        const nextDegree = (indegree.get(dependentId) ?? 0) - 1;
+        indegree.set(dependentId, nextDegree);
+        if (nextDegree !== 0) continue;
+        const dependent = this.#tasks.get(dependentId);
+        if (!dependent) continue;
+        ready.push(dependent);
+        ready.sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
+      }
+    }
+
+    if (ordered.length !== phaseTasks.length) {
+      throw new Error('R26_TASK_PHASE_CYCLE');
+    }
+    return Object.freeze(ordered);
   }
 
   #assertNoCycle(): void {

@@ -1,377 +1,397 @@
-export type AssetStateR26 =
+import { stableDigest } from './deterministic.ts';
+
+export type AssetGraphState =
   | 'declared'
   | 'queued'
   | 'loading'
   | 'ready'
-  | 'stale'
   | 'failed'
+  | 'blocked'
   | 'cancelled';
 
-export type AssetPriorityR26 =
-  | 'critical'
-  | 'high'
-  | 'normal'
-  | 'low'
-  | 'background';
+export type AssetGraphPriority = 'critical' | 'high' | 'normal' | 'low' | 'background';
 
-export interface AssetSpecR26 {
+export interface AssetGraphNode {
   readonly id: string;
   readonly url: string;
   readonly kind: string;
   readonly dependencies: readonly string[];
-  readonly priority: AssetPriorityR26;
+  readonly priority: AssetGraphPriority;
   readonly estimatedBytes: number;
   readonly optional: boolean;
-  readonly tags: readonly string[];
-}
-
-export interface AssetRecordR26 extends AssetSpecR26 {
-  readonly state: AssetStateR26;
-  readonly attempts: number;
-  readonly residentBytes: number;
-  readonly lastAccessFrame: number;
+  readonly state: AssetGraphState;
   readonly revision: number;
+  readonly attempts: number;
   readonly error: string | null;
 }
 
-export interface AssetLoadContextR26 {
-  readonly signal: AbortSignal;
-  readonly attempt: number;
-  readonly priority: AssetPriorityR26;
-}
-
-export interface AssetLoadResultR26 {
-  readonly bytes: number;
-  readonly payload: unknown;
-}
-
-export type AssetLoaderR26 = (
-  spec: AssetSpecR26,
-  context: AssetLoadContextR26,
-) => Promise<AssetLoadResultR26>;
-
-export interface AssetBudgetR26 {
+export interface AssetGraphBudget {
+  readonly maxConcurrent: number;
   readonly maxResidentBytes: number;
   readonly maxInFlightBytes: number;
-  readonly maxConcurrent: number;
   readonly maxRetries: number;
 }
 
-export interface AssetPlanR26 {
-  readonly start: readonly string[];
-  readonly blocked: readonly string[];
-  readonly evict: readonly string[];
-  readonly pressure: number;
+export interface AssetLoadPlanItem {
+  readonly id: string;
+  readonly priority: AssetGraphPriority;
+  readonly dependencies: readonly string[];
+  readonly estimatedBytes: number;
+  readonly reason: 'ready' | 'dependency' | 'priority' | 'prefetch';
 }
 
-const priorityWeight = (value: AssetPriorityR26): number =>
-  ({ critical: 5, high: 4, normal: 3, low: 2, background: 1 })[value];
+export interface AssetGraphSnapshot {
+  readonly version: 1;
+  readonly revision: number;
+  readonly nodes: readonly AssetGraphNode[];
+  readonly digest: string;
+}
 
-const clean = (value: string): string => value.trim().slice(0, 128);
-const bytes = (value: number): number =>
-  Math.max(0, Number.isFinite(value) ? Math.floor(value) : 0);
+const priorityWeight = (priority: AssetGraphPriority): number =>
+  ({ critical: 5, high: 4, normal: 3, low: 2, background: 1 })[priority];
 
-export class AssetPipelineR26 {
-  readonly #records = new Map<string, AssetRecordR26>();
-  readonly #controllers = new Map<string, AbortController>();
-  readonly #budget: AssetBudgetR26;
+const cleanId = (value: string): string => value.trim().slice(0, 128);
+const cleanUrl = (value: string): string => value.trim().slice(0, 2048);
+const safeBytes = (value: number): number => Math.max(0, Number.isFinite(value) ? Math.floor(value) : 0);
+
+export class AssetGraphV3 {
+  readonly #nodes = new Map<string, AssetGraphNode>();
+  readonly #dependents = new Map<string, Set<string>>();
+  readonly #budget: AssetGraphBudget;
   #residentBytes = 0;
   #inFlightBytes = 0;
   #inFlight = 0;
   #revision = 0;
-  #frame = 0;
-  #disposed = false;
 
-  constructor(
-    private readonly loader: AssetLoaderR26,
-    budget: Partial<AssetBudgetR26> = {},
-  ) {
+  constructor(budget: Partial<AssetGraphBudget> = {}) {
     this.#budget = Object.freeze({
-      maxResidentBytes: Math.max(1024 * 1024, bytes(budget.maxResidentBytes ?? 512 * 1024 * 1024)),
-      maxInFlightBytes: Math.max(1024 * 1024, bytes(budget.maxInFlightBytes ?? 128 * 1024 * 1024)),
-      maxConcurrent: Math.max(1, Math.floor(budget.maxConcurrent ?? 6)),
+      maxConcurrent: Math.max(1, Math.floor(budget.maxConcurrent ?? 8)),
+      maxResidentBytes: Math.max(1024, safeBytes(budget.maxResidentBytes ?? 512 * 1024 * 1024)),
+      maxInFlightBytes: Math.max(1024, safeBytes(budget.maxInFlightBytes ?? 128 * 1024 * 1024)),
       maxRetries: Math.max(0, Math.floor(budget.maxRetries ?? 2)),
     });
   }
 
-  declare(spec: AssetSpecR26): AssetRecordR26 {
-    this.#assertLive();
-    const id = clean(spec.id);
-    if (!id) throw new Error('R26_ASSET_ID_EMPTY');
-    if (this.#records.has(id)) throw new Error(`R26_ASSET_DUPLICATE:${id}`);
+  declare(node: Omit<AssetGraphNode, 'state' | 'revision' | 'attempts' | 'error'>): AssetGraphNode {
+    const id = cleanId(node.id);
+    if (!id) throw new Error('Asset id cannot be empty.');
+    if (this.#nodes.has(id)) throw new Error(`Asset ${id} already exists.`);
     const normalized = Object.freeze({
       id,
-      url: spec.url.trim().slice(0, 2048),
-      kind: spec.kind.trim().slice(0, 64),
-      dependencies: Object.freeze([...new Set(spec.dependencies.map(clean).filter(Boolean))].sort()),
-      priority: spec.priority,
-      estimatedBytes: bytes(spec.estimatedBytes),
-      optional: spec.optional === true,
-      tags: Object.freeze([...new Set(spec.tags.map((tag) => tag.trim().slice(0, 48)).filter(Boolean))].sort()),
+      url: cleanUrl(node.url),
+      kind: String(node.kind).trim().slice(0, 64),
+      dependencies: Object.freeze([...new Set(node.dependencies.map(cleanId).filter(Boolean))].sort()),
+      priority: node.priority,
+      estimatedBytes: safeBytes(node.estimatedBytes),
+      optional: node.optional === true,
       state: 'declared' as const,
-      attempts: 0,
-      residentBytes: 0,
-      lastAccessFrame: 0,
       revision: ++this.#revision,
+      attempts: 0,
       error: null,
     });
-    this.#records.set(id, normalized);
-    this.#detectCycle(id);
+    this.#assertNoCycle(id, normalized.dependencies);
+    this.#nodes.set(id, normalized);
+    for (const dependency of normalized.dependencies) {
+      const set = this.#dependents.get(dependency) ?? new Set<string>();
+      set.add(id);
+      this.#dependents.set(dependency, set);
+    }
     return normalized;
   }
 
-  registerMany(specs: readonly AssetSpecR26[]): void {
-    for (const spec of specs) this.declare(spec);
+  get(id: string): AssetGraphNode | undefined {
+    return this.#nodes.get(cleanId(id));
   }
 
-  get(id: string): AssetRecordR26 | undefined {
-    return this.#records.get(clean(id));
-  }
-
-  all(): readonly AssetRecordR26[] {
-    return Object.freeze([...this.#records.values()].sort((a, b) =>
+  all(): readonly AssetGraphNode[] {
+    return Object.freeze([...this.#nodes.values()].sort((a, b) =>
       priorityWeight(b.priority) - priorityWeight(a.priority) || a.id.localeCompare(b.id),
     ));
   }
 
-  plan(frame: number, memoryReserveBytes = 0): AssetPlanR26 {
-    this.#assertLive();
-    this.#frame = Math.max(this.#frame, Math.floor(frame));
-    const start: string[] = [];
-    const blocked: string[] = [];
-    const pressure = this.#residentBytes / Math.max(1, this.#budget.maxResidentBytes);
-
-    for (const record of this.all()) {
-      if (!['declared', 'queued', 'stale'].includes(record.state)) continue;
-      const missing = record.dependencies.filter((dependency) => this.#records.get(dependency)?.state !== 'ready');
-      if (missing.length) {
-        blocked.push(record.id);
-        continue;
-      }
-      if (this.#inFlight >= this.#budget.maxConcurrent) continue;
-      if (this.#inFlightBytes + record.estimatedBytes > this.#budget.maxInFlightBytes) continue;
-      if (this.#residentBytes + memoryReserveBytes + record.estimatedBytes > this.#budget.maxResidentBytes && record.optional) continue;
-      start.push(record.id);
-    }
-
-    const evictionCandidates = this.all()
-      .filter((record) => record.state === 'ready' && !record.optional === false)
-      .sort((a, b) =>
-        a.lastAccessFrame - b.lastAccessFrame ||
-        priorityWeight(a.priority) - priorityWeight(b.priority) ||
-        b.residentBytes - a.residentBytes ||
-        a.id.localeCompare(b.id),
-      );
-
-    const evict = pressure > 0.9
-      ? evictionCandidates.slice(0, Math.max(1, Math.ceil(evictionCandidates.length * 0.25))).map((record) => record.id)
-      : [];
-
-    return Object.freeze({
-      start: Object.freeze(start),
-      blocked: Object.freeze(blocked),
-      evict: Object.freeze(evict),
-      pressure,
-    });
+  state(id: string): AssetGraphState | undefined {
+    return this.get(id)?.state;
   }
 
-  touch(id: string, frame = this.#frame): boolean {
-    const record = this.#records.get(clean(id));
-    if (!record) return false;
-    this.#records.set(record.id, Object.freeze({
-      ...record,
-      lastAccessFrame: Math.max(record.lastAccessFrame, Math.floor(frame)),
-      revision: ++this.#revision,
-    }));
-    return true;
+  plan(limit = this.#budget.maxConcurrent): readonly AssetLoadPlanItem[] {
+    const candidates: AssetLoadPlanItem[] = [];
+    for (const node of this.#nodes.values()) {
+      if (!this.#canQueue(node)) continue;
+      const blockedDependency = node.dependencies.find((dependency) => {
+        const state = this.#nodes.get(dependency)?.state;
+        return state === 'failed' || state === 'blocked' || state === undefined;
+      });
+      if (blockedDependency) continue;
+      const unresolved = node.dependencies.filter((dependency) => this.#nodes.get(dependency)?.state !== 'ready');
+      const reason: AssetLoadPlanItem['reason'] =
+        unresolved.length > 0 ? 'dependency' : node.priority === 'background' ? 'prefetch' : 'priority';
+      candidates.push(Object.freeze({
+        id: node.id,
+        priority: node.priority,
+        dependencies: Object.freeze(unresolved),
+        estimatedBytes: node.estimatedBytes,
+        reason,
+      }));
+    }
+    candidates.sort((a, b) =>
+      priorityWeight(b.priority) - priorityWeight(a.priority)
+      || a.dependencies.length - b.dependencies.length
+      || a.estimatedBytes - b.estimatedBytes
+      || a.id.localeCompare(b.id),
+    );
+    return Object.freeze(candidates.slice(0, Math.max(0, Math.floor(limit))));
   }
 
-  async load(id: string, frame = this.#frame): Promise<AssetRecordR26 | null> {
-    this.#assertLive();
-    const current = this.#records.get(clean(id));
-    if (!current || !['declared', 'queued', 'stale'].includes(current.state)) return null;
-    if (!this.#dependenciesReady(current)) {
-      this.#replace(current, { state: 'queued', error: 'dependencies-not-ready' });
-      return null;
-    }
+  begin(id: string): AssetGraphNode | null {
+    const current = this.#nodes.get(cleanId(id));
+    if (!current || !this.#canQueue(current)) return null;
     if (this.#inFlight >= this.#budget.maxConcurrent) return null;
     if (this.#inFlightBytes + current.estimatedBytes > this.#budget.maxInFlightBytes) return null;
-
-    const controller = new AbortController();
-    this.#controllers.set(current.id, controller);
-    this.#inFlight += 1;
-    this.#inFlightBytes += current.estimatedBytes;
-    const loading = this.#replace(current, {
+    if (!this.#dependenciesReadyForLoad(current)) return null;
+    const next = this.#replace(current, {
       state: 'loading',
       attempts: current.attempts + 1,
       error: null,
     });
+    this.#inFlight += 1;
+    this.#inFlightBytes += current.estimatedBytes;
+    return next;
+  }
 
-    try {
-      const result = await this.loader(current, {
-        signal: controller.signal,
-        attempt: loading.attempts,
-        priority: loading.priority,
+  complete(id: string, actualBytes?: number): AssetGraphNode | null {
+    const current = this.#nodes.get(cleanId(id));
+    if (!current || current.state !== 'loading') return null;
+    const bytes = safeBytes(actualBytes ?? current.estimatedBytes);
+    this.#inFlight = Math.max(0, this.#inFlight - 1);
+    this.#inFlightBytes = Math.max(0, this.#inFlightBytes - current.estimatedBytes);
+    const nextResident = this.#residentBytes + bytes;
+    if (nextResident > this.#budget.maxResidentBytes && !current.optional) {
+      const next = this.#replace(current, {
+        state: 'failed',
+        error: 'resident budget exceeded',
       });
-      const actualBytes = bytes(result.bytes || current.estimatedBytes);
-      const budgetFailure = this.#residentBytes + actualBytes > this.#budget.maxResidentBytes && !current.optional;
-      if (budgetFailure) {
-        return this.#replace(current, {
-          state: 'failed',
-          error: 'resident-budget-exceeded',
-          residentBytes: 0,
-        });
-      }
-      this.#residentBytes += actualBytes;
-      this.#frame = Math.max(this.#frame, Math.floor(frame));
-      return this.#replace(current, {
-        state: 'ready',
-        residentBytes: actualBytes,
-        lastAccessFrame: this.#frame,
-        error: null,
-      });
-    } catch (error) {
-      const message = String(error instanceof Error ? error.message : error).slice(0, 512);
-      const retry = loading.attempts <= this.#budget.maxRetries && !controller.signal.aborted;
-      return this.#replace(current, {
-        state: retry ? 'queued' : 'failed',
-        error: message,
-      });
-    } finally {
-      this.#controllers.delete(current.id);
+      this.#propagateBlocked(current.id);
+      return next;
+    }
+    this.#residentBytes = nextResident;
+    return this.#replace(current, {
+      state: 'ready',
+      estimatedBytes: bytes,
+      error: null,
+    });
+  }
+
+  fail(id: string, error: unknown, retry = true): AssetGraphNode | null {
+    const current = this.#nodes.get(cleanId(id));
+    if (!current || current.state !== 'loading') return null;
+    this.#inFlight = Math.max(0, this.#inFlight - 1);
+    this.#inFlightBytes = Math.max(0, this.#inFlightBytes - current.estimatedBytes);
+    const message = String(error instanceof Error ? error.message : error).slice(0, 512);
+    const canRetry = retry && current.attempts <= this.#budget.maxRetries;
+    const next = this.#replace(current, {
+      state: canRetry ? 'queued' : 'failed',
+      error: message,
+    });
+    if (!canRetry) this.#propagateBlocked(current.id);
+    return next;
+  }
+
+  cancel(id: string): AssetGraphNode | null {
+    const current = this.#nodes.get(cleanId(id));
+    if (!current || !['declared', 'queued', 'loading'].includes(current.state)) return null;
+    if (current.state === 'loading') {
       this.#inFlight = Math.max(0, this.#inFlight - 1);
       this.#inFlightBytes = Math.max(0, this.#inFlightBytes - current.estimatedBytes);
     }
+    return this.#replace(current, { state: 'cancelled', error: null });
   }
 
-  queue(id: string): boolean {
-    const current = this.#records.get(clean(id));
-    if (!current || !['declared', 'failed', 'cancelled', 'stale'].includes(current.state)) return false;
-    this.#replace(current, { state: 'queued', error: null });
-    return true;
+  queue(id: string): AssetGraphNode | null {
+    const current = this.#nodes.get(cleanId(id));
+    if (!current || !['declared', 'cancelled', 'failed'].includes(current.state)) return null;
+    return this.#replace(current, { state: 'queued', error: null });
   }
 
-  cancel(id: string): boolean {
-    const key = clean(id);
-    const current = this.#records.get(key);
-    if (!current || !['queued', 'loading'].includes(current.state)) return false;
-    this.#controllers.get(key)?.abort();
-    this.#replace(current, { state: 'cancelled', error: 'cancelled-by-runtime' });
-    return true;
-  }
-
-  invalidate(id: string): readonly AssetRecordR26[] {
-    const root = this.#records.get(clean(id));
+  invalidate(id: string): readonly AssetGraphNode[] {
+    const root = this.#nodes.get(cleanId(id));
     if (!root) return Object.freeze([]);
     const affected = new Set<string>([root.id]);
     const queue = [root.id];
     while (queue.length) {
       const current = queue.shift()!;
-      for (const record of this.#records.values()) {
-        if (!record.dependencies.includes(current) || affected.has(record.id)) continue;
-        affected.add(record.id);
-        queue.push(record.id);
+      for (const dependent of [...(this.#dependents.get(current) ?? [])].sort()) {
+        if (affected.has(dependent)) continue;
+        affected.add(dependent);
+        queue.push(dependent);
       }
     }
-    return Object.freeze([...affected].sort().map((assetId) => {
-      const record = this.#records.get(assetId)!;
-      const resident = record.state === 'ready' ? this.#releaseBytes(record.residentBytes) : 0;
-      return this.#replace(record, {
-        state: record.optional ? 'declared' : 'queued',
-        residentBytes: Math.max(0, record.residentBytes - resident),
+
+    let releasedBytes = 0;
+    const changed = [...affected].sort().map((nodeId) => {
+      const node = this.#nodes.get(nodeId)!;
+      if (node.state === 'ready') releasedBytes += node.estimatedBytes;
+      return this.#replace(node, {
+        state: node.optional ? 'declared' : 'queued',
         error: null,
       });
-    }));
+    });
+    this.#residentBytes = Math.max(0, this.#residentBytes - releasedBytes);
+    return Object.freeze(changed);
   }
 
   evict(id: string): boolean {
-    const record = this.#records.get(clean(id));
-    if (!record || record.state !== 'ready') return false;
-    if ([...this.#records.values()].some((candidate) =>
-      candidate.dependencies.includes(record.id) && candidate.state === 'ready')) return false;
-    this.#releaseBytes(record.residentBytes);
-    this.#replace(record, {
-      state: 'declared',
-      residentBytes: 0,
-      error: null,
-    });
+    const node = this.#nodes.get(cleanId(id));
+    if (!node || node.state !== 'ready' || this.#hasReadyDependents(node.id)) return false;
+    this.#residentBytes = Math.max(0, this.#residentBytes - node.estimatedBytes);
+    this.#replace(node, { state: 'declared', error: null });
     return true;
   }
 
-  snapshot(): Readonly<{
-    frame: number;
-    revision: number;
-    residentBytes: number;
-    inFlightBytes: number;
-    inFlight: number;
-    maxResidentBytes: number;
-    records: readonly AssetRecordR26[];
-  }> {
-    return Object.freeze({
-      frame: this.#frame,
+  cascadeEvict(ids: readonly string[]): number {
+    const ordered = [...new Set(ids.map(cleanId))].sort();
+    let count = 0;
+    let progress = true;
+    while (progress) {
+      progress = false;
+      for (const id of ordered) {
+        if (this.evict(id)) {
+          count += 1;
+          progress = true;
+        }
+      }
+    }
+    return count;
+  }
+
+  residentBytes(): number {
+    return this.#residentBytes;
+  }
+
+  inFlightBytes(): number {
+    return this.#inFlightBytes;
+  }
+
+  inFlightCount(): number {
+    return this.#inFlight;
+  }
+
+  budget(): AssetGraphBudget {
+    return this.#budget;
+  }
+
+  snapshot(): AssetGraphSnapshot {
+    const nodes = this.all();
+    const payload = {
+      version: 1 as const,
       revision: this.#revision,
-      residentBytes: this.#residentBytes,
-      inFlightBytes: this.#inFlightBytes,
-      inFlight: this.#inFlight,
-      maxResidentBytes: this.#budget.maxResidentBytes,
-      records: this.all(),
+      nodes,
+    };
+    return Object.freeze({
+      ...payload,
+      digest: stableDigest(payload),
     });
   }
 
-  dispose(): void {
-    if (this.#disposed) return;
-    this.#disposed = true;
-    for (const controller of this.#controllers.values()) controller.abort();
-    this.#controllers.clear();
-    this.#records.clear();
+  restore(snapshot: AssetGraphSnapshot): void {
+    if (snapshot.version !== 1) throw new Error('Unsupported asset graph snapshot version.');
+    this.#nodes.clear();
+    this.#dependents.clear();
     this.#residentBytes = 0;
     this.#inFlightBytes = 0;
     this.#inFlight = 0;
+    this.#revision = snapshot.revision;
+    for (const source of snapshot.nodes) {
+      const node = Object.freeze({ ...source, dependencies: Object.freeze([...source.dependencies]) });
+      this.#nodes.set(node.id, node);
+      if (node.state === 'ready') this.#residentBytes += node.estimatedBytes;
+      if (node.state === 'loading') {
+        this.#inFlight += 1;
+        this.#inFlightBytes += node.estimatedBytes;
+      }
+      for (const dependency of node.dependencies) {
+        const set = this.#dependents.get(dependency) ?? new Set<string>();
+        set.add(node.id);
+        this.#dependents.set(dependency, set);
+      }
+    }
   }
 
-  #dependenciesReady(record: AssetRecordR26): boolean {
-    return record.dependencies.every((dependency) => this.#records.get(dependency)?.state === 'ready');
+  digest(): string {
+    return this.snapshot().digest;
   }
 
-  #replace(record: AssetRecordR26, patch: Partial<AssetRecordR26>): AssetRecordR26 {
-    const next = Object.freeze({
-      ...record,
-      ...patch,
-      revision: ++this.#revision,
+  stats(): Readonly<{
+    nodes: number;
+    ready: number;
+    loading: number;
+    queued: number;
+    failed: number;
+    blocked: number;
+    cancelled: number;
+    residentBytes: number;
+    inFlightBytes: number;
+  }> {
+    const counts = { ready: 0, loading: 0, queued: 0, failed: 0, blocked: 0, cancelled: 0 };
+    for (const node of this.#nodes.values()) {
+      if (node.state in counts) counts[node.state as keyof typeof counts] += 1;
+    }
+    return Object.freeze({
+      nodes: this.#nodes.size,
+      ...counts,
+      residentBytes: this.#residentBytes,
+      inFlightBytes: this.#inFlightBytes,
     });
-    this.#records.set(record.id, next);
+  }
+
+  #canQueue(node: AssetGraphNode): boolean {
+    return ['declared', 'queued'].includes(node.state);
+  }
+
+  #dependenciesReadyForLoad(node: AssetGraphNode): boolean {
+    return node.dependencies.every((dependency) => this.#nodes.get(dependency)?.state === 'ready');
+  }
+
+  #replace(node: AssetGraphNode, patch: Partial<AssetGraphNode>): AssetGraphNode {
+    const next = Object.freeze({ ...node, ...patch, revision: ++this.#revision });
+    this.#nodes.set(node.id, next);
     return next;
   }
 
-  #releaseBytes(amount: number): number {
-    const released = bytes(amount);
-    this.#residentBytes = Math.max(0, this.#residentBytes - released);
-    return released;
+  #propagateBlocked(id: string): void {
+    const queue = [id];
+    const visited = new Set(queue);
+    while (queue.length) {
+      const current = queue.shift()!;
+      for (const dependentId of [...(this.#dependents.get(current) ?? [])].sort()) {
+        if (visited.has(dependentId)) continue;
+        visited.add(dependentId);
+        const dependent = this.#nodes.get(dependentId);
+        if (!dependent || dependent.state === 'ready') continue;
+        this.#replace(dependent, { state: 'blocked', error: `dependency ${current} unavailable` });
+        queue.push(dependentId);
+      }
+    }
   }
 
-  #detectCycle(start: string): void {
+  #hasReadyDependents(id: string): boolean {
+    for (const dependent of this.#dependents.get(id) ?? []) {
+      if (this.#nodes.get(dependent)?.state === 'ready') return true;
+    }
+    return false;
+  }
+
+  #assertNoCycle(id: string, dependencies: readonly string[]): void {
     const visiting = new Set<string>();
     const visited = new Set<string>();
-    const visit = (id: string): void => {
-      if (visiting.has(id)) throw new Error(`R26_ASSET_CYCLE:${id}`);
-      if (visited.has(id)) return;
-      visiting.add(id);
-      for (const dependency of this.#records.get(id)?.dependencies ?? []) {
-        if (this.#records.has(dependency)) visit(dependency);
-      }
-      visiting.delete(id);
-      visited.add(id);
+    const visit = (nodeId: string): void => {
+      if (visiting.has(nodeId)) throw new Error(`Asset dependency cycle detected at ${nodeId}.`);
+      if (visited.has(nodeId)) return;
+      visiting.add(nodeId);
+      for (const dependency of this.#nodes.get(nodeId)?.dependencies ?? (nodeId === id ? dependencies : [])) visit(dependency);
+      visiting.delete(nodeId);
+      visited.add(nodeId);
     };
-    visit(start);
-  }
-
-  #assertLive(): void {
-    if (this.#disposed) throw new Error('R26_ASSET_DISPOSED');
+    visit(id);
   }
 }
 
-export const createNoopAssetLoaderR26 = (): AssetLoaderR26 =>
-  async (spec, context) => ({
-    bytes: spec.estimatedBytes,
-    payload: { id: spec.id, attempt: context.attempt },
-  });
