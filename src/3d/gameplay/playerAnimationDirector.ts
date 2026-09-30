@@ -46,11 +46,11 @@ export interface PlayerAnimationInput {
 }
 export interface PlayerAnimationPresentation {
   readonly version: typeof PLAYER_ANIMATION_DIRECTOR_VERSION;
-  readonly action: string;
+  readonly action: string | null;
   readonly semanticState: string;
-  readonly resolvedSemanticState: string;
-  readonly assetKey: string;
-  readonly assetPath: string;
+  readonly resolvedSemanticState: string | null;
+  readonly assetKey: string | null;
+  readonly assetPath: string | null;
   readonly authoredAsset: boolean;
   readonly fallback: boolean;
   readonly movementState: string;
