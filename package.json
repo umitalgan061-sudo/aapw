@@ -114,7 +114,10 @@
     "check:typed-ownership-r12": "npm run verify:typed-ownership-r12 && npm run test:typed-ownership-r12 && npm run typecheck",
     "typecheck:player-equipment-strict": "tsc -p tsconfig.player-equipment-strict.json --noEmit",
     "test:player-equipment-strict": "vitest run tests/modern/playerEquipmentCombatRulesStrict.test.ts",
-    "check:player-equipment-strict": "npm run typecheck:player-equipment-strict && npm run test:player-equipment-strict"
+    "check:player-equipment-strict": "npm run typecheck:player-equipment-strict && npm run test:player-equipment-strict",
+    "typecheck:player-animation-strict": "tsc -p tsconfig.player-animation-strict.json --noEmit",
+    "test:player-animation-strict": "vitest run tests/modern/playerAnimationDirectorStrict.test.ts",
+    "check:player-animation-strict": "npm run typecheck:player-animation-strict && npm run test:player-animation-strict"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
