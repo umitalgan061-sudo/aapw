@@ -46,6 +46,7 @@ jobs:
       - name: Checkout exact PR head
         uses: actions/checkout@v5
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           lfs: false
       # Asset binaries remain Git LFS-backed. This gate validates pointer integrity and code/runtime
