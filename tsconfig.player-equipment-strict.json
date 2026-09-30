@@ -2,17 +2,18 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "allowJs": false,
-    "noEmit": true
+    "noEmit": true,
+    "noImplicitAny": false
   },
-  "include": [
-    "src/3d/gameplay/playerEquipmentCombatRules.ts",
-    "src/3d/gameplay/playerEquipmentCombatProfile.ts",
-    "tests/modern/playerEquipmentCombatRulesStrict.test.ts",
-    "src/3d/gameplay/playerEquipmentCombatRuntime.ts"
-  ],
   "exclude": [
     "node_modules",
     "dist",
     "coverage"
+  ],
+  "files": [
+    "src/3d/gameplay/playerEquipmentCombatRules.ts",
+    "src/3d/gameplay/playerEquipmentCombatProfile.ts",
+    "src/3d/gameplay/playerEquipmentCombatRuntime.ts",
+    "tests/modern/playerEquipmentCombatRulesStrict.test.ts"
   ]
 }
