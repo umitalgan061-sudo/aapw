@@ -1,3 +1,4 @@
+/* generated-from: service-worker.ts; source-sha256: 093b9983ae0bf4e0e0bdb8424054e6bb203404c9ac8d9d82b3fd109614f39086 */
 /** Production TypeScript owner for service-worker.js. The .js file is a generated browser artifact. */
 // Günbatımı Ustası regional village architecture offline shell extension.
 // Seven canonical settlement GLBs are now live runtime references from villages.js, so every

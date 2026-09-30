@@ -1,0 +1,80 @@
+name: TypeScript Tooling R32
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/checkCelestialVisualQa.*'
+      - 'scripts/checkNorthTerrainVisualQa.*'
+      - 'scripts/checkTexturePaletteLibrary.*'
+      - 'scripts/checkRun330CastleTexturing.*'
+      - 'scripts/checkRun327CreatureGait.*'
+      - 'scripts/roadNetworkSafetyCheck.*'
+      - 'scripts/checkCurrentLifecycleReinitShadow.*'
+      - 'scripts/checkCurrentRuntimeIntegrationShadow.*'
+      - 'scripts/checkTypeScriptToolingR32.mjs'
+      - 'scripts/checkServiceWorkerArtifact.mjs'
+      - 'scripts/buildServiceWorker.mjs'
+      - 'src/3d/modern/migrationLedgerR32.ts'
+      - 'tests/modern/typedToolingMigrationR32.test.ts'
+      - 'tsconfig.tooling-r32.json'
+      - 'service-worker.ts'
+      - 'service-worker.js'
+      - 'package.json'
+      - '.github/workflows/typescript-tooling-r32.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/checkCelestialVisualQa.*'
+      - 'scripts/checkNorthTerrainVisualQa.*'
+      - 'scripts/checkTexturePaletteLibrary.*'
+      - 'scripts/checkRun330CastleTexturing.*'
+      - 'scripts/checkRun327CreatureGait.*'
+      - 'scripts/roadNetworkSafetyCheck.*'
+      - 'scripts/checkCurrentLifecycleReinitShadow.*'
+      - 'scripts/checkCurrentRuntimeIntegrationShadow.*'
+      - 'scripts/checkTypeScriptToolingR32.mjs'
+      - 'scripts/checkServiceWorkerArtifact.mjs'
+      - 'scripts/buildServiceWorker.mjs'
+      - 'src/3d/modern/migrationLedgerR32.ts'
+      - 'tests/modern/typedToolingMigrationR32.test.ts'
+      - 'tsconfig.tooling-r32.json'
+      - 'service-worker.ts'
+      - 'service-worker.js'
+      - 'package.json'
+      - '.github/workflows/typescript-tooling-r32.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tooling-r32-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v5
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+      - name: Install
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: TypeScript tooling ownership
+        run: npm run verify:tooling-r32
+      - name: Tooling TypeScript check
+        run: npm run typecheck:tooling-r32
+      - name: Tooling regression tests
+        run: npm run test:tooling-r32
+      - name: Service worker artifact regeneration
+        run: npm run build:service-worker
+      - name: Service worker artifact integrity
+        run: npm run verify:service-worker-artifact
+      - name: Deterministic generated artifact guard
+        run: git diff --exit-code -- service-worker.js
+      - name: Repository diff hygiene
+        run: git diff --check

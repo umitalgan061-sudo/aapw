@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "checkJs": false,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "scripts/checkCelestialVisualQa.ts",
+    "scripts/checkNorthTerrainVisualQa.ts",
+    "scripts/checkTexturePaletteLibrary.ts",
+    "scripts/checkRun330CastleTexturing.ts",
+    "scripts/checkRun327CreatureGait.ts",
+    "scripts/roadNetworkSafetyCheck.ts",
+    "scripts/checkCurrentLifecycleReinitShadow.ts",
+    "scripts/checkCurrentRuntimeIntegrationShadow.ts"
+
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
