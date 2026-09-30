@@ -1,4 +1,4 @@
-/** Strict TypeScript production owner. Legacy payload retained only as rollback source. */
+/** Production TypeScript owner for src/3d/world/terrainMacroWeathering.legacy.js. Legacy payload is isolated only for compatibility. */
 // @ts-nocheck
 /**
  * Deterministic macro geomorphology/weathering residual for the shipped owner-map terrain.
@@ -597,3 +597,5 @@ export function summarizeTerrainMacroWeathering({
 		maxSlopeDegrees,
 	});
 }
+
+export interface MacroWeatheringContext { readonly heightMeters?: number; readonly slopeDegrees?: number; readonly wetness?: number }

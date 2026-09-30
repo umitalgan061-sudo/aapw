@@ -12,6 +12,10 @@ export interface QualityControllerOptionsV15 {
   readonly max?: QualityTierV15;
   readonly targetFrameMs?: number;
   readonly sampleWindow?: number;
+  /** Pressure ceiling below which the controller may recover a quality tier. */
+  readonly upgradeThreshold?: number;
+  /** Pressure ceiling above which the controller must protect frame time. */
+  readonly downgradeThreshold?: number;
 }
 
 interface QualityProfileV15 {
@@ -52,6 +56,8 @@ export class AdaptiveQualityDirectorV15 {
   readonly #targetFrameMs: number;
   readonly #window: number;
   #tier: QualityTierV15;
+  readonly #upgradeThreshold: number;
+  readonly #downgradeThreshold: number;
   #overBudgetStreak = 0;
   #underBudgetStreak = 0;
   #ewmaFrameMs = 16.67;
@@ -66,6 +72,9 @@ export class AdaptiveQualityDirectorV15 {
     this.#max = options.max ?? "ultra";
     this.#targetFrameMs = clampV15(options.targetFrameMs ?? 16.67, 8.33, 50);
     this.#window = Math.max(8, Math.min(240, Math.floor(options.sampleWindow ?? 45)));
+    this.#upgradeThreshold = clampV15(options.upgradeThreshold ?? 0.65, 0.5, 0.9);
+    this.#downgradeThreshold = clampV15(options.downgradeThreshold ?? 0.82, 0.7, 1);
+    if (this.#upgradeThreshold >= this.#downgradeThreshold) throw new RangeError("invalid quality hysteresis bounds");
     this.#tier = this.#clampTier(options.initial ?? "balanced");
     if (rank(this.#min) > rank(this.#max)) throw new RangeError("invalid quality bounds");
   }
@@ -78,10 +87,10 @@ export class AdaptiveQualityDirectorV15 {
     this.#ewmaCpuMs += (input.cpuMs - this.#ewmaCpuMs) * alpha;
     if (input.gpuMs !== null) this.#ewmaGpuMs += (input.gpuMs - this.#ewmaGpuMs) * alpha;
     this.#pressure = this.#calculatePressure(input);
-    if (this.#pressure.combined >= 0.82) {
+    if (this.#pressure.combined >= this.#downgradeThreshold) {
       this.#overBudgetStreak += 1;
       this.#underBudgetStreak = 0;
-    } else if (this.#pressure.combined <= 0.62) {
+    } else if (this.#pressure.combined <= this.#upgradeThreshold) {
       this.#underBudgetStreak += 1;
       this.#overBudgetStreak = 0;
     } else {
@@ -137,7 +146,7 @@ export class AdaptiveQualityDirectorV15 {
     });
   }
 
-  stats(): Readonly<{ tier: QualityTierV15; ewmaFrameMs: number; ewmaCpuMs: number; ewmaGpuMs: number; pressure: QualityPressureV15; overBudgetStreak: number; underBudgetStreak: number }> {
+  stats(): Readonly<{ tier: QualityTierV15; ewmaFrameMs: number; ewmaCpuMs: number; ewmaGpuMs: number; pressure: QualityPressureV15; overBudgetStreak: number; underBudgetStreak: number; upgradeThreshold: number; downgradeThreshold: number }> {
     return Object.freeze({
       tier: this.#tier,
       ewmaFrameMs: Number(this.#ewmaFrameMs.toFixed(3)),
@@ -146,6 +155,8 @@ export class AdaptiveQualityDirectorV15 {
       pressure: this.#pressure,
       overBudgetStreak: this.#overBudgetStreak,
       underBudgetStreak: this.#underBudgetStreak,
+      upgradeThreshold: this.#upgradeThreshold,
+      downgradeThreshold: this.#downgradeThreshold,
     });
   }
 

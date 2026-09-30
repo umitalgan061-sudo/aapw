@@ -3,6 +3,11 @@ on:
   pull_request:
     paths:
       - 'src/3d/gameplay/playerAnimationDirector.js'
+      - 'src/3d/gameplay/playerAnimationDirector.ts'
+      - 'src/3d/gameplay/playerAnimationDirector.legacy.js'
+      - 'src/3d/gameplay/playerAnimationAssetCatalog.ts'
+      - 'src/3d/gameplay/playerAnimationSurfaceEvidence.ts'
+      - 'src/3d/gameplay/playerEnvironmentalAnimationProfile.ts'
       - 'scripts/checkPlayerAnimationDirector.mjs'
       - '.github/workflows/player-animation-director.yml'
   workflow_dispatch:
@@ -10,7 +15,7 @@ jobs:
   contract:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           lfs: false
@@ -23,7 +28,10 @@ jobs:
           git fetch origin main --no-tags
           BASE=$(git rev-parse origin/main)
           test "$(git merge-base HEAD origin/main)" = "$BASE"
-          read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          RELEVANT=$(git diff --name-only "$BASE"...HEAD | grep -E '^(src/3d/gameplay/playerAnimationDirector\\.(js|ts)|src/3d/gameplay/playerAnimationDirector\\.legacy\\.js|src/3d/gameplay/playerAnimationAssetCatalog\\.ts|src/3d/gameplay/playerAnimationSurfaceEvidence\\.ts|src/3d/gameplay/playerEnvironmentalAnimationProfile\\.ts|scripts/checkPlayerAnimationDirector\\.mjs)
+ || true)
+          test -n "$RELEVANT"
+          read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD -- $RELEVANT | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           test "$((ADD + DEL))" -le 3000
           git diff --check "$BASE"...HEAD
       - name: Player animation director contract

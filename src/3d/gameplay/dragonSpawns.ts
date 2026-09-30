@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/dragonSpawns.js; legacy JS path remains compatibility-only. */
-// @ts-nocheck
 /**
  * Config-driven dragon spawn wiring (FAZ 7) — resolves `gameplayConfig.js`'s `DRAGON_CONFIG.SPAWNS`
  * against the kingdom-seat lookup and hands each entry to `dragonController.js`'s `createDragon`.
@@ -11,7 +10,20 @@
  * @module gameplay/dragonSpawns
  */
 
-import { createDragon } from './dragonController.ts';
+import type { EventBus } from '../eventBus.ts';
+import type { AssetLoader } from '../assetLoader.ts';
+import type { DragonConfig } from './dragonConfig.ts';
+export interface DragonSeat { readonly id: string; readonly x: number; readonly z: number; }
+export interface DragonSpawnOptions {
+	readonly assetLoader: AssetLoader;
+	readonly dragonConfig: DragonConfig;
+	readonly seatsById: ReadonlyMap<string, DragonSeat>;
+	readonly sampleGroundY: (worldX: number, worldZ: number) => number;
+	readonly eventsBus?: EventBus | undefined;
+	readonly eventName?: string | undefined;
+	readonly biteEventName?: string | undefined;
+}
+import { createDragon, type DragonRuntimeContract } from './dragonController.ts';
 
 /**
  * Resolves and loads every configured dragon spawn (`gameplayConfig.js`'s `DRAGON_CONFIG.SPAWNS`)
@@ -32,7 +44,7 @@ import { createDragon } from './dragonController.ts';
  *   differs (`{amount, sourceId}`, not a toast-shaped event). Omit to spawn every configured dragon
  *   with biting disabled regardless of any per-spawn `biteDamage` — same "requires its own defining
  *   value" gate `createDragon`'s own `canBite` already enforces per-dragon.
- * @returns {Promise<Awaited<ReturnType<typeof createDragon>>[]>} Already filtered — no `null` entries.
+ * @returns {Promise<DragonRuntimeContract[]>} Already filtered — no `null` entries.
  *   Each spawn's own `reactiveSpeedMultiplier`/`reactiveBankAngleRadians`/`reactiveTransitionSeconds`
  *   (run 58, ADR-0077) and `alarmRadiusMeters`/`diveDropMeters`/`diveLateralPullFraction`/
  *   `diveTransitionSeconds`/`minAltitudeAboveGroundMeters` (run 64, ADR-0082) and
@@ -47,8 +59,8 @@ import { createDragon } from './dragonController.ts';
  *   defaults (calm flight, unaffected by the player). `sampleGroundY` itself is always passed
  *   through too (run 64), needed for the dive's and the traveling circle's terrain-safety clamp.
  */
-export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsById, sampleGroundY, eventsBus, eventName, biteEventName }) {
-	const dragons = await Promise.all(
+export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsById, sampleGroundY, eventsBus, eventName, biteEventName }: DragonSpawnOptions): Promise<Awaited<ReturnType<typeof createDragon>>[]> {
+	const dragons: Array<DragonRuntimeContract | null> = await Promise.all(
 		dragonConfig.SPAWNS.map(async (spawn) => {
 			const seat = seatsById.get(spawn.seatId);
 			if (!seat) {
@@ -107,5 +119,5 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 			});
 		}),
 	);
-	return dragons.filter(Boolean);
+	return dragons.filter((dragon): dragon is DragonRuntimeContract => dragon !== null);
 }

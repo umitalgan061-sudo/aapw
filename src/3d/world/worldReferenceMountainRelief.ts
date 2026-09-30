@@ -1,4 +1,4 @@
-/** Strict TypeScript production owner. Legacy payload retained only as rollback source. */
+/** Production TypeScript owner for src/3d/world/worldReferenceMountainRelief.legacy.js. Legacy payload is isolated only for compatibility. */
 // @ts-nocheck
 /**
  * Canonical map-aligned mountain relief for the live Three.js height field.
@@ -10,13 +10,13 @@
  * @module world/worldReferenceMountainRelief
  */
 
-import { WORLD_SCALE } from '../config.js';
+import { WORLD_SCALE } from '../config.ts';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import {
 	REFERENCE_RELIEF_CHAINS,
 	WORLD_REFERENCE_MAP,
 } from './worldReferenceMap.js';
-import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
+import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.ts';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	id: 'owner-map-live-mountain-relief-2026-08-26-v7-lake-basin-cirques',
@@ -496,3 +496,4 @@ export function sampleWorldReferenceMountainReliefMeters(worldX, worldZ) {
 		mapY / WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits,
 	);
 }
+export interface MountainReliefSample { readonly normalizedX:number; readonly normalizedY:number; readonly reliefMeters:number }

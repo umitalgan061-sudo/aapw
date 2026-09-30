@@ -236,13 +236,14 @@ export function createSimulationAccumulator<T>(options: RuntimeSchedulerOptions 
   const scheduler = createDeterministicRuntimeScheduler(options);
   const events: SimulationAccumulatorEvent<T>[] = [];
   return Object.freeze({
-    update(deltaMs: number, simulate: (context: SimulationTickContext) => T | undefined): RuntimeSchedulerResult =>
-      scheduler.frame(deltaMs, {
+    update(deltaMs: number, simulate: (context: SimulationTickContext) => T | undefined): RuntimeSchedulerResult {
+      return scheduler.frame(deltaMs, {
         simulate(context) {
           const result = simulate(context);
           if (result !== undefined) events.push(Object.freeze({ tick: context.tick, result }));
         },
-      }),
+      });
+    },
     consumeEvents(): readonly SimulationAccumulatorEvent<T>[] {
       const output = events.slice();
       events.length = 0;

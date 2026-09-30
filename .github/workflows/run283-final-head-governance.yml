@@ -34,7 +34,10 @@ jobs:
           git fetch origin main
           BASE_SHA="$(git rev-parse origin/main)"
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
-          git lfs fsck
+          # Validate repository LFS pointer syntax without requiring the exhausted remote
+          # object store to be hydrated on CI runners. Content availability is governed by the
+          # asset/LFS acceptance workflows rather than this source-only governance gate.
+          git lfs fsck --pointers
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"

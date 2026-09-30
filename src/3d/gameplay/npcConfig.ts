@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/npcConfig.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * `NPC_CONFIG` (FAZ 5) — first-pass static NPCs (run 20): reuse the 6 already-downloaded Mixamo
  * character FBXes (T-pose, sharing `peasant_girl`'s skeleton, per `assets_manifest.json`'s notes)
@@ -11,7 +10,7 @@
  * @module gameplay/npcConfig
  */
 
-import { PLAYER_CONFIG } from './playerConfig.js';
+import { PLAYER_CONFIG } from './playerConfig.ts';
 
 /** First-pass static NPCs (FAZ 5, run 20): reuse the 6 already-downloaded Mixamo character FBXes
  * (T-pose, sharing `peasant_girl`'s skeleton, per `assets_manifest.json`'s notes) and

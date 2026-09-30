@@ -129,7 +129,7 @@ export class AdaptiveQualityController {
     }
 
     if (this.#overBudgetStreak >= this.config.downshiftFrames && this.#level > this.config.minLevel) {
-      this.#level = (this.#level - 1) as typeof this.#level;
+      this.#level = (this.#level - 1) as QualityDecision["level"];
       this.#overBudgetStreak = 0;
       return { level: this.#level, reason: memoryPressure ? 'memory-pressure' : 'over-budget', changed: true };
     }

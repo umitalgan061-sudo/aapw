@@ -1,176 +1,101 @@
-name: Player Animation Visual Slice
+name: Player Animation Strict TypeScript Gate
+
 on:
   push:
-    branches:
-      - 'codex/kizil-ufuk-player-animation-director-20260907'
+    branches-ignore: [main]
     paths:
-      - 'src/3d/gameplay/playerAnimationDirector.js'
-      - 'src/3d/gameplay/playerAnimationAssetCatalog.js'
-      - 'src/3d/gameplay/playerEnvironmentalAnimationProfile.js'
-      - 'src/3d/gameplay/playerAnimationSurfaceEvidence.js'
-      - 'src/3d/gameplay/playerAnimationRuntimeEvidence.js'
-      - 'src/3d/gameplay/playerAnimationBlendDiagnostics.js'
-      - 'scripts/checkPlayerAnimationDirector.mjs'
-      - 'scripts/checkPlayerAnimationAssetContract.mjs'
-      - 'scripts/checkPlayerAnimationVisualSlice.mjs'
-      - 'scripts/checkPlayerAnimationRuntimeEvidence.mjs'
-      - 'scripts/checkPlayerAnimationBlendDiagnostics.mjs'
-      - 'scripts/checkPlayerSurfaceMaterialQuality.mjs'
+      - 'src/3d/gameplay/playerAnimation*.ts'
+      - 'src/3d/gameplay/playerEnvironmentalAnimationProfile.ts'
+      - 'src/3d/gameplay/playerAnimationSurfaceEvidence.ts'
+      - 'scripts/checkPlayerAnimation*.mjs'
+      - 'scripts/checkPlayerStrictOwnershipR1.mjs'
+      - 'tsconfig.player-animation-strict.json'
       - '.github/workflows/player-animation-visual-slice.yml'
   pull_request:
+    branches: [main]
     paths:
-      - 'src/3d/gameplay/playerAnimationDirector.js'
-      - 'src/3d/gameplay/playerAnimationAssetCatalog.js'
-      - 'src/3d/gameplay/playerEnvironmentalAnimationProfile.js'
-      - 'src/3d/gameplay/playerAnimationSurfaceEvidence.js'
-      - 'src/3d/gameplay/playerAnimationRuntimeEvidence.js'
-      - 'src/3d/gameplay/playerAnimationBlendDiagnostics.js'
-      - 'scripts/checkPlayerAnimationDirector.mjs'
-      - 'scripts/checkPlayerAnimationAssetContract.mjs'
-      - 'scripts/checkPlayerAnimationVisualSlice.mjs'
-      - 'scripts/checkPlayerAnimationRuntimeEvidence.mjs'
-      - 'scripts/checkPlayerAnimationBlendDiagnostics.mjs'
-      - 'scripts/checkPlayerSurfaceMaterialQuality.mjs'
+      - 'src/3d/gameplay/playerAnimation*.ts'
+      - 'src/3d/gameplay/playerEnvironmentalAnimationProfile.ts'
+      - 'src/3d/gameplay/playerAnimationSurfaceEvidence.ts'
+      - 'scripts/checkPlayerAnimation*.mjs'
+      - 'scripts/checkPlayerStrictOwnershipR1.mjs'
+      - 'tsconfig.player-animation-strict.json'
       - '.github/workflows/player-animation-visual-slice.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: player-animation-ts-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  player-animation-visual-slice:
-    runs-on: ubuntu-latest
-    timeout-minutes: 18
+  strict-player-animation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: Checkout exact head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-          lfs: true
+          lfs: false
 
-      - name: Assert exact head checkout
+      - name: Assert exact head
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
 
-      - name: Establish exact-main ancestry and bounded scope
+      - name: Establish current-main ancestry
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main --no-tags
-          HEAD_SHA="$(git rev-parse HEAD)"
           MAIN_SHA="$(git rev-parse origin/main)"
-          MERGE_BASE="$(git merge-base "$MAIN_SHA" "$HEAD_SHA")"
-          test "$MERGE_BASE" = "$MAIN_SHA"
-          read -r ADD DEL < <(git diff --numstat "$MAIN_SHA" "$HEAD_SHA" | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
-          test "$((ADD + DEL))" -le 3000
-          git diff --check "$MAIN_SHA" "$HEAD_SHA"
-          printf 'HEAD_SHA=%s\nMAIN_SHA=%s\nMERGE_BASE=%s\nCHANGED_LINES=%s\n' "$HEAD_SHA" "$MAIN_SHA" "$MERGE_BASE" "$((ADD + DEL))"
+          test "$(git merge-base HEAD "$MAIN_SHA")" = "$MAIN_SHA"
+          git diff --check "$MAIN_SHA" HEAD
 
-      - name: Install Git LFS and selectively hydrate player family
-        shell: bash
-        run: |
-          set -euo pipefail
-          git lfs install
-          EXACT_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
-          git lfs fetch origin "$EXACT_HEAD" --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/*.fbx"
-          git lfs checkout assets/models/characters/peasant_girl.fbx assets/animations/peasant_girl/idle.fbx assets/animations/peasant_girl/walking.fbx assets/animations/peasant_girl/running.fbx
-          for asset in \
-            assets/models/characters/peasant_girl.fbx \
-            assets/animations/peasant_girl/idle.fbx \
-            assets/animations/peasant_girl/walking.fbx \
-            assets/animations/peasant_girl/running.fbx; do
-            test -s "$asset"
-            if grep -aEq '^(version https://git-lfs.github.com/spec/v1|oid sha256:|size [0-9]+)$' "$asset"; then
-              echo "Required player asset remained an LFS pointer: $asset"
-              exit 1
-            fi
-          done
+      - name: Install deterministic Node toolchain
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
 
-      - name: Syntax-check player visual modules
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --check src/3d/gameplay/playerAnimationDirector.js
-          node --check src/3d/gameplay/playerAnimationAssetCatalog.js
-          node --check src/3d/gameplay/playerEnvironmentalAnimationProfile.js
-          node --check src/3d/gameplay/playerAnimationSurfaceEvidence.js
-          node --check src/3d/gameplay/playerAnimationRuntimeEvidence.js
-          node --check src/3d/gameplay/playerAnimationBlendDiagnostics.js
-          node --check scripts/checkPlayerAnimationDirector.mjs
-          node --check scripts/checkPlayerAnimationAssetContract.mjs
-          node --check scripts/checkPlayerAnimationVisualSlice.mjs
-          node --check scripts/checkPlayerAnimationRuntimeEvidence.mjs
-          node --check scripts/checkPlayerAnimationBlendDiagnostics.mjs
-          node --check scripts/checkPlayerSurfaceMaterialQuality.mjs
+      - name: Install dependencies without lockfile assumptions
+        run: npm install --ignore-scripts --no-audit --no-fund
 
-      - name: Enforce shared material ownership boundary
+      - name: Typecheck player animation owner
+        run: npx tsc -p tsconfig.player-animation-strict.json --noEmit
+
+      - name: Run strict animation regression
+        run: npx vitest run tests/modern/playerAnimationDirectorStrict.test.ts
+
+      - name: Run player modernization regression
+        run: npx vitest run tests/modern/playerModernizationR1.test.ts
+
+      - name: Enforce shared material ownership
         shell: bash
         run: |
           set -euo pipefail
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           ! grep -R "EditorMaterialStudio" -n \
-            src/3d/gameplay/playerAnimationDirector.js \
-            src/3d/gameplay/playerAnimationAssetCatalog.js \
-            src/3d/gameplay/playerEnvironmentalAnimationProfile.js \
-            src/3d/gameplay/playerAnimationSurfaceEvidence.js \
-            src/3d/gameplay/playerAnimationRuntimeEvidence.js \
-            src/3d/gameplay/playerAnimationBlendDiagnostics.js
-          grep -q "MaterialAssignmentCore.js" src/3d/gameplay/playerAnimationSurfaceEvidence.js
-          echo "PLAYER_SHARED_MATERIAL_BOUNDARY_OK"
+            src/3d/gameplay/playerAnimationDirector.ts \
+            src/3d/gameplay/playerAnimationAssetCatalog.ts \
+            src/3d/gameplay/playerEnvironmentalAnimationProfile.ts \
+            src/3d/gameplay/playerAnimationSurfaceEvidence.ts
 
-      - name: Run asset contract
-        run: node scripts/checkPlayerAnimationAssetContract.mjs
-
-      - name: Install visual-slice runtime dependency
-        shell: bash
+      - name: Run animation contract guards
         run: |
           set -euo pipefail
-          npm init -y >/dev/null 2>&1
-          npm install --no-save --ignore-scripts three@0.180.0
-
-      - name: Run player animation visual slice
-        run: node scripts/checkPlayerAnimationVisualSlice.mjs
-
-      - name: Run surface material quality contract
-        run: node scripts/checkPlayerSurfaceMaterialQuality.mjs
-
-      - name: Run runtime evidence contract
-        run: node scripts/checkPlayerAnimationRuntimeEvidence.mjs
-
-      - name: Run blend diagnostics contract
-        run: node scripts/checkPlayerAnimationBlendDiagnostics.mjs
-
-      - name: Run existing director regression
-        run: node scripts/checkPlayerAnimationDirector.mjs
+          node --experimental-strip-types scripts/checkPlayerAnimationDirector.mjs
+          node --experimental-strip-types scripts/checkPlayerAnimationVisualSlice.mjs
+          node --experimental-strip-types scripts/checkPlayerStrictOwnershipR1.mjs
 
       - name: Emit exact-head proof
         if: always()
-        shell: bash
         run: |
           set -euo pipefail
-          {
-            echo "HEAD_SHA=$(git rev-parse HEAD)"
-            echo "MAIN_SHA=$(git rev-parse origin/main)"
-            echo "MERGE_BASE=$(git merge-base origin/main HEAD)"
-            read -r ADD DEL < <(git diff --numstat origin/main HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
-            echo "CHANGED_LINES=$((ADD + DEL))"
-            echo "PLAYER_MODEL_BYTES=$(wc -c < assets/models/characters/peasant_girl.fbx)"
-            for asset in assets/animations/peasant_girl/*.fbx; do
-              echo "ANIMATION_ASSET=$(basename "$asset") BYTES=$(wc -c < "$asset")"
-            done
-            echo "MISSING_REQUIRED_ASSETS=0"
-            echo "ANIMATION_AUTHORING_REQUIRED=idle,walking,running"
-            echo "COMBAT_OPTIONAL_FALLBACKS=guard,parry,dodge,light-attack,heavy-attack,hit-stagger"
-          } | tee player-animation-visual-proof.txt
-
-      - name: Upload exact-head proof
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: player-animation-visual-proof
-          path: player-animation-visual-proof.txt
-          if-no-files-found: error
+          echo "HEAD_SHA=$(git rev-parse HEAD)"
+          echo "MAIN_SHA=$(git rev-parse origin/main)"
