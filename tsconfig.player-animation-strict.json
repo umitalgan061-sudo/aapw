@@ -1,8 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "allowJs": false,
-    "noEmit": true
+    "allowJs": true,
+    "noEmit": true,
+    "checkJs": false
   },
   "include": [
     "src/3d/gameplay/playerAnimationAssetCatalog.ts",
