@@ -41,6 +41,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
+      # Exact-head quality gate note 2026-09-30: asset bytes stay LFS-backed; code gate stays LFS-independent.
       - name: Checkout exact PR head
         uses: actions/checkout@v5
         with:
