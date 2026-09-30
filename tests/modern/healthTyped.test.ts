@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createHealthSnapshot,
   createHealthState,
   readDamageResolution,
   stageDamageResolution,
@@ -30,6 +31,19 @@ class TestBus implements HealthEventBus {
 }
 
 describe('Kızıl Ufuk typed health contract', () => {
+  it('normalizes health snapshots into a finite immutable contract', () => {
+    expect(createHealthSnapshot(Number.NaN, 100, false, -4)).toEqual({
+      current: 0,
+      max: 100,
+      ratio: 0,
+      defeated: false,
+      revision: 0,
+    });
+    const snapshot = createHealthSnapshot(125, 100, true, 7);
+    expect(snapshot).toEqual({ current: 100, max: 100, ratio: 1, defeated: true, revision: 7 });
+    expect(Object.isFrozen(snapshot)).toBe(true);
+  });
+
   it('keeps immutable snapshots and monotonic revisions', () => {
     const bus = new TestBus();
     const health = createHealthState({
