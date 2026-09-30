@@ -25,6 +25,8 @@ assert.equal(guard.guardWeight, 0.7);
 assert.equal(validatePlayerCombatAnimationBlend(guard), true);
 
 const malformed = resolvePlayerCombatAnimationBlend({ semanticState: 'dodge', planarSpeedMps: Infinity, additiveFeedbackWeight: NaN });
+assert.equal(malformed.version, '2026-09-30-v2');
+assert.equal(Object.isFrozen(malformed), true);
 assert.equal(malformed.speedMps, 0);
 assert.equal(malformed.additiveFeedbackWeight, 0);
 assert.equal(validatePlayerCombatAnimationBlend(malformed), true);
@@ -34,3 +36,7 @@ const deterministicB = JSON.stringify(resolvePlayerCombatAnimationBlend({ semant
 assert.equal(deterministicA, deterministicB);
 
 console.log('player-combat-animation-blend: PASS');
+
+const hostile = resolvePlayerCombatAnimationBlend({ semanticState: 'heavy-attack', planarSpeedMps: Number.POSITIVE_INFINITY, attackPhase: Number.NaN, guardWeight: Number.POSITIVE_INFINITY, combatOverlayWeight: Number.NEGATIVE_INFINITY });
+assert.equal(validatePlayerCombatAnimationBlend(hostile), true);
+assert.ok(Object.values(hostile).filter((value) => typeof value === 'number').every(Number.isFinite));
