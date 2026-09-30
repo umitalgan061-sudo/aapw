@@ -123,7 +123,14 @@
     "verify:active-typescript-r30": "node scripts/checkActiveTypeScriptOwnershipR30.mjs",
     "typecheck:strict-world-r30": "tsc -p tsconfig.strict-world-r30.json --noEmit",
     "test:strict-world-r30": "npm test -- tests/modern/strictWorldR30.test.ts",
-    "check:strict-world-r30": "npm run verify:active-typescript-r30 && npm run typecheck:strict-world-r30 && npm run test:strict-world-r30"
+    "check:strict-world-r30": "npm run verify:active-typescript-r30 && npm run typecheck:strict-world-r30 && npm run test:strict-world-r30",
+    "typecheck:player-modern": "tsc -p tsconfig.player-modernization.json --noEmit",
+    "test:player-modern": "vitest run tests/modern/playerModernizationR1.test.ts",
+    "check:player-modern": "npm run typecheck:player-modern && npm run test:player-modern && npm run verify:player-modern-r1",
+    "typecheck:player-equipment-strict": "tsc -p tsconfig.player-equipment-strict.json --noEmit",
+    "test:player-equipment-strict": "vitest run tests/modern/playerEquipmentCombatRulesStrict.test.ts",
+    "typecheck:player-animation-strict": "tsc -p tsconfig.player-animation-strict.json --noEmit",
+    "test:player-animation-strict": "vitest run tests/modern/playerAnimationDirectorStrict.test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

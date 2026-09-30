@@ -60,6 +60,7 @@ import { SettlementCompass } from './ui/settlementCompass.js';
 import { SettlementDiscovery } from './ui/settlementDiscovery.js';
 import { DayNightClock } from './ui/dayNightClock.js';
 import { createPlayer } from './gameplay/player.ts';
+import { createPlayerEquipmentCombatRuntime } from './gameplay/playerEquipmentCombatRuntime.ts';
 import { createHealthState } from './gameplay/health.js';
 import { spawnLivingWorld } from './gameplay/livingWorldSpawner.ts';
 import { createInteractionController } from './gameplay/interaction.ts';
@@ -204,6 +205,12 @@ export async function initGame3D() {
 			damageEventName: EVENTS.PLAYER_DAMAGED,
 			healthChangedEventName: EVENTS.PLAYER_HEALTH_CHANGED,
 			diedEventName: EVENTS.PLAYER_DIED,
+		});
+		state.playerEquipmentCombatRuntime = createPlayerEquipmentCombatRuntime({
+			player,
+			equipmentProvider: () => player.object3D.userData?.equipment ?? {},
+			target: window,
+			emitFrames: false,
 		});
 		// Respawn-on-death: teleports back to the original spawn point and heals to full. No
 		// SaveSystem exists yet (GOVERNANCE.md §16's Save Game Uyumluluk Kapısı isn't active until
@@ -365,6 +372,7 @@ export async function initGame3D() {
 			// Run 166 supersedes the legacy keyboard-only note above: the mobile button feeds the same edge-trigger flag.
 			if (state.touchJoystick?.consumeJumpRequested()) keyboardAxes.jumpRequested = true;
 			state.player.update(delta, moveDirection, axes.running, keyboardAxes.jumpRequested);
+			state.playerEquipmentCombatRuntime?.update(delta);
 			// player.update() above already moved player.object3D synchronously this frame, so this
 			// read is current — safe to feed into each NPC's combat-stance check and each animal's
 			// flee-awareness check below.
@@ -538,6 +546,7 @@ export async function initGame3D() {
 			state.interactionPrompt.dispose();
 			window.removeEventListener('keydown', handleInteractKeyDown);
 			state.dialogueBox.dispose();
+			state.playerEquipmentCombatRuntime?.dispose();
 			state.player.dispose();
 			state.npcs.forEach((npc) => npc.dispose());
 			state.animals.forEach((animal) => animal.dispose());

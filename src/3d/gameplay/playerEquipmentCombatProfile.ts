@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/playerEquipmentCombatProfile.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * Deterministic equipment -> combat/animation profile bridge for the shipped player.
  *
@@ -16,6 +15,129 @@
  * @module gameplay/playerEquipmentCombatProfile
  */
 
+type UnknownRecord = Record<string, unknown>;
+type EquipmentItem = UnknownRecord;
+type PlayerObject3DLike = { userData: UnknownRecord; name?: string; traverse?: (callback: (node: unknown) => void) => void };
+type AttackKind = 'light' | 'heavy';
+type SlotName = 'head' | 'chest' | 'back' | 'mainHand' | 'offHand';
+type PlayerEquipmentSlots = Readonly<Record<SlotName, EquipmentItem | null>>;
+type AnimationAliasSet = Readonly<Record<'idle' | 'walking' | 'running' | 'light' | 'heavy' | 'dodge' | 'guard' | 'parry' | 'hit', string>>;
+
+export interface PlayerWeaponProfile extends UnknownRecord {
+  readonly id: string;
+  readonly displayName: string;
+  readonly staminaMultiplier: number;
+  readonly damageMultiplier: number;
+  readonly reachMultiplier: number;
+  readonly activeStartShift: number;
+  readonly activeEndShift: number;
+  readonly durationMultiplier: number;
+  readonly commitMultiplier: number;
+  readonly guardBreakMultiplier: number;
+  readonly poiseMultiplier: number;
+  readonly animationFamily: string;
+  readonly socket: string | null;
+  readonly materialSurface: string;
+  readonly projectile: boolean;
+  readonly twoHanded: boolean;
+}
+
+export interface PlayerArmorProfile extends UnknownRecord {
+  readonly id: string;
+  readonly displayName: string;
+  readonly movementMultiplier: number;
+  readonly staminaDrainMultiplier: number;
+  readonly staminaRegenMultiplier: number;
+  readonly poiseBonus: number;
+  readonly guardDamageMultiplier: number;
+  readonly dodgeDistanceMultiplier: number;
+  readonly animationFamily: string;
+  readonly materialSurfaces: readonly string[];
+}
+
+export interface PlayerResolvedEquipmentProfile {
+  readonly version: 1;
+  readonly slots: PlayerEquipmentSlots;
+  readonly mainHand: PlayerWeaponProfile;
+  readonly offHand: PlayerWeaponProfile;
+  readonly armor: PlayerArmorProfile;
+  readonly shieldEquipped: boolean;
+  readonly ranged: boolean;
+  readonly twoHanded: boolean;
+  readonly effectiveGuardMultiplier: number;
+  readonly sourceIds: Readonly<Record<SlotName, string>>;
+}
+
+export interface PlayerAttackTuning {
+  readonly cost: number;
+  readonly duration: number;
+  readonly activeStart: number;
+  readonly activeEnd: number;
+  readonly reach: number;
+  readonly damageScale: number;
+  readonly commitMeters: number;
+  readonly guardBreakMultiplier: number;
+  readonly poiseMultiplier: number;
+  readonly guardDamageMultiplier: number;
+  readonly armorPoiseBonus: number;
+  readonly movementMultiplier: number;
+  readonly staminaRegenMultiplier: number;
+  readonly dodgeDistanceMultiplier: number;
+  readonly isRanged: boolean;
+  readonly twoHanded: boolean;
+}
+
+export interface PlayerAnimationPlan {
+  readonly family: string;
+  readonly action: string;
+  readonly comboStep: number;
+  readonly weight: number;
+  readonly timeScale: number;
+  readonly grounded: boolean;
+  readonly locomotionLayer: 'idle' | 'attack' | 'locomotion';
+  readonly equipmentRevisionKey: string;
+}
+
+export interface PlayerEquipmentSocketBinding {
+  readonly socket: string | null;
+  readonly required: boolean;
+  readonly itemId: string;
+  readonly fallbackSocket: SlotName;
+}
+export interface PlayerEquipmentSocketPlan {
+  readonly version: 1;
+  readonly bindings: Readonly<Record<SlotName, PlayerEquipmentSocketBinding | null>>;
+}
+
+export interface PlayerMaterialAssignmentMetadata {
+  readonly id: string;
+  readonly name: string;
+  readonly category: string;
+  readonly src: string;
+  readonly textureSize: number;
+  readonly layeredFallbackAllowed: true;
+  readonly importedMaterialsPreferred: true;
+  readonly equipmentSurfaces: Readonly<Record<'mainHand' | 'offHand' | 'armor', readonly string[]>>;
+  readonly materialContract: 'MaterialAssignmentCore';
+  readonly placementContract: 'WorldAssetPlacementPipeline';
+  readonly editorUiImportForbidden: true;
+}
+
+export interface PlayerEquipmentRuntimeSnapshot {
+  readonly version: 1;
+  readonly timestamp: number;
+  readonly profile: PlayerResolvedEquipmentProfile;
+  readonly socketPlan: PlayerEquipmentSocketPlan;
+  readonly animation: PlayerAnimationPlan;
+  readonly material: PlayerMaterialAssignmentMetadata;
+  readonly audit: Readonly<{ ok: boolean; errors: readonly string[]; warnings: readonly string[] }>;
+  readonly revision?: number;
+}
+
+const asRecord = (value: unknown): UnknownRecord =>
+  value && typeof value === 'object' && !Array.isArray(value) ? value as UnknownRecord : {};
+const readString = (value: unknown, fallback: string): string => typeof value === 'string' && value.trim() ? value.trim() : fallback;
+
 const MAX_NUMBER = 1000;
 const MIN_NUMBER = 0;
 const MAX_SOCKET_NAME = 80;
@@ -25,24 +147,24 @@ const DEFAULT_ATTACK_KIND = 'light';
 const DEFAULT_ARMOR_ID = 'unarmored';
 const DEFAULT_WEAPON_ID = 'unarmed';
 
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const finiteOr = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-const positiveOr = (value, fallback) => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
+const clamp = (value: unknown, min: number, max: number): number => Math.max(min, Math.min(max, finiteOr(value, min)));
+const finiteOr = (value: unknown, fallback: number): number => Number.isFinite(Number(value)) ? Number(value) : fallback;
+const positiveOr = (value: unknown, fallback: number): number => Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
 
-function normalizeId(value, fallback) {
+function normalizeId(value: unknown, fallback: string): string {
   const id = String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9._:-]+/g, '-').slice(0, MAX_ID_LENGTH);
   return id || fallback;
 }
 
-function normalizeLabel(value, fallback = '') {
+function normalizeLabel(value: unknown, fallback = ''): string {
   const label = String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, MAX_SOCKET_NAME);
   return label || fallback;
 }
 
-function freezeDeep(value) {
+function freezeDeep<T>(value: T): T {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
-  for (const child of Object.values(value)) freezeDeep(child);
-  return Object.freeze(value);
+  for (const child of Object.values(value as UnknownRecord)) freezeDeep(child);
+  return Object.freeze(value) as T;
 }
 
 const ATTACK_PHASES = freezeDeep({
@@ -265,19 +387,22 @@ const MATERIAL_SURFACE_FALLBACKS = freezeDeep({
   'wood-metal': ['wood', 'metal'],
 });
 
-function readItemId(item, fallback) {
-  return normalizeId(item?.profileId ?? item?.equipmentId ?? item?.itemId ?? item?.id ?? item?.slug ?? fallback, fallback);
+function readItemId(item: unknown, fallback: string): string {
+  const source = asRecord(item);
+  return normalizeId(source.profileId ?? source.equipmentId ?? source.itemId ?? source.id ?? source.slug ?? fallback, fallback);
 }
 
-function readWeaponProfile(item) {
-  const id = readItemId(item, DEFAULT_WEAPON_ID);
-  const explicitType = normalizeId(item?.weaponType ?? item?.type ?? item?.category, '');
-  const profile = PLAYER_WEAPON_PROFILES[id] || PLAYER_WEAPON_PROFILES[explicitType] || Object.values(PLAYER_WEAPON_PROFILES).find((candidate) => candidate.id === id) || PLAYER_WEAPON_PROFILES[DEFAULT_WEAPON_ID];
-  const overrides = item?.combat || item?.stats || item?.weaponStats || {};
+function readWeaponProfile(item: unknown): PlayerWeaponProfile {
+  const source = asRecord(item);
+  const id = readItemId(source, DEFAULT_WEAPON_ID);
+  const explicitType = normalizeId(source.weaponType ?? source.type ?? source.category, '');
+  const weaponTable = PLAYER_WEAPON_PROFILES as unknown as Record<string, PlayerWeaponProfile>;
+  const profile = (weaponTable[id] ?? weaponTable[explicitType] ?? Object.values(weaponTable).find((candidate) => candidate.id === id) ?? weaponTable[DEFAULT_WEAPON_ID])!;
+  const overrides = asRecord(source.combat ?? source.stats ?? source.weaponStats);
   return {
     ...profile,
     id,
-    displayName: normalizeLabel(item?.name, profile.displayName),
+    displayName: normalizeLabel(source.name, profile.displayName),
     staminaMultiplier: clamp(positiveOr(overrides.staminaMultiplier, profile.staminaMultiplier), 0.35, 3),
     damageMultiplier: clamp(positiveOr(overrides.damageMultiplier, profile.damageMultiplier), 0.1, 4),
     reachMultiplier: clamp(positiveOr(overrides.reachMultiplier, profile.reachMultiplier), 0.35, 6),
@@ -290,22 +415,24 @@ function readWeaponProfile(item) {
     socket: profile.socket,
     animationFamily: profile.animationFamily,
     materialSurface: profile.materialSurface,
-    projectile: Boolean(profile.projectile || item?.projectile || item?.ranged),
-    twoHanded: Boolean(profile.twoHanded || item?.twoHanded),
+    projectile: Boolean(profile.projectile || source.projectile || source.ranged),
+    twoHanded: Boolean(profile.twoHanded || source.twoHanded),
   };
 }
 
-function readArmorProfile(items = {}) {
-  const source = [items.chest, items.head].find(Boolean) || null;
+function readArmorProfile(items: PlayerEquipmentSlots): PlayerArmorProfile {
+  const source = [items.chest, items.head].find(Boolean) as EquipmentItem | undefined;
   const id = readItemId(source, DEFAULT_ARMOR_ID);
-  const explicitType = normalizeId(source?.armorType ?? source?.type ?? source?.category, '');
-  const profile = PLAYER_ARMOR_PROFILES[id] || PLAYER_ARMOR_PROFILES[explicitType] || Object.values(PLAYER_ARMOR_PROFILES).find((candidate) => candidate.id === id) || PLAYER_ARMOR_PROFILES[DEFAULT_ARMOR_ID];
-  const stats = source?.armor || source?.stats || source?.armorStats || {};
+  const sourceRecord = asRecord(source);
+  const explicitType = normalizeId(sourceRecord.armorType ?? sourceRecord.type ?? sourceRecord.category, '');
+  const armorTable = PLAYER_ARMOR_PROFILES as unknown as Record<string, PlayerArmorProfile>;
+  const profile = (armorTable[id] ?? armorTable[explicitType] ?? Object.values(armorTable).find((candidate) => candidate.id === id) ?? armorTable[DEFAULT_ARMOR_ID])!;
+  const stats = asRecord(sourceRecord.armor ?? sourceRecord.stats ?? sourceRecord.armorStats);
   const extraPoise = finiteOr(stats.poiseBonus, 0);
   return {
     ...profile,
     id,
-    displayName: normalizeLabel(source?.name, profile.displayName),
+    displayName: normalizeLabel(sourceRecord.name, profile.displayName),
     movementMultiplier: clamp(positiveOr(stats.movementMultiplier, profile.movementMultiplier), 0.55, 1.15),
     staminaDrainMultiplier: clamp(positiveOr(stats.staminaDrainMultiplier, profile.staminaDrainMultiplier), 0.55, 1.8),
     staminaRegenMultiplier: clamp(positiveOr(stats.staminaRegenMultiplier, profile.staminaRegenMultiplier), 0.55, 1.25),
@@ -317,17 +444,19 @@ function readArmorProfile(items = {}) {
   };
 }
 
-function normalizeSlotSnapshot(snapshot = {}) {
-  const result = {};
-  for (const slot of Object.keys(SLOT_ALIASES)) {
-    const aliases = new Set(SLOT_ALIASES[slot]);
-    const candidate = Object.entries(snapshot).find(([key]) => aliases.has(normalizeId(key, '')))?.[1];
-    result[slot] = candidate ?? null;
+function normalizeSlotSnapshot(snapshot: unknown = {}): PlayerEquipmentSlots {
+  const source = asRecord(snapshot);
+  const result = {} as Record<SlotName, EquipmentItem | null>;
+  const aliases = SLOT_ALIASES as unknown as Record<SlotName, readonly string[]>;
+  for (const slot of Object.keys(aliases) as SlotName[]) {
+    const aliasSet = new Set(aliases[slot]);
+    const candidate = Object.entries(source).find(([key]) => aliasSet.has(normalizeId(key, '')))?.[1];
+    result[slot] = candidate && typeof candidate === 'object' && !Array.isArray(candidate) ? candidate as EquipmentItem : null;
   }
-  return result;
+  return Object.freeze(result) as PlayerEquipmentSlots;
 }
 
-export function resolvePlayerEquipmentCombatProfile(snapshot = {}) {
+export function resolvePlayerEquipmentCombatProfile(snapshot: unknown = {}): PlayerResolvedEquipmentProfile {
   const slots = normalizeSlotSnapshot(snapshot);
   const mainHand = readWeaponProfile(slots.mainHand);
   const offHand = readWeaponProfile(slots.offHand);
@@ -356,16 +485,18 @@ export function resolvePlayerEquipmentCombatProfile(snapshot = {}) {
   });
 }
 
-function phaseFor(kind) {
-  return ATTACK_PHASES[kind] || ATTACK_PHASES[DEFAULT_ATTACK_KIND];
+function phaseFor(kind: AttackKind): Readonly<{ activeStart: number; activeEnd: number; duration: number; reach: number; damageScale: number; commitMeters: number }> {
+  const phases = ATTACK_PHASES as unknown as Record<AttackKind, Readonly<{ activeStart: number; activeEnd: number; duration: number; reach: number; damageScale: number; commitMeters: number }>>;
+  return (phases[kind] ?? phases[DEFAULT_ATTACK_KIND])!;
 }
 
-export function resolvePlayerAttackTuning(base, profile, kind = DEFAULT_ATTACK_KIND) {
+export function resolvePlayerAttackTuning(base: unknown, profile: PlayerResolvedEquipmentProfile | null | undefined, kind: AttackKind = DEFAULT_ATTACK_KIND): PlayerAttackTuning {
   const resolved = profile || resolvePlayerEquipmentCombatProfile();
   const phase = phaseFor(kind);
   const weapon = resolved.mainHand;
   const armor = resolved.armor;
-  const baseValue = (key, fallback) => finiteOr(base?.[key], fallback);
+  const baseRecord = asRecord(base);
+  const baseValue = (key: string, fallback: number): number => finiteOr(baseRecord[key], fallback);
   const staminaCost = baseValue('staminaCost', kind === 'heavy' ? 24 : 12);
   const duration = baseValue('duration', phase.duration);
   const activeStart = baseValue('activeStart', phase.activeStart);
@@ -396,24 +527,27 @@ export function resolvePlayerAttackTuning(base, profile, kind = DEFAULT_ATTACK_K
   });
 }
 
-export function resolvePlayerAnimationPlan(profile, { movementState = 'idle', attackKind = 'none', comboStep = 0, speedMps = 0, grounded = true } = {}) {
+export function resolvePlayerAnimationPlan(profile: PlayerResolvedEquipmentProfile | null | undefined, { movementState = 'idle', attackKind = 'none', comboStep = 0, speedMps = 0, grounded = true }: { movementState?: string; attackKind?: string; comboStep?: unknown; speedMps?: unknown; grounded?: unknown } = {}): PlayerAnimationPlan {
   const resolved = profile || resolvePlayerEquipmentCombatProfile();
   const family = resolved.mainHand.animationFamily || resolved.armor.animationFamily || 'light';
-  const aliases = ANIMATION_FAMILY_ALIASES[family] || ANIMATION_FAMILY_ALIASES['arming-sword'];
+  const animationFamilies = ANIMATION_FAMILY_ALIASES as unknown as Record<string, AnimationAliasSet>;
+  const aliases = animationFamilies[family] ?? animationFamilies['arming-sword']!;
   let action = aliases.idle;
   if (movementState === 'dodge') action = aliases.dodge;
   else if (movementState === 'parry') action = aliases.parry;
   else if (movementState === 'hit-stagger' || movementState === 'guard-break') action = aliases.hit;
   else if (movementState === 'guard') action = aliases.guard;
   else if (attackKind === 'light' || attackKind === 'heavy') action = aliases[attackKind] || aliases.idle;
-  else if (speedMps > 4.2) action = aliases.running;
-  else if (speedMps > 0.15) action = aliases.walking;
-  const weight = attackKind === 'none' ? 1 : clamp(0.84 + Math.min(0.16, Math.max(0, comboStep - 1) * 0.08), 0, 1);
+  const safeSpeedMps = finiteOr(speedMps, 0);
+  const safeComboStep = finiteOr(comboStep, 0);
+  if (attackKind !== 'light' && attackKind !== 'heavy' && safeSpeedMps > 4.2) action = aliases.running;
+  else if (attackKind !== 'light' && attackKind !== 'heavy' && safeSpeedMps > 0.15) action = aliases.walking;
+  const weight = attackKind === 'none' ? 1 : clamp(0.84 + Math.min(0.16, Math.max(0, safeComboStep - 1) * 0.08), 0, 1);
   const timeScale = attackKind === 'heavy' ? 0.92 : attackKind === 'light' ? 1 : movementState === 'dodge' ? 1.45 : 1;
   return freezeDeep({
     family,
     action,
-    comboStep: clamp(Math.floor(finiteOr(comboStep, 0)), 0, 3),
+    comboStep: clamp(Math.floor(safeComboStep), 0, 3),
     weight,
     timeScale,
     grounded: Boolean(grounded),
@@ -422,20 +556,23 @@ export function resolvePlayerAnimationPlan(profile, { movementState = 'idle', at
   });
 }
 
-function findSocketName(root, slot) {
-  const candidates = new Set(SOCKET_CANDIDATES[slot] || []);
-  let found = null;
-  root?.traverse?.((node) => {
-    if (found || !node?.name) return;
-    if (candidates.has(node.name)) found = node.name;
+function findSocketName(root: PlayerObject3DLike | unknown, slot: SlotName): string | null {
+  const candidates = new Set((SOCKET_CANDIDATES as unknown as Record<SlotName, readonly string[]>)[slot] ?? []);
+  let found: string | null = null;
+  const traverse = (asRecord(root).traverse);
+  if (typeof traverse !== 'function') return null;
+  traverse((node: unknown) => {
+    const candidate = asRecord(node).name;
+    if (found || typeof candidate !== 'string' || !candidate) return;
+    if (candidates.has(candidate)) found = candidate;
   });
   return found;
 }
 
-export function buildPlayerEquipmentSocketPlan(root, profile) {
+export function buildPlayerEquipmentSocketPlan(root: unknown, profile: PlayerResolvedEquipmentProfile | null | undefined): PlayerEquipmentSocketPlan {
   const resolved = profile || resolvePlayerEquipmentCombatProfile();
-  const bindings = {};
-  for (const slot of Object.keys(SOCKET_CANDIDATES)) {
+  const bindings = {} as Record<SlotName, PlayerEquipmentSocketBinding | null>;
+  for (const slot of Object.keys(SOCKET_CANDIDATES) as SlotName[]) {
     const item = resolved.slots[slot];
     bindings[slot] = item ? {
       socket: findSocketName(root, slot),
@@ -447,20 +584,23 @@ export function buildPlayerEquipmentSocketPlan(root, profile) {
   return freezeDeep({ version: 1, bindings });
 }
 
-function surfaceHintsForItem(item, fallback) {
+function surfaceHintsForItem(item: unknown, fallback: string): string[] {
   const profile = readWeaponProfile(item);
-  const hints = MATERIAL_SURFACE_FALLBACKS[profile.materialSurface] || [fallback];
+  const fallbacks = MATERIAL_SURFACE_FALLBACKS as unknown as Record<string, readonly string[]>;
+  const hints = fallbacks[profile.materialSurface] ?? [fallback];
   return [...new Set(hints.map((value) => normalizeId(value, fallback)))];
 }
 
-export function buildPlayerMaterialAssignmentMetadata({ object = null, metadata = {}, profile = null, textureSize = DEFAULT_TEXTURE_SIZE } = {}) {
-  const resolved = profile || resolvePlayerEquipmentCombatProfile();
+export function buildPlayerMaterialAssignmentMetadata({ object = null, metadata = {}, profile = null, textureSize = DEFAULT_TEXTURE_SIZE }: { object?: unknown; metadata?: UnknownRecord; profile?: PlayerResolvedEquipmentProfile | null; textureSize?: unknown } = {}): PlayerMaterialAssignmentMetadata {
+  const resolved = profile ?? resolvePlayerEquipmentCombatProfile();
+  const objectData = asRecord(object);
+  const metadataRecord = asRecord(metadata);
   const size = clamp(Math.floor(finiteOr(textureSize, DEFAULT_TEXTURE_SIZE)), 128, 512);
   return freezeDeep({
-    id: normalizeId(metadata.id ?? object?.userData?.assetId ?? object?.name, 'player'),
-    name: normalizeLabel(metadata.name ?? object?.name, 'player'),
-    category: normalizeLabel(metadata.category ?? object?.userData?.assetCategory, 'character'),
-    src: String(metadata.src ?? object?.userData?.assetSrc ?? 'assets/models/characters/peasant_girl.fbx'),
+    id: normalizeId(metadataRecord.id ?? asRecord(objectData.userData).assetId ?? objectData.name, 'player'),
+    name: normalizeLabel(metadataRecord.name ?? objectData.name, 'player'),
+    category: normalizeLabel(metadataRecord.category ?? asRecord(objectData.userData).assetCategory, 'character'),
+    src: String(metadataRecord.src ?? asRecord(objectData.userData).assetSrc ?? 'assets/models/characters/peasant_girl.fbx'),
     textureSize: size,
     layeredFallbackAllowed: true,
     importedMaterialsPreferred: true,
@@ -475,7 +615,7 @@ export function buildPlayerMaterialAssignmentMetadata({ object = null, metadata 
   });
 }
 
-export function buildPlayerEquipmentRuntimeSnapshot({ object = null, equipment = {}, now = () => 0 } = {}) {
+export function buildPlayerEquipmentRuntimeSnapshot({ object = null, equipment = {}, now = () => 0 }: { object?: unknown; equipment?: unknown; now?: () => number } = {}): PlayerEquipmentRuntimeSnapshot {
   const profile = resolvePlayerEquipmentCombatProfile(equipment);
   const socketPlan = buildPlayerEquipmentSocketPlan(object, profile);
   const animation = resolvePlayerAnimationPlan(profile);
@@ -491,7 +631,7 @@ export function buildPlayerEquipmentRuntimeSnapshot({ object = null, equipment =
   });
 }
 
-export function auditPlayerEquipmentProfile(profile, { socketPlan = null } = {}) {
+export function auditPlayerEquipmentProfile(profile: PlayerResolvedEquipmentProfile | null | undefined, { socketPlan = null }: { socketPlan?: PlayerEquipmentSocketPlan | null } = {}): Readonly<{ ok: boolean; errors: readonly string[]; warnings: readonly string[] }> {
   const resolved = profile || resolvePlayerEquipmentCombatProfile();
   const errors = [];
   const warnings = [];
@@ -513,12 +653,13 @@ export function auditPlayerEquipmentProfile(profile, { socketPlan = null } = {})
   return freezeDeep({ ok: errors.length === 0, errors, warnings });
 }
 
-export function createPlayerEquipmentRuntime({ getEquipment = () => ({}), object3D = null, now = () => 0 } = {}) {
+export function createPlayerEquipmentRuntime({ getEquipment = () => ({}), object3D = null, now = () => 0 }: { getEquipment?: (() => unknown) | unknown; object3D?: PlayerObject3DLike | null; now?: () => number } = {}) {
   let disposed = false;
   let revision = 0;
-  let snapshot = buildPlayerEquipmentRuntimeSnapshot({ object: object3D, equipment: getEquipment?.() || {}, now });
+  const initialEquipment = typeof getEquipment === 'function' ? getEquipment() : getEquipment;
+  let snapshot = buildPlayerEquipmentRuntimeSnapshot({ object: object3D, equipment: initialEquipment || {}, now });
 
-  function refresh() {
+  function refresh(): PlayerEquipmentRuntimeSnapshot {
     if (disposed) return snapshot;
     const equipment = typeof getEquipment === 'function' ? (getEquipment() || {}) : (getEquipment || {});
     revision += 1;
@@ -527,19 +668,21 @@ export function createPlayerEquipmentRuntime({ getEquipment = () => ({}), object
     return snapshot;
   }
 
-  function read() { return snapshot; }
-  function dispose() { disposed = true; }
+  function read(): PlayerEquipmentRuntimeSnapshot { return snapshot; }
+  function dispose(): void { disposed = true; }
 
   if (object3D) object3D.userData.playerEquipment = snapshot;
   return Object.freeze({ refresh, read, dispose });
 }
 
-export function isSupportedPlayerWeaponId(value) {
-  return Boolean(PLAYER_WEAPON_PROFILES[normalizeId(value, '')]);
+export function isSupportedPlayerWeaponId(value: unknown): boolean {
+  const table = PLAYER_WEAPON_PROFILES as unknown as Record<string, PlayerWeaponProfile>;
+  return Boolean(table[normalizeId(value, '')]);
 }
 
-export function isSupportedPlayerArmorId(value) {
-  return Boolean(PLAYER_ARMOR_PROFILES[normalizeId(value, '')]);
+export function isSupportedPlayerArmorId(value: unknown): boolean {
+  const table = PLAYER_ARMOR_PROFILES as unknown as Record<string, PlayerArmorProfile>;
+  return Boolean(table[normalizeId(value, '')]);
 }
 
 export { SLOT_ALIASES, SOCKET_CANDIDATES, ANIMATION_FAMILY_ALIASES };
