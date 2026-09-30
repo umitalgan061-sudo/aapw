@@ -86,6 +86,7 @@ export class R16FixedStepClock {
   #tick = 0;
   #droppedMs = 0;
   #simulatedMs = 0;
+  #steps = 0;
 
   constructor(
     stepMs = 16.6666666667,
@@ -114,6 +115,7 @@ export class R16FixedStepClock {
       this.#accumulatedMs -= this.#stepMs;
       this.#tick += 1;
       this.#simulatedMs += this.#stepMs;
+      this.#steps += 1;
 
       steps.push(
         Object.freeze({
@@ -140,7 +142,7 @@ export class R16FixedStepClock {
       accumulatedMs: this.#accumulatedMs,
       simulatedMs: this.#simulatedMs,
       droppedMs: this.#droppedMs,
-      steps: 0,
+      steps: this.#steps,
       alpha: Math.min(
         1,
         Math.max(0, this.#accumulatedMs / this.#stepMs),
@@ -164,6 +166,7 @@ export class R16FixedStepClock {
     this.#tick = 0;
     this.#droppedMs = 0;
     this.#simulatedMs = 0;
+    this.#steps = 0;
   }
 }
 
