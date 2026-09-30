@@ -1,8 +1,21 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import { readdir } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import process from 'node:process';
-import { summarizeHealth, type HealthGate, type HealthGateResult } from '../src/platform/projectHealth.ts';
+import { summarizeHealth, evaluateTypeScriptOwnership, type HealthGate, type HealthGateResult } from '../src/platform/projectHealth.ts';
+
+async function collectSourceFiles(root = 'src'): Promise<string[]> {
+  const entries = await readdir(root, { withFileTypes: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    if (entry.name === 'vendor' || entry.name === 'node_modules' || entry.name === 'dist') continue;
+    const path = root + '/' + entry.name;
+    if (entry.isDirectory()) files.push(...await collectSourceFiles(path));
+    else if (entry.isFile()) files.push(path);
+  }
+  return files;
+}
 
 const GATES: readonly HealthGate[] = Object.freeze([
   { id: 'typescript-source', command: 'npm', args: ['run', 'verify:ts-source'], timeoutMs: 30_000 },
@@ -40,6 +53,19 @@ function executeGate(gate: HealthGate): Promise<HealthGateResult> {
 }
 
 const started = performance.now();
+const sourceFiles = await collectSourceFiles();
+const ownership = evaluateTypeScriptOwnership(sourceFiles);
+if (ownership.violations.length > 0) {
+  process.stderr.write(
+    `[failed] typescript-source-ownership: ${ownership.violations.join(', ')}\n`,
+  );
+  process.exitCode = 1;
+} else {
+  process.stdout.write(
+    `[passed] typescript-source-ownership: ${ownership.scannedJavaScriptFiles} source JS files have TS owners\n`,
+  );
+}
+
 const results: HealthGateResult[] = [];
 for (const gate of GATES) {
   const result = await executeGate(gate);
