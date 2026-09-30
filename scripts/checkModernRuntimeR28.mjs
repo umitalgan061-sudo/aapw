@@ -10,7 +10,7 @@ const runtimeFiles = [
   'telemetry.ts','cameraController.ts','focusManager.ts','errorRecovery.ts','resourceRegistry.ts',
   'browserSession.ts','sceneBridge.ts','networkAdapter.ts','storageCodec.ts','resizeManager.ts',
   'qualityPolicy.ts','virtualConsole.ts','diagnosticsBridge.ts','legacyAudit.ts',
-  'bootCoordinator.ts','workerPool.ts'
+  'bootCoordinator.ts','workerPool.ts','runtimeApi.ts','networkMonitor.ts','integrationManifest.ts'
 ];
 const failures = [];
 for (const file of runtimeFiles) {
