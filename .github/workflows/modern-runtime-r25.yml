@@ -1,0 +1,61 @@
+name: modern-runtime-r25
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/r25/**'
+      - 'tests/modern/r25/**'
+      - 'scripts/checkModernPlatformR25.mjs'
+      - 'tsconfig.modern-r25.json'
+      - 'package.json'
+      - '.github/workflows/modern-runtime-r25.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/modern/r25/**'
+      - 'tests/modern/r25/**'
+      - 'scripts/checkModernPlatformR25.mjs'
+      - 'tsconfig.modern-r25.json'
+      - 'package.json'
+      - '.github/workflows/modern-runtime-r25.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aapw-r25-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  r25-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Strict R25 guard
+        run: npm run verify:modern:r25
+      - name: R25 typecheck
+        run: npm run typecheck:modern:r25
+      - name: R25 regression suite
+        run: npm run test:modern:r25
+      - name: R25 package check
+        run: node -e "const p=require('./package.json'); for (const k of ['verify:modern:r25','typecheck:modern:r25','test:modern:r25','check:modern:r25']) if (!p.scripts[k]) process.exit(1)"
+      - name: R25 forbidden primitive scan
+        run: |
+          set -eu
+          if grep -RInE '@ts-nocheck|@ts-ignore|eval\(|new Function\(' src/3d/modern/r25; then
+            echo "Forbidden runtime primitive found"
+            exit 1
+          fi
+      - name: R25 deterministic API smoke
+        run: node --experimental-strip-types - <<'NODE'
+          import { stableHash } from './src/3d/modern/r25/contracts.ts';
+          const a = stableHash({b:2,a:1});
+          const b = stableHash({a:1,b:2});
+          if (a !== b) throw new Error('stableHash is not deterministic');
+          console.log('R25 deterministic smoke passed:', a);
+          NODE

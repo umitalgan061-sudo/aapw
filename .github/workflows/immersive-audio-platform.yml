@@ -1,0 +1,59 @@
+name: Immersive Audio Platform
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/audio/**'
+      - 'scripts/checkImmersiveAudio*.mjs'
+      - '.github/workflows/immersive-audio-platform.yml'
+  pull_request:
+    paths:
+      - 'src/3d/audio/**'
+      - 'scripts/checkImmersiveAudio*.mjs'
+      - '.github/workflows/immersive-audio-platform.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: immersive-audio-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Audio contract and boundary verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Syntax check audio sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do node --check "$file"; done < <(find src/3d/audio -type f -name '*.js' -print0 | sort -z)
+      - name: Immersive audio contract
+        run: node scripts/checkImmersiveAudioPlatform.mjs
+      - name: Advanced audio contract
+        run: node scripts/checkImmersiveAudioAdvanced.mjs
+      - name: Generated audio property matrix
+        run: node scripts/checkImmersiveAudioPropertyMatrix.mjs
+      - name: Audio ownership boundaries
+        run: node scripts/checkImmersiveAudioSourceBoundaries.mjs
+      - name: Diff hygiene
+        run: git diff --check
+      - name: Source size guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          oversized=$(find src/3d/audio -type f -name '*.js' -print0 | xargs -0 awk 'length($0)>200 { c++ } END { print c+0 }')
+          test "$oversized" -eq 0

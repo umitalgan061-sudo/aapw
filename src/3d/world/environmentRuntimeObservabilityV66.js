@@ -1,8 +1,4 @@
-const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
-export const V66_OBSERVABILITY_POLICY=Object.freeze({id:'environment-runtime-observability-v66-2026-09-15',version:66,deterministic:true,noWorldMutation:true,thresholds:{audit:1,budget:1.18,continuity:0.72,sky:0.08}});
-export const scoreV66Ledger=({audit=0,budget=0,continuity=0,sky=0,determinism=true}={})=>({audit:clamp(audit),budget:clamp(1-budget),continuity:clamp(continuity),sky:clamp(sky/0.3),determinism:determinism===true});
-export const buildV66Ledger=(runtime={})=>{const score=scoreV66Ledger({audit:runtime.audit?.pass?1:0,budget:runtime.streaming?.budget?.max||runtime.streaming?.usage?.max||0,continuity:runtime.continuity?.matrix?.meanContinuityRate||0,sky:runtime.sky?.skyLumaFloor||0,determinism:runtime.deterministic});return{policy:V66_OBSERVABILITY_POLICY.id,score,green:Object.values(score).every(Boolean),evidenceScore:Number((Object.values(score).filter(Boolean).length/Object.keys(score).length).toFixed(3))};};
-export const buildV66ReleaseSummary=(runtime={})=>({version:66,policy:V66_OBSERVABILITY_POLICY.id,ledger:buildV66Ledger(runtime),digest:runtime.digest||null,samples:runtime.navigation?.field?.length||0,eventCount:runtime.eventsRuntime?.events?.length||0,features:['erosion','hydrology','wildlife','climate','navigation','ground-response','events','streaming']});
-export const validateV66Ledger=(ledger)=>{const errors=[];if(ledger?.policy!==V66_OBSERVABILITY_POLICY.id)errors.push('policy');if(ledger?.green!==true)errors.push('red');if((ledger?.evidenceScore||0)<0.8)errors.push('evidence');return{ok:errors.length===0,errors};};
-export const compareV66Ledgers=(before,after)=>({before,after,improved:(after?.evidenceScore||0)>(before?.evidenceScore||0),stablePolicy:before?.policy===after?.policy});
-export const getV66ObservabilitySummary=()=>Object.freeze({contract:V66_OBSERVABILITY_POLICY,features:['ledger','release-summary','evidence-score','policy-validation']});
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './environmentRuntimeObservabilityV66.ts';
+export * from './environmentRuntimeObservabilityV66.ts';
+export default __typed.default;

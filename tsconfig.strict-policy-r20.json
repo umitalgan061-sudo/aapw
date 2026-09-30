@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.strict-core.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "checkJs": false,
+    "noEmit": true
+  },
+  "include": [
+    "src/3d/world/WorldSurfacePolicySchema.ts",
+    "src/3d/world/roadSurfaceProfile.ts"
+  ]
+}

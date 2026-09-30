@@ -1,0 +1,46 @@
+import { calibrationFor } from './terrainGroundwaterSurfaceDetailCalibration.js';
+const freeze=Object.freeze;
+export const TERRAIN_GROUNDWATER_DETAIL_PRESETS=freeze([
+{id:'preset-wetland-calm',biome:'wetland',substrate:'peat',detailWeight:1,localContrast:.38,stormBias:.15,droughtBias:.04,freezeBias:.22,calibration:'wetland-peat'},
+{id:'preset-wetland-storm',biome:'wetland',substrate:'silt',detailWeight:1.08,localContrast:.48,stormBias:.34,droughtBias:.02,freezeBias:.18,calibration:'wetland-silt'},
+{id:'preset-wetland-recovery',biome:'wetland',substrate:'loam',detailWeight:.96,localContrast:.34,stormBias:.12,droughtBias:.04,freezeBias:.24,calibration:'wetland-loam'},
+{id:'preset-riparian-deep',biome:'riparian',substrate:'alluvium',detailWeight:1.1,localContrast:.46,stormBias:.3,droughtBias:.06,freezeBias:.18,calibration:'river-alluvium'},
+{id:'preset-riparian-silt',biome:'riparian',substrate:'silt',detailWeight:1.12,localContrast:.44,stormBias:.28,droughtBias:.06,freezeBias:.2,calibration:'river-silt'},
+{id:'preset-riparian-gravel',biome:'riparian',substrate:'gravel',detailWeight:.94,localContrast:.52,stormBias:.26,droughtBias:.1,freezeBias:.22,calibration:'river-gravel'},
+{id:'preset-temperate-loam',biome:'temperate',substrate:'loam',detailWeight:1,localContrast:.5,stormBias:.2,droughtBias:.14,freezeBias:.28,calibration:'temperate-loam'},
+{id:'preset-temperate-clay',biome:'temperate',substrate:'clay',detailWeight:1.04,localContrast:.42,stormBias:.22,droughtBias:.1,freezeBias:.3,calibration:'temperate-clay'},
+{id:'preset-temperate-silt',biome:'temperate',substrate:'silt',detailWeight:1.02,localContrast:.44,stormBias:.24,droughtBias:.12,freezeBias:.28,calibration:'temperate-silt'},
+{id:'preset-temperate-gravel',biome:'temperate',substrate:'gravel',detailWeight:.88,localContrast:.58,stormBias:.18,droughtBias:.2,freezeBias:.3,calibration:'temperate-gravel'},
+{id:'preset-dryland-sand',biome:'dryland',substrate:'sand',detailWeight:.92,localContrast:.55,stormBias:.18,droughtBias:.38,freezeBias:.14,calibration:'dryland-sand'},
+{id:'preset-dryland-gravel',biome:'dryland',substrate:'gravel',detailWeight:.9,localContrast:.62,stormBias:.16,droughtBias:.34,freezeBias:.16,calibration:'dryland-gravel'},
+{id:'preset-desert-sand',biome:'desert',substrate:'sand',detailWeight:.78,localContrast:.64,stormBias:.1,droughtBias:.48,freezeBias:.12,calibration:'desert-sand'},
+{id:'preset-desert-gravel',biome:'desert',substrate:'gravel',detailWeight:.8,localContrast:.68,stormBias:.09,droughtBias:.46,freezeBias:.12,calibration:'desert-gravel'},
+{id:'preset-forest-loam',biome:'forest',substrate:'loam',detailWeight:1.03,localContrast:.46,stormBias:.2,droughtBias:.09,freezeBias:.31,calibration:'forest-loam'},
+{id:'preset-forest-clay',biome:'forest',substrate:'clay',detailWeight:1.05,localContrast:.4,stormBias:.24,droughtBias:.08,freezeBias:.33,calibration:'forest-clay'},
+{id:'preset-forest-gravel',biome:'forest',substrate:'gravel',detailWeight:.94,localContrast:.54,stormBias:.18,droughtBias:.14,freezeBias:.32,calibration:'forest-gravel'},
+{id:'preset-montane-schist',biome:'montane',substrate:'schist',detailWeight:.96,localContrast:.58,stormBias:.18,droughtBias:.14,freezeBias:.46,calibration:'montane-schist'},
+{id:'preset-montane-granite',biome:'montane',substrate:'granite',detailWeight:.9,localContrast:.64,stormBias:.16,droughtBias:.18,freezeBias:.5,calibration:'montane-granite'},
+{id:'preset-alpine-basalt',biome:'alpine',substrate:'basalt',detailWeight:.82,localContrast:.7,stormBias:.12,droughtBias:.18,freezeBias:.62,calibration:'alpine-basalt'},
+{id:'preset-alpine-granite',biome:'alpine',substrate:'granite',detailWeight:.8,localContrast:.72,stormBias:.11,droughtBias:.2,freezeBias:.66,calibration:'alpine-granite'},
+{id:'preset-tundra-silt',biome:'tundra',substrate:'silt',detailWeight:.92,localContrast:.58,stormBias:.18,droughtBias:.1,freezeBias:.68,calibration:'tundra-silt'},
+{id:'preset-tundra-rock',biome:'tundra',substrate:'basalt',detailWeight:.84,localContrast:.7,stormBias:.14,droughtBias:.16,freezeBias:.72,calibration:'tundra-rock'},
+{id:'preset-coastal-silt',biome:'coastal',substrate:'silt',detailWeight:1.08,localContrast:.42,stormBias:.32,droughtBias:.18,freezeBias:.18,calibration:'coastal-silt'},
+{id:'preset-coastal-sand',biome:'coastal',substrate:'sand',detailWeight:.98,localContrast:.54,stormBias:.28,droughtBias:.28,freezeBias:.16,calibration:'coastal-sand'},
+{id:'preset-coastal-gravel',biome:'coastal',substrate:'gravel',detailWeight:.94,localContrast:.6,stormBias:.25,droughtBias:.24,freezeBias:.2,calibration:'coastal-gravel'},
+{id:'preset-swamp-peat',biome:'swamp',substrate:'peat',detailWeight:1.14,localContrast:.34,stormBias:.38,droughtBias:.04,freezeBias:.2,calibration:'swamp-peat'},
+{id:'preset-swamp-clay',biome:'swamp',substrate:'clay',detailWeight:1.1,localContrast:.36,stormBias:.36,droughtBias:.05,freezeBias:.22,calibration:'swamp-clay'},
+{id:'preset-foothill-loam',biome:'foothill',substrate:'loam',detailWeight:.98,localContrast:.54,stormBias:.2,droughtBias:.13,freezeBias:.4,calibration:'foothill-loam'},
+{id:'preset-foothill-schist',biome:'foothill',substrate:'schist',detailWeight:.94,localContrast:.62,stormBias:.18,droughtBias:.16,freezeBias:.46,calibration:'foothill-schist'},
+{id:'preset-plateau-silt',biome:'plateau',substrate:'silt',detailWeight:.9,localContrast:.62,stormBias:.16,droughtBias:.2,freezeBias:.34,calibration:'plateau-silt'},
+{id:'preset-plateau-basalt',biome:'plateau',substrate:'basalt',detailWeight:.86,localContrast:.68,stormBias:.14,droughtBias:.22,freezeBias:.4,calibration:'plateau-basalt'},
+{id:'preset-volcanic-basalt',biome:'volcanic',substrate:'basalt',detailWeight:.9,localContrast:.67,stormBias:.16,droughtBias:.19,freezeBias:.43,calibration:'volcanic-basalt'},
+{id:'preset-volcanic-ash',biome:'volcanic',substrate:'silt',detailWeight:1.02,localContrast:.48,stormBias:.24,droughtBias:.14,freezeBias:.38,calibration:'volcanic-ash'},
+{id:'preset-steppe-loam',biome:'steppe',substrate:'loam',detailWeight:.92,localContrast:.58,stormBias:.14,droughtBias:.28,freezeBias:.3,calibration:'steppe-loam'},
+{id:'preset-steppe-silt',biome:'steppe',substrate:'silt',detailWeight:.94,localContrast:.55,stormBias:.16,droughtBias:.25,freezeBias:.32,calibration:'steppe-silt'},
+{id:'preset-valley-loam',biome:'valley',substrate:'loam',detailWeight:1.04,localContrast:.46,stormBias:.26,droughtBias:.12,freezeBias:.3,calibration:'temperate-loam'},
+{id:'preset-recharge-loam',biome:'recharge',substrate:'loam',detailWeight:1.02,localContrast:.44,stormBias:.34,droughtBias:.08,freezeBias:.28,calibration:'temperate-loam'},
+]);
+export function presetById(id){return TERRAIN_GROUNDWATER_DETAIL_PRESETS.find(p=>p.id===id)||null;}
+export function resolveDetailPreset({biome='temperate',substrate='loam',presetId=null}={}){const direct=presetId?presetById(presetId):null;const byEnvironment=TERRAIN_GROUNDWATER_DETAIL_PRESETS.find(p=>p.biome===biome&&p.substrate===substrate);const selected=direct??byEnvironment??TERRAIN_GROUNDWATER_DETAIL_PRESETS.find(p=>p.biome===biome)??TERRAIN_GROUNDWATER_DETAIL_PRESETS[6];return freeze({...selected,calibrationProfile:calibrationFor({biome:selected.biome,substrate:selected.substrate})});}
+export function applyPresetToOptions(options={},preset){const p=preset??resolveDetailPreset(options);return freeze({...options,detailWeight:p.detailWeight,localContrast:p.localContrast,groundwaterDetailPresetId:p.id,groundwaterDetailCalibrationId:p.calibrationProfile.id});}
+export function presetAudit(){const ids=TERRAIN_GROUNDWATER_DETAIL_PRESETS.map(p=>p.id),errors=[];if(new Set(ids).size!==ids.length)errors.push('duplicate-id');for(const p of TERRAIN_GROUNDWATER_DETAIL_PRESETS){if(p.detailWeight<.5||p.detailWeight>1.5)errors.push(`${p.id}:weight`);if(p.localContrast<0||p.localContrast>1)errors.push(`${p.id}:contrast`);for(const k of ['stormBias','droughtBias','freezeBias'])if(p[k]<0||p[k]>1)errors.push(`${p.id}:${k}`);}return freeze({ok:errors.length===0,errors:freeze(errors),count:ids.length});}

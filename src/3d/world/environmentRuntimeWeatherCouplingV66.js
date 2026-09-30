@@ -1,9 +1,4 @@
-const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
-export const V66_WEATHER_COUPLING_POLICY=Object.freeze({id:'environment-runtime-weather-coupling-v66-2026-09-15',version:66,deterministic:true,mutation:false});
-export const normalizeWeatherCouplingV66=(weather={})=>({precipitation:clamp(weather.precipitation),humidity:clamp(weather.humidity),wind:clamp(weather.wind),cloud:clamp(weather.cloud),temperature:clamp(weather.temperature??.5),snow:clamp(weather.snow),stormPulse:clamp(weather.stormPulse)});
-export const deriveWeatherCouplingV66=(weather={},surface={},water={},ecology={})=>{const w=normalizeWeatherCouplingV66(weather);const wet=clamp(w.precipitation*.46+w.humidity*.34+(surface.wetness||0)*.2);const wind=clamp(w.wind*.62+(surface.wind||0)*.38);const frost=clamp((.34-w.temperature)*1.7+w.snow*.5);const flood=clamp((water.bankPressure||0)*.62+w.precipitation*.2+w.humidity*.18);const green=clamp((ecology.meanForage||0)*.5+w.humidity*.3+(1-frost)*.2);return{wetness:wet,wind,frost,flood,green,visibility:clamp(1-(w.humidity*.4+w.precipitation*.36+w.cloud*.24)),groundResponse:{mud:clamp(wet*.72+(water.bankPressure||0)*.28),snow:clamp(frost*.72+w.snow*.28),rockWet:clamp(wet*.5+(surface.rock||0)*.5)},habitatResponse:{forage:green,cover:clamp((ecology.meanCover||0)*.6+green*.4),waterStress:clamp(1-flood)}};
-};
-export const buildWeatherCouplingScenariosV66=()=>['clear','rain','storm','snow','heat'].map((id,index)=>({id,weather:{precipitation:[.03,.4,.9,.32,.02][index],humidity:[.25,.7,.96,.82,.18][index],wind:[.18,.32,.74,.54,.4][index],cloud:[.1,.5,.88,.74,.04][index],temperature:[.68,.42,.3,.16,.9][index],snow:index===3?.72:0}}));
-export const validateWeatherCouplingV66=(runtime)=>{const errors=[];if(runtime?.policy!==V66_WEATHER_COUPLING_POLICY.id)errors.push('policy');if(runtime?.deterministic!==true)errors.push('determinism');for(const key of ['wetness','wind','frost','flood','green','visibility'])if(runtime?.[key]<0||runtime?.[key]>1)errors.push(key);return{ok:errors.length===0,errors};};
-export const weatherCouplingTelemetryV66=(runtime)=>({wetness:runtime?.wetness||0,flood:runtime?.flood||0,frost:runtime?.frost||0,green:runtime?.green||0,visibility:runtime?.visibility||0});
-export const getV66WeatherCouplingSummary=()=>Object.freeze({contract:V66_WEATHER_COUPLING_POLICY,features:['weather-surface','weather-water','weather-ecology','scenario-set']});
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './environmentRuntimeWeatherCouplingV66.ts';
+export * from './environmentRuntimeWeatherCouplingV66.ts';
+export default __typed.default;

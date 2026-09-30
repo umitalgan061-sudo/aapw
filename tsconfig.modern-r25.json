@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "checkJs": false,
+    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": [
+    "src/3d/modern/r25/**/*.ts",
+    "tests/modern/r25/**/*.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

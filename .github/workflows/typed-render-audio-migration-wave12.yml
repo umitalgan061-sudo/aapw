@@ -1,0 +1,32 @@
+name: Kızıl Ufuk Typed Render Audio Migration Wave 12
+on:
+  pull_request:
+    paths:
+      - 'src/3d/lighting.ts'
+      - 'src/3d/lighting.js'
+      - 'src/3d/stars.ts'
+      - 'src/3d/stars.js'
+      - 'src/3d/nightVisualEnhancement.ts'
+      - 'src/3d/nightVisualEnhancement.js'
+      - 'src/3d/celestialLightState.ts'
+      - 'src/3d/celestialLightState.js'
+      - 'src/3d/audio/audioManager.ts'
+      - 'src/3d/audio/audioManager.js'
+      - 'src/3d/modern/typedLegacySurfaceV6.ts'
+      - 'tests/modern/typedRenderAudioMigrationWave12.test.ts'
+      - 'scripts/checkTypedRenderAudioMigrationWave12.mjs'
+      - 'package.json'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install
+      - run: node scripts/checkTypedRenderAudioMigrationWave12.mjs
+      - run: npm run typecheck
+      - run: npm test -- tests/modern/typedRenderAudioMigrationWave12.test.ts

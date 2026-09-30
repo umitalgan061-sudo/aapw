@@ -1,0 +1,18 @@
+import { clamp01, finiteV67, meanV67, normalizeSampleV67 } from './environmentRuntimeV67.js';
+export const NAVIGATION_V67=Object.freeze({id:'navigation-v67',version:67,deterministic:true,noWorldMutation:true});
+export const baseTraversalCostV67=(sample={})=>{const s=normalizeSampleV67(sample);return 1+s.slope*2.4+(1-s.visibility)*.8+(1-s.moisture)*.25;};
+export const tractionPenaltyV67=(traction=1)=>1+clamp01(1-traction)*2.8;
+export const hazardPenaltyV67=(risk=0)=>risk>=.8?Infinity:1+clamp01(risk)*3.5;
+export const traversalScoreV67=(sample={})=>{const cost=baseTraversalCostV67(sample)*tractionPenaltyV67(sample.traction??(1-normalizeSampleV67(sample).slope*.5))*hazardPenaltyV67(sample.hazard??0);return Number.isFinite(cost)?clamp01(1/(1+cost/4)):0;};
+export const traversalClassV67=(score=0)=>score>.72?'preferred':score>.48?'cautious':score>.2?'difficult':'blocked';
+export const buildNavigationNodeV67=(sample={})=>{const s=normalizeSampleV67(sample);const score=traversalScoreV67(sample);return{id:s.id,score,class:traversalClassV67(score),cost:score?1/score:Infinity,slope:s.slope,safe:score>.48};};
+export const buildNavigationFieldV67=(samples=[])=>samples.map(buildNavigationNodeV67);
+export const linkCostV67=(a={},b={},distance=10)=>Math.max(1,finiteV67(distance,10))*(2-traversalScoreV67(a)*.4-traversalScoreV67(b)*.4);
+export const chooseDetourV67=(edges=[])=>edges.filter(x=>Number.isFinite(x.cost)&&x.class!=='blocked').sort((a,b)=>a.cost-b.cost)[0]??null;
+export const routeReadinessV67=(field=[])=>clamp01(meanV67(field.map(x=>x.score)));
+export const safeRouteEnvelopeV67=(field=[])=>({readiness:routeReadinessV67(field),preferred:field.filter(x=>x.class==='preferred').length,blocked:field.filter(x=>x.class==='blocked').length});
+export const navigationSummaryV67=(field=[])=>({samples:field.length,readiness:routeReadinessV67(field),safe:field.filter(x=>x.safe).length,unsafe:field.filter(x=>!x.safe).length});
+export const validateNavigationV67=(field=[])=>{const errors=[];if(!Array.isArray(field))errors.push('field');if(field.some(x=>x.score<0||x.score>1))errors.push('score');if(field.some(x=>typeof x.safe!=='boolean'))errors.push('safe');return{ok:errors.length===0,errors};};
+export const navigationTelemetryV67=(field=[])=>({policy:NAVIGATION_V67.id,valid:validateNavigationV67(field).ok,summary:navigationSummaryV67(field)});
+export const routeEdgeV67=(from,to,sample={},distance=10)=>{const node=buildNavigationNodeV67(sample);return{from,to,cost:node.cost*distance,class:node.class,reversible:true};};
+export const movementEnvelopeV67=(sample={})=>{const node=buildNavigationNodeV67(sample);return{speedMultiplier:clamp01(.45+node.score*.55),turnCost:1.2+(1-node.score)*2,canTraverse:node.safe};};

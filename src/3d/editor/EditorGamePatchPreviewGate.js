@@ -1,6 +1,4 @@
-const params = new URLSearchParams(window.location.search);
-if (params.get('editorPatch') === '1') {
-  import('./EditorGamePatchPreview.js').catch((error) => {
-    console.error('[EditorGamePatchPreviewGate] preview module failed to load', error);
-  });
-}
+/* TypeScript ownership compatibility boundary. */
+import * as __typed from './EditorGamePatchPreviewGate.ts';
+export * from './EditorGamePatchPreviewGate.ts';
+export default __typed.default;
