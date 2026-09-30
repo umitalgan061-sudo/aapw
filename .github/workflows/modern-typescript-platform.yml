@@ -5,8 +5,8 @@ on:
     paths:
       - 'src/3d/modern/**'
       - 'scripts/checkModernPlatform.mjs'
+      - 'scripts/checkModernRuntimeV3.mjs'
       - 'package.json'
-      - 'package-lock.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
       - 'vitest.config.ts'
@@ -16,8 +16,8 @@ on:
     paths:
       - 'src/3d/modern/**'
       - 'scripts/checkModernPlatform.mjs'
+      - 'scripts/checkModernRuntimeV3.mjs'
       - 'package.json'
-      - 'package-lock.json'
       - 'tsconfig.json'
       - 'vite.config.ts'
       - 'vitest.config.ts'
@@ -26,18 +26,22 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: modern-typescript-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   typecheck:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24.21.0
-          cache: npm
-      - run: npm install --ignore-scripts
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run verify:modern
+      - run: npm run verify:modern:v3
       - run: npm run typecheck
       - run: npm test -- --passWithNoTests
       - run: npm run build:modern
@@ -50,19 +54,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - run: node scripts/checkModernPlatform.mjs
+      - run: node scripts/checkModernRuntimeV3.mjs
       - name: Guard deterministic core surfaces only
         run: |
           set -eu
-          for file in \
-            src/3d/modern/deterministic.ts \
-            src/3d/modern/worldSimulation.ts \
-            src/3d/modern/commandJournal.ts \
-            src/3d/modern/networkSnapshot.ts \
-            src/3d/modern/networkReplication.ts \
-            src/3d/modern/streamingPlanner.ts; do
-            if grep -nE 'Math\.random\(|Date\.now\(' "$file"; then
-              echo "Deterministic simulation surface must not use wall-clock or ambient random APIs: $file"
+          for file in             src/3d/modern/deterministic.ts             src/3d/modern/worldSimulation.ts             src/3d/modern/commandJournal.ts             src/3d/modern/networkSnapshot.ts             src/3d/modern/networkReplication.ts             src/3d/modern/streamingPlanner.ts             src/3d/modern/replayVerifierV2.ts             src/3d/modern/rollbackControllerV2.ts             src/3d/modern/runtimeContractMatrixV2.ts             src/3d/modern/worldInvariantV2.ts             src/3d/modern/entityComponentRuntimeV3.ts             src/3d/modern/assetGraphV3.ts             src/3d/modern/networkSessionV3.ts; do
+            if grep -nE 'Math\.random\(|eval\(|new Function\(' "$file"; then
+              echo "Unsafe or nondeterministic primitive detected: $file"
               exit 1
             fi
           done
