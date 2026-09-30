@@ -114,7 +114,16 @@
     "check:typed-ownership-r12": "npm run verify:typed-ownership-r12 && npm run test:typed-ownership-r12 && npm run typecheck",
     "verify:modern:r27": "node scripts/checkModernRuntimeR27.mjs",
     "test:modern:r27": "vitest run tests/modern/r27 --passWithNoTests",
-    "check:modern:r27": "npm run verify:modern:r27 && npm run test:modern:r27 && npm run typecheck"
+    "check:modern:r27": "npm run verify:modern:r27 && npm run test:modern:r27 && npm run typecheck",
+    "typecheck:player-modern": "tsc -p tsconfig.player-modernization.json --noEmit",
+    "test:player-modern": "vitest run tests/modern/playerModernizationR1.test.ts",
+    "check:player-modern": "npm run typecheck:player-modern && npm run test:player-modern && npm run verify:player-modern-r1",
+    "typecheck:player-equipment-strict": "tsc -p tsconfig.player-equipment-strict.json --noEmit",
+    "test:player-equipment-strict": "vitest run tests/modern/playerEquipmentCombatRulesStrict.test.ts",
+    "check:player-equipment-strict": "npm run typecheck:player-equipment-strict && npm run test:player-equipment-strict",
+    "typecheck:player-animation-strict": "tsc -p tsconfig.player-animation-strict.json --noEmit",
+    "test:player-animation-strict": "vitest run tests/modern/playerAnimationDirectorStrict.test.ts",
+    "check:player-animation-strict": "npm run typecheck:player-animation-strict && npm run test:player-animation-strict"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
