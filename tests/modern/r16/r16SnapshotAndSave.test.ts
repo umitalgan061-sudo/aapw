@@ -2,6 +2,7 @@ import { describe,expect,it } from 'vitest';
 import { R16SnapshotStore } from '../../../src/3d/modern/r16/snapshotStore.js';
 import { R16SnapshotCodec } from '../../../src/3d/modern/r16/snapshotCodec.js';
 import { R16SaveMigrationPipeline } from '../../../src/3d/modern/r16/saveMigration.js';
+import { digestValue } from '../../../src/3d/modern/r16/deterministic.js';
 
 describe('R16 snapshot and save migration',()=>{
   it('round-trips nested deterministic state',()=>{
@@ -19,10 +20,10 @@ describe('R16 snapshot and save migration',()=>{
     const pipeline=new R16SaveMigrationPipeline('aapw-save',3);
     pipeline.register({from:1,to:2,id:'add-level',apply:s=>({...s,level:1})});
     pipeline.register({from:2,to:3,id:'rename-score',apply:s=>({...s,score:s.points??0})});
-    const envelope=Object.freeze({schema:'aapw-save',version:1,createdTick:2,state:Object.freeze({points:50}),digest:''}) as any;
+    const body={schema:'aapw-save',version:1,createdTick:2,state:Object.freeze({points:50})};
+    const envelope=Object.freeze({...body,digest:digestValue(body)}) as any;
     const fixed=pipeline.latest({points:50},2);
-    const v1={...envelope,digest:requireDigest(envelope.schema,envelope.version,envelope.createdTick,envelope.state)};
-    const migrated=pipeline.migrate(v1,3);
+    const migrated=pipeline.migrate(envelope,3);
     expect(migrated.ok).toBe(true);
     if(migrated.ok)expect(migrated.value.version).toBe(3);
     void fixed;
