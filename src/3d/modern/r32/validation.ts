@@ -1,4 +1,6 @@
-import {AssetDescriptor,RuntimeConfigR32,RuntimeError,RuntimeMode,TaskLane,TaskPriority,clampFinite} from './contracts.ts';
+import {RuntimeError,clampFinite} from './contracts.ts';
+import type {AssetDescriptor,RuntimeConfigR32,RuntimeMode,TaskLane,TaskPriority} from './contracts.ts';
+
 const lanes:readonly TaskLane[]=['simulation','world','render','network','assets','telemetry'];const priorities:readonly TaskPriority[]=['critical','high','normal','low','background'];
 export interface ValidationIssue{readonly code:string;readonly path:string;readonly message:string;readonly severity:'error'|'warning';}
 export interface ValidationReport{readonly valid:boolean;readonly issues:readonly ValidationIssue[];readonly targetHz:number;}
