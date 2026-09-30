@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "allowJs": false, "noEmit": true },
+  "include": [
+    "src/3d/gameplay/playerRuntimeBudgetPolicy.ts",
+    "tests/modern/playerRuntimeBudgetPolicyStrict.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

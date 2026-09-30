@@ -156,7 +156,10 @@
     "test:tooling-r32": "npm test -- tests/modern/typedToolingMigrationR32.test.ts",
     "verify:service-worker-artifact": "node scripts/checkServiceWorkerArtifact.mjs",
     "build:service-worker:r32": "npm run build:service-worker && npm run verify:service-worker-artifact",
-    "check:tooling-r32": "npm run verify:tooling-r32 && npm run typecheck:tooling-r32 && npm run test:tooling-r32 && npm run verify:service-worker-artifact"
+    "check:tooling-r32": "npm run verify:tooling-r32 && npm run typecheck:tooling-r32 && npm run test:tooling-r32 && npm run verify:service-worker-artifact",
+    "typecheck:player-budget": "tsc -p tsconfig.player-runtime-budget.json --noEmit",
+    "test:player-budget": "vitest run tests/modern/playerRuntimeBudgetPolicyStrict.test.ts",
+    "check:player-budget": "npm run typecheck:player-budget && npm run test:player-budget"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

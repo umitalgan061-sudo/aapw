@@ -163,3 +163,11 @@ for (const samples of [normal, constrained, slowSoftware, [0.001, 0.5, 1, 2], [I
 }
 
 console.log('player runtime budget policy regression: PASS');
+
+assert.equal(typeof PLAYER_RUNTIME_BUDGET_VERSION, 'string');
+const hostile = buildRuntimeBudgetDecision([Number.NaN, Number.POSITIVE_INFINITY, -99, 0.016], { simulationSeconds: Number.POSITIVE_INFINITY, extraMultiplier: Number.NaN });
+assert.ok(Number.isFinite(hostile.timeoutMs));
+assert.ok(hostile.timeoutMs >= PLAYER_RUNTIME_BUDGET_LIMITS.minimumTimeoutMs);
+assert.ok(hostile.timeoutMs <= PLAYER_RUNTIME_BUDGET_LIMITS.maximumTimeoutMs);
+assert.ok(Number.isFinite(hostile.pollIntervalMs));
+assert.equal(validateRuntimeBudgetDecision(hostile).valid, true);
