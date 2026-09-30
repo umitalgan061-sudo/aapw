@@ -114,7 +114,10 @@
     "check:typed-ownership-r12": "npm run verify:typed-ownership-r12 && npm run test:typed-ownership-r12 && npm run typecheck",
     "verify:modern:r27": "node scripts/checkModernRuntimeR27.mjs",
     "test:modern:r27": "vitest run tests/modern/r27 --passWithNoTests",
-    "check:modern:r27": "npm run verify:modern:r27 && npm run test:modern:r27 && npm run typecheck"
+    "check:modern:r27": "npm run verify:modern:r27 && npm run test:modern:r27 && npm run typecheck",
+    "verify:modern:r28": "node scripts/checkModernRuntimeR28.mjs",
+    "test:modern:r28": "vitest run tests/modern/r28 --passWithNoTests",
+    "check:modern:r28": "npm run verify:modern:r28 && npm run test:modern:r28 && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
