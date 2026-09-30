@@ -4,7 +4,7 @@ import {
   PLAYER_WEAPON_PROFILES,
   PLAYER_ARMOR_PROFILES,
   resolvePlayerEquipmentCombatProfile,
-} from '../src/3d/gameplay/playerEquipmentCombatProfile.js';
+} from '../src/3d/gameplay/playerEquipmentCombatProfile.ts';
 import {
   resolvePlayerDefenseRules,
   resolvePlayerDodgeRules,
@@ -16,7 +16,7 @@ import {
   resolvePlayerLockOnRules,
   buildPlayerHitboxHurtboxContract,
   validatePlayerEquipmentRuntimeInput,
-} from '../src/3d/gameplay/playerEquipmentCombatRules.js';
+} from '../src/3d/gameplay/playerEquipmentCombatRules.ts';
 
 const finiteTree = (value, path = 'root') => {
   if (!value || typeof value !== 'object') return;

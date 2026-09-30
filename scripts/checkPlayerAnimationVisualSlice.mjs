@@ -84,7 +84,7 @@ function assertFrozen(value, label) {
 }
 
 function testVersionAndExports() {
-  assert.equal(PLAYER_ANIMATION_DIRECTOR_VERSION, '2026-09-07-v2');
+  assert.match(PLAYER_ANIMATION_DIRECTOR_VERSION, /^2026-09-30-v3$/);
   assert.equal(typeof createPlayerAnimationDirector, 'function');
   assert.equal(typeof resolvePlayerAnimationIntent, 'function');
   assert.equal(typeof resolvePlayerAnimationPresentation, 'function');

@@ -1,4 +1,4 @@
-/** Strict TypeScript production owner. Legacy payload retained only as rollback source. */
+/** Production TypeScript owner for src/3d/world/naturalGeology.legacy.js. Legacy payload is isolated only for compatibility. */
 // @ts-nocheck
 /**
  * Asset-informed natural geology renderer.
@@ -11,19 +11,19 @@
  */
 
 import * as THREE from 'three';
-import { AssetLoader } from '../assetLoader.js';
+import { AssetLoader } from '../assetLoader.ts';
 import {
   NATURAL_GEOLOGY_PLACEMENT_POLICY,
   checksumNaturalGeologyPlacements,
   generateNaturalGeologyPlacements,
   sampleTerrainFrame,
-} from './naturalGeologyPlacement.js';
+} from './naturalGeologyPlacement.ts';
 import {
   VALYRIA_GEOLOGY_POLICY,
   applyValyriaSurfaceColor,
   normalizedOwnerMapAtWorldXZ,
   valyriaInfluenceAtWorldXZ,
-} from './valyriaGeology.js';
+} from './valyriaGeology.ts';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   id: 'natural-geology-render-2026-08-27-v1-asset-hydrated-outcrops',
@@ -265,3 +265,5 @@ export function disposeNaturalGeology(group) {
       for (const key of Object.keys(material)) { const value = material[key]; if (value?.isTexture && !textures.has(value)) { textures.add(value); value.dispose(); } } material.dispose(); } });
   group.clear();
 }
+
+export interface NaturalGeologyRuntimeOptions { readonly isMobileClass?: boolean; readonly seed?: number }

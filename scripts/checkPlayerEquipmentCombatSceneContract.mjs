@@ -20,7 +20,7 @@ import {
   resolvePlayerAnimationPlan,
 } from '../src/3d/gameplay/playerEquipmentCombatProfile.js';
 
-const ROOT = path.resolve(new URL('..', import.meta.url).pathname, '..');
+const ROOT = process.cwd();
 const file = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 const pointer = (relative) => file(relative).trim();
 const assertFiniteTree = (value, label = 'value') => {
@@ -41,6 +41,12 @@ const makeTarget = () => {
     dispatchEvent(event) { events.push(event); for (const handler of listeners.get(event.type) || []) handler(event); return true; },
   };
 };
+
+const game3dSource = file('src/3d/game3d.ts');
+assert.match(game3dSource, /createPlayerEquipmentCombatRuntime/);
+assert.match(game3dSource, /state\.playerEquipmentCombatRuntime = createPlayerEquipmentCombatRuntime/);
+assert.match(game3dSource, /playerEquipmentCombatRuntime\?\.update\(delta\)/);
+assert.match(game3dSource, /playerEquipmentCombatRuntime\?\.dispose\(\)/);
 
 assert.equal(PLAYER_CONFIG.MODEL_URL, 'assets/models/characters/peasant_girl.fbx');
 assert.equal(PLAYER_CONFIG.ANIMATION_URLS.idle, 'assets/animations/peasant_girl/idle.fbx');

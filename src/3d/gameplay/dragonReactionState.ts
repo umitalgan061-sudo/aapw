@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/dragonReactionState.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * Per-frame reaction-state stepping for `dragonController.js`'s `createDragon` — the notice/
  * reactive/pursuit/give-up/dive/telegraph/attack blend bookkeeping that used to live entirely
@@ -20,7 +19,43 @@
  * @module gameplay/dragonReactionState
  */
 
-import { easeBlendToward, blendScalar, stepCenterTowardTarget } from './dragonFlightMath.js';
+import { easeBlendToward, blendScalar, stepCenterTowardTarget, type DragonCenter } from './dragonFlightMath.ts';
+
+export interface DragonReactionState extends Record<string, unknown> {
+	angle: number;
+	center: DragonCenter;
+	reactiveBlend: number;
+	diveBlend: number;
+	diveAlarmElapsedSeconds: number;
+	diveTelegraphBlend: number;
+	pursuitBlend: number;
+	pursuitElapsedSeconds: number;
+	pursuitExhausted: boolean;
+	giveUpBlend: number;
+	attackBlend: number;
+	biteCooldownRemainingSeconds: number;
+	playerWasInNoticeRadius: boolean;
+	pursuitCenterTerrainInvalidSampleCount: number;
+	pursuitCenterTerrainSampleExceptionCount: number;
+}
+
+export interface DragonReactionPlayerPosition { readonly x: number; readonly z: number; }
+export interface DragonReactionConfig {
+	readonly canNotice: boolean; readonly canDive: boolean; readonly canPursue: boolean; readonly canBite: boolean;
+	readonly noticeRadiusMeters: number; readonly reactiveSpeedMultiplier: number; readonly reactiveBankAngleRadians: number; readonly reactiveTransitionSeconds: number;
+	readonly bankAngleRadians: number; readonly speedMps: number; readonly circleRadiusMeters: number;
+	readonly alarmRadiusMeters: number; readonly diveTelegraphSeconds: number; readonly diveTelegraphTransitionSeconds: number; readonly diveTransitionSeconds: number;
+	readonly attackTriggerSeconds: number; readonly attackTransitionSeconds: number; readonly clampedDiveLateralPullFraction: number; readonly diveDropMeters: number;
+	readonly clampedAttackLateralPullFraction: number; readonly attackDropMeters: number; readonly pursuitRadiusMeters: number; readonly pursuitCenterSpeedMps: number;
+	readonly centerX: number; readonly centerZ: number; readonly centerY: number; readonly pursuitCircleRadiusMeters: number; readonly pursuitTransitionSeconds: number; readonly pursuitMaxSeconds: number;
+	readonly cruiseAltitudeAboveGroundMeters: number | null; readonly sampleGroundY?: ((worldX: number, worldZ: number) => number) | undefined;
+	readonly giveUpBankAngleMultiplier: number; readonly giveUpTransitionSeconds: number; readonly playerPosition: DragonReactionPlayerPosition | null;
+}
+
+export interface DragonReactionStepResult {
+	readonly isInRadius: boolean; readonly justEnteredNotice: boolean; readonly currentCircleRadiusMeters: number; readonly currentBankAngleRadians: number;
+	readonly currentLateralPullFraction: number; readonly currentDropMeters: number; readonly agitationBlend: number;
+}
 
 /**
  * Creates the mutable per-dragon reaction state `stepDragonReactionState` advances every frame —
@@ -32,7 +67,7 @@ import { easeBlendToward, blendScalar, stepCenterTowardTarget } from './dragonFl
  * @param {number} centerZ Home circle-center Z.
  * @returns {object} Mutable reaction state.
  */
-export function createDragonReactionState(startAngleRadians, centerX, centerY, centerZ) {
+export function createDragonReactionState(startAngleRadians: number, centerX: number, centerY: number, centerZ: number): DragonReactionState {
 	return {
 		angle: startAngleRadians,
 		// Run 66 (ADR-0085) pursuit: the circle's center is no longer fixed at the spawn seat. This
@@ -71,7 +106,7 @@ export function createDragonReactionState(startAngleRadians, centerX, centerY, c
  *   currentBankAngleRadians: number, currentLateralPullFraction: number, currentDropMeters: number,
  *   agitationBlend: number}}
  */
-export function stepDragonReactionState(state, delta, distanceToPlayer, config) {
+export function stepDragonReactionState(state: DragonReactionState, delta: number, distanceToPlayer: number | null, config: DragonReactionConfig): DragonReactionStepResult {
 	const {
 		canNotice, canDive, canPursue, canBite,
 		noticeRadiusMeters,
@@ -137,7 +172,7 @@ export function stepDragonReactionState(state, delta, distanceToPlayer, config) 
 	// sample returns; track non-finite values separately from thrown provider exceptions.
 	state.pursuitBlend = easeBlendToward(state.pursuitBlend, isEngaged ? 1 : 0, delta, pursuitTransitionSeconds);
 	const currentCircleRadiusMeters = blendScalar(circleRadiusMeters, pursuitCircleRadiusMeters, state.pursuitBlend);
-	if (canPursue && cruiseAltitudeAboveGroundMeters != null) {
+	if (canPursue && cruiseAltitudeAboveGroundMeters != null && sampleGroundY) {
 		let centerGroundY;
 		try {
 			centerGroundY = sampleGroundY(state.center.x, state.center.z);
