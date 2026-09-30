@@ -19,3 +19,6 @@ export * from './diagnosticsBridge.ts';
 export * from './legacyAudit.ts';
 export * from './bootCoordinator.ts';
 export * from './workerPool.ts';
+
+export * from './runtimeApi.ts';
+export * from './networkMonitor.ts';
