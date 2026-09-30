@@ -138,7 +138,11 @@
     "verify:modern:r29": "node scripts/checkModernRuntimeR29.mjs",
     "test:modern:r29": "vitest run tests/modern/r29 --passWithNoTests",
     "check:modern:r29": "npm run verify:modern:r29 && npm run typecheck:modern:r29 && npm run test:modern:r29 && npm run typecheck",
-    "typecheck:modern:r29": "tsc -p tsconfig.r29.json --noEmit"
+    "typecheck:modern:r29": "tsc -p tsconfig.r29.json --noEmit",
+    "verify:strict-core-r15": "node scripts/checkStrictCoreR15.mjs",
+    "typecheck:strict-core-r15": "tsc -p tsconfig.strict-core-r15.json --noEmit",
+    "test:strict-render-r15": "vitest run tests/modern/strictRenderFramePacketR15.test.ts",
+    "check:strict-core-r15": "npm run verify:strict-core-r15 && npm run typecheck:strict-core-r15 && npm run test:strict-render-r15"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

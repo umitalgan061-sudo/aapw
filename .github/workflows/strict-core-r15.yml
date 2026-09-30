@@ -1,0 +1,53 @@
+name: R15 Strict Core Rendering Gate
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/rendering/renderFramePacket.ts'
+      - 'src/3d/rendering/nextGenRenderOrchestrator.ts'
+      - 'src/3d/modern/**'
+      - 'src/3d/strict/**'
+      - 'src/app/rootApplicationRuntime.ts'
+      - 'tests/modern/strictRenderFramePacketR15.test.ts'
+      - 'scripts/checkStrictCoreR15.mjs'
+      - 'tsconfig.strict-core-r15.json'
+      - 'package.json'
+      - '.github/workflows/strict-core-r15.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/rendering/renderFramePacket.ts'
+      - 'src/3d/rendering/nextGenRenderOrchestrator.ts'
+      - 'src/3d/modern/**'
+      - 'src/3d/strict/**'
+      - 'src/app/rootApplicationRuntime.ts'
+      - 'tests/modern/strictRenderFramePacketR15.test.ts'
+      - 'scripts/checkStrictCoreR15.mjs'
+      - 'tsconfig.strict-core-r15.json'
+      - 'package.json'
+      - '.github/workflows/strict-core-r15.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  strict-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - name: Install
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Ownership gate
+        run: npm run verify:strict-core-r15
+      - name: Strict TypeScript compiler
+        run: npm run typecheck:strict-core-r15
+      - name: Render packet regression
+        run: npm run test:strict-render-r15
+      - name: Diff hygiene
+        run: git diff --check
