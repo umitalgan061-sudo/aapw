@@ -119,7 +119,14 @@
     "test:modern:r28": "vitest run tests/modern/r28 --passWithNoTests",
     "check:modern:r28": "npm run verify:modern:r28 && npm run test:modern:r28 && npm run typecheck",
     "health": "node --experimental-strip-types scripts/projectHealth.ts",
-    "check:health": "npm run health"
+    "check:health": "npm run health",
+    "typecheck:player-modern": "tsc -p tsconfig.player-modernization.json --noEmit",
+    "test:player-modern": "vitest run tests/modern/playerModernizationR1.test.ts",
+    "check:player-modern": "npm run typecheck:player-modern && npm run test:player-modern && npm run verify:player-modern-r1",
+    "typecheck:player-equipment-strict": "tsc -p tsconfig.player-equipment-strict.json --noEmit",
+    "test:player-equipment-strict": "vitest run tests/modern/playerEquipmentCombatRulesStrict.test.ts",
+    "typecheck:player-animation-strict": "tsc -p tsconfig.player-animation-strict.json --noEmit",
+    "test:player-animation-strict": "vitest run tests/modern/playerAnimationDirectorStrict.test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

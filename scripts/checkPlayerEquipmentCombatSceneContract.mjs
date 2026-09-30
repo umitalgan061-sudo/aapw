@@ -42,6 +42,12 @@ const makeTarget = () => {
   };
 };
 
+const game3dSource = file('src/3d/game3d.ts');
+assert.match(game3dSource, /createPlayerEquipmentCombatRuntime/);
+assert.match(game3dSource, /state\.playerEquipmentCombatRuntime = createPlayerEquipmentCombatRuntime/);
+assert.match(game3dSource, /playerEquipmentCombatRuntime\?\.update\(delta\)/);
+assert.match(game3dSource, /playerEquipmentCombatRuntime\?\.dispose\(\)/);
+
 assert.equal(PLAYER_CONFIG.MODEL_URL, 'assets/models/characters/peasant_girl.fbx');
 assert.equal(PLAYER_CONFIG.ANIMATION_URLS.idle, 'assets/animations/peasant_girl/idle.fbx');
 assert.equal(PLAYER_CONFIG.ANIMATION_URLS.walking, 'assets/animations/peasant_girl/walking.fbx');
