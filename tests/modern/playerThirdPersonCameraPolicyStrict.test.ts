@@ -4,6 +4,7 @@ import {
   resolvePlayerThirdPersonCameraFrame,
   resolvePlayerThirdPersonCameraPolicy,
   resolvePlayerThirdPersonCameraPosition,
+  resolvePlayerThirdPersonCameraCollision,
 } from '../../src/3d/gameplay/playerThirdPersonCameraPolicy.ts';
 
 describe('Kızıl Ufuk strict third-person camera policy', () => {
@@ -48,5 +49,29 @@ describe('Kızıl Ufuk strict third-person camera policy', () => {
     const policy = resolvePlayerThirdPersonCameraPolicy({ yawRadians: 0.75, shoulderOffset: 0.4 });
     expect(resolvePlayerThirdPersonCameraPosition(policy, { x: 10, y: 3, z: -4 }))
       .toEqual(resolvePlayerThirdPersonCameraPosition(policy, { x: 10, y: 3, z: -4 }));
+  });
+});
+
+ 
+describe('collision-safe third-person camera', () => {
+  it('pulls the camera toward the player only when geometry blocks the requested distance', () => {
+    const clear = resolvePlayerThirdPersonCameraCollision({ requestedDistance: 6, hitDistance: Infinity });
+    const blocked = resolvePlayerThirdPersonCameraCollision({ requestedDistance: 6, hitDistance: 3.2, collisionMargin: 0.25 });
+    expect(clear.collided).toBe(false);
+    expect(clear.resolvedDistance).toBe(6);
+    expect(blocked.collided).toBe(true);
+    expect(blocked.resolvedDistance).toBeLessThan(blocked.requestedDistance);
+    expect(blocked.resolvedDistance).toBeGreaterThanOrEqual(blocked.minimumDistance);
+  });
+
+  it('clamps pathological collision inputs to finite camera-safe bounds', () => {
+    const result = resolvePlayerThirdPersonCameraCollision({
+      requestedDistance: Number.POSITIVE_INFINITY,
+      hitDistance: Number.NaN,
+      collisionMargin: Number.POSITIVE_INFINITY,
+      minimumDistance: Number.NEGATIVE_INFINITY,
+    });
+    expect(result.collided).toBe(false);
+    expect(Object.values(result).filter(v => typeof v === 'number').every(Number.isFinite)).toBe(true);
   });
 });
