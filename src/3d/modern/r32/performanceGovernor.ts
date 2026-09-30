@@ -1,4 +1,5 @@
-import {HealthGrade,clampFinite} from './contracts.ts';
+import {clampFinite} from './contracts.ts';
+import type {HealthGrade} from './contracts.ts';
 
 export type QualityLevel='ultra'|'high'|'balanced'|'performance'|'mobile';
 export interface PerformanceSample{readonly frameMilliseconds:number;readonly gpuMilliseconds?:number;readonly networkRttMilliseconds?:number;readonly memoryBytes?:number;readonly visibleEntities?:number;readonly droppedTasks?:number;}
