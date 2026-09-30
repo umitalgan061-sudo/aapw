@@ -1,18 +1,19 @@
 export class InMemoryNetworkPortR31 {
   readonly #inbound: Uint8Array[] = [];
-  readonly #peer: InMemoryNetworkPortR31 | null;
+  #peer: InMemoryNetworkPortR31 | null = null;
   #connected = false;
   #sent = 0;
   #received = 0;
   #bytesSent = 0;
   #bytesReceived = 0;
 
-  constructor(peer: InMemoryNetworkPortR31 | null = null) {
+  attachPeer(peer: InMemoryNetworkPortR31): void {
+    if (peer === this) throw new Error('network-self-peer');
     this.#peer = peer;
   }
 
   connect(): void { this.#connected = true; }
-  connected(): boolean { return this.#connected && Boolean(this.#peer); }
+  connected(): boolean { return this.#connected && this.#peer?.#connected === true; }
 
   send(bytes: Uint8Array): void {
     if (!this.connected()) throw new Error('network-disconnected');
@@ -58,7 +59,9 @@ export class InMemoryNetworkPortR31 {
 export function createNetworkPairR31(): readonly [InMemoryNetworkPortR31, InMemoryNetworkPortR31] {
   const left = new InMemoryNetworkPortR31();
   const right = new InMemoryNetworkPortR31();
-  Object.defineProperties(left, { _peer: { value: right } });
-  Object.defineProperties(right, { _peer: { value: left } });
+  left.attachPeer(right);
+  right.attachPeer(left);
+  left.connect();
+  right.connect();
   return Object.freeze([left, right]);
 }
