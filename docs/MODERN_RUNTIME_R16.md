@@ -41,3 +41,18 @@ Run:
 `npm run test:modern:r16`
 
 The dedicated GitHub Actions gate checks the exact PR head and runs on Node 24 LTS. Repository-wide historical workflows remain separate from this scope.
+
+## Ownership matrix
+
+| Area | R16 boundary | Existing owner |
+| --- | --- | --- |
+| Input | normalized action envelopes | browser/UI input |
+| Simulation | fixed-step commands and state transactions | gameplay systems |
+| Rendering | phase budgets and adapter contract | Three.js/WebGPU renderer |
+| Audio | typed scene/runtime events | immersive audio platform |
+| Streaming | bounded load plans | resource systems |
+| World | interest and sleeping policy | world/NPC/creature systems |
+| Network | envelope validation and replication | transport/session layer |
+| Save | snapshots, journal and migrations | persistence layer |
+| Recovery | coordinated lifecycle | subsystem reset hooks |
+| Telemetry | bounded metrics and digests | diagnostics layer |
