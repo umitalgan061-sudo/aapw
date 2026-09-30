@@ -55,25 +55,31 @@ function executeGate(gate: HealthGate): Promise<HealthGateResult> {
 const started = performance.now();
 const sourceFiles = await collectSourceFiles();
 const ownership = evaluateTypeScriptOwnership(sourceFiles);
-if (ownership.violations.length > 0) {
-  process.stderr.write(
-    `[failed] typescript-source-ownership: ${ownership.violations.join(', ')}\n`,
-  );
-  process.exitCode = 1;
-} else {
-  process.stdout.write(
-    `[passed] typescript-source-ownership: ${ownership.scannedJavaScriptFiles} source JS files have TS owners\n`,
-  );
-}
 
-const results: HealthGateResult[] = [];
-for (const gate of GATES) {
-  const result = await executeGate(gate);
-  results.push(result);
-  process.stdout.write(`[${result.status}] ${result.id} (${result.durationMs}ms)\n`);
-  if (result.status !== 'passed') {
-    if (result.stderr) process.stderr.write(result.stderr.slice(-8_000) + '\n');
-    break;
+const results: HealthGateResult[] = [Object.freeze({
+  id: 'typescript-source-ownership',
+  status: ownership.violations.length === 0 ? 'passed' : 'failed',
+  exitCode: ownership.violations.length === 0 ? 0 : 1,
+  durationMs: 0,
+  stdout: `${ownership.scannedJavaScriptFiles} source JS files scanned`,
+  stderr: ownership.violations.length === 0
+    ? ''
+    : `Missing TypeScript owners: ${ownership.violations.join(', ')}`,
+})];
+
+process.stdout.write(
+  `[${results[0]!.status}] typescript-source-ownership: ${ownership.scannedJavaScriptFiles} source JS files scanned\\n`,
+);
+
+if (results[0]!.status === 'passed') {
+  for (const gate of GATES) {
+    const result = await executeGate(gate);
+    results.push(result);
+    process.stdout.write(`[${result.status}] ${result.id} (${result.durationMs}ms)\\n`);
+    if (result.status !== 'passed') {
+      if (result.stderr) process.stderr.write(result.stderr.slice(-8_000) + '\\n');
+      break;
+    }
   }
 }
 const summary = summarizeHealth(results, Math.round(performance.now() - started));
