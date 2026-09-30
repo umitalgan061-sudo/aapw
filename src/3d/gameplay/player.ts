@@ -407,4 +407,3 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		dispose() { defeatResetQueued = false; globalThis.removeEventListener?.(COMBAT_INPUT_EVENT, onCombatInput); gameEvents.off(EVENTS.PLAYER_DAMAGED, onIncomingDamage); gameEvents.off(EVENTS.PLAYER_DIED, onPlayerDied); mixer.stopAllAction(); AssetLoader.disposeObject3D(model); },
 	};
 }
-
