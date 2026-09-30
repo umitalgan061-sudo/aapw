@@ -10,7 +10,9 @@
     "src/3d/gameplay/playerAnimationBlendDiagnostics.ts",
     "tests/modern/playerPresentationPoliciesStrict.test.ts",
     "src/3d/gameplay/health.ts",
-    "tests/modern/healthTyped.test.ts"
+    "tests/modern/healthTyped.test.ts",
+    "src/3d/gameplay/playerAnimationSignalSanitizer.ts",
+    "tests/modern/playerAnimationSignalSanitizerStrict.test.ts"
   ],
   "exclude": [
     "node_modules",
