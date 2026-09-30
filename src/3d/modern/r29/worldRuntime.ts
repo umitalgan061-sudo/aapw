@@ -186,6 +186,7 @@ export class R29WorldRuntime {
         return zone.id;
       });
 
+    const unloadedBytes = unload.reduce((sum, id) => sum + (this.#zones.get(id)?.estimatedBytes ?? 0), 0);
     this.#revision += selectedLoad.length + unload.length;
     return freezeR29({
       frame,
@@ -193,7 +194,7 @@ export class R29WorldRuntime {
       retain,
       unload,
       prefetch: selectedPrefetch,
-      estimatedBytesAfter: bytes,
+      estimatedBytesAfter: Math.max(0, bytes - unloadedBytes),
     });
   }
 

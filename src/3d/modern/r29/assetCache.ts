@@ -112,10 +112,12 @@ export class R29AssetCache {
       const bytes = Math.max(0, Math.floor(await fetcher(asset.manifest.url, signal)));
       const projected = this.residentBytes() + bytes;
       if (projected > this.maxResidentBytes && !asset.manifest.required) {
-        asset.state = 'stale';
-        return Object.freeze({ id, state: asset.state, bytes: 0, fromCache: false, error: 'memory-budget' });
+        this.#evictUntil(true, tick, bytes);
+        if (this.residentBytes() + bytes > this.maxResidentBytes) {
+          asset.state = 'stale';
+          return Object.freeze({ id, state: asset.state, bytes: 0, fromCache: false, error: 'memory-budget' });
+        }
       }
-      this.#evictUntil(projected <= this.maxResidentBytes - this.#reservedBytes + asset.manifest.bytes, tick);
       asset.residentBytes = Math.min(bytes, asset.manifest.bytes || bytes);
       asset.state = 'resident';
       asset.lastUsedTick = tick;
@@ -195,8 +197,8 @@ export class R29AssetCache {
     this.#reservedBytes = 0;
   }
 
-  #evictUntil(ok: boolean, tick: number): void {
-    if (ok) return;
+  #evictUntil(ok: boolean, tick: number, incomingBytes = 0): void {
+    if (!ok) return;
     const candidates = [...this.#assets.values()]
       .filter((asset) => asset.state === 'resident' && asset.refCount === 0 && !asset.manifest.required)
       .sort((a, b) =>
@@ -207,7 +209,7 @@ export class R29AssetCache {
     for (const asset of candidates) {
       asset.state = 'stale';
       asset.residentBytes = 0;
-      if (this.residentBytes() <= this.maxResidentBytes) break;
+      if (this.residentBytes() + incomingBytes <= this.maxResidentBytes) break;
     }
     void tick;
   }
