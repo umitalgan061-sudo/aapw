@@ -44,3 +44,11 @@
 - Treat unrelated historical workflows independently rather than masking failures.
 
 The R16 layer is production hardening infrastructure. It is designed to make future renderer, gameplay, audio, world and network upgrades safer without replacing their existing owners in one uncontrolled migration.
+
+## Evidence to archive
+- CI run identifiers for contract, compiler and test jobs.
+- Final head SHA and merge-base SHA.
+- Runtime digest and snapshot digest from the release candidate.
+- Replay verification result and determinism mismatch count.
+- Network security rejection counters and health report.
+- Asset manifest digest and cache residency plan.
