@@ -1,0 +1,46 @@
+name: Kızıl Ufuk Player Third-Person Camera Strict
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerThirdPersonCameraPolicy.ts'
+      - 'src/3d/gameplay/playerThirdPersonCameraPolicy.js'
+      - 'src/3d/gameplay/playerThirdPersonCameraPolicy.legacy.js'
+      - 'tests/modern/playerThirdPersonCameraPolicyStrict.test.ts'
+      - 'scripts/checkPlayerThirdPersonCameraPolicy.mjs'
+      - 'tsconfig.player-third-person-camera.json'
+      - '.github/workflows/kizil-ufuk-player-third-person-camera.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kizil-ufuk-player-third-person-camera-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: package.json
+      - name: Install toolchain
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Strict camera typecheck
+        run: npx tsc -p tsconfig.player-third-person-camera.json --noEmit
+      - name: Camera regression
+        run: npx vitest run tests/modern/playerThirdPersonCameraPolicyStrict.test.ts
+      - name: Camera production proof
+        run: node scripts/checkPlayerThirdPersonCameraPolicy.mjs
+      - name: Diff hygiene
+        run: git diff --check
