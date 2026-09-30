@@ -8,3 +8,14 @@ export * from './serviceWorkerClient.ts';
 export * from './assetFetchAdapter.ts';
 export * from './worldBridge.ts';
 export * from './diagnosticsPanel.ts';
+
+export * from './integrationManifest.ts';
+export * from './networkAdapter.ts';
+export * from './storageCodec.ts';
+export * from './resizeManager.ts';
+export * from './qualityPolicy.ts';
+export * from './virtualConsole.ts';
+export * from './diagnosticsBridge.ts';
+export * from './legacyAudit.ts';
+export * from './bootCoordinator.ts';
+export * from './workerPool.ts';
