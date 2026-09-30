@@ -30,6 +30,12 @@ export interface PlayerMovementInput {
 	readonly guarding?: boolean;
 }
 
+export interface PlayerMovementInputLike {
+	readonly x?: unknown;
+	readonly z?: unknown;
+	readonly guarding?: unknown;
+}
+
 export interface PlayerSpawn {
 	readonly x: number;
 	readonly z: number;
@@ -162,7 +168,7 @@ const ATTACK_WINDOW_EVENT = 'aapw:player-attack-window';
 const COMBAT_FEEDBACK_EVENT = 'aapw:player-combat-feedback';
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
-export function normalizePlayerMovementInput(input: Partial<PlayerMovementInput> | null | undefined): PlayerMovementInput {
+export function normalizePlayerMovementInput(input: PlayerMovementInputLike | null | undefined): PlayerMovementInput {
 	return Object.freeze({
 		x: clamp(typeof input?.x === 'number' && Number.isFinite(input.x) ? input.x : 0, -1, 1),
 		z: clamp(typeof input?.z === 'number' && Number.isFinite(input.z) ? input.z : 0, -1, 1),
@@ -193,15 +199,15 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	const groundY = groundCollider.getGroundHeight(spawn.x, spawn.z);
 	model.position.set(spawn.x, groundY, spawn.z);
 	let heightAboveGround = 0, velocityY = 0, isGrounded = true;
-	let stamina = PLAYER_ACTION_CONFIG.MAX_STAMINA, sprintExhausted = false, regenDelayRemaining = 0;
-	let poise = PLAYER_ACTION_CONFIG.MAX_POISE, poiseRegenDelayRemaining = 0, guardBreakRemaining = 0, hitStaggerRemaining = 0;
+	let stamina: number = PLAYER_ACTION_CONFIG.MAX_STAMINA, sprintExhausted = false, regenDelayRemaining = 0;
+	let poise: number = PLAYER_ACTION_CONFIG.MAX_POISE, poiseRegenDelayRemaining = 0, guardBreakRemaining = 0, hitStaggerRemaining = 0;
 	let dodgeRemaining = 0, dodgeElapsed = 0, dodgeCooldownRemaining = 0, lastRunPressAge = Infinity, wasRunHeld = false;
 	let runIntent = false, hasMovementInput = false, planarSpeedMps = 0, dodgeDirectionX = 0, dodgeDirectionZ = 1;
 	let guarding = false, wasGuardHeld = false, parryWindowRemaining = 0, parryFeedbackRemaining = 0;
 	let attackKind: PlayerAttackKind = 'none', attackRemaining = 0, attackElapsed = 0, attackActive = false, attackComboStep = 0, attackSerial = 0, attackCommitRemaining = 0;
 	let bufferedAttackKind: PlayerAttackKind = 'none', attackBufferRemaining = 0;
 	let lastDefenseResult: PlayerDefenseResult = 'none', combatFeedbackSerial = 0, defeatResetQueued = false;
-	let movementState: PlayerMovementState = 'idle', currentActionName = null, lastTelemetryState = '', lastTelemetryStamina = -1, lastTelemetryPoise = -1;
+	let movementState: PlayerMovementState = 'idle', currentActionName: string | null = null, lastTelemetryState = '', lastTelemetryStamina = -1, lastTelemetryPoise = -1;
 
 	function playAction(name: string, timeScale = 1): void {
 		const next = actions[name]; if (!next) return; next.setEffectiveTimeScale(timeScale); if (currentActionName === name) return;
@@ -320,7 +326,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		const activeNow = attackElapsed >= tuning.activeStart && attackElapsed < tuning.activeEnd;
 		if (activeNow && !attackActive) { attackActive = true; publishAttackWindow('active-start'); }
 		else if (!activeNow && attackActive) { attackActive = false; publishAttackWindow('active-end'); }
-		movementState = `attack-${attackKind}`; playAction('idle', 1);
+		movementState = attackKind === 'heavy' ? 'attack-heavy' : 'attack-light'; playAction('idle', 1);
 		if (attackRemaining > 0) return;
 		if (attackActive) { attackActive = false; publishAttackWindow('active-end'); }
 		publishAttackWindow('finish');
