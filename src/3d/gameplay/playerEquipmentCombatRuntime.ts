@@ -15,7 +15,8 @@
  */
 
 type UnknownRecord = Record<string, unknown>;
-type PlayerObjectLike = { userData?: UnknownRecord; position?: { x: number; y: number; z: number }; getMotionState?: () => UnknownRecord };
+type PlayerObjectLike = { userData?: UnknownRecord; position: { x: number; y: number; z: number }; rotation?: { y: number } };
+type PlayerRuntimeLike = { readonly object3D: PlayerObjectLike; readonly getMotionState?: () => UnknownRecord };
 type EquipmentProvider = (() => unknown) | unknown;
 type RuntimeTarget = {
   addEventListener?: (type: string, handler: EventListenerOrEventListenerObject) => void;
@@ -29,7 +30,7 @@ type OutcomeSnapshot = UnknownRecord;
 type CombatPhase = 'idle' | 'windup' | 'active' | 'recovery' | 'defense' | 'dodge' | 'hit-stagger';
 
 export interface PlayerEquipmentCombatRuntimeOptions {
-  readonly player: PlayerObjectLike;
+  readonly player: PlayerRuntimeLike;
   readonly equipmentProvider?: EquipmentProvider;
   readonly target?: RuntimeTarget;
   readonly now?: () => number;
