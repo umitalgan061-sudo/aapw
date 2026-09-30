@@ -1,4 +1,5 @@
-import {
+import {RuntimeError,stableHash} from './contracts.ts';
+
   RuntimeError,
   stableHash,
 } from './contracts.ts';
