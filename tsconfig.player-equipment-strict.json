@@ -7,7 +7,12 @@
   "include": [
     "src/3d/gameplay/playerEquipmentCombatRules.ts",
     "src/3d/gameplay/playerEquipmentCombatProfile.ts",
-    "tests/modern/playerEquipmentCombatRulesStrict.test.ts"
+    "tests/modern/playerEquipmentCombatRulesStrict.test.ts",
+    "src/3d/gameplay/playerEquipmentCombatRuntime.ts"
   ],
-  "exclude": ["node_modules", "dist", "coverage"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage"
+  ]
 }
