@@ -104,7 +104,11 @@
     "typecheck:modern:r25": "tsc -p tsconfig.modern-r25.json --noEmit",
     "test:modern:r25": "vitest run tests/modern/r25 --passWithNoTests",
     "verify:modern:r25": "node scripts/checkModernPlatformR25.mjs",
-    "check:modern:r25": "npm run verify:modern:r25 && npm run typecheck:modern:r25 && npm run test:modern:r25"
+    "check:modern:r25": "npm run verify:modern:r25 && npm run typecheck:modern:r25 && npm run test:modern:r25",
+    "verify:runtime-hardening-r25": "node scripts/checkRuntimeHardeningV25.mjs",
+    "typecheck:runtime-hardening-r25": "tsc -p tsconfig.runtime-hardening-r25.json --noEmit",
+    "test:runtime-hardening-r25": "npm test -- tests/modern/runtimeHardeningV25.test.ts",
+    "check:runtime-hardening-r25": "npm run verify:runtime-hardening-r25 && npm run typecheck:runtime-hardening-r25 && npm run test:runtime-hardening-r25"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
