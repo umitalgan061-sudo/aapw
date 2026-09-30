@@ -51,7 +51,7 @@ export interface PlayerArmorProfile extends Record<string, unknown> {
 }
 
 export interface PlayerResolvedProfile {
-  readonly version: number;
+  readonly version: 1;
   readonly slots: Readonly<Record<string, unknown>>;
   readonly mainHand: PlayerWeaponProfile;
   readonly offHand: PlayerWeaponProfile;
@@ -203,8 +203,8 @@ export function resolvePlayerCombatEnvelope(profileInput: PlayerEquipmentInput |
 export function comparePlayerEquipmentProfiles(previousInput: PlayerEquipmentInput | PlayerResolvedProfile = {}, nextInput: PlayerEquipmentInput | PlayerResolvedProfile = {}) {
   const previous = 'mainHand' in normalizeRecord(previousInput) && Boolean(normalizeRecord(previousInput).mainHand) ? asResolvedProfile(previousInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(previousInput)));
   const next = 'mainHand' in normalizeRecord(nextInput) && Boolean(normalizeRecord(nextInput).mainHand) ? asResolvedProfile(nextInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(nextInput)));
-  const changedSlots = [];
-  for (const slot of ['head', 'chest', 'back', 'mainHand', 'offHand']) {
+  const changedSlots: Array<'head' | 'chest' | 'back' | 'mainHand' | 'offHand'> = [];
+  for (const slot of ['head', 'chest', 'back', 'mainHand', 'offHand'] as const) {
     if (previous.sourceIds[slot] !== next.sourceIds[slot]) changedSlots.push(slot);
   }
   return Object.freeze({
@@ -250,14 +250,15 @@ export function resolvePlayerHitReaction(profileInput: PlayerEquipmentInput | Pl
   const raw = Math.max(0, finite(rawAmount, 0));
   const blocked = clamp(finite(blockedAmount, 0), 0, raw);
   const effective = Math.max(0, raw - blocked) * profile.mainHand.poiseMultiplier;
-  const currentPoise = clamp(finite(poise, maxPoise), 0, Math.max(1, finite(maxPoise, 100)));
+  const safeMaxPoise = Math.max(1, finite(maxPoise, 100));
+  const currentPoise = clamp(finite(poise, safeMaxPoise), 0, safeMaxPoise);
   return Object.freeze({
     rawAmount: raw,
     blockedAmount: blocked,
     effectiveImpact: Number(effective.toFixed(4)),
-    poiseAfter: clamp(currentPoise - effective, 0, Math.max(1, finite(maxPoise, 100))),
+    poiseAfter: clamp(currentPoise - effective, 0, safeMaxPoise),
     staggers: currentPoise - effective <= 0,
-    staggerSeverity: clamp(effective / Math.max(1, finite(maxPoise, 100)), 0, 3),
+    staggerSeverity: clamp(effective / safeMaxPoise, 0, 3),
   });
 }
 
