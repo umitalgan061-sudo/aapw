@@ -123,7 +123,11 @@
     "verify:active-typescript-r30": "node scripts/checkActiveTypeScriptOwnershipR30.mjs",
     "typecheck:strict-world-r30": "tsc -p tsconfig.strict-world-r30.json --noEmit",
     "test:strict-world-r30": "npm test -- tests/modern/strictWorldR30.test.ts",
-    "check:strict-world-r30": "npm run verify:active-typescript-r30 && npm run typecheck:strict-world-r30 && npm run test:strict-world-r30"
+    "check:strict-world-r30": "npm run verify:active-typescript-r30 && npm run typecheck:strict-world-r30 && npm run test:strict-world-r30",
+    "verify:strict-core-r14": "node scripts/checkStrictCoreR14.mjs",
+    "typecheck:strict-core-r14": "tsc -p tsconfig.strict-core-r14.json --noEmit",
+    "test:strict-render-r14": "vitest run tests/modern/strictRenderFramePacketR14.test.ts",
+    "check:strict-core-r14": "npm run verify:strict-core-r14 && npm run typecheck:strict-core-r14 && npm run test:strict-render-r14"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
