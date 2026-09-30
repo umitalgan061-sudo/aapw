@@ -70,7 +70,7 @@ export class InputRuntimeR26 {
       context: binding.context,
       device: binding.device,
       code: clean(binding.code),
-      modifier: binding.modifier ? clean(binding.modifier) : undefined,
+      ...(binding.modifier ? { modifier: clean(binding.modifier) } : {}),
       deadzone: clamp(binding.deadzone ?? 0.08, 0, 0.5),
       scale: Number.isFinite(binding.scale) ? binding.scale : 1,
       consume: binding.consume !== false,
