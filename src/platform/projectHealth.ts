@@ -40,3 +40,27 @@ export function summarizeHealth(gates: readonly HealthGateResult[], durationMs: 
     gates: Object.freeze([...gates]),
   });
 }
+
+
+export interface TypeScriptOwnershipReport {
+  readonly scannedJavaScriptFiles: number;
+  readonly compliantJavaScriptFiles: number;
+  readonly violations: readonly string[];
+}
+
+export function evaluateTypeScriptOwnership(paths: readonly string[]): TypeScriptOwnershipReport {
+  const sourcePaths = paths.filter((path) =>
+    path.startsWith('src/') &&
+    path.endsWith('.js') &&
+    !path.includes('/vendor/') &&
+    !path.endsWith('.legacy.js'),
+  );
+  const violations = sourcePaths
+    .filter((path) => !paths.includes(path.replace(/\.js$/, '.ts')))
+    .sort();
+  return Object.freeze({
+    scannedJavaScriptFiles: sourcePaths.length,
+    compliantJavaScriptFiles: sourcePaths.length - violations.length,
+    violations: Object.freeze(violations),
+  });
+}
