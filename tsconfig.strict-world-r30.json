@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "checkJs": false,
+    "noEmit": true,
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": [
+    "src/3d/strict/worldRuntimeContractR30.ts",
+    "src/3d/strict/streamingRuntime.ts",
+    "src/3d/strict/worldQueryRuntime.ts",
+    "src/3d/world/roadSurfaceProfile.ts",
+    "src/3d/world/WorldSurfacePolicySchema.ts",
+    "tests/modern/strictWorldR30.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
