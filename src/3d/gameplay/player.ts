@@ -212,7 +212,8 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	function playAction(name: string, timeScale = 1): void {
 		const next = actions[name]; if (!next) return; next.setEffectiveTimeScale(timeScale); if (currentActionName === name) return;
 		next.reset().fadeIn(PLAYER_CONFIG.ANIMATION_CROSSFADE_SECONDS).play();
-		if (currentActionName && actions[currentActionName]) actions[currentActionName].fadeOut(PLAYER_CONFIG.ANIMATION_CROSSFADE_SECONDS);
+		const previous = currentActionName ? actions[currentActionName] : undefined;
+		previous?.fadeOut(PLAYER_CONFIG.ANIMATION_CROSSFADE_SECONDS);
 		currentActionName = name;
 	}
 	playAction('idle');
