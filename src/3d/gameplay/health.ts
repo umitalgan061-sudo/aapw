@@ -14,7 +14,7 @@
  */
 
 export interface HealthEventBus { on(eventName: string, handler: (payload: unknown) => void): void; off(eventName: string, handler: (payload: unknown) => void): void; emit(eventName: string, payload?: unknown): void; }
-export interface HealthEventPayload extends Record<string, any> { readonly amount?: number; readonly sourceId?: string | null; appliedAmount?: number; }
+export interface HealthEventPayload extends Record<string, unknown> { readonly amount?: number; readonly sourceId?: string | null; appliedAmount?: number; }
 export interface HealthStateOptions { readonly eventsBus: HealthEventBus; readonly maxHealth: number; readonly damageEventName: string; readonly healthChangedEventName: string; readonly diedEventName: string; }
 export interface HealthState { readonly current: number; readonly maxHealth: number; readonly isDead: boolean; heal(amount: number): void; reset(): void; dispose(): void; }
 
@@ -62,7 +62,12 @@ function writeDamageAppliedAmount(payload: unknown, appliedAmount: number): bool
 }
 
 function readDamageSourceId(payload: HealthEventPayload, stagedResolution = readDamageResolution(payload)): string | null {
-	return stagedResolution?.sourceId ?? payload?.sourceId ?? null;
+	const stagedSourceId = stagedResolution?.sourceId;
+	return typeof stagedSourceId === 'string' ? stagedSourceId : stagedSourceId === null ? null : payload?.sourceId ?? null;
+}
+function readNumericResolutionField(resolution: Readonly<Record<string, unknown>> | null, key: string): number | undefined {
+	const value = resolution?.[key];
+	return typeof value === 'number' ? value : undefined;
 }
 
 export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }: HealthStateOptions): HealthState {
@@ -99,7 +104,7 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 	function onDamage(payload: unknown): void {
 		const eventPayload = isObjectPayload(payload) ? payload : null;
 		const stagedResolution = readDamageResolution(eventPayload);
-		const amount = stagedResolution?.amount ?? eventPayload?.amount;
+		const amount = readNumericResolutionField(stagedResolution, 'amount') ?? eventPayload?.amount;
 		if (!Number.isFinite(amount) || !(amount > 0)) {
 			if (stagedResolution) {
 				if (Number.isFinite(amount) && amount === 0) writeDamageAppliedAmount(eventPayload, 0);
