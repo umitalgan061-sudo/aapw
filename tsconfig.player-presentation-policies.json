@@ -8,7 +8,13 @@
     "src/3d/gameplay/playerAnimationOneShotPolicy.ts",
     "src/3d/gameplay/playerCombatActionRouter.ts",
     "src/3d/gameplay/playerAnimationBlendDiagnostics.ts",
-    "tests/modern/playerPresentationPoliciesStrict.test.ts"
+    "tests/modern/playerPresentationPoliciesStrict.test.ts",
+    "src/3d/gameplay/health.ts",
+    "tests/modern/healthTyped.test.ts"
   ],
-  "exclude": ["node_modules", "dist", "coverage"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage"
+  ]
 }
