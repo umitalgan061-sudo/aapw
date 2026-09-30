@@ -1,4 +1,6 @@
-import {FrameIndex,HealthGrade,HealthSnapshot,MetricSummary,RuntimeEvent,RuntimeEventMap,RuntimeError,TaskLane,TelemetrySample,Tick} from './contracts.ts';
+import {RuntimeError} from './contracts.ts';
+import type {HealthGrade,HealthSnapshot,MetricSummary,RuntimeEvent,RuntimeEventMap,TaskLane,TelemetrySample,Tick} from './contracts.ts';
+
 class Ring<T>{readonly #values:T[]=[];constructor(readonly limit:number){}push(value:T):void{this.#values.push(value);while(this.#values.length>this.limit)this.#values.shift();}values():readonly T[]{return this.#values.slice();}}
 export interface Span{readonly id:string;readonly name:string;readonly tick:Tick;readonly startedAt:number;readonly attributes:Readonly<Record<string,string|number|boolean>>;readonly durationMilliseconds?:number;readonly error?:string;}
 export interface ObservabilityOptions{readonly sampleLimit:number;readonly spanLimit:number;readonly eventLimit:number;readonly clock:()=>number;}
