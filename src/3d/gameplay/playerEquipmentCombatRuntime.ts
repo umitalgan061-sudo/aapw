@@ -168,7 +168,7 @@ function buildFrame({
   const phase = normalizePhase(motion, attack);
   const comboStep = clamp(Math.floor(finite(attack?.comboStep ?? motion?.attackComboStep, 0)), 0, 3);
   const animation = resolvePlayerAnimationPlan(profile, {
-    movementState: motion?.state || 'idle',
+    movementState: typeof motion?.state === 'string' ? motion.state : 'idle',
     attackKind,
     comboStep,
     speedMps: finite(motion?.speedMps, 0),
