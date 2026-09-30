@@ -10,10 +10,14 @@ export interface WorkerTaskResult<T> {
   readonly error?: string;
 }
 
+interface QueueTask<T> extends WorkerTask<T> {
+  readonly resolve: (result: WorkerTaskResult<T>) => void;
+}
+
 export class BoundedWorkerPool {
   readonly concurrency: number;
   readonly queueLimit: number;
-  #queue: WorkerTask<unknown>[] = [];
+  #queue: QueueTask<unknown>[] = [];
   #running = 0;
   #nextId = 1;
 
@@ -25,22 +29,11 @@ export class BoundedWorkerPool {
   enqueue<T>(priority: number, run: () => Promise<T>): Promise<WorkerTaskResult<T>> {
     if (this.#queue.length >= this.queueLimit) return Promise.reject(new Error('Worker queue limit exceeded'));
     const id = this.#nextId++;
-    const task: WorkerTask<T> = { id, priority, run };
-    this.#queue.push(task as WorkerTask<unknown>);
-    this.#queue.sort((a, b) => b.priority - a.priority || a.id - b.id);
-    this.#pump();
     return new Promise<WorkerTaskResult<T>>((resolve) => {
-      const original = task.run;
-      task.run = async () => {
-        try {
-          const value = await original();
-          resolve({ id, value });
-          return value;
-        } catch (error) {
-          resolve({ id, error: error instanceof Error ? error.message : String(error) });
-          throw error;
-        }
-      };
+      const task: QueueTask<T> = { id, priority, run, resolve };
+      this.#queue.push(task as QueueTask<unknown>);
+      this.#queue.sort((a, b) => b.priority - a.priority || a.id - b.id);
+      this.#pump();
     });
   }
 
@@ -58,7 +51,8 @@ export class BoundedWorkerPool {
       if (!task) break;
       this.#running++;
       void task.run()
-        .catch(() => undefined)
+        .then((value) => task.resolve({ id: task.id, value }))
+        .catch((error) => task.resolve({ id: task.id, error: error instanceof Error ? error.message : String(error) }))
         .finally(() => {
           this.#running--;
           this.#pump();
