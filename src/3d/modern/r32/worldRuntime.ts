@@ -1,5 +1,4 @@
 import {RuntimeError,stableHash} from './contracts.ts';
-import type { } from './contracts.ts';
 
 export interface ChunkCoordinate {
   readonly x: number;
