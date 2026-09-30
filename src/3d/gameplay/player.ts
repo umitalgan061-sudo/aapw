@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { PLAYER_CONFIG } from './playerConfig.ts';
 import { AssetLoader } from '../assetLoader.ts';
-import { integrateJumpArc } from '../physics.ts';
+import { integratePlayerJumpArc } from './playerPhysics.ts';
 import { gameEvents } from '../eventBus.ts';
 import { EVENTS } from '../config.ts';
 import { readDamageResolution, stageDamageResolution } from './health.ts';
@@ -407,7 +407,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 			else if (hasMovementInput) { const sprinting = runIntent && isGrounded && !sprintExhausted && stamina > 0, speed = sprinting ? PLAYER_ACTION_CONFIG.SPRINT_SPEED_MPS : PLAYER_CONFIG.WALK_SPEED_MPS; moveBy(safeMoveDirection.x, safeMoveDirection.z, speed, dt); turnToward(safeMoveDirection.x, safeMoveDirection.z, dt); if (sprinting) { spendStamina(PLAYER_ACTION_CONFIG.SPRINT_DRAIN_PER_SECOND * dt); movementState = 'sprint'; playAction('running', 1); } else { movementState = isGrounded && runIntent && sprintExhausted ? 'exhausted' : (isGrounded ? 'walk' : 'airborne'); playAction('walking', 1); } }
 			else { movementState = isGrounded ? 'idle' : 'airborne'; playAction('idle', 1); }
 			if (attackRemaining <= 0 && dodgeRemaining <= 0 && !guarding && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && jumpRequested && isGrounded) { velocityY = PLAYER_CONFIG.JUMP_SPEED_MPS; isGrounded = false; }
-			({ heightAboveGroundMeters: heightAboveGround, velocityYMps: velocityY, isGrounded } = integrateJumpArc(heightAboveGround, velocityY, dt, PLAYER_CONFIG.GRAVITY_MPS2)); model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z) + heightAboveGround;
+			({ heightAboveGroundMeters: heightAboveGround, velocityYMps: velocityY, isGrounded } = integratePlayerJumpArc(heightAboveGround, velocityY, dt, PLAYER_CONFIG.GRAVITY_MPS2)); model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z) + heightAboveGround;
 			if (attackRemaining <= 0 && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && dodgeRemaining <= 0 && parryFeedbackRemaining <= 0) { if (!isGrounded) { guarding = false; movementState = 'airborne'; } else if (movementState === 'airborne' || movementState === 'guard-break' || movementState === 'hit-stagger' || movementState.startsWith('attack-')) movementState = hasMovementInput ? (runIntent && sprintExhausted ? 'exhausted' : 'walk') : 'idle'; }
 			if (regenDelayRemaining <= 0 && attackRemaining <= 0 && dodgeRemaining <= 0 && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && !guarding && !(runIntent && hasMovementInput)) stamina = clamp(stamina + PLAYER_ACTION_CONFIG.STAMINA_REGEN_PER_SECOND * dt, 0, PLAYER_ACTION_CONFIG.MAX_STAMINA); if (poiseRegenDelayRemaining <= 0 && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && !guarding) poise = clamp(poise + PLAYER_ACTION_CONFIG.POISE_REGEN_PER_SECOND * dt, 0, PLAYER_ACTION_CONFIG.MAX_POISE); planarSpeedMps = dt > 0 ? Math.hypot(model.position.x - frameStartX, model.position.z - frameStartZ) / dt : 0; mixer.update(dt); publishMotionTelemetry();
 		},
