@@ -52,7 +52,7 @@ describe('Kızıl Ufuk strict third-person camera policy', () => {
   });
 });
 
- 
+
 describe('collision-safe third-person camera', () => {
   it('pulls the camera toward the player only when geometry blocks the requested distance', () => {
     const clear = resolvePlayerThirdPersonCameraCollision({ requestedDistance: 6, hitDistance: Infinity });
