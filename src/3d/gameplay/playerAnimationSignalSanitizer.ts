@@ -32,7 +32,7 @@ const finite = (value: unknown, fallback = 0): number => {
 
 const clamp = (value: unknown, min: number, max: number): number => {
 
-  return Math.max(min, Math.min(max, value));
+  return Math.max(min, Math.min(max, finite(value, min)));
 };
 
 const text = (value: unknown, fallback = ''): string => {
@@ -43,16 +43,16 @@ const text = (value: unknown, fallback = ''): string => {
 
 const round = (value: unknown, digits = 4): number => {
   const factor = 10 ** digits;
-  return Math.round(value * factor) / factor;
+  return Math.round(finite(value) * factor) / factor;
 };
 
 const sanitizeType = (value: unknown): PlayerAnimationSignalType => {
-  return ALLOWED_TYPES.has(value) ? value : 'presentation-warning';
+  return ALLOWED_TYPES.has(value as PlayerAnimationSignalType) ? value as PlayerAnimationSignalType : 'presentation-warning';
 };
 
 export function sanitizePlayerAnimationSignal(signal: PlayerAnimationSignalInput = {}): PlayerAnimationSignal {
   const type = sanitizeType(signal.type);
-  const warnings = [];
+  const warnings: string[] = [];
   if (type === 'presentation-warning' && signal.type !== type) warnings.push('unknown-type');
   const output: Record<string, unknown> = {
     type,
@@ -87,8 +87,8 @@ export function sanitizePlayerAnimationSignalBatch(signals: readonly PlayerAnima
 }
 
 export function validatePlayerAnimationSignal(signal: unknown): Readonly<{ ok: boolean; failures: readonly string[] }> {
-  const value = signal && typeof signal === 'object' ? signal : {};
-  const failures = [];
+  const value = signal && typeof signal === 'object' ? signal as Partial<PlayerAnimationSignal> : {};
+  const failures: string[] = [];
   if (!ALLOWED_TYPES.has(value.type)) failures.push('type');
   if (!Number.isInteger(value.sequence) || value.sequence < 0) failures.push('sequence');
   if (!Number.isFinite(value.atSeconds) || value.atSeconds < 0) failures.push('atSeconds');
@@ -130,7 +130,7 @@ export function getPlayerAnimationSignalTypes(): readonly PlayerAnimationSignalT
 }
 
 export function isPlayerAnimationSignalType(value: unknown): value is PlayerAnimationSignalType {
-  return ALLOWED_TYPES.has(value);
+  return ALLOWED_TYPES.has(value as PlayerAnimationSignalType);
 }
 
 export function getPlayerAnimationSignalLimits() {
