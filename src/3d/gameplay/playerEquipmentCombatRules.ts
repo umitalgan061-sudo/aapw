@@ -115,9 +115,26 @@ const finite = (v: unknown, fallback = 0): number => Number.isFinite(Number(v)) 
 const normalizeKind = (v: unknown): PlayerAttackKind => v === 'heavy' ? 'heavy' : 'light';
 const unique = (items: readonly unknown[]): string[] => [...new Set(items.filter((value): value is string => typeof value === 'string' && value.length > 0))];
 
+function isResolvedProfileInput(input: unknown): input is PlayerResolvedProfile {
+  const value = normalizeRecord(input);
+  return Boolean(
+    value.mainHand &&
+    value.offHand &&
+    value.armor &&
+    value.slots &&
+    value.sourceIds &&
+    typeof value.effectiveGuardMultiplier === 'number',
+  );
+}
+
+const resolveProfile = (input: PlayerEquipmentInput | PlayerResolvedProfile): PlayerResolvedProfile =>
+  isResolvedProfileInput(input)
+    ? input
+    : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(input)));
+
 export function resolvePlayerDefenseRules(profileInput: PlayerEquipmentInput | PlayerResolvedProfile = {}, {
   staminaRatio = 1, poiseRatio = 1, guardInput = false, parryWindowOpen = false, dodgeInvulnerable = false, }: { staminaRatio?: unknown; poiseRatio?: unknown; guardInput?: unknown; parryWindowOpen?: unknown; dodgeInvulnerable?: unknown } = {}) {
-  const profile = 'mainHand' in normalizeRecord(profileInput) && Boolean(normalizeRecord(profileInput).mainHand) ? asResolvedProfile(profileInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(profileInput)));
+  const profile = resolveProfile(profileInput);
   const stamina = clamp(finite(staminaRatio, 1), 0, 1);
   const poise = clamp(finite(poiseRatio, 1), 0, 1);
   const guardAvailable = Boolean(guardInput) && stamina > 0 && !dodgeInvulnerable;
@@ -137,7 +154,7 @@ export function resolvePlayerDefenseRules(profileInput: PlayerEquipmentInput | P
 }
 
 export function resolvePlayerDodgeRules(profileInput: PlayerEquipmentInput | PlayerResolvedProfile = {}, { staminaRatio = 1, grounded = true, attackBusy = false, guardBreak = false }: { staminaRatio?: unknown; grounded?: unknown; attackBusy?: unknown; guardBreak?: unknown } = {}) {
-  const profile = 'mainHand' in normalizeRecord(profileInput) && Boolean(normalizeRecord(profileInput).mainHand) ? asResolvedProfile(profileInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(profileInput)));
+  const profile = resolveProfile(profileInput);
   const stamina = clamp(finite(staminaRatio, 1), 0, 1);
   const canStart = Boolean(grounded) && !attackBusy && !guardBreak && stamina >= 0.28;
   const distanceMultiplier = clamp(profile.armor.dodgeDistanceMultiplier, 0.6, 1.1);
@@ -152,7 +169,7 @@ export function resolvePlayerDodgeRules(profileInput: PlayerEquipmentInput | Pla
 }
 
 export function resolvePlayerRangedRules(profileInput: PlayerEquipmentInput | PlayerResolvedProfile = {}, { staminaRatio = 1, lockOn = false, moving = false }: { staminaRatio?: unknown; lockOn?: unknown; moving?: unknown } = {}) {
-  const profile = 'mainHand' in normalizeRecord(profileInput) && Boolean(normalizeRecord(profileInput).mainHand) ? asResolvedProfile(profileInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(profileInput)));
+  const profile = resolveProfile(profileInput);
   const stamina = clamp(finite(staminaRatio, 1), 0, 1);
   const ranged = Boolean(profile.ranged);
   const stableAim = ranged && stamina > 0.18 && !moving;
@@ -171,7 +188,7 @@ export function resolvePlayerRangedRules(profileInput: PlayerEquipmentInput | Pl
 }
 
 export function resolvePlayerCombatEnvelope(profileInput: PlayerEquipmentInput | PlayerResolvedProfile = {}, { kind = 'light', staminaRatio = 1, poiseRatio = 1 }: { kind?: unknown; staminaRatio?: unknown; poiseRatio?: unknown } = {}) {
-  const profile = 'mainHand' in normalizeRecord(profileInput) && Boolean(normalizeRecord(profileInput).mainHand) ? asResolvedProfile(profileInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(profileInput)));
+  const profile = resolveProfile(profileInput);
   const attackKind = normalizeKind(kind);
   const base = attackKind === 'heavy'
     ? { staminaCost: 24, duration: 0.72, activeStart: 0.28, activeEnd: 0.46, reach: 2.05, damageScale: 1.65, commitMeters: 0.9 }
@@ -191,8 +208,8 @@ export function resolvePlayerCombatEnvelope(profileInput: PlayerEquipmentInput |
 }
 
 export function comparePlayerEquipmentProfiles(previousInput: PlayerEquipmentInput | PlayerResolvedProfile = {}, nextInput: PlayerEquipmentInput | PlayerResolvedProfile = {}) {
-  const previous = 'mainHand' in normalizeRecord(previousInput) && Boolean(normalizeRecord(previousInput).mainHand) ? asResolvedProfile(previousInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(previousInput)));
-  const next = 'mainHand' in normalizeRecord(nextInput) && Boolean(normalizeRecord(nextInput).mainHand) ? asResolvedProfile(nextInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(nextInput)));
+  const previous = resolveProfile(previousInput);
+  const next = resolveProfile(nextInput);
   const changedSlots: Array<'head' | 'chest' | 'back' | 'mainHand' | 'offHand'> = [];
   for (const slot of ['head', 'chest', 'back', 'mainHand', 'offHand'] as const) {
     if (previous.sourceIds[slot] !== next.sourceIds[slot]) changedSlots.push(slot);
@@ -213,8 +230,8 @@ export function comparePlayerEquipmentProfiles(previousInput: PlayerEquipmentInp
 }
 
 export function resolvePlayerEquipmentTransition(previousInput: PlayerEquipmentInput | PlayerResolvedProfile = {}, nextInput: PlayerEquipmentInput | PlayerResolvedProfile = {}, { movementState = 'idle', attackKind = 'none', comboStep = 0, speedMps = 0, grounded = true }: PlayerAnimationOptions = {}) {
-  const previous = 'mainHand' in normalizeRecord(previousInput) && Boolean(normalizeRecord(previousInput).mainHand) ? asResolvedProfile(previousInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(previousInput)));
-  const next = 'mainHand' in normalizeRecord(nextInput) && Boolean(normalizeRecord(nextInput).mainHand) ? asResolvedProfile(nextInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(nextInput)));
+  const previous = resolveProfile(previousInput);
+  const next = resolveProfile(nextInput);
   const delta = comparePlayerEquipmentProfiles(previous, next);
   const nextAnimation = resolvePlayerAnimationPlan(next, { movementState, attackKind, comboStep, speedMps, grounded });
   const previousAnimation = resolvePlayerAnimationPlan(previous, { movementState, attackKind, comboStep, speedMps, grounded });
@@ -236,7 +253,7 @@ export function resolvePlayerEquipmentTransition(previousInput: PlayerEquipmentI
 }
 
 export function resolvePlayerHitReaction(profileInput: PlayerEquipmentInput | PlayerResolvedProfile = {}, { rawAmount = 0, blockedAmount = 0, poise = 100, maxPoise = 100 }: PlayerHitReactionOptions = {}) {
-  const profile = 'mainHand' in normalizeRecord(profileInput) && Boolean(normalizeRecord(profileInput).mainHand) ? asResolvedProfile(profileInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(profileInput)));
+  const profile = resolveProfile(profileInput);
   const raw = Math.max(0, finite(rawAmount, 0));
   const blocked = clamp(finite(blockedAmount, 0), 0, raw);
   const effective = Math.max(0, raw - blocked) * profile.mainHand.poiseMultiplier;
@@ -253,7 +270,7 @@ export function resolvePlayerHitReaction(profileInput: PlayerEquipmentInput | Pl
 }
 
 export function resolvePlayerLockOnRules(profileInput: PlayerEquipmentInput | PlayerResolvedProfile = {}, { targetDistanceMeters = Infinity, targetAngleRad = Math.PI, targetAlive = true, targetVisible = true, targetPriority = 0, currentLocked = false, targetMovesAway = false }: PlayerLockOnOptions = {}) {
-  const profile = 'mainHand' in normalizeRecord(profileInput) && Boolean(normalizeRecord(profileInput).mainHand) ? asResolvedProfile(profileInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(profileInput)));
+  const profile = resolveProfile(profileInput);
   const distance = Math.max(0, finite(targetDistanceMeters, Number.POSITIVE_INFINITY));
   const angle = Math.max(0, finite(targetAngleRad, Math.PI));
   const maxRange = profile.ranged ? 28 : clamp(profile.mainHand.reachMultiplier * 9, 8, 18);
@@ -279,7 +296,7 @@ export function resolvePlayerLockOnRules(profileInput: PlayerEquipmentInput | Pl
 }
 
 export function buildPlayerHitboxHurtboxContract(profileInput: PlayerEquipmentInput | PlayerResolvedProfile = {}, { grounded = true, crouching = false, attackKind = 'light', stance = 'neutral' }: { grounded?: unknown; crouching?: unknown; attackKind?: unknown; stance?: unknown } = {}) {
-  const profile = 'mainHand' in normalizeRecord(profileInput) && Boolean(normalizeRecord(profileInput).mainHand) ? asResolvedProfile(profileInput) : asResolvedProfile(resolvePlayerEquipmentCombatProfile(normalizeRecord(profileInput)));
+  const profile = resolveProfile(profileInput);
   const tuning = resolvePlayerCombatEnvelope(profile, { kind: attackKind });
   const armorMass = clamp(profile.armor.staminaDrainMultiplier, 0.65, 1.9);
   const height = crouching ? 1.22 : 1.72;
