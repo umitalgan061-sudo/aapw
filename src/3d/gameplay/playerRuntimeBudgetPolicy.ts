@@ -121,14 +121,6 @@ const round = (value: number, digits = 4): number => {
 const normalizeDelta = (delta: unknown): number =>
   clamp(delta, PLAYER_RUNTIME_BUDGET_LIMITS.minimumFrameSeconds, PLAYER_RUNTIME_BUDGET_LIMITS.maximumFrameSeconds);
 
-const normalizeOptions = (options: RuntimeBudgetOptions | null | undefined): Required<RuntimeBudgetOptions> => ({
-  extraMultiplier: options?.extraMultiplier,
-  targetFramesPerPoll: options?.targetFramesPerPoll,
-  requiredSamples: options?.requiredSamples,
-  minimumFps: options?.minimumFps,
-  simulationSeconds: options?.simulationSeconds,
-});
-
 export function normalizeRuntimeFrameSamples(samples: readonly unknown[] = []): readonly number[] {
   const values = Array.isArray(samples) ? samples : [];
   return Object.freeze(
@@ -155,16 +147,16 @@ export function summarizeRuntimeFrameSamples(samples: readonly unknown[] = []): 
 
   const sorted = [...values].sort((a, b) => a - b);
   const at = (ratio: number): number =>
-    sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1))];
+    sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1))] ?? 0;
   const total = sorted.reduce((sum, value) => sum + value, 0);
   const mean = total / sorted.length;
 
   return Object.freeze({
     count: sorted.length,
-    minSeconds: round(sorted[0], 5),
+    minSeconds: round(sorted[0] ?? 0, 5),
     medianSeconds: round(at(0.5), 5),
     p95Seconds: round(at(0.95), 5),
-    maxSeconds: round(sorted[sorted.length - 1], 5),
+    maxSeconds: round(sorted[sorted.length - 1] ?? 0, 5),
     meanSeconds: round(mean, 5),
     fps: round(1 / Math.max(mean, PLAYER_RUNTIME_BUDGET_LIMITS.minimumFrameSeconds), 3),
   });
@@ -212,9 +204,8 @@ export function calculateVerificationTimeout(
 ): number {
   const wallSeconds = estimateWallClockForSimulation(simulationSeconds, summary);
   const classification = classifyRuntimeEnvironment(summary);
-  const normalized = normalizeOptions(options);
   const multiplier = clamp(
-    normalized.extraMultiplier,
+    options.extraMultiplier,
     1,
     PLAYER_RUNTIME_BUDGET_LIMITS.maximumMultiplier,
   );
@@ -299,14 +290,18 @@ export function buildRuntimeBudgetDecision(
   });
 }
 
+export type RuntimeBudgetInput = RuntimeBudgetOptions & { readonly samples?: readonly unknown[] };
+
 export function compareRuntimeBudgets(
-  a: { readonly samples?: readonly unknown[] } & RuntimeBudgetOptions | readonly unknown[] = [],
-  b: { readonly samples?: readonly unknown[] } & RuntimeBudgetOptions | readonly unknown[] = [],
+  a: RuntimeBudgetInput | readonly unknown[] = [],
+  b: RuntimeBudgetInput | readonly unknown[] = [],
 ): RuntimeBudgetComparison {
-  const leftInput = Array.isArray(a) ? { samples: a } : a;
-  const rightInput = Array.isArray(b) ? { samples: b } : b;
-  const left = buildRuntimeBudgetDecision(leftInput.samples ?? [], leftInput);
-  const right = buildRuntimeBudgetDecision(rightInput.samples ?? [], rightInput);
+  const leftSamples = Array.isArray(a) ? a : (a.samples ?? []);
+  const rightSamples = Array.isArray(b) ? b : (b.samples ?? []);
+  const leftOptions: RuntimeBudgetOptions = Array.isArray(a) ? {} : a;
+  const rightOptions: RuntimeBudgetOptions = Array.isArray(b) ? {} : b;
+  const left = buildRuntimeBudgetDecision(leftSamples, leftOptions);
+  const right = buildRuntimeBudgetDecision(rightSamples, rightOptions);
   return Object.freeze({
     classificationChanged: left.classification !== right.classification,
     timeoutDeltaMs: right.timeoutMs - left.timeoutMs,
