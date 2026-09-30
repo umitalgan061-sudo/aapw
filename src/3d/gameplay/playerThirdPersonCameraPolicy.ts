@@ -133,3 +133,41 @@ export function resolvePlayerThirdPersonCameraFrame(
     }),
   });
 }
+
+ 
+export interface PlayerThirdPersonCameraCollisionInput {
+  readonly requestedDistance?: unknown;
+  readonly hitDistance?: unknown;
+  readonly collisionMargin?: unknown;
+  readonly minimumDistance?: unknown;
+}
+
+export interface PlayerThirdPersonCameraCollisionResult {
+  readonly requestedDistance: number;
+  readonly resolvedDistance: number;
+  readonly collided: boolean;
+  readonly hitDistance: number | null;
+  readonly collisionMargin: number;
+  readonly minimumDistance: number;
+}
+
+export function resolvePlayerThirdPersonCameraCollision(
+  input: PlayerThirdPersonCameraCollisionInput = {},
+): PlayerThirdPersonCameraCollisionResult {
+  const requestedDistance = clamp(input.requestedDistance, 2.5, 12);
+  const minimumDistance = clamp(input.minimumDistance, 1.5, requestedDistance);
+  const rawHitDistance = finite(input.hitDistance, Number.POSITIVE_INFINITY);
+  const collisionMargin = clamp(input.collisionMargin, 0.05, 0.75);
+  const collided = Number.isFinite(rawHitDistance) && rawHitDistance < requestedDistance;
+  const resolvedDistance = collided
+    ? clamp(rawHitDistance - collisionMargin, minimumDistance, requestedDistance)
+    : requestedDistance;
+  return Object.freeze({
+    requestedDistance: round4(requestedDistance),
+    resolvedDistance: round4(resolvedDistance),
+    collided,
+    hitDistance: Number.isFinite(rawHitDistance) ? round4(Math.max(0, rawHitDistance)) : null,
+    collisionMargin: round4(collisionMargin),
+    minimumDistance: round4(minimumDistance),
+  });
+}
