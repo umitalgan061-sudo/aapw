@@ -294,7 +294,7 @@ export function createPlayerAnimationOneShotController({
     state = result.state;
     if (result.started) publish({ type: 'action-start', sequence: ++sequence, action: state.action, variant: state.variant, fingerprint: state.requestFingerprint, atSeconds: nowSeconds });
     if (result.ended) publish({ type: 'action-end', sequence: ++sequence, action: previous.action, variant: previous.variant, atSeconds: nowSeconds });
-    if (result.decision && !result.decision.accepted) publish({ type: 'action-rejected', sequence: ++sequence, action: result.decision.request.action, reason: result.decision.reason, atSeconds: nowSeconds });
+    if (result.decision && !result.decision.accepted) publish({ type: 'action-rejected', sequence: ++sequence, action: result.decision.request.action, reason: result.decision.reason as PlayerAnimationOneShotRejectReason, atSeconds: nowSeconds });
     return Object.freeze({ ...result, snapshot: snapshot() });
   };
 
