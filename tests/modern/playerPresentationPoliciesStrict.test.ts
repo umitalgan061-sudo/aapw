@@ -52,7 +52,7 @@ describe('Kızıl Ufuk strict presentation policies', () => {
       toState: 'guard',
       normalizedTime: 0.1,
       canInterrupt: true,
-      environmentConfidence: 0.5,
+      environmentalConfidence: 0.5,
     });
     expect(protectedWindow.permitted).toBe(false);
     expect(protectedWindow.protectedWindow).toBe(true);
