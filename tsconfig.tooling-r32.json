@@ -14,8 +14,8 @@
     "scripts/checkRun327CreatureGait.ts",
     "scripts/roadNetworkSafetyCheck.ts",
     "scripts/checkCurrentLifecycleReinitShadow.ts",
-    "scripts/checkCurrentRuntimeIntegrationShadow.ts",
-    "service-worker.ts"
+    "scripts/checkCurrentRuntimeIntegrationShadow.ts"
+
   ],
   "exclude": ["node_modules", "dist", "coverage"]
 }
