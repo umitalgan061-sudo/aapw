@@ -1,4 +1,5 @@
 import { R16AssetResidency } from './assetResidency.js';
+import { R16CacheCoordinator } from './cacheCoordinator.js';
 import { R16BudgetScheduler } from './budgetScheduler.js';
 import { R16CommandBus } from './commandBus.js';
 import { R16EventLog } from './eventLog.js';
@@ -54,7 +55,7 @@ export class R16RuntimeFacade {
     this.frames=new R16FrameScheduler();
     const cacheConfig=config.cache??{maxBytes:256*1024*1024,maxItems:8192,maxPinnedBytes:64*1024*1024};
     const assetConfig=config.assetResidency??{maxBytes:256*1024*1024,maxAssets:8192,maxCriticalBytes:64*1024*1024};
-    this.cache=new (requirelessCache())(cacheConfig);
+    this.cache=new R16CacheCoordinator(cacheConfig);
     this.assets=new R16AssetResidency(assetConfig);
     this.workers=new R16WorkerScheduler(runtimeConfig);
     this.network=new R16NetworkSecurityBoundary();
@@ -110,14 +111,3 @@ function sanitizeRuntimeConfig(config:Partial<R16RuntimeConfig>):Partial<R16Runt
   return result;
 }
 
-function requirelessCache(){
-  return class CacheAdapter{
-    readonly #budget:{maxBytes:number;maxItems:number;maxPinnedBytes:number};readonly #items=new Map<string,any>();
-    constructor(b:{maxBytes:number;maxItems:number;maxPinnedBytes:number}){this.#budget=b;}
-    register(item:any){if(!item?.id||item.bytes<1||item.bytes>this.#budget.maxBytes)return{ok:false,error:{code:'CACHE_ITEM_INVALID',message:'Cache item invalid',retryable:false}};this.#items.set(item.id,Object.freeze({...item,resident:item.resident??true}));return{ok:true,value:undefined};}
-    touch(id:string,tick:number,priority?:number){const i=this.#items.get(id);if(!i)return false;this.#items.set(id,Object.freeze({...i,lastUsedTick:Math.max(0,Math.trunc(tick)),priority:priority??i.priority}));return true;}
-    plan(){const values=[...this.#items.values()].filter(i=>i.resident).sort((a,b)=>b.priority-a.priority||Number(b.pinned)-Number(a.pinned)||b.lastUsedTick-a.lastUsedTick||a.id.localeCompare(b.id));let bytes=0;const retained:string[]=[];const evict:string[]=[];for(const i of values){if(bytes+i.bytes<=this.#budget.maxBytes&&retained.length<this.#budget.maxItems){retained.push(i.id);bytes+=i.bytes;}else if(!i.pinned)evict.push(i.id);}return Object.freeze({retained:Object.freeze(retained),evict:Object.freeze(evict),retainedBytes:bytes,projectedBytes:bytes});}
-    setResident(id:string,resident:boolean){const i=this.#items.get(id);if(!i)return false;this.#items.set(id,Object.freeze({...i,resident}));return true;}
-    clear(){this.#items.clear();}
-  };
-}
