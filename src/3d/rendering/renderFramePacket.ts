@@ -1,53 +1,204 @@
-// @ts-nocheck
 /**
- * Canonical renderer frame packet.
+ * Canonical immutable renderer frame packet.
  *
- * A single immutable packet lets the scene renderer consume quality, feature, visibility, instance,
- * texture, temporal-history, recovery and telemetry decisions without reaching back into policy objects.
- * It is intentionally serializable enough for diagnostics and replay while excluding GPU handles.
- *
- * @module renderFramePacket
+ * This is the last renderer-neutral boundary before GPU/Three.js presentation. It is deliberately
+ * plain-data, bounded, deterministic and serializable for replay/telemetry.
  */
 
-const freeze = Object.freeze;
-const finite = (v, f = 0) => Number.isFinite(Number(v)) ? Number(v) : f;
-const clamp = (v, min = 0, max = 1) => Math.min(max, Math.max(min, finite(v, min)));
-
-export const RENDER_FRAME_PACKET_POLICY = freeze({
-  id: 'render-frame-packet-2026-09-v1',
+export const RENDER_FRAME_PACKET_POLICY = Object.freeze({
+  id: 'render-frame-packet-2026-09-r15',
   maxVisible: 2048,
   maxBatches: 1024,
   maxTextures: 4096,
   maxEffects: 9,
   maxReasons: 12,
+  maxIdentifierLength: 96,
+  minRenderScale: 0.5,
+  maxRenderScale: 1,
 });
 
-function safeId(value, fallback = '') { return String(value ?? fallback).slice(0, 96); }
+export interface RenderVisibleItem {
+  readonly id: string;
+  readonly lod: string;
+  readonly score: number;
+}
 
-export function createRenderFramePacket(input = {}) {
-  const visible = (Array.isArray(input.visibility?.visible) ? input.visibility.visible : []).slice(0, RENDER_FRAME_PACKET_POLICY.maxVisible).map((item) => freeze({ id: safeId(item.id), lod: safeId(item.lod, 'far'), score: clamp(item.score) }));
-  const batches = (Array.isArray(input.instances?.batches) ? input.instances.batches : []).slice(0, RENDER_FRAME_PACKET_POLICY.maxBatches).map((batch) => freeze({ key: safeId(batch.key), instanceCount: Math.max(0, Math.floor(finite(batch.instanceCount))) }));
-  const textures = (Array.isArray(input.textures?.resident) ? input.textures.resident : []).slice(0, RENDER_FRAME_PACKET_POLICY.maxTextures).map((texture) => freeze({ id: safeId(texture.id), mip: Math.max(0, Math.floor(finite(texture.mip))), bytes: Math.max(0, finite(texture.bytes)) }));
-  const effects = (Array.isArray(input.pipeline?.effects) ? input.pipeline.effects : []).slice(0, RENDER_FRAME_PACKET_POLICY.maxEffects).map((effect) => safeId(effect));
-  const reasons = (Array.isArray(input.recoveryReasons) ? input.recoveryReasons : []).slice(0, RENDER_FRAME_PACKET_POLICY.maxReasons).map((value) => safeId(value));
-  return freeze({
+export interface RenderInstanceBatch {
+  readonly key: string;
+  readonly instanceCount: number;
+}
+
+export interface RenderResidentTexture {
+  readonly id: string;
+  readonly mip: number;
+  readonly bytes: number;
+}
+
+export interface RenderFramePacket {
+  readonly schema: string;
+  readonly frame: number;
+  readonly timestampMs: number;
+  readonly backend: 'webgpu' | 'webgl2';
+  readonly tier: string;
+  readonly renderScale: number;
+  readonly visibility: {
+    readonly visible: readonly RenderVisibleItem[];
+    readonly deferredCount: number;
+  };
+  readonly instances: {
+    readonly batches: readonly RenderInstanceBatch[];
+    readonly deferredCount: number;
+  };
+  readonly textures: {
+    readonly resident: readonly RenderResidentTexture[];
+    readonly deferredCount: number;
+    readonly utilization: number;
+  };
+  readonly pipeline: {
+    readonly effects: readonly string[];
+    readonly estimatedPasses: number;
+    readonly estimatedEffectMs: number;
+  };
+  readonly temporalHistory: {
+    readonly valid: boolean;
+    readonly confidence: number;
+  };
+  readonly recovery: {
+    readonly state: string;
+    readonly reasons: readonly string[];
+  };
+}
+
+export interface RenderFramePacketInput {
+  readonly frame?: unknown;
+  readonly timestampMs?: unknown;
+  readonly backend?: unknown;
+  readonly tier?: unknown;
+  readonly renderScale?: unknown;
+  readonly visibility?: Readonly<{ visible?: unknown; deferred?: unknown }>;
+  readonly instances?: Readonly<{ batches?: unknown; deferredCount?: unknown }>;
+  readonly textures?: Readonly<{ resident?: unknown; deferred?: unknown; utilization?: unknown }>;
+  readonly pipeline?: Readonly<{ effects?: unknown; estimatedPasses?: unknown; estimatedEffectMs?: unknown }>;
+  readonly temporalHistory?: Readonly<{ valid?: unknown; confidence?: unknown }>;
+  readonly recovery?: Readonly<{ state?: unknown; reasons?: unknown }>;
+  readonly recoveryReasons?: unknown;
+}
+
+function finite(value: unknown, fallback = 0): number {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function nonNegativeInt(value: unknown): number {
+  return Math.max(0, Math.floor(finite(value)));
+}
+
+function clamp(value: unknown, min: number, max: number): number {
+  return Math.min(max, Math.max(min, finite(value, min)));
+}
+
+function safeId(value: unknown, fallback = ''): string {
+  const text = value == null ? fallback : String(value);
+  return text.slice(0, RENDER_FRAME_PACKET_POLICY.maxIdentifierLength);
+}
+
+function arrayValue(value: unknown): readonly unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function arrayLength(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+export function createRenderFramePacket(input: RenderFramePacketInput = {}): RenderFramePacket {
+  const visible = arrayValue(input.visibility?.visible)
+    .slice(0, RENDER_FRAME_PACKET_POLICY.maxVisible)
+    .map((item): RenderVisibleItem => {
+      const value = isRecord(item) ? item : {};
+      return Object.freeze({
+        id: safeId(value.id),
+        lod: safeId(value.lod, 'far'),
+        score: clamp(value.score, 0, 1),
+      });
+    });
+
+  const batches = arrayValue(input.instances?.batches)
+    .slice(0, RENDER_FRAME_PACKET_POLICY.maxBatches)
+    .map((item): RenderInstanceBatch => {
+      const value = isRecord(item) ? item : {};
+      return Object.freeze({
+        key: safeId(value.key),
+        instanceCount: nonNegativeInt(value.instanceCount),
+      });
+    });
+
+  const textures = arrayValue(input.textures?.resident)
+    .slice(0, RENDER_FRAME_PACKET_POLICY.maxTextures)
+    .map((item): RenderResidentTexture => {
+      const value = isRecord(item) ? item : {};
+      return Object.freeze({
+        id: safeId(value.id),
+        mip: nonNegativeInt(value.mip),
+        bytes: Math.max(0, finite(value.bytes)),
+      });
+    });
+
+  const effects = arrayValue(input.pipeline?.effects)
+    .slice(0, RENDER_FRAME_PACKET_POLICY.maxEffects)
+    .map((value) => safeId(value));
+
+  const reasonsSource = Array.isArray(input.recoveryReasons)
+    ? input.recoveryReasons
+    : input.recovery?.reasons;
+  const reasons = arrayValue(reasonsSource)
+    .slice(0, RENDER_FRAME_PACKET_POLICY.maxReasons)
+    .map((value) => safeId(value));
+
+  return Object.freeze({
     schema: RENDER_FRAME_PACKET_POLICY.id,
-    frame: Math.max(0, Math.floor(finite(input.frame))),
+    frame: nonNegativeInt(input.frame),
     timestampMs: Math.max(0, finite(input.timestampMs)),
     backend: input.backend === 'webgpu' ? 'webgpu' : 'webgl2',
     tier: safeId(input.tier, 'balanced'),
-    renderScale: clamp(input.renderScale, 0.5, 1),
-    visibility: freeze({ visible, deferredCount: Math.max(0, Math.floor(finite(input.visibility?.deferred?.length))) }),
-    instances: freeze({ batches, deferredCount: Math.max(0, Math.floor(finite(input.instances?.deferredCount))) }),
-    textures: freeze({ resident: textures, deferredCount: Math.max(0, Math.floor(finite(input.textures?.deferred?.length))), utilization: clamp(input.textures?.utilization) }),
-    pipeline: freeze({ effects: freeze(effects), estimatedPasses: Math.max(0, Math.floor(finite(input.pipeline?.estimatedPasses))), estimatedEffectMs: Math.max(0, finite(input.pipeline?.estimatedEffectMs)) }),
-    temporalHistory: freeze({ valid: Boolean(input.temporalHistory?.valid), confidence: clamp(input.temporalHistory?.confidence) }),
-    recovery: freeze({ state: safeId(input.recovery?.state, 'healthy'), reasons: freeze(reasons) }),
+    renderScale: clamp(
+      input.renderScale,
+      RENDER_FRAME_PACKET_POLICY.minRenderScale,
+      RENDER_FRAME_PACKET_POLICY.maxRenderScale,
+    ),
+    visibility: Object.freeze({
+      visible: Object.freeze(visible),
+      deferredCount: arrayLength(input.visibility?.deferred),
+    }),
+    instances: Object.freeze({
+      batches: Object.freeze(batches),
+      deferredCount: nonNegativeInt(input.instances?.deferredCount),
+    }),
+    textures: Object.freeze({
+      resident: Object.freeze(textures),
+      deferredCount: arrayLength(input.textures?.deferred),
+      utilization: clamp(input.textures?.utilization, 0, 1),
+    }),
+    pipeline: Object.freeze({
+      effects: Object.freeze(effects),
+      estimatedPasses: nonNegativeInt(input.pipeline?.estimatedPasses),
+      estimatedEffectMs: Math.max(0, finite(input.pipeline?.estimatedEffectMs)),
+    }),
+    temporalHistory: Object.freeze({
+      valid: Boolean(input.temporalHistory?.valid),
+      confidence: clamp(input.temporalHistory?.confidence, 0, 1),
+    }),
+    recovery: Object.freeze({
+      state: safeId(input.recovery?.state, 'healthy'),
+      reasons: Object.freeze(reasons),
+    }),
   });
 }
 
-export function renderFramePacketDigest(packet) {
-  if (!packet) return '';
+export function renderFramePacketDigest(packet: RenderFramePacket): string {
   return [
     packet.frame,
     packet.backend,
@@ -58,15 +209,28 @@ export function renderFramePacketDigest(packet) {
     packet.instances.batches.map((item) => `${item.key}:${item.instanceCount}`).join(','),
     packet.textures.resident.map((item) => `${item.id}:${item.mip}`).join(','),
     packet.recovery.state,
+    packet.recovery.reasons.join(','),
     packet.temporalHistory.valid ? 'history:1' : 'history:0',
   ].join('|');
 }
 
-export function validateRenderFramePacket(packet) {
-  if (!packet || packet.schema !== RENDER_FRAME_PACKET_POLICY.id) return false;
-  if (!['webgpu', 'webgl2'].includes(packet.backend)) return false;
-  if (!(packet.renderScale >= 0.5 && packet.renderScale <= 1)) return false;
+export function validateRenderFramePacket(packet: unknown): packet is RenderFramePacket {
+  if (!isRecord(packet) || packet.schema !== RENDER_FRAME_PACKET_POLICY.id) return false;
+  if (packet.backend !== 'webgpu' && packet.backend !== 'webgl2') return false;
+  if (typeof packet.frame !== 'number' || !Number.isInteger(packet.frame) || packet.frame < 0) return false;
+  if (typeof packet.timestampMs !== 'number' || packet.timestampMs < 0) return false;
+  if (typeof packet.renderScale !== 'number') return false;
+  if (packet.renderScale < RENDER_FRAME_PACKET_POLICY.minRenderScale || packet.renderScale > RENDER_FRAME_PACKET_POLICY.maxRenderScale) return false;
+
+  if (!isRecord(packet.visibility) || !Array.isArray(packet.visibility.visible)) return false;
+  if (!isRecord(packet.instances) || !Array.isArray(packet.instances.batches)) return false;
+  if (!isRecord(packet.textures) || !Array.isArray(packet.textures.resident)) return false;
+  if (!isRecord(packet.pipeline) || !Array.isArray(packet.pipeline.effects)) return false;
+  if (!isRecord(packet.temporalHistory) || !isRecord(packet.recovery)) return false;
+
   if (packet.visibility.visible.length > RENDER_FRAME_PACKET_POLICY.maxVisible) return false;
   if (packet.instances.batches.length > RENDER_FRAME_PACKET_POLICY.maxBatches) return false;
-  return packet.pipeline.effects.length <= RENDER_FRAME_PACKET_POLICY.maxEffects;
+  if (packet.textures.resident.length > RENDER_FRAME_PACKET_POLICY.maxTextures) return false;
+  if (packet.pipeline.effects.length > RENDER_FRAME_PACKET_POLICY.maxEffects) return false;
+  return true;
 }
