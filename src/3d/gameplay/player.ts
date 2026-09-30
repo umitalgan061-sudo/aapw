@@ -7,7 +7,7 @@
  */
 
 import * as THREE from 'three';
-import { PLAYER_CONFIG } from './gameplayConfig.ts';
+import { PLAYER_CONFIG } from './playerConfig.ts';
 import { AssetLoader } from '../assetLoader.ts';
 import { integrateJumpArc } from '../physics.ts';
 import { gameEvents } from '../eventBus.ts';
