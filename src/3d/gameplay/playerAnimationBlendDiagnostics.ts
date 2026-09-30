@@ -120,12 +120,12 @@ export function resolveAnimationTransitionWindow({
   toState = 'idle',
   normalizedTime = 0,
   canInterrupt = true,
-  environmentConfidence = 1,
+  environmentalConfidence = 1,
 }: AnimationBlendInput = {}) {
   const from = normalizeState(fromState);
   const to = normalizeState(toState);
   const time = clamp01(normalizedTime);
-  const confidence = clamp01(environmentConfidence);
+  const confidence = clamp01(environmentalConfidence);
   const sameGroup = resolveGroup(from) === resolveGroup(to);
   const attackBoundary = from.includes('attack') && time < DEFAULT_THRESHOLDS.attackInterruptSeconds;
   const defenseBoundary = (from === 'guard' || from === 'parry') && time < DEFAULT_THRESHOLDS.defenseInterruptSeconds;
@@ -145,7 +145,7 @@ export function auditAnimationBlendContract(contract: unknown): Readonly<{ ok: b
   if (!contract || typeof contract !== 'object') return Object.freeze({ ok: false, errors: Object.freeze(['missing-contract']), warnings: Object.freeze([]) });
   const value = contract as Record<string, unknown>;
   const weights = value.normalizedWeights && typeof value.normalizedWeights === 'object' ? value.normalizedWeights as Record<string, unknown> : {};
-  const sum = Object.values(weights).reduce((total, weight) => total + finite(weight), 0);
+  const sum = Object.values(weights).reduce((total: number, weight: unknown) => total + finite(weight), 0);
   if (Math.abs(sum - 1) > 0.00001) errors.push('weights-do-not-sum-to-one');
   for (const [state, weight] of Object.entries(weights)) if (finite(weight) < 0 || finite(weight) > 1) errors.push(`weight-out-of-range:${state}`);
   if (clamp01(value.environmentalConfidence) !== finite(value.environmentalConfidence)) errors.push('confidence-non-finite');
@@ -163,7 +163,7 @@ export function buildAnimationBlendDiagnostics(input: AnimationBlendInput = {}) 
     toState: input.toState ?? classification.expectedState,
     normalizedTime: input.normalizedTime,
     canInterrupt: input.canInterrupt,
-    environmentConfidence: input.environmentalConfidence,
+    environmentalConfidence: input.environmentalConfidence,
   });
   return Object.freeze({ classification, contract, transition, audit: auditAnimationBlendContract(contract) });
 }
