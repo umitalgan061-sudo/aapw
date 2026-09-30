@@ -7,6 +7,7 @@ import {
   resolvePlayerRangedRules,
   validatePlayerEquipmentRuntimeInput,
 } from '../../src/3d/gameplay/playerEquipmentCombatRules.ts';
+import { resolvePlayerEquipmentCombatProfile } from '../../src/3d/gameplay/playerEquipmentCombatProfile.ts';
 
 const longswordShieldPlate = {
   mainHand: { id: 'longsword' },
@@ -15,6 +16,13 @@ const longswordShieldPlate = {
 };
 
 describe('Kızıl Ufuk strict equipment/combat rules', () => {
+  it('keeps empty equipment slots nullable while resolving an unarmed baseline', () => {
+    const profile = resolvePlayerEquipmentCombatProfile({});
+    expect(profile.slots.mainHand).toBeNull();
+    expect(profile.slots.offHand).toBeNull();
+    expect(profile.sourceIds.mainHand).toBe('unarmed');
+    expect(profile.armor.id).toBe('unarmored');
+  });
   it('produces a valid defensive contract for a shield loadout', () => {
     const defense = resolvePlayerDefenseRules(longswordShieldPlate, {
       staminaRatio: 0.92,
