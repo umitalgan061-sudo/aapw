@@ -79,7 +79,10 @@ describe('R27 platform boundaries', () => {
       },
     };
     const broker = new TypedWorkerBroker(transport);
-    const pending = broker.request({ type: 'asset-manifest', assetIds: undefined } as never);
+    const pending = broker.request({
+      type: 'build-asset-manifest',
+      assets: [],
+    });
     const id = sent[0]?.requestId;
     listener?.({
       type: 'asset-manifest-ready',
