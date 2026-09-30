@@ -1,4 +1,6 @@
-import {
+import {asFrameIndex,asTick,clampFinite,stableHash} from './contracts.ts';
+import type {FrameIndex,Tick,Vec2} from './contracts.ts';
+
   FrameIndex,
   Tick,
   Vec2,
