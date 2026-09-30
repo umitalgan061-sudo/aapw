@@ -1,5 +1,19 @@
 import {R32_DEFAULT_CONFIG} from './contracts.ts';
+import {R32Application} from './application.ts';
+import {RenderPipelineR32} from './renderPipeline.ts';
+import {PerformanceGovernor} from './performanceGovernor.ts';
+import {RuntimeRecoveryController} from './recoveryController.ts';
+import {DeterministicRateLimiter,SecurityAuditLog} from './securityBoundary.ts';
+import {InputIntentPipeline} from './inputPipeline.ts';
+import {JsonPersistenceCoordinator,MemoryStorage} from './persistenceCoordinator.ts';
+import {JsonSnapshotCodec,SnapshotHistory} from './snapshotCodec.ts';
+import {WorldRuntime} from './worldRuntime.ts';
+import {EntityRegistry} from './entityRegistry.ts';
+import type {R32ApplicationOptions,R32ApplicationState} from './application.ts';
 import type {RuntimeConfigR32,RuntimeDiagnostics,RuntimeEvent,RuntimeEventMap} from './contracts.ts';
+import type {GovernorSnapshot} from './performanceGovernor.ts';
+import type {EntityRegistryOptions} from './entityRegistry.ts';
+import type {WorldChunkSource,WorldRuntimeOptions} from './worldRuntime.ts';
 
   R32_DEFAULT_CONFIG,
   RuntimeConfigR32,
