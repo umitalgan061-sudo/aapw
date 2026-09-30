@@ -10,7 +10,7 @@ const validateAssetSource = async (rel) => {
     const text = body.toString('utf8');
     if (text.startsWith('version https://git-lfs.github.com/spec/v1')) {
       const oid = text.match(/^oid sha256:([0-9a-f]{64})$/m);
-      const size = text.match(/^size (\\d+)$/m);
+      const size = text.match(/^size ([0-9]+)$/m);
       if (!oid) fail.push(`lfs-pointer-missing-oid:${rel}`);
       if (!size || Number(size[1]) <= 100000) fail.push(`lfs-pointer-invalid-size:${rel}`);
       return;
