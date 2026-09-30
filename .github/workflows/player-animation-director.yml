@@ -3,6 +3,11 @@ on:
   pull_request:
     paths:
       - 'src/3d/gameplay/playerAnimationDirector.js'
+      - 'src/3d/gameplay/playerAnimationDirector.ts'
+      - 'src/3d/gameplay/playerAnimationDirector.legacy.js'
+      - 'src/3d/gameplay/playerAnimationAssetCatalog.ts'
+      - 'src/3d/gameplay/playerAnimationSurfaceEvidence.ts'
+      - 'src/3d/gameplay/playerEnvironmentalAnimationProfile.ts'
       - 'scripts/checkPlayerAnimationDirector.mjs'
       - '.github/workflows/player-animation-director.yml'
   workflow_dispatch:
