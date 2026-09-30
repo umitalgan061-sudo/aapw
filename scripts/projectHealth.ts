@@ -27,6 +27,7 @@ const GATES: readonly HealthGate[] = Object.freeze([
   { id: 'tooling', command: 'npm', args: ['run', 'check:tooling-r24'], timeoutMs: 120_000 },
   { id: 'active-typescript-ownership-r30', command: 'npm', args: ['run', 'verify:active-typescript-r30'], timeoutMs: 60_000 },
   { id: 'strict-world-r30', command: 'npm', args: ['run', 'check:strict-world-r30'], timeoutMs: 120_000 },
+  { id: 'typescript-tooling-r32', command: 'npm', args: ['run', 'check:tooling-r32'], timeoutMs: 180_000 },
 ]);
 
 function executeGate(gate: HealthGate): Promise<HealthGateResult> {
