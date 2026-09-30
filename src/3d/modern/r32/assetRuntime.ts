@@ -1,4 +1,6 @@
-import {AssetDescriptor,AssetId,AssetLoader,AssetRecord,AssetRequestReceipt,AssetRuntimeOptions,AssetState,RuntimeError,TaskPriority,Tick} from './contracts.ts';
+import {RuntimeError} from './contracts.ts';
+import type {AssetDescriptor,AssetId,AssetLoader,AssetRecord,AssetRequestReceipt,AssetRuntimeOptions,AssetState,TaskPriority,Tick} from './contracts.ts';
+
 interface Entry<T>{descriptor:AssetDescriptor;state:AssetState;value?:T;bytes:number;accessCount:number;lastAccessTick:Tick;errorMessage?:string;inFlight?:Promise<AssetRequestReceipt>;controller?:AbortController;}
 export interface AssetRuntimeStats{readonly records:number;readonly ready:number;readonly loading:number;readonly failed:number;readonly stale:number;readonly evicted:number;readonly bytes:number;readonly budgetBytes:number;}
 const SCORE:Record<TaskPriority,number>={critical:5,high:4,normal:3,low:2,background:1};
