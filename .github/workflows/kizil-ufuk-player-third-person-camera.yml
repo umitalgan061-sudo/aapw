@@ -9,7 +9,6 @@ on:
       - 'tests/modern/playerThirdPersonCameraPolicyStrict.test.ts'
       - 'scripts/checkPlayerThirdPersonCameraPolicy.mjs'
       - 'tsconfig.player-third-person-camera.json'
-      - 'package.json'
       - '.github/workflows/kizil-ufuk-player-third-person-camera.yml'
   workflow_dispatch:
 
@@ -38,9 +37,9 @@ jobs:
       - name: Install toolchain
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Strict camera typecheck
-        run: npm run typecheck:player-camera
+        run: npx tsc -p tsconfig.player-third-person-camera.json --noEmit
       - name: Camera regression
-        run: npm run test:player-camera
+        run: npx vitest run tests/modern/playerThirdPersonCameraPolicyStrict.test.ts
       - name: Camera production proof
         run: node scripts/checkPlayerThirdPersonCameraPolicy.mjs
       - name: Diff hygiene
