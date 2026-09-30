@@ -540,7 +540,7 @@ export function resolvePlayerAnimationPlan(profile: PlayerResolvedEquipmentProfi
   else if (attackKind === 'light' || attackKind === 'heavy') action = aliases[attackKind] || aliases.idle;
   const safeSpeedMps = finiteOr(speedMps, 0);
   const safeComboStep = finiteOr(comboStep, 0);
-  if (attackKind !== 'light' && attackKind !== 'heavy' && speedMps > 4.2) action = aliases.running;
+  if (attackKind !== 'light' && attackKind !== 'heavy' && safeSpeedMps > 4.2) action = aliases.running;
   else if (attackKind !== 'light' && attackKind !== 'heavy' && safeSpeedMps > 0.15) action = aliases.walking;
   const weight = attackKind === 'none' ? 1 : clamp(0.84 + Math.min(0.16, Math.max(0, safeComboStep - 1) * 0.08), 0, 1);
   const timeScale = attackKind === 'heavy' ? 0.92 : attackKind === 'light' ? 1 : movementState === 'dodge' ? 1.45 : 1;
