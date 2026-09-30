@@ -104,10 +104,12 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 	function onDamage(payload: unknown): void {
 		const eventPayload = isObjectPayload(payload) ? payload : null;
 		const stagedResolution = readDamageResolution(eventPayload);
-		const amount = readNumericResolutionField(stagedResolution, 'amount') ?? eventPayload?.amount;
+		const stagedAmount = readNumericResolutionField(stagedResolution, 'amount');
+		const payloadAmount = eventPayload?.amount;
+		const amount = stagedAmount ?? payloadAmount ?? 0;
 		if (!Number.isFinite(amount) || !(amount > 0)) {
 			if (stagedResolution) {
-				if (Number.isFinite(amount) && amount === 0) writeDamageAppliedAmount(eventPayload, 0);
+				if (amount === 0) writeDamageAppliedAmount(eventPayload, 0);
 				clearResolutionAfterSameEvent(eventPayload);
 			}
 			return;
