@@ -1,0 +1,56 @@
+name: modern-runtime-r29
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/r29/**'
+      - 'tests/modern/r29*.test.ts'
+      - 'scripts/checkModernRuntimeR29.mjs'
+      - '.github/workflows/modern-runtime-r29.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/modern/r29/**'
+      - 'tests/modern/r29*.test.ts'
+      - 'scripts/checkModernRuntimeR29.mjs'
+      - '.github/workflows/modern-runtime-r29.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r29-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  r29:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node scripts/checkModernRuntimeR29.mjs
+      - run: npm run typecheck:modern:r29
+      - run: npm run typecheck
+      - run: npm run test:modern:r29
+      - run: npm run build:modern
+
+  deterministic-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: |
+          set -eu
+          for file in src/3d/modern/r29/*.ts; do
+            if grep -nE 'Math\\.random\\(|Date\\.now\\(|eval\\(|new Function\\(' "$file"; then
+              echo "Forbidden runtime primitive detected in $file"
+              exit 1
+            fi
+          done
