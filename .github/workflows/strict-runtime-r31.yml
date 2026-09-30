@@ -1,0 +1,43 @@
+name: strict-runtime-r31
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/strict/r31/**'
+      - 'src/3d/modern/index.ts'
+      - 'tests/modern/r31/**'
+      - 'scripts/checkStrictRuntimeR31.mjs'
+      - 'tsconfig.strict-runtime-r31.json'
+      - 'package.json'
+      - '.github/workflows/strict-runtime-r31.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/strict/r31/**'
+      - 'src/3d/modern/index.ts'
+      - 'tests/modern/r31/**'
+      - 'scripts/checkStrictRuntimeR31.mjs'
+      - 'tsconfig.strict-runtime-r31.json'
+      - 'package.json'
+      - '.github/workflows/strict-runtime-r31.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: strict-runtime-r31-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  strict-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:r31
+      - run: npm run typecheck:r31
+      - run: npm run test:r31

@@ -166,3 +166,58 @@ function main() {
 }
 
 main();
+
+
+
+/**
+ * Pure reusable evaluator for CI, editors and regression tests.
+ * It intentionally accepts precomputed absolute disk paths so callers can run the policy without
+ * performing filesystem traversal themselves.
+ */
+export function evaluateAssetsManifest({
+  manifest,
+  diskFiles = [],
+  root = ROOT,
+  quarantineEntries = [],
+}: {
+  readonly manifest: Readonly<Record<string, unknown>>;
+  readonly diskFiles?: readonly string[];
+  readonly root?: string;
+  readonly quarantineEntries?: readonly Readonly<Record<string, unknown>>[];
+}) {
+  const entries = Array.isArray(manifest.assets) ? manifest.assets : [];
+  const registered = new Set<string>();
+  const missingRegisteredFiles: Array<{ id: unknown; file: string }> = [];
+
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    const file = typeof entry.file === 'string' ? entry.file : '';
+    if (!file) continue;
+    const absolute = path.resolve(root, file);
+    registered.add(absolute);
+    if (!diskFiles.includes(absolute)) missingRegisteredFiles.push({ id: entry.id ?? null, file });
+  }
+
+  const unregisteredPrimaryModels: string[] = [];
+  const unregisteredOther: string[] = [];
+  for (const absolute of diskFiles) {
+    if (registered.has(absolute)) continue;
+    const extension = path.extname(absolute).toLowerCase();
+    const relative = path.relative(root, absolute);
+    if (PRIMARY_MODEL_EXTENSIONS.has(extension)) unregisteredPrimaryModels.push(relative);
+    else unregisteredOther.push(relative);
+  }
+
+  const quarantineErrors = quarantineEntries.length > 0
+    ? [`assets_manifest.quarantine.json contains ${quarantineEntries.length} entry(s) while quarantine is dissolved.`]
+    : [];
+
+  return Object.freeze({
+    ok: missingRegisteredFiles.length === 0 && unregisteredPrimaryModels.length === 0 && quarantineErrors.length === 0,
+    manifestEntryCount: entries.length,
+    missingRegisteredFiles: Object.freeze(missingRegisteredFiles),
+    unregisteredPrimaryModels: Object.freeze(unregisteredPrimaryModels),
+    unregisteredOther: Object.freeze(unregisteredOther),
+    quarantineErrors: Object.freeze(quarantineErrors),
+  });
+}
