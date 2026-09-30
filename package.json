@@ -130,7 +130,10 @@
     "typecheck:player-equipment-strict": "tsc -p tsconfig.player-equipment-strict.json --noEmit",
     "test:player-equipment-strict": "vitest run tests/modern/playerEquipmentCombatRulesStrict.test.ts",
     "typecheck:player-animation-strict": "tsc -p tsconfig.player-animation-strict.json --noEmit",
-    "test:player-animation-strict": "vitest run tests/modern/playerAnimationDirectorStrict.test.ts"
+    "test:player-animation-strict": "vitest run tests/modern/playerAnimationDirectorStrict.test.ts",
+    "compile:player-modern": "node -e \"import('esbuild').then(({build})=>build({entryPoints:['src/3d/gameplay/player.ts'],bundle:false,format:'esm',platform:'browser',target:'es2024',outdir:'/tmp/aapw-player-modern',logLevel:'warning'}))\"",
+    "compile:player-equipment-strict": "node -e \"import('esbuild').then(({build})=>build({entryPoints:['src/3d/gameplay/playerEquipmentCombatProfile.ts','src/3d/gameplay/playerEquipmentCombatRules.ts','src/3d/gameplay/playerEquipmentCombatRuntime.ts'],bundle:false,format:'esm',platform:'browser',target:'es2024',outdir:'/tmp/aapw-equipment-modern',logLevel:'warning'}))\"",
+    "compile:player-animation-strict": "node -e \"import('esbuild').then(({build})=>build({entryPoints:['src/3d/gameplay/playerAnimationDirector.ts'],bundle:false,format:'esm',platform:'browser',target:'es2024',outdir:'/tmp/aapw-animation-modern',logLevel:'warning'}))\""
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
