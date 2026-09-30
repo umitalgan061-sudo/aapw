@@ -28,6 +28,27 @@ type AttackSnapshot = UnknownRecord;
 type OutcomeSnapshot = UnknownRecord;
 type CombatPhase = 'idle' | 'windup' | 'active' | 'recovery' | 'defense' | 'dodge' | 'hit-stagger';
 
+export interface PlayerEquipmentCombatRuntimeOptions {
+  readonly player: PlayerObjectLike;
+  readonly equipmentProvider?: EquipmentProvider;
+  readonly target?: RuntimeTarget;
+  readonly now?: () => number;
+  readonly emitFrames?: boolean;
+  readonly onFrame?: ((frame: PlayerEquipmentCombatFrame) => void) | null;
+  readonly onAnimation?: ((animation: unknown, frame: PlayerEquipmentCombatFrame) => void) | null;
+  readonly onEquipment?: ((equipment: Readonly<UnknownRecord>, sockets: unknown, frame: PlayerEquipmentCombatFrame) => void) | null;
+  readonly onAudit?: ((audit: PlayerEquipmentCombatFrame['audit'], frame: PlayerEquipmentCombatFrame) => void) | null;
+}
+
+export interface PlayerEquipmentCombatRuntime {
+  readonly update: (delta?: unknown, timestamp?: unknown) => PlayerEquipmentCombatFrame;
+  readonly refreshEquipment: (timestamp?: unknown) => PlayerEquipmentCombatFrame;
+  readonly read: () => PlayerEquipmentCombatFrame;
+  readonly readHistory: () => readonly Readonly<PlayerEquipmentCombatFrame>[];
+  readonly materialAudit: () => unknown;
+  readonly dispose: () => void;
+}
+
 export interface PlayerEquipmentCombatFrame {
   readonly version: 1;
   readonly revision: number;
@@ -85,7 +106,7 @@ function readEquipmentProvider(provider: EquipmentProvider): UnknownRecord {
   }
 }
 
-function stableHistoryAppend(history: PlayerEquipmentCombatFrame[], value: PlayerEquipmentCombatFrame): void {
+function stableHistoryAppend(history: Array<Readonly<PlayerEquipmentCombatFrame>>, value: PlayerEquipmentCombatFrame): void {
   history.push(Object.freeze(value));
   if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
 }
@@ -210,7 +231,7 @@ export function createPlayerEquipmentCombatRuntime({
   onAnimation = null,
   onEquipment = null,
   onAudit = null,
-} = {}) {
+}: PlayerEquipmentCombatRuntimeOptions): PlayerEquipmentCombatRuntime {
   if (!player?.object3D) throw new TypeError('createPlayerEquipmentCombatRuntime requires player.object3D');
 
   let disposed = false;
@@ -228,8 +249,8 @@ export function createPlayerEquipmentCombatRuntime({
     timestamp: now(),
     revision,
   });
-  const history = [];
-  const listeners = [];
+  const history: Array<Readonly<PlayerEquipmentCombatFrame>> = [];
+  const listeners: Array<readonly [string, EventListener]> = [];
 
   function subscribe(type: string, handler: EventListener): void {
     if (typeof target?.addEventListener !== 'function' || typeof handler !== 'function') return;
