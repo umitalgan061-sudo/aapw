@@ -1,4 +1,6 @@
-import {
+import {R32_DEFAULT_CONFIG} from './contracts.ts';
+import type {RuntimeConfigR32,RuntimeDiagnostics,RuntimeEvent,RuntimeEventMap} from './contracts.ts';
+
   R32_DEFAULT_CONFIG,
   RuntimeConfigR32,
   RuntimeDiagnostics,
