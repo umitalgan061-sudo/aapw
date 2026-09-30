@@ -146,7 +146,11 @@
     "verify:modern:r16": "node scripts/checkNextGenRuntimeR16.mjs",
     "typecheck:modern:r16": "tsc -p tsconfig.modern-r16.json --noEmit",
     "test:modern:r16": "vitest run tests/modern/r16 --passWithNoTests",
-    "check:modern:r16": "npm run verify:modern:r16 && npm run typecheck:modern:r16 && npm run test:modern:r16"
+    "check:modern:r16": "npm run verify:modern:r16 && npm run typecheck:modern:r16 && npm run test:modern:r16",
+    "verify:r31": "node scripts/checkStrictRuntimeR31.mjs",
+    "typecheck:r31": "tsc -p tsconfig.strict-runtime-r31.json --noEmit",
+    "test:r31": "vitest run tests/modern/r31 --passWithNoTests",
+    "check:r31": "npm run verify:r31 && npm run typecheck:r31 && npm run test:r31"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

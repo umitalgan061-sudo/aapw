@@ -88,6 +88,8 @@ import { createScene, isCoarsePointerDevice } from './sceneManager.ts';
 import { createProductionRuntimeGuardR12 } from './runtime/productionRuntimeGuardR12.ts';
 import { updateEntitiesSafely, updateSystemSafely } from './safeMode.ts';
 import { createPerfPanel } from './debug/perfPanel.js';
+import { RuntimeHostR31 } from './strict/r31/runtimeHostR31.ts';
+import { LegacyFrameObserverR31 } from './strict/r31/legacyFrameObserverR31.ts';
 import {
 	computeCameraRelativeMove,
 	combineAxes,
@@ -143,6 +145,25 @@ export async function initGame3D() {
 			maxSubsystemSamples: 360,
 		});
 		const unbindResize = bindResize(state);
+		// R31 diagnostics are introduced as a companion observer first: the existing gameplay loop
+		// remains the authoritative simulation, while the strict runtime receives a typed frame
+		// telemetry stream without duplicating player/NPC/world ownership.
+		state.r31Runtime = new RuntimeHostR31();
+		state.r31FrameObserver = new LegacyFrameObserverR31({
+			sample: () => ({
+				frameMs: state.productionRuntimeGuard?.lastFrameMs ?? 0,
+				rendererCalls: state.renderer.info.render.calls,
+				rendererTriangles: state.renderer.info.render.triangles,
+				loadedChunks: state.chunkManager.loadedCount,
+				activeNpcs: state.npcs?.length ?? 0,
+				activeAnimals: state.animals?.length ?? 0,
+				activeCreatures: state.creatures?.length ?? 0,
+				activeDragons: state.dragons?.length ?? 0,
+				paused: Boolean(state.paused),
+			}),
+		});
+		state.r31Runtime.register(state.r31FrameObserver);
+		await state.r31Runtime.start();
 
 		// FAZ 3: real, decimated Meshy AI castle models at 7 kingdom seats (DECISIONS.md ADR-0074),
 		// replacing the procedural keep/tower/roof `createSettlements` already skipped for these same
@@ -537,6 +558,7 @@ export async function initGame3D() {
 			// After render(): renderer.info.render.calls/.triangles reset on every render() call, so
 			// reading them any earlier this frame would report the *previous* frame's numbers.
 			state.productionRuntimeGuard.endFrame(runtimeFrameToken);
+			state.r31Runtime?.frame(performance.now()).catch((error) => console.warn('[game3d] R31 observer frame failed', error));
 			state.perfPanel.update(delta);
 		};
 		tick();
@@ -586,6 +608,8 @@ export async function initGame3D() {
 			disposeIceLandmarks(state.iceLandmarks);
 			if (state.mobileSpawnVegetation) disposeVegetation(state.mobileSpawnVegetation);
 			disposeDayNightLighting(state.scene, state.lights);
+			state.r31Runtime?.stop().catch((error) => console.warn('[game3d] R31 runtime stop failed', error));
+			state.r31Runtime = null;
 			state.productionRuntimeGuard.dispose();
 			state.renderer.dispose();
 		}, { once: true });

@@ -56,7 +56,7 @@ const MIN_MASKABLE_ICON_SIZE = 512;
 
 /** Parses a manifest icon's `sizes` string (e.g. `"192x192"`, `"180x180"`) into its larger side, in
  * pixels — `NaN` if the string doesn't match the expected `WxH` shape. */
-function parseIconSize(sizesString) {
+export function parseIconSize(sizesString) {
 	const match = /^(\d+)x(\d+)$/i.exec(String(sizesString || '').trim());
 	if (!match) return NaN;
 	return Math.max(Number(match[1]), Number(match[2]));
@@ -156,3 +156,66 @@ function main() {
 }
 
 main();
+
+
+
+/** Pure PWA-installability evaluator for unit tests and CI composition. */
+export function evaluatePwaInstallability({
+  manifest,
+  indexHtml = '',
+  existingFiles = new Set<string>(),
+  root = ROOT,
+}: {
+  readonly manifest: Readonly<Record<string, unknown>>;
+  readonly indexHtml?: string;
+  readonly existingFiles?: ReadonlySet<string>;
+  readonly root?: string;
+}) {
+  const failures: string[] = [];
+  const warnings: string[] = [];
+
+  for (const field of ['name', 'short_name', 'start_url', 'display']) {
+    if (!manifest[field] || String(manifest[field]).trim() === '') failures.push(`missing:${field}`);
+  }
+
+  if (manifest.display && !VALID_DISPLAY_VALUES.has(manifest.display as string)) {
+    failures.push('invalid:display');
+  } else if (manifest.display === 'browser') {
+    warnings.push('display:browser');
+  }
+
+  const icons = Array.isArray(manifest.icons) ? manifest.icons : [];
+  let hasInstallIcon = false;
+  let hasMaskableSizeIcon = false;
+
+  for (const icon of icons) {
+    if (!icon || typeof icon !== 'object') continue;
+    const size = parseIconSize(icon.sizes);
+    if (size >= MIN_INSTALL_ICON_SIZE) hasInstallIcon = true;
+    if (size >= MIN_MASKABLE_ICON_SIZE) hasMaskableSizeIcon = true;
+    const src = typeof icon.src === 'string' ? icon.src : '';
+    if (!src || src.startsWith('data:')) continue;
+    const resolved = path.resolve(root, src.replace(/^\.?\//, ''));
+    if (!existingFiles.has(resolved)) failures.push(`missing-icon:${src}`);
+  }
+
+  if (!hasInstallIcon) failures.push('missing-install-icon');
+  if (!hasMaskableSizeIcon) failures.push('missing-large-icon');
+
+  if (manifest.start_url) {
+    const resolved = path.resolve(root, String(manifest.start_url).replace(/^\.?\//, ''));
+    if (!existingFiles.has(resolved)) failures.push('missing-start-url');
+  }
+
+  if (!existingFiles.has(path.join(root, 'service-worker.js'))) failures.push('missing-service-worker');
+
+  if (!/<link[^>]+rel=["']manifest["'][^>]+href=["']manifest\.json["']/i.test(indexHtml)) failures.push('manifest-link-missing');
+  if (!/navigator\.serviceWorker\.register\(\s*['"]service-worker\.js['"]/.test(indexHtml)) failures.push('service-worker-registration-missing');
+
+  return Object.freeze({
+    ok: failures.length === 0,
+    failures: Object.freeze(failures),
+    warnings: Object.freeze(warnings),
+    iconCount: icons.length,
+  });
+}
