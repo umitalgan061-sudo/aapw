@@ -1,0 +1,45 @@
+name: Modern Runtime R16
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/r16/**'
+      - 'tests/modern/r16/**'
+      - 'scripts/checkNextGenRuntimeR16.mjs'
+      - 'tsconfig.modern-r16.json'
+      - 'package.json'
+      - '.github/workflows/modern-runtime-r16.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/modern/r16/**'
+      - 'tests/modern/r16/**'
+      - 'scripts/checkNextGenRuntimeR16.mjs'
+      - 'tsconfig.modern-r16.json'
+      - 'package.json'
+      - '.github/workflows/modern-runtime-r16.yml'
+permissions:
+  contents: read
+jobs:
+  r16:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Node 24 LTS
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - name: Install
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Contract
+        run: npm run verify:modern:r16
+      - name: Strict TypeScript
+        run: npm run typecheck:modern:r16
+      - name: R16 tests
+        run: npm run test:modern:r16
+      - name: Diff hygiene
+        run: git diff --check
