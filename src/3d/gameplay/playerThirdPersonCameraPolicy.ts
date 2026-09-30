@@ -134,7 +134,7 @@ export function resolvePlayerThirdPersonCameraFrame(
   });
 }
 
- 
+
 export interface PlayerThirdPersonCameraCollisionInput {
   readonly requestedDistance?: unknown;
   readonly hitDistance?: unknown;
