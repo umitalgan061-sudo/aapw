@@ -16,10 +16,6 @@ for (const file of files) {
     fileName: file,
     reportDiagnostics: true,
   });
-  const diagnostics = ts.getPreEmitDiagnostics({
-    ...result,
-    source,
-  });
   const errors = (result.diagnostics ?? []).filter(d => d.category === ts.DiagnosticCategory.Error);
   if (errors.length) {
     console.error('TypeScript syntax diagnostics for', file);
