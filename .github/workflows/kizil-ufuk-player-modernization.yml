@@ -42,7 +42,12 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
-          lfs: true
+          lfs: false
+      - name: Selective LFS hydration
+        run: |
+          git lfs install --local
+          git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/*.fbx"
+
       - name: Setup Node 24
         uses: actions/setup-node@v5
         with:
