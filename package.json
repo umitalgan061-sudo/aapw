@@ -150,7 +150,10 @@
     "verify:r31": "node scripts/checkStrictRuntimeR31.mjs",
     "typecheck:r31": "tsc -p tsconfig.strict-runtime-r31.json --noEmit",
     "test:r31": "vitest run tests/modern/r31 --passWithNoTests",
-    "check:r31": "npm run verify:r31 && npm run typecheck:r31 && npm run test:r31"
+    "check:r31": "npm run verify:r31 && npm run typecheck:r31 && npm run test:r31",
+    "typecheck:player-camera": "tsc -p tsconfig.player-third-person-camera.json --noEmit",
+    "test:player-camera": "vitest run tests/modern/playerThirdPersonCameraPolicyStrict.test.ts",
+    "check:player-camera": "npm run typecheck:player-camera && npm run test:player-camera && node scripts/checkPlayerThirdPersonCameraPolicy.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
