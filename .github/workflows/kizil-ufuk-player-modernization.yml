@@ -41,16 +41,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - name: Checkout exact PR head with LFS
+      - name: Checkout exact PR head
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
           lfs: false
-      - name: Selective LFS hydration
-        run: |
-          git lfs install --local
-          git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/*.fbx"
-
+      # Asset binaries remain Git LFS-backed. This gate validates pointer integrity and code/runtime
+      # contracts without downloading bytes, so repository-wide LFS quota does not mask code failures.
       - name: Setup Node 24
         uses: actions/setup-node@v5
         with:
