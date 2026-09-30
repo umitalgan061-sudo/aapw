@@ -11,6 +11,7 @@
  * @module gameplay/playerEquipmentCombatRules
  */
 
+import type { PlayerResolvedEquipmentProfile } from './playerEquipmentCombatProfile.ts';
 import {
   resolvePlayerEquipmentCombatProfile,
   resolvePlayerAttackTuning,
@@ -50,18 +51,7 @@ export interface PlayerArmorProfile extends Record<string, unknown> {
   readonly materialSurfaces: readonly string[];
 }
 
-export interface PlayerResolvedProfile {
-  readonly version: 1;
-  readonly slots: Readonly<Record<string, unknown>>;
-  readonly mainHand: PlayerWeaponProfile;
-  readonly offHand: PlayerWeaponProfile;
-  readonly armor: PlayerArmorProfile;
-  readonly shieldEquipped: boolean;
-  readonly ranged: boolean;
-  readonly twoHanded: boolean;
-  readonly effectiveGuardMultiplier: number;
-  readonly sourceIds: Readonly<Record<'mainHand' | 'offHand' | 'head' | 'chest' | 'back', string>>;
-}
+export type PlayerResolvedProfile = PlayerResolvedEquipmentProfile;
 
 export interface PlayerAttackTuning {
   readonly cost: number;
