@@ -117,7 +117,9 @@
     "check:modern:r27": "npm run verify:modern:r27 && npm run test:modern:r27 && npm run typecheck",
     "verify:modern:r28": "node scripts/checkModernRuntimeR28.mjs",
     "test:modern:r28": "vitest run tests/modern/r28 --passWithNoTests",
-    "check:modern:r28": "npm run verify:modern:r28 && npm run test:modern:r28 && npm run typecheck"
+    "check:modern:r28": "npm run verify:modern:r28 && npm run test:modern:r28 && npm run typecheck",
+    "health": "node --experimental-strip-types scripts/projectHealth.ts",
+    "check:health": "npm run health"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
