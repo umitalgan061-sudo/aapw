@@ -1,4 +1,6 @@
-import {RuntimeError,TaskPriority,stableHash} from './contracts.ts';
+import {RuntimeError,stableHash} from './contracts.ts';
+import type {TaskPriority} from './contracts.ts';
+
 export type LegacyCapability='scene'|'camera'|'terrain'|'water'|'vegetation'|'settlement'|'player'|'physics'|'audio'|'ui'|'network'|'persistence';
 export interface LegacyModuleDescriptor{readonly id:string;readonly path:string;readonly capability:LegacyCapability;readonly priority:TaskPriority;readonly ownership:'legacy'|'bridge'|'modern';readonly migrationState:'unmigrated'|'wrapped'|'dual'|'modern';}
 export interface LegacyAdapter<TArgs,TResult>{readonly descriptor:LegacyModuleDescriptor;readonly invoke:(args:TArgs)=>TResult|Promise<TResult>;}
