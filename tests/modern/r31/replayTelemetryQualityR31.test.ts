@@ -21,7 +21,7 @@ describe('R31 replay and observability', () => {
       schema: 'aapw.runtime.r31',
       tick: 4,
       createdAt: 100,
-      digest: '8a1d4e4d',
+      digest: 'a7eba9d6',
       state: { score: 10 },
     });
     const report = replay.verify((_tick, expected) => expected, 0, 10);
