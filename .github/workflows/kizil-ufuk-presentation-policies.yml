@@ -1,0 +1,49 @@
+name: Kızıl Ufuk Presentation Policies Strict
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerAnimationOneShotPolicy.ts'
+      - 'src/3d/gameplay/playerAnimationOneShotPolicy.legacy.js'
+      - 'src/3d/gameplay/playerCombatActionRouter.ts'
+      - 'src/3d/gameplay/playerCombatActionRouter.legacy.js'
+      - 'src/3d/gameplay/playerAnimationBlendDiagnostics.ts'
+      - 'src/3d/gameplay/playerAnimationBlendDiagnostics.legacy.js'
+      - 'tests/modern/playerPresentationPoliciesStrict.test.ts'
+      - 'tsconfig.player-presentation-policies.json'
+      - 'package.json'
+      - '.github/workflows/kizil-ufuk-presentation-policies.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kizil-ufuk-presentation-policies-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: package.json
+      - name: Install toolchain
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Strict TypeScript check
+        run: npm run typecheck:player-presentation-policies
+      - name: Strict regression tests
+        run: npm run test:player-presentation-policies
+      - name: Legacy escape-hatch scan
+        run: '! grep -R "@ts-nocheck" src/3d/gameplay/playerAnimationOneShotPolicy.ts src/3d/gameplay/playerCombatActionRouter.ts src/3d/gameplay/playerAnimationBlendDiagnostics.ts'
+      - name: Diff hygiene
+        run: git diff --check
