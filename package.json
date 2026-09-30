@@ -123,9 +123,7 @@
     "check:player-equipment-strict": "npm run typecheck:player-equipment-strict && npm run test:player-equipment-strict",
     "typecheck:player-animation-strict": "tsc -p tsconfig.player-animation-strict.json --noEmit",
     "test:player-animation-strict": "vitest run tests/modern/playerAnimationDirectorStrict.test.ts",
-    "check:player-animation-strict": "npm run typecheck:player-animation-strict && npm run test:player-animation-strict",
-    "test:player-input-parity": "vitest run tests/modern/playerInputParityStrict.test.ts",
-    "check:player-input-parity": "npm run test:player-input-parity"
+    "check:player-animation-strict": "npm run typecheck:player-animation-strict && npm run test:player-animation-strict"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
