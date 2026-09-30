@@ -86,12 +86,7 @@ for (const file of sourceFiles) {
   }
 
   for (const line of source.split('\n')) {
-    const match = line.match(
-      /(?:from|import)\s*['"](
-        \.\/
-        [^'"]+
-      )['"]/x,
-    );
+    const match = line.match(/(?:from|import)\s*['"](.\\/[^'"]+)['"]/);
 
     if (
       match
