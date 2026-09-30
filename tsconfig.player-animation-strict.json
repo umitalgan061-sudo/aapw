@@ -6,8 +6,6 @@
   },
   "include": [
     "src/3d/gameplay/playerAnimationAssetCatalog.ts",
-    "src/3d/gameplay/playerEnvironmentalAnimationProfile.ts",
-    "src/3d/gameplay/playerAnimationSurfaceEvidence.ts",
     "src/3d/gameplay/playerAnimationDirector.ts",
     "tests/modern/playerAnimationDirectorStrict.test.ts"
   ],
