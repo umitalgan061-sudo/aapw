@@ -89,10 +89,10 @@ export function sanitizePlayerAnimationSignalBatch(signals: readonly PlayerAnima
 export function validatePlayerAnimationSignal(signal: unknown): Readonly<{ ok: boolean; failures: readonly string[] }> {
   const value = signal && typeof signal === 'object' ? signal as Partial<PlayerAnimationSignal> : {};
   const failures: string[] = [];
-  if (!ALLOWED_TYPES.has(value.type)) failures.push('type');
-  if (!Number.isInteger(value.sequence) || value.sequence < 0) failures.push('sequence');
-  if (!Number.isFinite(value.atSeconds) || value.atSeconds < 0) failures.push('atSeconds');
-  if (value.type === 'footstep' && (!Number.isFinite(value.intensity) || value.intensity < 0 || value.intensity > 1)) failures.push('intensity');
+  if (!ALLOWED_TYPES.has(value.type as PlayerAnimationSignalType)) failures.push('type');
+  if (!Number.isInteger(value.sequence) || Number(value.sequence ?? -1) < 0) failures.push('sequence');
+  if (!Number.isFinite(value.atSeconds) || Number(value.atSeconds ?? -1) < 0) failures.push('atSeconds');
+  if (value.type === 'footstep' && (!Number.isFinite(value.intensity) || Number(value.intensity ?? -1) < 0 || Number(value.intensity ?? -1) > 1)) failures.push('intensity');
   return Object.freeze({ ok: failures.length === 0, failures: Object.freeze(failures) });
 }
 
