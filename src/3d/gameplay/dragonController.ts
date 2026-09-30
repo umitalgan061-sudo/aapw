@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/dragonController.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * A single flying dragon's controller (FAZ 7) — model/rig loading, the per-frame flight + reaction
  * update loop (notice/reactive/dive/pursuit/give-up), and disposal. Split out of
@@ -20,9 +19,61 @@
  */
 
 import * as THREE from 'three';
+import type { EventBus } from '../eventBus.ts';
 import { AssetLoader } from '../assetLoader.ts';
 import { alignDiveOrientation, applyCirclePose, applyDiveOffset, clampAltitudeAboveGround } from './dragonFlightMath.ts';
-import { createDragonReactionState, stepDragonReactionState } from './dragonReactionState.ts';
+import { createDragonReactionState, stepDragonReactionState, type DragonReactionState } from './dragonReactionState.ts';
+
+export interface DragonNoticeToast { readonly id: string; readonly icon: string; readonly title: string; readonly desc: string; readonly color: string; }
+export interface DragonPlayerPosition { readonly x: number; readonly y: number; readonly z: number; }
+export interface DragonCreateOptions {
+	readonly assetLoader: { loadFBXModel: (url: string, options?: { fallbackColor?: number; fallbackSize?: number; resourcePath?: string }) => Promise<THREE.Group>; };
+	readonly modelUrl: string;
+	readonly texturesResourcePath?: string | undefined | undefined;
+	readonly scale: number;
+	readonly flyClipName: string;
+	readonly centerX: number;
+	readonly centerZ: number;
+	readonly centerY: number;
+	readonly circleRadiusMeters: number;
+	readonly speedMps: number;
+	readonly bankAngleRadians?: number | undefined;
+	readonly startAngleRadians?: number | undefined;
+	readonly name?: string | undefined;
+	readonly noticeRadiusMeters?: number | undefined;
+	readonly eventsBus?: EventBus | undefined;
+	readonly eventName?: string | undefined;
+	readonly noticeToast?: DragonNoticeToast | undefined;
+	readonly reactiveSpeedMultiplier?: number | undefined;
+	readonly reactiveBankAngleRadians?: number | undefined;
+	readonly reactiveTransitionSeconds?: number | undefined;
+	readonly alarmRadiusMeters?: number | undefined;
+	readonly sampleGroundY?: (worldX: number, worldZ: number) => number | undefined;
+	readonly diveDropMeters?: number | undefined;
+	readonly diveLateralPullFraction?: number | undefined;
+	readonly diveTransitionSeconds?: number | undefined;
+	readonly diveTelegraphSeconds?: number | undefined;
+	readonly diveTelegraphTransitionSeconds?: number | undefined;
+	readonly attackTriggerSeconds?: number | undefined;
+	readonly attackLateralPullFraction?: number | undefined;
+	readonly attackDropMeters?: number | undefined;
+	readonly attackTransitionSeconds?: number | undefined;
+	readonly biteRadiusMeters?: number | undefined;
+	readonly biteDamage?: number | undefined;
+	readonly biteCooldownSeconds?: number | undefined;
+	readonly biteEventName?: string | undefined;
+	readonly minAltitudeAboveGroundMeters?: number | undefined;
+	readonly pursuitRadiusMeters?: number | undefined;
+	readonly pursuitCenterSpeedMps?: number | undefined;
+	readonly pursuitCircleRadiusMeters?: number | undefined;
+	readonly pursuitTransitionSeconds?: number | undefined;
+	readonly pursuitMaxSeconds?: number | undefined;
+	readonly giveUpBankAngleMultiplier?: number | undefined;
+	readonly giveUpTransitionSeconds?: number | undefined;
+	readonly cruiseAltitudeAboveGroundMeters?: number | undefined;
+	readonly agitatedWingFlapMultiplier?: number | undefined;
+}
+
 
 /**
  * Loads the dragon model, places it on its circling flight path, and returns a small controller
@@ -282,7 +333,7 @@ export async function createDragon({
 	giveUpTransitionSeconds = 0.6,
 	cruiseAltitudeAboveGroundMeters,
 	agitatedWingFlapMultiplier = 1.5,
-}) {
+}: DragonCreateOptions): Promise<DragonRuntimeContract> {
 	const clampedDiveLateralPullFraction = Math.min(1, Math.max(0, diveLateralPullFraction));
 	const clampedAttackLateralPullFraction = Math.min(1, Math.max(0, attackLateralPullFraction));
 	const model = await assetLoader.loadFBXModel(modelUrl, {
@@ -306,6 +357,10 @@ export async function createDragon({
 	// "the feature's own defining value has no generic default" reasoning `noticeToast` already
 	// follows for the notice tier above.
 	const canBite = Boolean(canDive && biteEventName && eventsBus && typeof biteDamage === 'number');
+	const resolvedNoticeRadiusMeters = noticeRadiusMeters ?? 0;
+	const resolvedAlarmRadiusMeters = alarmRadiusMeters ?? 0;
+	const resolvedPursuitRadiusMeters = pursuitRadiusMeters ?? 0;
+	const resolvedCruiseAltitudeAboveGroundMeters = cruiseAltitudeAboveGroundMeters ?? null;
 
 	// All per-frame notice/reactive/pursuit/give-up/dive/telegraph/attack blend bookkeeping lives
 	// in `gameplay/dragonReactionState.js` (run 109, DECISIONS.md ADR-0136) — this controller only
@@ -321,7 +376,7 @@ export async function createDragon({
 		 * @param {{x: number, y: number, z: number}} [playerPosition] Current player world position —
 		 *   only read when this dragon has player-awareness configured (`noticeRadiusMeters`).
 		 */
-		update(delta, playerPosition) {
+		update(delta: number, playerPosition?: DragonPlayerPosition): void {
 			// Distance check runs first, against the dragon's position as of the end of the previous
 			// frame — same real distance the original run-54 check used, reused by
 			// `stepDragonReactionState` for the reactive/dive/pursuit blend targets, not only the
@@ -336,21 +391,32 @@ export async function createDragon({
 
 			const frame = stepDragonReactionState(state, delta, distanceToPlayer, {
 				canNotice, canDive, canPursue, canBite,
-				noticeRadiusMeters,
-				reactiveSpeedMultiplier, reactiveBankAngleRadians, reactiveTransitionSeconds,
+				noticeRadiusMeters: resolvedNoticeRadiusMeters,
+				reactiveSpeedMultiplier,
+				reactiveBankAngleRadians: reactiveBankAngleRadians ?? bankAngleRadians,
+				reactiveTransitionSeconds: reactiveTransitionSeconds ?? 1.5,
 				bankAngleRadians, speedMps, circleRadiusMeters,
-				alarmRadiusMeters, diveTelegraphSeconds, diveTelegraphTransitionSeconds, diveTransitionSeconds,
-				attackTriggerSeconds, attackTransitionSeconds,
-				clampedDiveLateralPullFraction, diveDropMeters,
-				clampedAttackLateralPullFraction, attackDropMeters,
-				pursuitRadiusMeters, pursuitCenterSpeedMps, centerX, centerZ, centerY,
-				pursuitCircleRadiusMeters, pursuitTransitionSeconds, pursuitMaxSeconds,
-				cruiseAltitudeAboveGroundMeters, sampleGroundY,
-				giveUpBankAngleMultiplier, giveUpTransitionSeconds,
-				playerPosition,
+				alarmRadiusMeters: resolvedAlarmRadiusMeters,
+				diveTelegraphSeconds: diveTelegraphSeconds ?? 0.4,
+				diveTelegraphTransitionSeconds: diveTelegraphTransitionSeconds ?? 0.15,
+				diveTransitionSeconds: diveTransitionSeconds ?? 1,
+				attackTriggerSeconds: attackTriggerSeconds ?? 2.5,
+				attackTransitionSeconds: attackTransitionSeconds ?? 1.5,
+				clampedDiveLateralPullFraction, diveDropMeters: diveDropMeters ?? 25,
+				clampedAttackLateralPullFraction, attackDropMeters: attackDropMeters ?? (diveDropMeters ?? 25),
+				pursuitRadiusMeters: resolvedPursuitRadiusMeters,
+				pursuitCenterSpeedMps: pursuitCenterSpeedMps ?? 10, centerX, centerZ, centerY,
+				pursuitCircleRadiusMeters: pursuitCircleRadiusMeters ?? circleRadiusMeters,
+				pursuitTransitionSeconds: pursuitTransitionSeconds ?? 2,
+				pursuitMaxSeconds: pursuitMaxSeconds ?? 20,
+				cruiseAltitudeAboveGroundMeters: resolvedCruiseAltitudeAboveGroundMeters,
+				sampleGroundY,
+				giveUpBankAngleMultiplier: giveUpBankAngleMultiplier ?? 1.6,
+				giveUpTransitionSeconds: giveUpTransitionSeconds ?? 0.6,
+				playerPosition: playerPosition ?? null,
 			});
 
-			if (frame.justEnteredNotice) {
+			if (frame.justEnteredNotice && eventsBus && eventName && noticeToast) {
 				eventsBus.emit(eventName, noticeToast);
 			}
 
@@ -401,7 +467,7 @@ export async function createDragon({
 			// lunge, never an incidental close pass during ordinary circling/pursuit.
 			state.biteCooldownRemainingSeconds = Math.max(0, state.biteCooldownRemainingSeconds - delta);
 			let didBiteThisFrame = false;
-			if (canBite && state.attackBlend > 0.95 && state.biteCooldownRemainingSeconds <= 0 && playerPosition) {
+			if (canBite && eventsBus && biteEventName && typeof biteDamage === 'number' && state.attackBlend > 0.95 && state.biteCooldownRemainingSeconds <= 0 && playerPosition) {
 				const dx = model.position.x - playerPosition.x;
 				const dy = model.position.y - playerPosition.y;
 				const dz = model.position.z - playerPosition.z;
@@ -442,7 +508,7 @@ export async function createDragon({
 }
 
 export interface DragonRuntimeContract {
-  readonly object3D: unknown;
-  update(deltaSeconds: number, target?: unknown): void;
-  dispose(): void;
+	readonly object3D: THREE.Object3D;
+	update(deltaSeconds: number, playerPosition?: DragonPlayerPosition): void;
+	dispose(): void;
 }

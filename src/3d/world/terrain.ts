@@ -20,8 +20,8 @@ import {
 	WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY,
 	sampleReferenceLakeBasinScale,
 	sampleWorldReferenceMountainReliefMeters,
-} from './worldReferenceMountainRelief.js';
-import { coastWarpOffsets, reliefDetailMeters } from './terrainReliefDetail.js';
+} from './worldReferenceMountainRelief.ts';
+import { coastWarpOffsets, reliefDetailMeters } from './terrainReliefDetail.ts';
 import { continentalUpliftMeters } from './terrainContinentalUplift.js';
 import {
 	TERRAIN_MICRO_SURFACE_POLICY,
@@ -43,7 +43,7 @@ import {
 	VALYRIA_GEOLOGY_POLICY,
 	valyriaUpliftMeters,
 	applyValyriaSurfaceColorAtWorldXZ,
-} from './valyriaGeology.js';
+} from './valyriaGeology.ts';
 
 // Re-exported so the micro-surface extraction stays invisible to every existing importer and check.
 export { TERRAIN_MICRO_SURFACE_POLICY, terrainMicroUvAt, getSharedTerrainMicroSurfaceTextures, applyTerrainMicroSurface };

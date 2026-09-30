@@ -76,7 +76,7 @@ jobs:
       - name: Strict animation regression
         run: npm run test:player-animation-strict
       - name: Existing equipment rules proof
-        run: node scripts/checkPlayerEquipmentCombatRules.mjs
+        run: node --experimental-strip-types scripts/checkPlayerEquipmentCombatRules.mjs
       - name: Existing equipment material contract proof
         run: node scripts/checkPlayerEquipmentMaterialAcceptance.mjs
       - name: Shipped scene equipment/combat contract

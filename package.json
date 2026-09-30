@@ -127,7 +127,10 @@
     "test:player-equipment-strict": "vitest run tests/modern/playerEquipmentCombatRulesStrict.test.ts",
     "typecheck:player-animation-strict": "tsc -p tsconfig.player-animation-strict.json --noEmit",
     "test:player-animation-strict": "vitest run tests/modern/playerAnimationDirectorStrict.test.ts",
-    "verify:player-modern-r1": "node scripts/checkPlayerModernizationR1.mjs"
+    "verify:player-modern-r1": "node scripts/checkPlayerModernizationR1.mjs",
+    "verify:typed-world-migration-r10b": "node scripts/checkTypedWorldMigrationR10b.mjs",
+    "test:typed-world-migration-r10b": "npm test -- tests/modern/typedWorldMigrationR10b.test.ts",
+    "check:typed-world-migration-r10b": "npm run verify:typed-world-migration-r10b && npm run test:typed-world-migration-r10b && npm run typecheck"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

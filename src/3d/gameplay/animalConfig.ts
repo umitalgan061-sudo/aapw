@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/gameplay/animalConfig.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * `ANIMAL_CONFIG` (FAZ 6) — wild animals, see `gameplay/animals.js`. Split out of
  * `gameplay/gameplayConfig.js` (run 77, DECISIONS.md ADR-0100) once that file reached 597/600

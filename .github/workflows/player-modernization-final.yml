@@ -1,0 +1,58 @@
+name: Kızıl Ufuk Player Modernization Final
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/player.ts'
+      - 'src/3d/gameplay/player.js'
+      - 'src/3d/gameplay/playerConfig.ts'
+      - 'src/3d/gameplay/playerConfig.js'
+      - 'src/3d/gameplay/health.ts'
+      - 'src/3d/gameplay/health.js'
+      - 'src/3d/gameplay/dragonFlightMath.ts'
+      - 'src/3d/gameplay/dragonReactionState.ts'
+      - 'src/3d/gameplay/dragonConfig.ts'
+      - 'src/3d/gameplay/npcConfig.ts'
+      - 'src/3d/gameplay/animalConfig.ts'
+      - 'src/3d/gameplay/worldEvents.ts'
+      - 'src/3d/gameplay/creatureGait.ts'
+      - 'tests/modern/playerModernizationR1.test.ts'
+      - 'scripts/checkPlayerModernizationR1.mjs'
+      - 'tsconfig.player-modernization.json'
+      - 'package.json'
+      - '.github/workflows/player-modernization-final.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: player-modernization-final-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          lfs: false
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: package.json
+      - name: Install toolchain
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Player modernization proof
+        run: npm run verify:player-modern-r1
+      - name: Player focused TypeScript check
+        run: npm run typecheck:player-modern
+      - name: Player focused regression tests
+        run: npm run test:player-modern
+      - name: Diff hygiene
+        run: git diff --check

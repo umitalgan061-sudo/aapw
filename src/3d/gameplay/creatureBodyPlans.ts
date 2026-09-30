@@ -478,7 +478,7 @@ export const CREATURE_BODY_PLANS = Object.freeze({
 		tailLengthFactor: 0.35,
 		strideHz: Object.freeze({ walk: 3, run: 5.2 }),
 	}),
-}) satisfies Record<string, CreatureBodyPlan>;
+}) satisfies Record<string, Partial<CreatureBodyPlan> & Pick<CreatureBodyPlan, 'id' | 'displayNameTr' | 'paletteId' | 'bodyLengthMeters' | 'shoulderHeightMeters' | 'strideHz' | 'restGait' | 'alertGait'>>;
 
 /** Every plan id, in declaration order. */
 export const CREATURE_BODY_PLAN_IDS = Object.freeze(Object.keys(CREATURE_BODY_PLANS));
@@ -490,11 +490,11 @@ export const CREATURE_BODY_PLAN_IDS = Object.freeze(Object.keys(CREATURE_BODY_PL
  * @returns {CreatureBodyPlan}
  */
 export function findBodyPlan(speciesId: string): CreatureBodyPlan {
-	const plan = CREATURE_BODY_PLANS[speciesId];
-	if (!plan) {
+	const plan = (CREATURE_BODY_PLANS as Readonly<Record<string, Partial<CreatureBodyPlan> | undefined>>)[speciesId];
+	if (!plan || !plan.archetype) {
 		throw new Error(
 			`[gameplay/creatureBodyPlans] unknown species "${speciesId}" — known: ${CREATURE_BODY_PLAN_IDS.join(', ')}`,
 		);
 	}
-	return plan;
+	return plan as CreatureBodyPlan;
 }
