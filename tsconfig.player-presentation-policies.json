@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "noEmit": true
+  },
+  "include": [
+    "src/3d/gameplay/playerAnimationOneShotPolicy.ts",
+    "src/3d/gameplay/playerCombatActionRouter.ts",
+    "src/3d/gameplay/playerAnimationBlendDiagnostics.ts",
+    "tests/modern/playerPresentationPoliciesStrict.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
