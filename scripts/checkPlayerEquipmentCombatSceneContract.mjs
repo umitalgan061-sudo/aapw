@@ -20,7 +20,7 @@ import {
   resolvePlayerAnimationPlan,
 } from '../src/3d/gameplay/playerEquipmentCombatProfile.js';
 
-const ROOT = path.resolve(new URL('..', import.meta.url).pathname, '..');
+const ROOT = process.cwd();
 const file = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 const pointer = (relative) => file(relative).trim();
 const assertFiniteTree = (value, label = 'value') => {
