@@ -6,6 +6,7 @@ import {
   stageDamageResolution,
   type HealthEventBus,
   type HealthChangeReceipt,
+  type HealthEventPayload,
   type HealthDeathReceipt,
 } from '../../src/3d/gameplay/health.ts';
 
@@ -79,7 +80,7 @@ describe('Kızıl Ufuk typed health contract', () => {
       diedEventName: 'died',
     });
 
-    const payload = { amount: 40, sourceId: 'axe-02' };
+    const payload: HealthEventPayload = { amount: 40, sourceId: 'axe-02' };
     const staged = stageDamageResolution(payload, {
       rawAmount: 60,
       amount: 40,
@@ -126,7 +127,9 @@ describe('Kızıl Ufuk typed health contract', () => {
 
     const deathEvents = bus.emitted.filter((entry) => entry.name === 'died');
     expect(deathEvents).toHaveLength(1);
-    expect(deathEvents[0].payload as HealthDeathReceipt).toMatchObject({
+    const deathEvent = deathEvents[0];
+    expect(deathEvent).toBeDefined();
+    expect((deathEvent?.payload as HealthDeathReceipt)).toMatchObject({
       current: 0,
       maxHealth: 10,
       appliedAmount: 10,
