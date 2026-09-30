@@ -1,4 +1,6 @@
-import {BrowserSignalSnapshot,RuntimeError} from './contracts.ts';
+import {RuntimeError} from './contracts.ts';
+import type {BrowserSignalSnapshot} from './contracts.ts';
+
 export type BrowserEventType='visibility'|'online'|'offline'|'resize'|'pointerlock'|'beforeunload';
 interface EventMap{visibility:BrowserSignalSnapshot;online:BrowserSignalSnapshot;offline:BrowserSignalSnapshot;resize:BrowserSignalSnapshot;pointerlock:BrowserSignalSnapshot;beforeunload:BrowserSignalSnapshot;}
 type Listener<K extends BrowserEventType>=(snapshot:EventMap[K])=>void;
