@@ -23,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
@@ -41,7 +42,7 @@ jobs:
         run: |
           BASE="$(git rev-parse origin/main)"
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
-          ALLOW='^(src/3d/gameplay/playerEquipmentCombatProfile\.js|src/3d/gameplay/playerEquipmentCombatRules\.js|src/3d/gameplay/playerEquipmentCombatRuntime\.js|src/3d/gameplay/playerEquipmentSocketAttachment\.js|src/3d/gameplay/playerEquipmentEvidenceManifest\.js|scripts/checkPlayerEquipmentCombatRules\.mjs|scripts/checkPlayerEquipmentCombatRuntime\.mjs|scripts/checkPlayerEquipmentCombatSceneContract\.mjs|scripts/checkPlayerEquipmentMaterialAcceptance\.mjs|scripts/checkPlayerEquipmentSocketAttachment\.mjs|scripts/checkPlayerEquipmentEvidenceManifest\.mjs|\.github/workflows/player-equipment-combat-rules\.yml|\.github/workflows/player-equipment-combat-runtime\.yml|\.github/workflows/player-equipment-evidence-manifest\.yml|\.github/workflows/player-equipment-socket-attachment\.yml)$'
+          ALLOW='^(src/3d/gameplay/playerEquipmentCombatProfile\.(js|ts)|src/3d/gameplay/playerEquipmentCombatRules\.(js|ts)|src/3d/gameplay/playerEquipmentCombatRuntime\.(js|ts)|src/3d/gameplay/playerEquipmentSocketAttachment\.js|src/3d/gameplay/playerEquipmentEvidenceManifest\.js|scripts/checkPlayerEquipmentCombatRules\.mjs|scripts/checkPlayerEquipmentCombatRuntime\.mjs|scripts/checkPlayerEquipmentCombatSceneContract\.mjs|scripts/checkPlayerEquipmentMaterialAcceptance\.mjs|scripts/checkPlayerEquipmentSocketAttachment\.mjs|scripts/checkPlayerEquipmentEvidenceManifest\.mjs|\.github/workflows/player-equipment-combat-rules\.yml|\.github/workflows/player-equipment-combat-runtime\.yml|\.github/workflows/player-equipment-evidence-manifest\.yml|\.github/workflows/player-equipment-socket-attachment\.yml)$'
           RELEVANT="$(printf '%s\n' "$CHANGED" | grep -E "$ALLOW" || true)"
           test -n "$RELEVANT"
           printf '%s\n' "$RELEVANT"
