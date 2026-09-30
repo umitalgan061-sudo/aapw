@@ -91,6 +91,25 @@ describe("v15 adaptive quality", () => {
     expect(pressure.combined).toBeGreaterThan(0);
     expect(quality.tier).toBe(before);
   });
+
+  it("honors explicit hysteresis thresholds", () => {
+    const quality = new AdaptiveQualityDirectorV15({
+      initial: "balanced",
+      upgradeThreshold: 0.7,
+      downgradeThreshold: 0.9,
+    });
+    for (let index = 1; index <= 20; index += 1) quality.observe(observation(index));
+    expect(quality.tier).toBe("high");
+    expect(quality.stats().upgradeThreshold).toBe(0.7);
+    expect(quality.stats().downgradeThreshold).toBe(0.9);
+  });
+
+  it("rejects inverted hysteresis thresholds", () => {
+    expect(() => new AdaptiveQualityDirectorV15({
+      upgradeThreshold: 0.9,
+      downgradeThreshold: 0.8,
+    })).toThrow("invalid quality hysteresis bounds");
+  });
 });
 
 describe("v15 fixed step scheduler", () => {
