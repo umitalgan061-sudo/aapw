@@ -67,5 +67,7 @@ jobs:
         run: node scripts/checkPlayerAnimationDirector.mjs
       - name: Source ownership and material boundary proof
         run: node scripts/checkPlayerModernizationR1.mjs
+      - name: Final LFS-independent owner proof
+        run: node scripts/checkKizilUfukFinalContracts.mjs
       - name: Diff hygiene
         run: git diff --check
