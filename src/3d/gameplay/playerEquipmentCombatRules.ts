@@ -11,7 +11,6 @@
  * @module gameplay/playerEquipmentCombatRules
  */
 
-import type { PlayerEquipmentCombatProfileContract as LegacyProfileContract } from './playerEquipmentCombatProfile.ts';
 import {
   resolvePlayerEquipmentCombatProfile,
   resolvePlayerAttackTuning,
@@ -51,8 +50,9 @@ export interface PlayerArmorProfile extends Record<string, unknown> {
   readonly materialSurfaces: readonly string[];
 }
 
-export interface PlayerResolvedProfile extends LegacyProfileContract {
+export interface PlayerResolvedProfile {
   readonly version: number;
+  readonly slots: Readonly<Record<string, unknown>>;
   readonly mainHand: PlayerWeaponProfile;
   readonly offHand: PlayerWeaponProfile;
   readonly armor: PlayerArmorProfile;
