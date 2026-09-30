@@ -292,16 +292,22 @@ export function buildRuntimeBudgetDecision(
 
 export type RuntimeBudgetInput = RuntimeBudgetOptions & { readonly samples?: readonly unknown[] };
 
+function splitRuntimeBudgetInput(input: RuntimeBudgetInput | readonly unknown[]): {
+  readonly samples: readonly unknown[];
+  readonly options: RuntimeBudgetOptions;
+} {
+  if (Array.isArray(input)) return { samples: input, options: {} };
+  return { samples: input.samples ?? [], options: input };
+}
+
 export function compareRuntimeBudgets(
   a: RuntimeBudgetInput | readonly unknown[] = [],
   b: RuntimeBudgetInput | readonly unknown[] = [],
 ): RuntimeBudgetComparison {
-  const leftSamples = Array.isArray(a) ? a : (a.samples ?? []);
-  const rightSamples = Array.isArray(b) ? b : (b.samples ?? []);
-  const leftOptions: RuntimeBudgetOptions = Array.isArray(a) ? {} : a;
-  const rightOptions: RuntimeBudgetOptions = Array.isArray(b) ? {} : b;
-  const left = buildRuntimeBudgetDecision(leftSamples, leftOptions);
-  const right = buildRuntimeBudgetDecision(rightSamples, rightOptions);
+  const leftInput = splitRuntimeBudgetInput(a);
+  const rightInput = splitRuntimeBudgetInput(b);
+  const left = buildRuntimeBudgetDecision(leftInput.samples, leftInput.options);
+  const right = buildRuntimeBudgetDecision(rightInput.samples, rightInput.options);
   return Object.freeze({
     classificationChanged: left.classification !== right.classification,
     timeoutDeltaMs: right.timeoutMs - left.timeoutMs,
