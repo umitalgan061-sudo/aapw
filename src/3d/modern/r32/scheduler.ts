@@ -1,4 +1,6 @@
-import {FrameIndex,RuntimeBudget,RuntimeMode,TaskExecutionContext,TaskId,TaskLane,TaskPriority,TaskResult,TaskSpec,Tick,asFrameIndex,asTaskId,asTick,clampFinite,priorityRank,RuntimeError} from './contracts.ts';
+import {RuntimeError,asFrameIndex,asTaskId,asTick,clampFinite,priorityRank} from './contracts.ts';
+import type {FrameIndex,RuntimeBudget,RuntimeMode,TaskExecutionContext,TaskId,TaskLane,TaskPriority,TaskResult,TaskSpec,Tick} from './contracts.ts';
+
 interface ScheduledTask{readonly spec:TaskSpec;nextDueTick:Tick;runs:number;dropped:number;enabled:boolean;}
 export interface LaneExecutionReport{readonly lane:TaskLane;readonly attempted:number;readonly completed:number;readonly yielded:number;readonly dropped:number;readonly milliseconds:number;readonly workUnits:number;readonly overSoftBudget:boolean;readonly overHardBudget:boolean;}
 export interface SchedulerFrameReport{readonly tick:Tick;readonly frame:FrameIndex;readonly lanes:readonly LaneExecutionReport[];readonly totalMilliseconds:number;readonly totalWorkUnits:number;readonly droppedTasks:number;}
