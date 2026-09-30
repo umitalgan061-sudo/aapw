@@ -5,7 +5,7 @@ describe('Kızıl Ufuk player modernization R1', () => {
   it('normalizes hostile runtime input without allowing NaN or out-of-range motion', () => {
     const invalid = normalizePlayerMovementInput({ x: Number.NaN, z: Number.POSITIVE_INFINITY, guarding: true });
     expect(invalid).toEqual({ x: 0, z: 0, guarding: true });
-    const input = normalizePlayerMovementInput({ x: 7, z: -4, guarding: 1 });
+    const input = normalizePlayerMovementInput({ x: 7, z: -4, guarding: true });
     expect(input).toEqual({ x: 1, z: -1, guarding: true });
     expect(PLAYER_RUNTIME_VERSION).toBe(1);
   });
