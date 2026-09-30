@@ -1,4 +1,6 @@
-import {StatePatch,StateSelector,StateSnapshot,StateStoreOptions,StateSubscription,StateTransaction,Tick,RuntimeError,stableHash} from './contracts.ts';
+import {RuntimeError,stableHash} from './contracts.ts';
+import type {StatePatch,StateSelector,StateSnapshot,StateStoreOptions,StateSubscription,StateTransaction,Tick} from './contracts.ts';
+
 type Listener<T>= (patch:StatePatch<T>)=>void;
 interface SelectorEntry<S,V>{readonly selector:StateSelector<S,V>;readonly listener:(value:V,patch:StatePatch<S>)=>void;lastValue:V;}
 export class StateStore<T extends object>{
