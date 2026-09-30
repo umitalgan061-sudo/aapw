@@ -111,6 +111,17 @@ function stableHistoryAppend(history: Array<Readonly<PlayerEquipmentCombatFrame>
   if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
 }
 
+function canonicalEquipmentValue(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(canonicalEquipmentValue);
+  const source = value as Record<string, unknown>;
+  return Object.fromEntries(Object.keys(source).sort().map((key) => [key, canonicalEquipmentValue(source[key])]));
+}
+
+function equipmentFingerprint(equipment: UnknownRecord): string {
+  return JSON.stringify(canonicalEquipmentValue(equipment));
+}
+
 function cloneEquipmentSnapshot(equipment: unknown): UnknownRecord {
   const source = equipment && typeof equipment === 'object' && !Array.isArray(equipment) ? equipment as UnknownRecord : {};
   const output: UnknownRecord = {};
@@ -240,6 +251,7 @@ export function createPlayerEquipmentCombatRuntime({
   let currentAttack = Object.freeze({ kind: 'none', attackPhase: 'none', comboStep: 0, active: false, serial: 0 });
   let currentOutcome = null;
   let equipment = cloneEquipmentSnapshot(readEquipmentProvider(equipmentProvider));
+  let equipmentFingerprintValue = equipmentFingerprint(equipment);
   let frame = buildFrame({
     playerObject: player.object3D,
     equipment,
@@ -280,8 +292,12 @@ export function createPlayerEquipmentCombatRuntime({
   function compose(timestamp: unknown = now(), { force = false, publishFrame = false }: { force?: boolean; publishFrame?: boolean } = {}): PlayerEquipmentCombatFrame {
     if (disposed) return frame;
     const providerSnapshot = cloneEquipmentSnapshot(readEquipmentProvider(equipmentProvider));
-    const equipmentChanged = JSON.stringify(providerSnapshot) !== JSON.stringify(equipment);
-    if (equipmentChanged) equipment = providerSnapshot;
+    const nextFingerprint = equipmentFingerprint(providerSnapshot);
+    const equipmentChanged = nextFingerprint !== equipmentFingerprintValue;
+    if (equipmentChanged) {
+      equipment = providerSnapshot;
+      equipmentFingerprintValue = nextFingerprint;
+    }
     if (force || equipmentChanged || publishFrame) revision += 1;
     frame = buildFrame({
       playerObject: player.object3D,
@@ -338,6 +354,7 @@ export function createPlayerEquipmentCombatRuntime({
   function refreshEquipment(timestamp: unknown = now()): PlayerEquipmentCombatFrame {
     if (disposed) return frame;
     equipment = cloneEquipmentSnapshot(readEquipmentProvider(equipmentProvider));
+    equipmentFingerprintValue = equipmentFingerprint(equipment);
     revision += 1;
     frame = buildFrame({
       playerObject: player.object3D,
