@@ -1,4 +1,6 @@
-import {
+import {RuntimeError,stableHash} from './contracts.ts';
+import type {HealthGrade} from './contracts.ts';
+
   HealthGrade,
   RuntimeError,
   stableHash,
