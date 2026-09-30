@@ -1,4 +1,5 @@
-import {RuntimeError,TaskPriority,clampFinite} from './contracts.ts';
+import {RuntimeError,clampFinite} from './contracts.ts';
+import type {TaskPriority} from './contracts.ts';
 
 export type RenderPassKind='opaque'|'transparent'|'shadow'|'postprocess'|'ui'|'debug'|'compute'|'copy';
 export type RenderResourceKind='texture'|'buffer'|'depth'|'uniform';
