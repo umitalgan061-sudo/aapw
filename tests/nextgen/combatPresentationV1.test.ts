@@ -439,3 +439,45 @@ describe('authoritative damage type propagation', () => {
     expect(first.digest).toBe(second.digest);
   });
 });
+
+
+describe('deterministic parry presentation', () => {
+  it('parries an active attack, deals zero damage, and stuns the attacker', () => {
+    const combat = new CombatSimulation(1234);
+    const attacker = combatId(1);
+    const defender = combatId(2);
+    combat.spawn(attacker, vec3(0, 0, 0), createCombatStats());
+    combat.spawn(defender, vec3(0, 0, 1.5), createCombatStats());
+    combat.setPose(attacker, vec3(0, 0, 0), vec3(0, 0, 1));
+    combat.setPose(defender, vec3(0, 0, 1.5), vec3(0, 0, -1));
+    combat.setParrying(defender, true);
+    expect(combat.startAttack(attacker, 'light-1')).toBe(true);
+    let parry = null;
+    for (let i = 0; i < 20 && !parry; i += 1) {
+      parry = combat.step().find((event) => event.type === 'parried') ?? null;
+    }
+    expect(parry?.damage).toBe(0);
+    expect(combat.getState(defender)?.health).toBe(100);
+    expect(combat.getState(attacker)?.phase).toBe('stunned');
+  });
+
+  it('turns the simulation parry event into an explicit presentation defense outcome', () => {
+    const combat = new CombatSimulation(77);
+    const attacker = combatId(1);
+    const defender = combatId(2);
+    combat.spawn(attacker, vec3(0, 0, 0), createCombatStats());
+    combat.spawn(defender, vec3(0, 0, 1.5), createCombatStats());
+    combat.setPose(attacker, vec3(0, 0, 0), vec3(0, 0, 1));
+    combat.setPose(defender, vec3(0, 0, 1.5), vec3(0, 0, -1));
+    combat.setParrying(defender, true);
+    combat.startAttack(attacker, 'light-1');
+    let events = [];
+    for (let i = 0; i < 20 && !events.some((event) => event.type === 'parried'); i += 1) events = [...combat.step()];
+    const frame = new CombatPresentationDirector().ingest(events, { states: combat.snapshot(), device: 'gamepad' });
+    const cue = frame.cues.find((item) => item.defenseOutcome === 'parried');
+    expect(cue?.blocked).toBe(true);
+    expect(cue?.defenseOutcome).toBe('parried');
+    expect(cue?.hitstopTicks).toBeGreaterThanOrEqual(4);
+    expect(cue?.intensity).toBeGreaterThan(0.9);
+  });
+});
