@@ -54,21 +54,21 @@ export interface DialogueChoiceR35 {
   readonly id: string;
   readonly text: string;
   readonly next: string | null;
-  readonly priority?: number;
-  readonly conditions?: readonly DialogueConditionR35[];
-  readonly effects?: readonly DialogueEffectR35[];
-  readonly once?: boolean;
+  readonly priority?: number | undefined;
+  readonly conditions?: readonly DialogueConditionR35[] | undefined;
+  readonly effects?: readonly DialogueEffectR35[] | undefined;
+  readonly once?: boolean | undefined;
 }
 
 export interface DialogueNodeR35 {
   readonly id: string;
   readonly speaker: EntityId;
   readonly text: string;
-  readonly choices?: readonly DialogueChoiceR35[];
-  readonly next?: string | null;
+  readonly choices?: readonly DialogueChoiceR35[] | undefined;
+  readonly next?: string | null | undefined;
   readonly conditions?: readonly DialogueConditionR35[];
-  readonly enterEffects?: readonly DialogueEffectR35[];
-  readonly tags?: readonly string[];
+  readonly enterEffects?: readonly DialogueEffectR35[] | undefined;
+  readonly tags?: readonly string[] | undefined;
 }
 
 export interface DialogueGraphR35 {
@@ -100,7 +100,7 @@ export interface DialogueAdvanceR35 {
   readonly ok: boolean;
   readonly node: DialogueNodeR35 | null;
   readonly ended: boolean;
-  readonly reason?: string;
+  readonly reason?: string | undefined;
 }
 
 function compare(
