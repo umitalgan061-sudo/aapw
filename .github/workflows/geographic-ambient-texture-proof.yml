@@ -1,0 +1,77 @@
+name: Geographic Ambient Texture Proof
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/geographicAmbientCharacterDirector.js'
+      - 'src/3d/world/geographicAssetDistributionContract.js'
+      - 'scripts/checkGeographicAmbientCharacterTextureBrowser.mjs'
+      - 'docs/GEOGRAPHIC_VISUAL_ACCEPTANCE.md'
+      - '.github/workflows/geographic-ambient-texture-proof.yml'
+  push:
+    branches:
+      - 'agent/safak-kartali-geographic-ambient-assets-**'
+    paths:
+      - 'src/3d/world/geographicAmbientCharacterDirector.js'
+      - 'src/3d/world/geographicAssetDistributionContract.js'
+      - 'scripts/checkGeographicAmbientCharacterTextureBrowser.mjs'
+      - '.github/workflows/geographic-ambient-texture-proof.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  geographic-ambient-texture-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact ref
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Establish exact main
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          BASE_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          echo "HEAD_SHA=$HEAD_SHA" >> "$GITHUB_ENV"
+          echo "Exact base: $BASE_SHA"
+          echo "Exact head: $HEAD_SHA"
+
+      - name: Hydrate human character assets only
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/models/characters/paladin_j_nordstrom.fbx,assets/models/characters/erika_archer.fbx" --exclude=""
+          for file in \
+            assets/models/characters/peasant_girl.fbx \
+            assets/models/characters/paladin_j_nordstrom.fbx \
+            assets/models/characters/erika_archer.fbx; do
+            test -s "$file"
+            ! head -c 64 "$file" | grep -q 'version https://git-lfs.github.com/spec'
+          done
+
+      - name: Install browser proof dependencies
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0 three
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+
+      - name: Inspect real asset materials and named parts
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkGeographicAmbientCharacterTextureBrowser.mjs
+
+      - name: Upload texture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geographic-ambient-character-texture-proof
+          path: artifacts/geographic-ambient-character-texture/
+          if-no-files-found: ignore
