@@ -137,7 +137,7 @@ export class ProductionRuntimeSupervisorR36 {
   }
 
   observe(frame: ProductionRuntimeFrameObservation): ProductionRuntimeDecision {
-    if (this.#disposed) return this.snapshot().lastDecision;
+    if (this.#disposed) return this.#lastDecision ?? this.#defaultDecision();
 
     if (!this.circuit.canExecute()) {
       const circuit = this.circuit.snapshot();
@@ -222,7 +222,7 @@ export class ProductionRuntimeSupervisorR36 {
   }
 
   markDeviceLost(): ProductionRuntimeDecision {
-    if (this.#disposed) return this.snapshot().lastDecision;
+    if (this.#disposed) return this.#lastDecision ?? this.#defaultDecision();
     this.#generation += 1;
     const policy = this.renderer.markDeviceLost();
     const watchdog = this.watchdog.observe({
@@ -241,7 +241,7 @@ export class ProductionRuntimeSupervisorR36 {
   }
 
   refreshCapabilities(probe: CapabilityProbe): ProductionRuntimeDecision {
-    if (this.#disposed) return this.snapshot().lastDecision;
+    if (this.#disposed) return this.#lastDecision ?? this.#defaultDecision();
     const capabilities = probeRenderCapabilities(probe);
     const policy = this.renderer.refreshCapabilities(capabilities);
     this.#generation += 1;
@@ -251,7 +251,7 @@ export class ProductionRuntimeSupervisorR36 {
   }
 
   forceQuality(quality: QualityTier, reason = 'manual'): ProductionRuntimeDecision {
-    if (this.#disposed) return this.snapshot().lastDecision;
+    if (this.#disposed) return this.#lastDecision ?? this.#defaultDecision();
     const policy = this.renderer.requestPreference(Object.freeze({ ...this.#basePreference, quality }));
     this.#generation += 1;
     const decision = this.#makeDecision(
@@ -269,7 +269,7 @@ export class ProductionRuntimeSupervisorR36 {
   }
 
   reset(): ProductionRuntimeDecision {
-    if (this.#disposed) return this.snapshot().lastDecision;
+    if (this.#disposed) return this.#lastDecision ?? this.#defaultDecision();
     this.hardening.reset();
     this.watchdog.reset();
     this.circuit.reset();
@@ -315,6 +315,20 @@ export class ProductionRuntimeSupervisorR36 {
     this.renderer.dispose();
     this.#generation += 1;
     this.#lastDecision = null;
+  }
+
+  #defaultDecision(): ProductionRuntimeDecision {
+    const policy = this.renderer.policy();
+    return this.#makeDecision(
+      'disposed',
+      policy.tier,
+      policy,
+      this.watchdog.snapshot(),
+      this.hardening.snapshot(),
+      this.circuit.snapshot(),
+      false,
+      'disposed',
+    );
   }
 
   #makeDecision(
