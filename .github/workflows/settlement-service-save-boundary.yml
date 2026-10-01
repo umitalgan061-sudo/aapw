@@ -1,0 +1,21 @@
+name: Settlement Service Save Boundary
+
+on:
+  pull_request:
+    paths:
+      - src/3d/modern/settlementServiceSaveBoundary.ts
+      - tests/modern/settlementServiceSaveBoundary.test.ts
+      - .github/workflows/settlement-service-save-boundary.yml
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test -- tests/modern/settlementServiceSaveBoundary.test.ts --run
+      - run: npm run typecheck
