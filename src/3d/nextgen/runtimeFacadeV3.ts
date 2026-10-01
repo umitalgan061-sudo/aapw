@@ -13,6 +13,8 @@ import { WorkerTaskBroker } from './workerProtocolV3';
 import { CombatPresentationDirector, type CombatPresentationDevice, type CombatPresentationFrame, type CombatPresentationConfig } from './combatPresentationV1';
 import { CombatPresentationQueue, type CombatPresentationDispatch, type CombatPresentationQueueConfig } from './combatPresentationQueueV1';
 import { projectCombatAccessibility, type CombatAccessibilityMode, type CombatAccessibilitySignal } from './combatPresentationAccessibilityV1';
+import { auditCombatPresentationAssets } from './combatPresentationAssetsV1';
+import { validateCombatPresentationContract, type CombatPresentationContractReport } from './combatPresentationContractV1';
 import type { CombatListenerPose } from './combatPresentationSpatialAudioV1';
 import { createCombatPresentationTelemetry, type CombatPresentationTelemetry, type CombatPresentationTelemetrySummary } from './combatPresentationTelemetryV1';
 import { resolveCombatPresentationQuality, tuneCombatPresentationCue, type CombatPresentationQuality, type CombatPresentationQualityDecision } from './combatPresentationQualityV1';
@@ -41,6 +43,7 @@ export interface RuntimeFrameResult {
   presentationQuality: CombatPresentationQualityDecision;
   presentationTelemetry: CombatPresentationTelemetrySummary;
   presentationBus: CombatPresentationBusReport;
+  presentationContract: CombatPresentationContractReport;
 }
 
 const DEFAULT_CONFIG: NextGenConfig = {
@@ -164,6 +167,14 @@ export class NextGenRuntimeV3 {
     this.combatPresentationTelemetry.record(presentationFrame, presentationDispatches, this.combatPresentationQueue.pendingCount());
     const presentationAccessibility = projectCombatAccessibility(qualityCues, { mode: this.#presentationAccessibility, device: this.#presentationDevice });
     const presentationBus = this.combatPresentationBus.dispatch(presentationDispatches, presentationAccessibility, presentationFrame.tick);
+    const presentationContract = validateCombatPresentationContract({
+      frame: presentationFrame,
+      dispatches: presentationDispatches,
+      accessibility: presentationAccessibility,
+      assetAudit: auditCombatPresentationAssets(),
+      quality: presentationQuality,
+      telemetry: this.combatPresentationTelemetry.summary(),
+    });
     const aiDecisions: AiDecision[] = [];
     for (const [entityId, brain] of this.#brains) {
       const player = this.#predictors.get(entityId)?.state;
@@ -174,7 +185,7 @@ export class NextGenRuntimeV3 {
     const elapsed = performance.now() - before;
     const frame: FrameTelemetry = { tick: snapshot.tick, cpuMs: elapsed, renderMs: 0, simulationMs: elapsed, networkMs: 0, streamingMs: 0, gpuMs: null, entityCount: this.world.entityCount(), drawCalls: 0, triangles: 0 };
     this.telemetry.record(frame);
-    return { tick: snapshot.tick, snapshot, combatEvents, aiDecisions, streamResults, presentationFrame, presentationDispatches, presentationAccessibility, presentationQuality, presentationTelemetry: this.combatPresentationTelemetry.summary(), presentationBus };
+    return { tick: snapshot.tick, snapshot, combatEvents, aiDecisions, streamResults, presentationFrame, presentationDispatches, presentationAccessibility, presentationQuality, presentationTelemetry: this.combatPresentationTelemetry.summary(), presentationBus, presentationContract };
 
   }
 
