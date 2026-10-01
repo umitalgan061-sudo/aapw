@@ -1,0 +1,17 @@
+name: Settlement Crafting Execution
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementCraftingExecution.js'
+      - 'scripts/checkSettlementCraftingExecution.mjs'
+      - '.github/workflows/settlement-crafting-execution.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check src/3d/gameplay/settlementCraftingExecution.js
+      - run: node scripts/checkSettlementCraftingExecution.mjs
