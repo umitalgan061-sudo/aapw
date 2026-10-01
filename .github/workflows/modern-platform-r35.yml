@@ -1,3 +1,4 @@
+
 name: modern-platform-r35
 
 on:
@@ -24,15 +25,19 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: npm
+
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-package-lock --ignore-scripts
+
       - name: Source guard
         run: node scripts/checkModernPlatformR35.mjs
+
       - name: TypeScript contracts
         run: npx tsc -p tsconfig.modern-r35.json
+
       - name: R35 feature tests
         run: npx vitest run tests/modern/r35 --passWithNoTests
