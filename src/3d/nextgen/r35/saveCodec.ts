@@ -1,6 +1,7 @@
 const MAGIC = 'AAPW-R35';
 const VERSION = 1;
-const HEADER_BYTES = 20;
+const MAGIC_BYTES = 8;
+const HEADER_BYTES = 22;
 
 export interface SaveHeader {
   readonly version: number;
@@ -46,6 +47,10 @@ function readUint32(view: DataView, offset: number): number {
   return view.getUint32(offset, true);
 }
 
+function magicBytes(): Uint8Array {
+  return new TextEncoder().encode(MAGIC);
+}
+
 export class R35SaveCodec {
   readonly migrations: readonly SaveMigration<unknown>[];
   #migrations = new Map<number, SaveMigration<unknown>>();
@@ -59,10 +64,10 @@ export class R35SaveCodec {
     if (!Number.isInteger(tick) || tick < 0) throw new RangeError('tick must be a non-negative integer');
     const payloadBytes = encodeJson(payload);
     const output = new Uint8Array(HEADER_BYTES + payloadBytes.byteLength);
-    const view = new DataView(output.buffer);
-    output.set(new TextEncoder().encode(MAGIC), 0);
-    view.setUint8(8, VERSION);
-    view.setUint8(9, flags & 0xff);
+    const view = new DataView(output.buffer, output.byteOffset, output.byteLength);
+    output.set(magicBytes(), 0);
+    view.setUint8(MAGIC_BYTES, VERSION);
+    view.setUint8(MAGIC_BYTES + 1, flags & 0xff);
     writeUint32(view, 10, tick);
     writeUint32(view, 14, payloadBytes.byteLength);
     writeUint32(view, 18, fnv1a(payloadBytes));
@@ -73,10 +78,10 @@ export class R35SaveCodec {
   decode<T>(bytes: Uint8Array): SaveEnvelope<T> {
     if (bytes.byteLength < HEADER_BYTES) throw new Error('save payload is truncated');
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const magic = new TextDecoder().decode(bytes.slice(0, 8));
+    const magic = new TextDecoder().decode(bytes.slice(0, MAGIC_BYTES));
     if (magic !== MAGIC) throw new Error('invalid save magic');
-    const version = view.getUint8(8);
-    const flags = view.getUint8(9);
+    const version = view.getUint8(MAGIC_BYTES);
+    const flags = view.getUint8(MAGIC_BYTES + 1);
     const tick = readUint32(view, 10);
     const payloadBytesLength = readUint32(view, 14);
     const expectedChecksum = readUint32(view, 18);
@@ -130,4 +135,8 @@ export function createSaveMigration<T>(
 
 export function saveMagic(): string {
   return MAGIC;
+}
+
+export function saveHeaderBytes(): number {
+  return HEADER_BYTES;
 }
