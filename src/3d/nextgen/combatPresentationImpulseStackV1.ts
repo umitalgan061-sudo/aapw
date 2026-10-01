@@ -20,7 +20,6 @@ export class CombatImpulseStack {
     const magnitude=clamp(cue.intensity);
     const yaw=clamp(cue.camera.amplitude)* (cue.direction.x<0?-1:1) * (cue.camera.mode==='critical-shake'?3.5:cue.camera.mode==='death-pulse'?2.8:1.6);
     const pitch=(cue.direction.y<0?-1:1)*clamp(cue.camera.amplitude)*(cue.semantic==='stagger'?2.5:1.2);
-    const impulse:ObjectConstructor = Object;
     const value={tick:cue.tick,priority,direction:Object.freeze({...cue.direction}),magnitude:Number(magnitude.toFixed(4)),yawDegrees:Number(yaw.toFixed(4)),pitchDegrees:Number(pitch.toFixed(4)),recoilMeters:Number(Math.min(this.config.maxRecoilMeters,cue.reaction.recoilMeters).toFixed(4)),cueId:cue.id};
     this.#impulses.push(Object.freeze(value) as CombatImpulse);
     this.#impulses.sort((a,b)=>b.priority-a.priority||b.magnitude-a.magnitude||a.cueId.localeCompare(b.cueId));
