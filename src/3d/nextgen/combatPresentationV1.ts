@@ -303,8 +303,8 @@ export class CombatPresentationDirector {
   constructor(config: Partial<CombatPresentationConfig> = {}) { this.config = Object.freeze({ ...DEFAULT_CONFIG, ...config }); }
 
   ingest(events: readonly CombatEvent[], context: CombatPresentationContext): CombatPresentationFrame {
-    const tick = events.reduce((max, event) => Math.max(max, event.tick), Math.max(0, this.#lastTick + 1));
-    if (tick < this.#lastTick) throw new RangeError('combat presentation ticks must be monotonic');
+    const tick = events.length > 0 ? Math.max(...events.map((event) => event.tick)) : Math.max(0, this.#lastTick + 1);
+    if (events.some((event) => event.tick < this.#lastTick)) throw new RangeError('combat presentation ticks must be monotonic');
     this.#lastTick = tick;
     const sorted = [...events].sort((a, b) => EVENT_PRIORITY[b.type] - EVENT_PRIORITY[a.type] || a.sourceId - b.sourceId || (a.targetId ?? 0) - (b.targetId ?? 0) || a.type.localeCompare(b.type));
     let dropped = 0;
