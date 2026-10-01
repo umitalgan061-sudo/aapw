@@ -11,7 +11,7 @@ function patternFor(pulses:readonly CombatHapticPulse[]):number[]{const out:numb
 export function createBrowserHapticSink(target:typeof globalThis=globalThis):CombatHapticSink{
   const candidate=target as typeof globalThis & { navigator?: Navigator & { vibrate?: (pattern:number|readonly number[])=>boolean } };
   const vibrate=typeof candidate.navigator?.vibrate==='function'?candidate.navigator.vibrate.bind(candidate.navigator):undefined;
-  return Object.freeze({vibrate});
+  return typeof vibrate === 'function' ? Object.freeze({vibrate}) : Object.freeze({});
 }
 
 export async function dispatchCombatHapticPulses(pulses:readonly CombatHapticPulse[],device:CombatPresentationDevice,sink:CombatHapticSink):Promise<CombatHapticDispatchResult>{
