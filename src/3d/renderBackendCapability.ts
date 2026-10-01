@@ -80,15 +80,7 @@ function finite(value: unknown, fallback = 0): number {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
 }
 
-function clamp01(value: unknown): number {
-  return Math.min(1, Math.max(0, finite(value)));
-}
-
-function readCoarsePointer({ windowObject = globalThis.window }: { readonly windowObject?: CapabilityWindow }: {
-  readonly navigatorObject?: NavigatorCapabilities;
-  readonly documentObject?: Document;
-  readonly windowObject?: CapabilityWindow;
-} = {}): RenderCapabilities {
+function readCoarsePointer({ windowObject = globalThis.window }: { readonly windowObject?: CapabilityWindow } = {}): boolean {
   try {
     return Boolean(windowObject?.matchMedia?.('(pointer: coarse)')?.matches);
   } catch {
@@ -96,7 +88,7 @@ function readCoarsePointer({ windowObject = globalThis.window }: { readonly wind
   }
 }
 
-function safeDevicePixelRatio({ windowObject = globalThis.window }: { readonly windowObject?: CapabilityWindow } = {}) {
+function safeDevicePixelRatio({ windowObject = globalThis.window }: { readonly windowObject?: CapabilityWindow } = {}): number {
   try {
     return Math.max(1, finite(windowObject?.devicePixelRatio, 1));
   } catch {
@@ -130,7 +122,11 @@ export function detectRenderCapabilities({
   readonly navigatorObject?: NavigatorCapabilities;
   readonly documentObject?: Document;
   readonly windowObject?: CapabilityWindow;
-} = {}) {
+}: {
+  readonly navigatorObject?: NavigatorCapabilities;
+  readonly documentObject?: Document;
+  readonly windowObject?: CapabilityWindow;
+} = {}): RenderCapabilities {
   const webgpu = detectWebGPU({ navigatorObject });
   const webgl2 = detectWebGLContext({ documentObject, kind: 'webgl2' });
   const webgl = webgl2 || detectWebGLContext({ documentObject, kind: 'webgl' });
@@ -164,11 +160,11 @@ function scoreHardware(capabilities: RenderCapabilities): number {
 }
 
 export function selectRenderBackend(capabilities: RenderCapabilities, policy: Partial<RenderBackendPolicy> = DEFAULT_POLICY): RenderBackendSelection {
-  const merged = { ...DEFAULT_POLICY, ...policy };
+  const merged: RenderBackendPolicy = { ...DEFAULT_POLICY, ...policy };
   const hardwareScore = scoreHardware(capabilities);
   const canUseWebGPU = capabilities.webgpu && capabilities.secureContext;
-  let backend = BACKENDS.NONE;
-  let tier = 'unsupported';
+  let backend: RenderBackendId = BACKENDS.NONE;
+  let tier: RenderTier = 'unsupported';
   if (canUseWebGPU && merged.preferWebGPU) {
     backend = BACKENDS.WEBGPU;
     tier = hardwareScore >= 0.78 ? 'ultra' : hardwareScore >= 0.56 ? 'high' : 'balanced';
