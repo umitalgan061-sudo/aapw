@@ -236,7 +236,7 @@ describe('combat presentation vertical slice', () => {
   it('exercises authoritative combat events and produces a validated presentation report', () => {
     const report = runCombatPresentationVerticalSlice(77, 110);
     const scenarioValidation = validateCombatPresentationScenario(report);
-    expect(scenarioValidation.errors).toEqual([]);
+    expect(scenarioValidation.errors.join(' | ')).toBe('');
     expect(scenarioValidation.valid).toBe(true);
     expect(report.totalEvents).toBeGreaterThan(0);
     expect(report.totalCues).toBeGreaterThan(0);
