@@ -1,0 +1,19 @@
+name: player-combat-feedback-route
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatFeedbackRoute.ts'
+      - 'scripts/checkPlayerCombatFeedbackRoute.mjs'
+      - '.github/workflows/player-combat-feedback-route.yml'
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --experimental-strip-types scripts/checkPlayerCombatFeedbackRoute.mjs
+      - run: node --experimental-strip-types --check src/3d/gameplay/playerCombatFeedbackRoute.ts
