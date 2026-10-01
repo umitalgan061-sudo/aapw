@@ -1,0 +1,38 @@
+name: Buzul Muhafizi Shoreline Material Blend
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/shorelineMaterialBlend.js'
+      - 'scripts/checkShorelineMaterialBlend.mjs'
+      - '.github/workflows/buzul-muhafizi-shoreline-material-blend.yml'
+  push:
+    branches:
+      - 'buzul-muhafizi/exact-main-shoreline-blend-v10-20260908'
+
+jobs:
+  shoreline-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Exact ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+          git diff --check origin/main...HEAD
+      - name: Syntax
+        run: |
+          node --check src/3d/world/shorelineMaterialBlend.js
+          node --check scripts/checkShorelineMaterialBlend.mjs
+      - name: Executable shoreline contract
+        run: node scripts/checkShorelineMaterialBlend.mjs
+      - name: Shared material/editor boundary
+        shell: bash
+        run: |
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" src/3d/world/shorelineMaterialBlend.js scripts/checkShorelineMaterialBlend.mjs
