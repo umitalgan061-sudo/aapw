@@ -1,0 +1,61 @@
+name: Buzul Muhafizi — Environment Grounding Evidence v36
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentGroundingEvidence.js'
+      - 'scripts/checkEnvironmentGroundingEvidence.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-grounding-evidence-v36.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify focused additive scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          git diff --check "$BASE_SHA" HEAD
+          mapfile -t files < <(git diff --name-only "$BASE_SHA" HEAD)
+          test "${#files[@]}" -eq 3
+          printf '%s\n' "${files[@]}" | grep -Fx 'src/3d/world/environmentGroundingEvidence.js'
+          printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkEnvironmentGroundingEvidence.mjs'
+          printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/buzul-muhafizi-environment-grounding-evidence-v36.yml'
+          additions=$(git diff --numstat "$BASE_SHA" HEAD | awk '{a += $1; d += $2} END {print a + d}')
+          test "$additions" -le 3000
+
+      - name: Verify syntax and executable regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/environmentGroundingEvidence.js
+          node --check scripts/checkEnvironmentGroundingEvidence.mjs
+          node scripts/checkEnvironmentGroundingEvidence.mjs
+
+      - name: Verify shared material and ownership boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio" src/3d/world/environmentGroundingEvidence.js scripts/checkEnvironmentGroundingEvidence.mjs
+          ! grep -R "sceneManager\\.js\\|src/3d/world/terrain\\.js\\|src/3d/world/water\\.js\\|naturalGeology\\.js\\|rivers\\.js\\|roads\\.js" src/3d/world/environmentGroundingEvidence.js scripts/checkEnvironmentGroundingEvidence.mjs
+          grep -F "MaterialAssignmentCore.js" src/3d/world/environmentGroundingEvidence.js
+          grep -F "WorldAssetPlacementPipeline.js" src/3d/world/environmentGroundingEvidence.js
+
+      - name: Verify deterministic re-run
+        shell: bash
+        run: |
+          set -euo pipefail
+          first=$(node scripts/checkEnvironmentGroundingEvidence.mjs)
+          second=$(node scripts/checkEnvironmentGroundingEvidence.mjs)
+          test "$first" = "$second"
