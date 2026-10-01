@@ -1,0 +1,49 @@
+name: Buzul Muhafızı Runtime Visual Adoption v32
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentVisualRuntimeAdoption.js'
+      - 'scripts/checkEnvironmentVisualRuntimeAdoption.mjs'
+      - '.github/workflows/buzul-muhafizi-runtime-visual-adoption-v32.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-visual-adoption:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate ancestry and exact scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+          changed="$(git diff --name-only origin/main...HEAD)"
+          printf '%s\n' "$changed"
+          expected=$'${{ github.event_name == 'pull_request' && 'src/3d/world/environmentVisualRuntimeAdoption.js\nscripts/checkEnvironmentVisualRuntimeAdoption.mjs\n.github/workflows/buzul-muhafizi-runtime-visual-adoption-v32.yml' || '' }}'
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "$changed" != "$expected" ]; then
+            echo 'Unexpected file scope'; exit 1
+          fi
+          lines="$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$lines" -le 3000
+          git diff --check origin/main...HEAD
+      - name: Syntax
+        run: |
+          node --check src/3d/world/environmentVisualRuntimeAdoption.js
+          node --check scripts/checkEnvironmentVisualRuntimeAdoption.mjs
+      - name: Executable contract
+        run: node scripts/checkEnvironmentVisualRuntimeAdoption.mjs
+      - name: Boundary guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! git diff origin/main...HEAD --name-only | grep -E 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline|assets/models|assets/textures|src/3d/sceneManager.js|src/3d/world/terrain.js|src/3d/world/water.js|src/3d/world/naturalGeology.js|src/3d/world/rivers.js|src/3d/world/roads.js'
