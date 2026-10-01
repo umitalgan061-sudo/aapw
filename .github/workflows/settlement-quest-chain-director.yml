@@ -1,0 +1,19 @@
+name: settlement-quest-chain-director
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementQuestChainDirector.js'
+      - 'scripts/checkSettlementQuestChainDirector.mjs'
+      - '.github/workflows/settlement-quest-chain-director.yml'
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check src/3d/gameplay/settlementQuestChainDirector.js
+      - run: node scripts/checkSettlementQuestChainDirector.mjs
+      - run: '! grep -R "EditorMaterialStudio" src/3d/gameplay/settlementQuestChainDirector.js'
+      - run: git diff --check
