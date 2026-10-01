@@ -1,0 +1,55 @@
+name: Buzul Muhafizi Environment Surface Field v49
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentSurfaceFieldV49.js'
+      - 'scripts/checkEnvironmentSurfaceFieldV49.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-surface-field-v49.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Re-check exact main ancestry
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+
+      - name: Enforce focused scope and diff budget
+        shell: bash
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          expected=$'\.github/workflows/buzul-muhafizi-environment-surface-field-v49.yml\nscripts/checkEnvironmentSurfaceFieldV49.mjs\nsrc/3d/world/environmentSurfaceFieldV49.js'
+          test "$(printf '%s\n' "$files" | sort)" = "$(printf '%s\n' "$expected" | sort)"
+          additions=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$additions" -le 3000
+          ! git diff origin/main...HEAD -- ':!src/3d/world/environmentSurfaceFieldV49.js' ':!scripts/checkEnvironmentSurfaceFieldV49.mjs' ':!.github/workflows/buzul-muhafizi-environment-surface-field-v49.yml' | grep -E 'terrain\.js|water\.js|sceneManager\.js|naturalGeology\.js|rivers\.js|roads\.js|EditorMaterialStudio\.js|MaterialAssignmentCore\.js|WorldAssetPlacementPipeline\.js'
+
+      - name: Syntax check
+        run: |
+          node --check src/3d/world/environmentSurfaceFieldV49.js
+          node --check scripts/checkEnvironmentSurfaceFieldV49.mjs
+
+      - name: Execute runtime regression
+        run: node scripts/checkEnvironmentSurfaceFieldV49.mjs
+
+      - name: Reject editor/runtime duplication and placeholder geometry
+        shell: bash
+        run: |
+          ! grep -R -E 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline|new (BoxGeometry|SphereGeometry|ConeGeometry|CylinderGeometry)' \
+            src/3d/world/environmentSurfaceFieldV49.js scripts/checkEnvironmentSurfaceFieldV49.mjs
