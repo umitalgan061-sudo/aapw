@@ -78,3 +78,27 @@ describe('R36 production runtime supervisor', () => {
     expect(after.generation).not.toBe(before.generation);
   });
 });
+
+
+describe('R36 supervisor lifecycle', () => {
+  it('resets health state without disposing the watchdog', () => {
+    const supervisor = new ProductionRuntimeSupervisorR36({
+      secureContext: true,
+      gpuAdapterAvailable: true,
+      webgl2ContextAvailable: true,
+      hardwareConcurrency: 8,
+      memoryGiB: 8,
+      devicePixelRatio: 1,
+    });
+
+    supervisor.observe({ frame: 1, frameMs: 45, cpuMs: 30, gpuMs: 20, pressure: 0.98 });
+    const reset = supervisor.reset();
+
+    expect(reset.state).toBe('nominal');
+    expect(reset.watchdog.state).toBe('nominal');
+    expect(reset.circuit.state).toBe('closed');
+
+    const next = supervisor.observe({ frame: 2, frameMs: 8, cpuMs: 4, gpuMs: 3, pressure: 0.05 });
+    expect(next.state).toBe('nominal');
+  });
+});
