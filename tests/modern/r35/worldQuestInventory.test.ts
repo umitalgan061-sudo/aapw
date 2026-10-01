@@ -16,7 +16,7 @@ describe('R35 quests and inventory',()=>{
   const q=new QuestRuntimeR35();q.register({id:'hunt',version:1,objectives:[{id:'kills',kind:'counter',target:'kills',required:2,order:1},{id:'flag',kind:'flag',target:'returned',required:1,order:2}]});q.addCounter('kills',2);expect(q.state('hunt')?.status).toBe('active');q.setFlag('returned',true);q.addCounter('noop',1);expect(q.state('hunt')?.status).toBe('complete');
  });
  it('respects stack limits and equipment slots',()=>{
-  const inv=new InventoryRuntimeR35(2);inv.registerItem({id:'sword',version:1,stackLimit:1,weight:4,value:10,tags:['weapon'],slots:['mainHand']});expect(inv.add('sword',1).ok).toBe(true);expect(inv.add('sword',1).value?.remaining).toBe(1);expect(inv.equip('mainHand','sword').ok).toBe(true);expect(inv.weight()).toBe(4);
+  const inv=new InventoryRuntimeR35(2);inv.registerItem({id:'sword',version:1,stackLimit:1,weight:4,value:10,tags:['weapon'],slots:['mainHand']});expect(inv.add('sword',1).ok).toBe(true);const overflow=inv.add('sword',1);expect(overflow.ok).toBe(true);if(overflow.ok)expect(overflow.value.remaining).toBe(1);expect(inv.equip('mainHand','sword').ok).toBe(true);expect(inv.weight()).toBe(4);
  });
 });
 it('hash is stable for object key order',()=>expect(stableHash({b:2,a:1})).toBe(stableHash({a:1,b:2})));

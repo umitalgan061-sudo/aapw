@@ -67,7 +67,7 @@ export class WorldSimulationR35 {
   #reindex(a:MutableAgent):void{this.#deindex(a);this.#index(a);}
   queryRadius(origin:R35Vec3,radius:number):ReadonlyArray<R35AgentState>{
     const r=clamp(radius,0,this.config.sleepRange);const cells=Math.ceil(r/this.config.cellSize);const center=keyFor(origin,this.config.cellSize).split(':').map(Number);const found=new Set<R35Id>();
-    for(let x=center[0]-cells;x<=center[0]+cells;x++)for(let y=center[1]-cells;y<=center[1]+cells;y++)for(let z=center[2]-cells;z<=center[2]+cells;z++){for(const id of this.#grid.get(x+':'+y+':'+z)??[])found.add(id);}
+    for(let x=cx-cells;x<=cx+cells;x++)for(let y=cy-cells;y<=cy+cells;y++)for(let z=cz-cells;z<=cz+cells;z++){for(const id of this.#grid.get(x+':'+y+':'+z)??[])found.add(id);}
     return Object.freeze([...found].map(id=>this.#agents.get(id)!).filter(a=>distance(a.position,origin)<=r).sort((a,b)=>a.id.localeCompare(b.id)).map(a=>this.snapshot(a)));
   }
   snapshotById(id:R35Id):R35AgentState|null{const a=this.#agents.get(id);return a?this.snapshot(a):null;}

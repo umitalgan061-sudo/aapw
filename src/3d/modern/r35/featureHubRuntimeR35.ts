@@ -87,7 +87,7 @@ export class FeatureHubRuntimeR35 {
     this.telemetry = new TelemetryRuntimeR35();
     this.weather = new WeatherRuntimeR35();
     this.economy = new EconomyRuntimeR35();
-    this.crafting.reset();
+    this.crafting = new CraftingRuntimeR35();
     this.combat = new CombatRuntimeR35();
     this.navigation = new NavigationRuntimeR35();
     this.interaction = new InteractionRuntimeR35();
@@ -321,7 +321,7 @@ export class FeatureHubRuntimeR35 {
     this.world.reset();
     this.weather.reset();
     this.economy.reset();
-    this.crafting = new CraftingRuntimeR35();
+    this.crafting.reset();
     this.combat.reset();
     this.navigation.reset();
     this.interaction.reset();
