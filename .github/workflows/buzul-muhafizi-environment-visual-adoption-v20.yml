@@ -1,0 +1,47 @@
+name: Buzul Muhafizi Environment Visual Adoption v20
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentVisualAdoptionContract.js'
+      - 'scripts/checkEnvironmentVisualAdoption.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-visual-adoption-v20.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact main ancestry
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Focused three-file scope
+        shell: bash
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          test "$(printf '%s\n' "$files" | sed '/^$/d' | wc -l)" -eq 3
+          printf '%s\n' "$files" | grep -Fxq 'src/3d/world/environmentVisualAdoptionContract.js'
+          printf '%s\n' "$files" | grep -Fxq 'scripts/checkEnvironmentVisualAdoption.mjs'
+          printf '%s\n' "$files" | grep -Fxq '.github/workflows/buzul-muhafizi-environment-visual-adoption-v20.yml'
+      - name: Changed-line budget
+        shell: bash
+        run: |
+          additions=$(git diff --numstat origin/main...HEAD | awk '{a+=$1} END {print a+0}')
+          deletions=$(git diff --numstat origin/main...HEAD | awk '{d+=$2} END {print d+0}')
+          test $((additions + deletions)) -le 3000
+      - name: Syntax
+        run: node --check src/3d/world/environmentVisualAdoptionContract.js
+      - name: Executable contract
+        run: node scripts/checkEnvironmentVisualAdoption.mjs
+      - name: Shared material/editor boundary
+        shell: bash
+        run: |
+          ! grep -RInE 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline' src/3d/world/environmentVisualAdoptionContract.js scripts/checkEnvironmentVisualAdoption.mjs
+      - name: Diff hygiene
+        run: git diff --check origin/main...HEAD
