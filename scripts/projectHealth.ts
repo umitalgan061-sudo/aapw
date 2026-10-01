@@ -29,6 +29,7 @@ const GATES: readonly HealthGate[] = Object.freeze([
   { id: 'strict-world-r30', command: 'npm', args: ['run', 'check:strict-world-r30'], timeoutMs: 120_000 },
   { id: 'typescript-tooling-r32', command: 'npm', args: ['run', 'check:tooling-r32'], timeoutMs: 180_000 },
   { id: 'strict-runtime-r33', command: 'npm', args: ['run', 'check:strict-runtime-r33'], timeoutMs: 120_000 },
+  { id: 'production-runtime-r36', command: 'npm', args: ['run', 'check:production-runtime-r36'], timeoutMs: 120_000 },
   { id: 'runtime-circuit-r12', command: 'npm', args: ['run', 'check:runtime-circuit-r12'], timeoutMs: 120_000 },
   { id: 'world-payload-r34', command: 'npm', args: ['run', 'check:world-payload-r34'], timeoutMs: 120_000 },
 ]);
