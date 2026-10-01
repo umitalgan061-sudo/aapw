@@ -1,0 +1,56 @@
+name: Buzul Muhafizi Terrain Context Layer v12
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainContextLayerDirector.js'
+      - 'scripts/checkTerrainContextLayerDirector.mjs'
+      - '.github/workflows/buzul-muhafizi-terrain-context-layer-v12.yml'
+  push:
+    branches:
+      - 'buzul-muhafizi/exact-main-terrain-context-v12-20260908'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Exact main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Scope and diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only origin/main...HEAD)
+          printf '%s\n' "$changed"
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 3
+          printf '%s\n' "$changed" | grep -Fx 'src/3d/world/terrainContextLayerDirector.js'
+          printf '%s\n' "$changed" | grep -Fx 'scripts/checkTerrainContextLayerDirector.mjs'
+          printf '%s\n' "$changed" | grep -Fx '.github/workflows/buzul-muhafizi-terrain-context-layer-v12.yml'
+          total=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$total" -le 3000
+      - name: Syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/terrainContextLayerDirector.js
+          node --check scripts/checkTerrainContextLayerDirector.mjs
+      - name: Executable deterministic contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkTerrainContextLayerDirector.mjs
+      - name: Shared runtime/editor boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RInE 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline' src/3d/world/terrainContextLayerDirector.js scripts/checkTerrainContextLayerDirector.mjs
+      - name: Diff hygiene
+        shell: bash
+        run: git diff --check origin/main...HEAD
