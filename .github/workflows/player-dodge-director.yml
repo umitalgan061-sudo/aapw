@@ -1,0 +1,38 @@
+name: Player Dodge Director
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/playerDodgeDirector.js'
+      - 'scripts/checkPlayerDodgeDirector.mjs'
+      - '.github/workflows/player-dodge-director.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Exact main ancestry
+        run: git merge-base --is-ancestor origin/main "$GITHUB_SHA"
+      - name: Scope and budget
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          test "$(printf '%s\n' "$files" | sed '/^$/d' | wc -l)" -eq 3
+          printf '%s\n' "$files" | grep -Fxq 'src/3d/gameplay/playerDodgeDirector.js'
+          printf '%s\n' "$files" | grep -Fxq 'scripts/checkPlayerDodgeDirector.mjs'
+          printf '%s\n' "$files" | grep -Fxq '.github/workflows/player-dodge-director.yml'
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - name: Runtime boundary
+        run: |
+          ! grep -RInE 'EditorMaterialStudio|document\.|window\.|three|MaterialAssignmentCore|WorldAssetPlacementPipeline' src/3d/gameplay/playerDodgeDirector.js scripts/checkPlayerDodgeDirector.mjs
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerDodgeDirector.js
+          node --check scripts/checkPlayerDodgeDirector.mjs
+      - name: Executable contract
+        run: node scripts/checkPlayerDodgeDirector.mjs
+      - name: Diff hygiene
+        run: git diff --check origin/main...HEAD
