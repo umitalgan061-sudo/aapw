@@ -1,0 +1,46 @@
+name: Player Equipment Transition Director
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentTransitionDirector.ts'
+      - 'src/3d/gameplay/playerEquipmentCombatRules.ts'
+      - 'src/3d/gameplay/playerEquipmentCombatProfile.ts'
+      - 'scripts/checkPlayerEquipmentTransitionDirector.mjs'
+      - 'scripts/testPlayerEquipmentTransitionDirector.mjs'
+      - 'scripts/testPlayerEquipmentTransitionDirectorActionIntegrity.mjs'
+      - 'scripts/checkPlayerEquipmentTransitionDirectorBoundary.mjs'
+      - 'scripts/checkPlayerEquipmentTransitionDirectorNoOpSemantics.mjs'
+      - 'scripts/checkPlayerEquipmentTransitionDirectorCrossfadeBound.mjs'
+      - 'scripts/testPlayerEquipmentTransitionDirectorHardResetSemantics.mjs'
+      - 'scripts/testPlayerEquipmentTransitionDirectorLocomotionSemantics.mjs'
+      - 'scripts/testPlayerEquipmentTransitionDirectorSocketRefreshSemantics.mjs'
+      - 'scripts/testPlayerEquipmentTransitionDirectorReceiptSafety.mjs'
+      - 'scripts/testPlayerEquipmentTransitionDirectorImmutability.mjs'
+      - 'scripts/testPlayerEquipmentTransitionDirectorInputNormalization.mjs'
+      - 'scripts/testPlayerEquipmentTransitionDirectorAttackKindNormalization.mjs'
+      - '.github/workflows/player-equipment-transition-director.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install
+      - run: node scripts/checkPlayerEquipmentTransitionDirector.mjs
+      - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirector.mjs
+      - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorActionIntegrity.mjs
+      - run: node --experimental-strip-types scripts/checkPlayerEquipmentTransitionDirectorBoundary.mjs
+      - run: node --experimental-strip-types scripts/checkPlayerEquipmentTransitionDirectorNoOpSemantics.mjs
+      - run: node --experimental-strip-types scripts/checkPlayerEquipmentTransitionDirectorCrossfadeBound.mjs
+      - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorHardResetSemantics.mjs
+      - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorLocomotionSemantics.mjs
+      - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorSocketRefreshSemantics.mjs
+      - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorReceiptSafety.mjs
+      - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorImmutability.mjs
+      - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorInputNormalization.mjs
+      - run: node --experimental-strip-types scripts/testPlayerEquipmentTransitionDirectorAttackKindNormalization.mjs
+      - run: npx tsc --noEmit --ignoreConfig --allowImportingTsExtensions --allowJs false --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler src/3d/gameplay/playerEquipmentTransitionDirector.ts

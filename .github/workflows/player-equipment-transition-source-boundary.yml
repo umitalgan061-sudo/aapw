@@ -1,0 +1,18 @@
+name: Player Equipment Transition Source Boundary
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentTransitionDirector.ts'
+      - 'scripts/checkPlayerEquipmentTransitionDirectorSourceBoundary.mjs'
+      - '.github/workflows/player-equipment-transition-source-boundary.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: node scripts/checkPlayerEquipmentTransitionDirectorSourceBoundary.mjs
