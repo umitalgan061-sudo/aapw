@@ -15,7 +15,7 @@ export interface CombatPresentationNetworkPacket {
   readonly intensity: number;
   readonly position: Readonly<Vec3>;
   readonly direction: Readonly<Vec3>;
-  readonly flags: Readonly<{ blocked: boolean; parried: boolean; critical: boolean; death: boolean; stagger: boolean; dodge: boolean }>;
+  readonly flags: Readonly<{ blocked: boolean; parried: boolean; counterAttack: boolean; critical: boolean; death: boolean; stagger: boolean; dodge: boolean }>;
   readonly digest: number;
 }
 export interface CombatPresentationNetworkContext { readonly maxAgeTicks?: number; readonly maxFutureTicks?: number; readonly maxPackets?: number; readonly localTick: number; }
@@ -27,8 +27,8 @@ const finite=(v:number,f=0)=>Number.isFinite(v)?v:f;
 const clamp=(v:number,min=0,max=1)=>Math.max(min,Math.min(max,finite(v,min)));
 
 export function buildCombatPresentationNetworkPacket(cue: CombatPresentationCue, sequence: number): CombatPresentationNetworkPacket {
-  const flags=Object.freeze({blocked:cue.blocked,parried:cue.defenseOutcome==='parried',critical:cue.critical,death:cue.semantic==='death',stagger:cue.semantic==='stagger',dodge:cue.semantic==='dodge'});
-  const digest=deterministicHash([cue.tick,sequence,cue.sourceId,cue.targetId??0,cue.fingerprint,Math.round(cue.intensity*1000)]);
+  const flags=Object.freeze({blocked:cue.blocked,parried:cue.defenseOutcome==='parried',counterAttack:cue.counterAttack,critical:cue.critical,death:cue.semantic==='death',stagger:cue.semantic==='stagger',dodge:cue.semantic==='dodge'});
+  const digest=deterministicHash([cue.tick,sequence,cue.sourceId,cue.targetId??0,cue.fingerprint,Math.round(cue.intensity*1000),cue.counterAttack?1:0]);
   return Object.freeze({version:1 as const,tick:cue.tick,sequence:Math.max(0,Math.floor(sequence)),type:cue.defenseOutcome==='parried'?'parried':cue.semantic==='impact'?'hit':cue.semantic==='blocked-impact'?'blocked':cue.semantic==='critical-impact'?'critical':cue.semantic==='stagger'?'stagger':cue.semantic==='death'?'death':cue.semantic==='dodge'?'dodge':'attack-start',sourceId:cue.sourceId,targetId:cue.targetId??null,attackId:null,damageType:(DAMAGE_TYPES.has(cue.damageType as DamageType)?cue.damageType as DamageType:null),intensity:clamp(cue.intensity),position:Object.freeze({...cue.position}),direction:Object.freeze({...cue.direction}),flags,digest});
 }
 
