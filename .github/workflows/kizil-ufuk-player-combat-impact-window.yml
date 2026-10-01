@@ -1,0 +1,35 @@
+name: Kizil Ufuk - Player Combat Impact Window
+
+on:
+  push:
+    branches: [main, 'agent/kizil-ufuk-combat-impact-window-20260916-r12']
+    paths:
+      - 'src/3d/gameplay/playerCombatImpactWindow.js'
+      - 'scripts/checkPlayerCombatImpactWindow.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-impact-window.yml'
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatImpactWindow.js'
+      - 'scripts/checkPlayerCombatImpactWindow.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-impact-window.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check
+        run: node --check src/3d/gameplay/playerCombatImpactWindow.js && node --check scripts/checkPlayerCombatImpactWindow.mjs
+      - name: Executable contract
+        run: node scripts/checkPlayerCombatImpactWindow.mjs
+      - name: Diff budget
+        shell: bash
+        run: |
+          changed=$(git diff --numstat "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}" | awk '{a += $1; d += $2} END {print a + d}')
+          test "${changed:-0}" -le 3000
