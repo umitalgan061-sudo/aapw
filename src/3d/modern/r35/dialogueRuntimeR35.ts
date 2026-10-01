@@ -1,0 +1,18 @@
+
+import { clamp, fail, ok, type R35DialogueGraph, type R35DialogueNode, type R35Effect, type R35Id, type R35ItemStack, type R35PlayerProfile, type R35Predicate, type R35Result } from './contracts';
+
+export interface DialogueState { readonly graphId:R35Id; readonly nodeId:R35Id; readonly history:readonly R35Id[]; readonly complete:boolean; }
+export interface DialogueHost { readonly profile:R35PlayerProfile; readonly items:Readonly<Record<R35Id,number>>; }
+function predicatePass(p:R35Predicate,h:DialogueHost):boolean{if(p.kind==='flag')return (h.profile.flags[p.key]??false)===p.equals;if(p.kind==='counter')return (h.profile.counters[p.key]??0)>=p.min;return (h.items[p.key]??0)>=p.min;}
+export class DialogueRuntimeR35 {
+  #graphs=new Map<R35Id,R35DialogueGraph>(); #state:DialogueState|null=null; #host:DialogueHost|null=null;
+  register(graph:R35DialogueGraph):R35Result<R35DialogueGraph>{if(this.#graphs.has(graph.id)||graph.nodes.length===0)return fail('DIALOGUE_INVALID','Graph is empty or duplicated');const ids=new Set<R35Id>();for(const n of graph.nodes){if(ids.has(n.id)||n.lines.length>64||n.choices.length>32)return fail('NODE_INVALID','Dialogue node violates limits');ids.add(n.id);}if(!ids.has(graph.start))return fail('START_MISSING','Dialogue start node missing');this.#graphs.set(graph.id,graph);return ok(graph);}
+  start(graphId:R35Id,host:DialogueHost):R35Result<DialogueState>{const g=this.#graphs.get(graphId);if(!g)return fail('GRAPH_MISSING','Dialogue graph not found');if(!this.#graphs.get(graphId)!.nodes.some(n=>n.id===g.start))return fail('START_MISSING','Start node not found');this.#host=host;this.#state=Object.freeze({graphId,nodeId:g.start,history:Object.freeze([]),complete:false});return ok(this.#state);}
+  node():R35DialogueNode|null{if(!this.#state)return null;return this.#graphs.get(this.#state.graphId)?.nodes.find(n=>n.id===this.#state!.nodeId)??null;}
+  availableChoices():ReadonlyArray<R35DialogueChoiceView>{const h=this.#host;const n=this.node();if(!h||!n)return Object.freeze([]);return Object.freeze(n.choices.map(c=>Object.freeze({id:c.id,textKey:c.textKey,enabled:!c.requires||predicatePass(c.requires,h),next:c.next})).filter(c=>c.enabled));}
+  choose(choiceId:R35Id,host?:DialogueHost):R35Result<DialogueState>{if(host)this.#host=host;if(!this.#state||!this.#host)return fail('DIALOGUE_INACTIVE','Dialogue is not active');const n=this.node();if(!n)return fail('NODE_MISSING','Current node is missing');const c=n.choices.find(x=>x.id===choiceId);if(!c)return fail('CHOICE_MISSING','Choice not found');if(c.requires&&!predicatePass(c.requires,this.#host))return fail('CHOICE_LOCKED','Choice requirements are not met');if(c.effects)this.#applyEffects(c.effects);const next=c.next;this.#state=Object.freeze({graphId:this.#state.graphId,nodeId:next??n.id,history:Object.freeze([...this.#state.history,n.id]),complete:next===null});return ok(this.#state);}
+  textDuration():number{return clamp(this.node()?.lines.reduce((s,l)=>s+Math.max(0,l.duration),0)??0,0,300);}
+  state():DialogueState|null{return this.#state;}
+  #applyEffects(effects:readonly R35Effect[]):void{const p=this.#host?.profile;if(!p)return;const flags={...p.flags};const counters={...p.counters};for(const e of effects){if(e.kind==='flag')flags[e.key]=e.value;else if(e.kind==='counter')counters[e.key]=Math.max(0,(counters[e.key]??0)+e.delta);}this.#host=Object.freeze({profile:Object.freeze({id:p.id,flags:Object.freeze(flags),counters:Object.freeze(counters)}),items:this.#host!.items});}
+}
+export interface R35DialogueChoiceView { readonly id:R35Id; readonly textKey:string; readonly enabled:boolean; readonly next:R35Id|null; }

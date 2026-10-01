@@ -1,0 +1,43 @@
+
+name: modern-platform-r35
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/3d/modern/r35/**'
+      - 'tests/modern/r35/**'
+      - 'scripts/checkModernPlatformR35.mjs'
+      - 'tsconfig.modern-r35.json'
+      - '.github/workflows/modern-platform-r35.yml'
+  pull_request:
+    paths:
+      - 'src/3d/modern/r35/**'
+      - 'tests/modern/r35/**'
+      - 'scripts/checkModernPlatformR35.mjs'
+      - 'tsconfig.modern-r35.json'
+      - '.github/workflows/modern-platform-r35.yml'
+
+jobs:
+  r35:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --no-package-lock --ignore-scripts
+
+      - name: Source guard
+        run: node scripts/checkModernPlatformR35.mjs
+
+      - name: TypeScript contracts
+        run: npx tsc -p tsconfig.modern-r35.json
+
+      - name: R35 feature tests
+        run: npx vitest run tests/modern/r35 --passWithNoTests

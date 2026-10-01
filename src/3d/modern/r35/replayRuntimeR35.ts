@@ -1,0 +1,15 @@
+
+import { fail, ok, stableHash, type R35ReplayCheckpoint, type R35ReplayInput, type R35Result } from './contracts';
+
+export interface ReplaySession { readonly id:string; readonly seed:number; readonly startTick:number; readonly inputs:readonly R35ReplayInput[]; readonly checkpoints:readonly R35ReplayCheckpoint[]; readonly digest:string; }
+export class ReplayRuntimeR35 {
+  #id:string; #seed:number; #startTick:number; #inputs:R35ReplayInput[]=[]; #checkpoints:R35ReplayCheckpoint[]=[]; #recording=true; #maxInputs=100000; #maxCheckpoints=2048;
+  constructor(id='session',seed=1,startTick=0){this.#id=id;this.#seed=seed|0;this.#startTick=Math.max(0,Math.trunc(startTick));}
+  recordInput(input:R35ReplayInput):R35Result<void>{if(!this.#recording)return fail('REPLAY_STOPPED','Replay recording is stopped');if(this.#inputs.length>=this.#maxInputs)return fail('REPLAY_LIMIT','Replay input limit reached');const normalized=Object.freeze({tick:Math.max(this.#startTick,Math.trunc(input.tick)),action:input.action.slice(0,96),value:Number.isFinite(input.value)?input.value:0,device:input.device});const last=this.#inputs.at(-1);if(last&&normalized.tick<last.tick)return fail('REPLAY_ORDER','Replay input ticks must be monotonic');this.#inputs.push(normalized);return ok(undefined);}
+  checkpoint(tick:number,payload:unknown):R35Result<R35ReplayCheckpoint>{if(this.#checkpoints.length>=this.#maxCheckpoints)return fail('REPLAY_CHECKPOINT_LIMIT','Replay checkpoint limit reached');const c=Object.freeze({tick:Math.max(this.#startTick,Math.trunc(tick)),digest:stableHash(payload),payload});this.#checkpoints.push(c);return ok(c);}
+  stop():ReplaySession{this.#recording=false;return this.snapshot();}
+  snapshot():ReplaySession{return Object.freeze({id:this.#id,seed:this.#seed,startTick:this.#startTick,inputs:Object.freeze([...this.#inputs]),checkpoints:Object.freeze([...this.#checkpoints]),digest:stableHash({id:this.#id,seed:this.#seed,startTick:this.#startTick,inputs:this.#inputs,checkpoints:this.#checkpoints})});}
+  seek(tick:number):ReplayCursor{const t=Math.max(this.#startTick,Math.trunc(tick));let checkpoint:R35ReplayCheckpoint|null=null;for(const c of this.#checkpoints)if(c.tick<=t&&(!checkpoint||c.tick>checkpoint.tick))checkpoint=c;const inputs=this.#inputs.filter(i=>i.tick>= (checkpoint?.tick??this.#startTick) && i.tick<=t);return Object.freeze({tick:t,checkpoint,inputs:Object.freeze(inputs),digest:stableHash({t,checkpoint,inputs})});}
+  validate(session:ReplaySession):R35Result<void>{if(session.digest!==stableHash({id:session.id,seed:session.seed,startTick:session.startTick,inputs:session.inputs,checkpoints:session.checkpoints}))return fail('REPLAY_CORRUPT','Replay digest mismatch');let prev=session.startTick;for(const i of session.inputs){if(i.tick<prev)return fail('REPLAY_ORDER','Replay contains non-monotonic inputs');prev=i.tick;}return ok(undefined);}
+}
+export interface ReplayCursor { readonly tick:number; readonly checkpoint:R35ReplayCheckpoint|null; readonly inputs:readonly R35ReplayInput[]; readonly digest:string; }
