@@ -519,3 +519,21 @@ describe('deterministic parry counter attack', () => {
     expect(cue?.intensity).toBeGreaterThan(0.8);
   });
 });
+
+
+describe('counter resource efficiency', () => {
+  it('allows a counter-start below the normal attack cost', () => {
+    const combat = new CombatSimulation(902, { counterStaminaMultiplier: 0.8 });
+    const attacker = combatId(1);
+    const defender = combatId(2);
+    combat.spawn(attacker, vec3(0, 0, 0), createCombatStats());
+    combat.spawn(defender, vec3(0, 0, 1.5), createCombatStats({ maxStamina: 9, staminaRegen: 0 }));
+    combat.setPose(attacker, vec3(0, 0, 0), vec3(0, 0, 1));
+    combat.setPose(defender, vec3(0, 0, 1.5), vec3(0, 0, -1));
+    combat.setParrying(defender, true);
+    combat.startAttack(attacker, 'light-1');
+    for (let i = 0; i < 20; i += 1) if (combat.step().some((e) => e.type === 'parried')) break;
+    expect(combat.startAttack(defender, 'light-1')).toBe(true);
+    expect(combat.getState(defender)?.counterWindowTicks).toBe(0);
+  });
+});
