@@ -1,0 +1,25 @@
+name: Living World Runtime Adapter
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldRuntimeSlice.js'
+      - 'src/3d/gameplay/livingWorldRuntimeAdapter.js'
+      - 'scripts/checkLivingWorldRuntimeSlice.mjs'
+      - 'scripts/checkLivingWorldRuntimeAdapter.mjs'
+      - '.github/workflows/living-world-runtime-adapter.yml'
+  workflow_dispatch:
+
+jobs:
+  runtime-adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate syntax
+        run: |
+          node --check src/3d/gameplay/livingWorldRuntimeSlice.js
+          node --check src/3d/gameplay/livingWorldRuntimeAdapter.js
+      - name: Run focused contracts
+        run: |
+          node scripts/checkLivingWorldRuntimeSlice.mjs
+          node scripts/checkLivingWorldRuntimeAdapter.mjs

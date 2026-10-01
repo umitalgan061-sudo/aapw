@@ -1,0 +1,19 @@
+name: Living World Runtime Slice
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldRuntimeSlice.js'
+      - 'scripts/checkLivingWorldRuntimeSlice.mjs'
+      - '.github/workflows/living-world-runtime-slice.yml'
+  workflow_dispatch:
+
+jobs:
+  runtime-slice:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate syntax
+        run: node --check src/3d/gameplay/livingWorldRuntimeSlice.js
+      - name: Run focused runtime contract
+        run: node scripts/checkLivingWorldRuntimeSlice.mjs
