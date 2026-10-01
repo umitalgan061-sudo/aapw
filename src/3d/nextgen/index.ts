@@ -96,3 +96,5 @@ export * from './combatPresentationCameraFocusV1';
 export * from './combatPresentationBrowserBridgeV1';
 export * from './combatPresentationHapticsV1';
 export * from './combatPresentationInputLatencyV1';
+export * from './combatPresentationNetworkV1';
+export * from './combatPresentationImpulseStackV1';
