@@ -1,0 +1,32 @@
+name: Settlement Interaction Focus
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementInteractionFocus.js'
+      - 'scripts/checkSettlementInteractionFocus.mjs'
+      - '.github/workflows/settlement-interaction-focus.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/settlementInteractionFocus.js
+          node --check scripts/checkSettlementInteractionFocus.mjs
+      - name: Runtime contract
+        run: node scripts/checkSettlementInteractionFocus.mjs
+      - name: Boundary and diff budget
+        run: |
+          ! grep -R "EditorMaterialStudio.js" src/3d/gameplay/settlementInteractionFocus.js
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
