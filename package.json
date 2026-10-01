@@ -165,7 +165,7 @@
     "test:world-payload-r34": "npm test -- tests/modern/worldPayloadMigrationR34.test.ts",
     "check:world-payload-r34": "npm run verify:world-payload-r34 && npm run test:world-payload-r34 && npm run typecheck",
     "typecheck:nextgen-combat-presentation": "tsc -p tsconfig.nextgen-combat-presentation-v1.json --noEmit",
-    "test:nextgen-combat-presentation": "vitest run tests/nextgen/combatPresentationV1.test.ts",
+    "test:nextgen-combat-presentation": "vitest run tests/nextgen/combatPresentationV1.test.ts tests/nextgen/combatPresentationContractMatrixV1.test.ts",
     "verify:nextgen-combat-presentation": "node scripts/checkNextGenCombatPresentationV1.mjs",
     "check:nextgen-combat-presentation": "npm run verify:nextgen-combat-presentation && npm run typecheck:nextgen-combat-presentation && npm run test:nextgen-combat-presentation"
   },
