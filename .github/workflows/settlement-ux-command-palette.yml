@@ -1,0 +1,37 @@
+name: Settlement UX command palette
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementUxCommandPalette.js'
+      - 'scripts/checkSettlementUxCommandPalette.mjs'
+      - '.github/workflows/settlement-ux-command-palette.yml'
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main ancestry
+        run: git merge-base --is-ancestor origin/main "$GITHUB_SHA"
+      - name: Focused scope and diff budget
+        shell: bash
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          expected=$'\.github/workflows/settlement-ux-command-palette.yml\nscripts/checkSettlementUxCommandPalette.mjs\nsrc/3d/gameplay/settlementUxCommandPalette.js'
+          test "$files" = "$expected"
+          additions=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$additions" -le 3000
+      - name: Syntax
+        run: node --check src/3d/gameplay/settlementUxCommandPalette.js && node --check scripts/checkSettlementUxCommandPalette.mjs
+      - name: Executable regression
+        run: node scripts/checkSettlementUxCommandPalette.mjs
+      - name: Shared material/editor boundary
+        shell: bash
+        run: |
+          ! grep -RInE 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline|three/examples/jsm|document\.|window\.' src/3d/gameplay/settlementUxCommandPalette.js scripts/checkSettlementUxCommandPalette.mjs
