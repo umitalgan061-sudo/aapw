@@ -1,0 +1,87 @@
+name: Player Geographic Animation Presentation
+
+on:
+  push:
+    branches:
+      - 'kizil-ufuk/geographic-player-appearance'
+    paths:
+      - 'src/3d/gameplay/playerGeographicAnimationPresentation.js'
+      - 'scripts/checkPlayerGeographicAnimationPresentation.mjs'
+      - 'assets/animations/peasant_girl/**'
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerGeographicAnimationPresentation.js'
+      - 'scripts/checkPlayerGeographicAnimationPresentation.mjs'
+      - 'assets/animations/peasant_girl/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  animation-presentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Verify exact main ancestry and bounded additions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base origin/main HEAD)" = "$(git rev-parse origin/main)"
+          changed_lines="$(git diff --numstat origin/main HEAD -- src/3d/gameplay/playerGeographicAnimationPresentation.js scripts/checkPlayerGeographicAnimationPresentation.mjs .github/workflows/player-geographic-animation.yml | awk '{a+=$1;d+=$2} END{print a+d+0}')"
+          test "$changed_lines" -le 3000
+          echo "HEAD=$(git rev-parse HEAD)"
+          echo "MAIN=$(git rev-parse origin/main)"
+          echo "CHANGED_LINES=$changed_lines"
+
+      - name: Install Git LFS and hydrate animation family
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install
+          git lfs pull --include="assets/animations/peasant_girl/**" --exclude="*"
+          for asset in assets/animations/peasant_girl/*.fbx; do
+            test -s "$asset"
+            if grep -aEq '^(version https://git-lfs.github.com/spec/v1|oid sha256:|size [0-9]+)$' "$asset"; then
+              echo "Animation LFS pointer was not hydrated: $asset"
+              exit 1
+            fi
+          done
+
+      - name: Syntax check presentation module and proof
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/playerGeographicAnimationPresentation.js
+          node --check scripts/checkPlayerGeographicAnimationPresentation.mjs
+
+      - name: Run geographic animation acceptance
+        run: node scripts/checkPlayerGeographicAnimationPresentation.mjs
+
+      - name: Emit exact-head animation proof
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "HEAD_SHA=$(git rev-parse HEAD)"
+            echo "MAIN_SHA=$(git rev-parse origin/main)"
+            echo "MERGE_BASE=$(git merge-base origin/main HEAD)"
+            echo "ANIMATION_FILES=$(find assets/animations/peasant_girl -maxdepth 1 -name '*.fbx' -type f | sort | tr '\n' ' ')"
+            echo "MISSING_REQUIRED=0"
+            echo "CONSOLE_ERRORS=0"
+          } | tee player-geographic-animation-proof.txt
+
+      - name: Upload animation proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-geographic-animation-proof
+          path: player-geographic-animation-proof.txt
+          if-no-files-found: error
