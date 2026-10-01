@@ -1,0 +1,20 @@
+name: settlement-loadout-planner
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementLoadoutPlanner.js'
+      - 'scripts/checkSettlementLoadoutPlanner.mjs'
+      - '.github/workflows/settlement-loadout-planner.yml'
+  push:
+    branches: [main]
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check src/3d/gameplay/settlementLoadoutPlanner.js
+      - run: node scripts/checkSettlementLoadoutPlanner.mjs
+      - run: node -e "const fs=require('fs');const s=fs.readFileSync('src/3d/gameplay/settlementLoadoutPlanner.js','utf8');if(s.includes('EditorMaterialStudio')||s.includes('document.')||s.includes('window.'))process.exit(1)"

@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { planSettlementLoadout, serializeSettlementLoadoutPlan, summarizeSettlementLoadoutPlan } from '../src/3d/gameplay/settlementLoadoutPlanner.js';
+
+const input = { serviceId: 'blacksmith', copper: 20, fatigue: 10, inventory: { iron_ore: 0, coal: 1, iron_sword: 1 } };
+const first = planSettlementLoadout(input);
+const second = planSettlementLoadout(input);
+assert.equal(first.ok, true);
+assert.deepEqual(first, second);
+assert(Object.isFrozen(first));
+assert(first.items.length > 0);
+assert(first.recipes.some((recipe) => recipe.id === 'iron_sword'));
+assert(first.items.every((item) => typeof item.affordable === 'boolean'));
+assert(first.summary.includes('Demirci'));
+const summary = summarizeSettlementLoadoutPlan(first);
+assert.equal(summary.serviceId, 'blacksmith');
+assert.equal(summary.digest, serializeSettlementLoadoutPlan(first));
+const routePlan = planSettlementLoadout({ serviceId: 'gate', copper: 40, fatigue: 90 });
+assert(routePlan.routes.some((route) => route.fatigueSafe === false));
+const unknown = planSettlementLoadout({ serviceId: 'not-a-service' });
+assert.equal(unknown.ok, false);
+assert.equal(unknown.reason, 'unknown-service');
+console.log('settlement loadout planner: PASS');
