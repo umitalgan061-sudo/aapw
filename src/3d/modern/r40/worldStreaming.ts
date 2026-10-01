@@ -56,7 +56,8 @@ export class WorldStreamingOrchestrator {
   }
 
   plan(point: InterestPoint, tick: Tick): WorldStreamingReport {
-    const entities = this.budget.select(this.world.queryRadius(point.position, this.limits.maxDistance, this.limits.maxRequestsPerTick * 16), point.position);
+    const interestRadius = clamp(point.radius, 0, this.limits.maxDistance);
+    const entities = this.budget.select(this.world.queryRadius(point.position, interestRadius, this.limits.maxRequestsPerTick * 16), point.position);
     const decisions = stableSort(entities.map((entity) => {
       const distance = vec3Distance(entity.transform.position, point.position);
       const asset = this.#entityAssets.get(String(entity.id)) ?? null;
