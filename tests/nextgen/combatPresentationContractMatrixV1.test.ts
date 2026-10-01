@@ -12,6 +12,7 @@ import { createCombatPresentationBus } from '../../src/3d/nextgen/combatPresenta
 import { auditCombatPresentationAssets, buildCombatAssetProof } from '../../src/3d/nextgen/combatPresentationAssetsV1';
 import { validateCombatPresentationContract } from '../../src/3d/nextgen/combatPresentationContractV1';
 import { resolveCombatCameraFocus, smoothCombatCameraFocus, validateCombatCameraFocus } from '../../src/3d/nextgen/combatPresentationCameraFocusV1';
+import { combatInputPresentationBudget, resolveCombatInputDeviceParity, resolveCombatPresentationInputLatency, validateCombatPresentationInputResult } from '../../src/3d/nextgen/combatPresentationInputLatencyV1';
 import type { CombatEvent } from '../../src/3d/nextgen/combatSimulation';
 import { vec3 } from '../../src/3d/nextgen/deterministicMath';
 
@@ -163,5 +164,66 @@ describe('camera focus framing adapter', () => {
     expect(smoothed.focusPoint.x).toBeGreaterThan(previous.focusPoint.x);
     expect(smoothed.focusPoint.x).toBeLessThan(current.focusPoint.x);
     expect(validateCombatCameraFocus(smoothed)).toBe(true);
+  });
+});
+
+
+describe('combat input latency parity', () => {
+  it('keeps all supported devices on bounded latency rules', () => {
+    const devices = ['keyboard','mouse','gamepad','touch','virtual','replay'] as const;
+    for (const device of devices) {
+      const result = resolveCombatPresentationInputLatency({
+        action: device === 'touch' ? 'dodge' : 'lightAttack',
+        device,
+        sourceTick: 98,
+        simulationTick: 100,
+        timestampMs: 1600,
+        held: true,
+        strength: 0.8,
+      });
+      expect(validateCombatPresentationInputResult(result)).toBe(true);
+      expect(result.ageTicks).toBe(2);
+      expect(result.queuePriority).toBeGreaterThanOrEqual(1);
+      expect(combatInputPresentationBudget(device).allowedAgeTicks).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('prewarms combat-critical actions without accepting stale input', () => {
+    const early = resolveCombatPresentationInputLatency({
+      action: 'parry',
+      device: 'gamepad',
+      sourceTick: 100,
+      simulationTick: 101,
+      timestampMs: 1700,
+      held: true,
+    });
+    const late = resolveCombatPresentationInputLatency({
+      action: 'parry',
+      device: 'touch',
+      sourceTick: 80,
+      simulationTick: 100,
+      timestampMs: 1700,
+      held: true,
+    });
+    expect(early.prewarm).toBe(true);
+    expect(early.accepted).toBe(true);
+    expect(late.late).toBe(true);
+    expect(late.accepted).toBe(false);
+    expect(late.prewarm).toBe(false);
+  });
+
+  it('reports cross-device parity without a separate input framework', () => {
+    const report = resolveCombatInputDeviceParity([
+      { action:'lightAttack', device:'keyboard', sourceTick:1, simulationTick:1, timestampMs:0, held:false },
+      { action:'lightAttack', device:'mouse', sourceTick:1, simulationTick:2, timestampMs:17, held:false },
+      { action:'dodge', device:'gamepad', sourceTick:2, simulationTick:3, timestampMs:34, held:true },
+      { action:'dodge', device:'touch', sourceTick:2, simulationTick:3, timestampMs:34, held:true },
+      { action:'block', device:'virtual', sourceTick:3, simulationTick:3, timestampMs:50, held:true },
+      { action:'parry', device:'replay', sourceTick:4, simulationTick:4, timestampMs:67, held:true },
+    ]);
+    expect(report.accepted).toBe(6);
+    expect(report.late).toBe(0);
+    expect(report.prewarm).toBeGreaterThan(0);
+    expect(Object.values(report.byDevice).reduce((sum, value) => sum + value, 0)).toBe(6);
   });
 });
