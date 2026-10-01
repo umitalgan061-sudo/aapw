@@ -8,6 +8,7 @@ import type { CombatPresentationTelemetrySummary } from './combatPresentationTel
 import type { CombatReactionIntent } from './combatPresentationReactionV1';
 import type { CombatSpatialAudioState } from './combatPresentationSpatialAudioV1';
 import type { CombatTimelineSample } from './combatPresentationTimelineV1';
+import type { CombatFocusResult } from './combatPresentationCameraFocusV1';
 
 export interface CombatPresentationContractInput {
   readonly frame: CombatPresentationFrame;
@@ -17,6 +18,7 @@ export interface CombatPresentationContractInput {
   readonly quality: CombatPresentationQualityDecision;
   readonly telemetry: CombatPresentationTelemetrySummary;
   readonly timelineSamples?: readonly CombatTimelineSample[];
+  readonly cameraFocus?: CombatFocusResult | null;
   readonly maxFrameCues?: number;
   readonly maxDispatches?: number;
 }
@@ -77,6 +79,13 @@ export function validateCombatPresentationContract(input: CombatPresentationCont
   for(const signal of input.accessibility){
     checks+=1;
     if(signal.cueId.length===0||!bounded(signal.visualEmphasis,0,1)||!finite(signal.motionScale)||signal.motionScale<0||signal.motionScale>1) errors.push('invalid accessibility signal');
+  }
+
+  if(input.cameraFocus){
+    checks+=1;
+    if(input.cameraFocus.targetId!==null && input.cameraFocus.targetId.length===0) errors.push('camera focus target id invalid');
+    if(!bounded(input.cameraFocus.weight,0,1)||!finite(input.cameraFocus.framingDistanceMeters)||!finite(input.cameraFocus.yawBias)||!finite(input.cameraFocus.pitchBias)) errors.push('camera focus values invalid');
+    if(input.cameraFocus.candidates.length>8) errors.push('camera focus candidate budget exceeded');
   }
 
   for(const sample of input.timelineSamples??[]){
