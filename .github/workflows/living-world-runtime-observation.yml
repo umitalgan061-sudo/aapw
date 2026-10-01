@@ -1,0 +1,19 @@
+name: Living World Runtime Observation
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldRuntimeObservation.js'
+      - 'scripts/checkLivingWorldRuntimeObservation.mjs'
+      - '.github/workflows/living-world-runtime-observation.yml'
+  workflow_dispatch:
+
+jobs:
+  observation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate syntax
+        run: node --check src/3d/gameplay/livingWorldRuntimeObservation.js
+      - name: Run focused contract
+        run: node scripts/checkLivingWorldRuntimeObservation.mjs

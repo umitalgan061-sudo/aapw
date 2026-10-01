@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { observeLivingWorldRuntime, writeLivingWorldObservation } from '../src/3d/gameplay/livingWorldRuntimeObservation.js';
+const make = (id, x, state) => ({ id, state, object3D: { position: { x, z: 0 }, userData: {} } });
+const state = { npcs: [make('guard-b', 20, 'patrol'), make('guard-a', 10, 'detect')], animals: [make('wolf', 60, 'roam')], creatures: [], dragons: [] };
+const a = observeLivingWorldRuntime({ state, playerPosition: { x: 0, z: 0 } });
+const b = observeLivingWorldRuntime({ state, playerPosition: { x: 0, z: 0 } });
+assert.deepEqual(a, b);
+assert.equal(a.actorCount, 3);
+assert.deepEqual(a.actors.map((entry) => entry.id), ['guard-a', 'guard-b', 'wolf']);
+assert.equal(a.actors[0].state, 'detect');
+assert.equal(a.actors[0].distanceMeters, 10);
+assert.equal(writeLivingWorldObservation(state.npcs[0], a), true);
+assert.equal(state.npcs[0].object3D.userData.livingWorldObservation.actorCount, 3);
+assert.equal(writeLivingWorldObservation({}, a), false);
+assert.equal(observeLivingWorldRuntime({ state, playerPosition: { x: 0, z: 0 }, maxActors: 2 }).truncated, true);
+console.log('living-world runtime observation checks passed');
