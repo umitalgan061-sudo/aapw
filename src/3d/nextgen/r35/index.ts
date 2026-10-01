@@ -12,3 +12,5 @@ export * from './workerPool';
 export * from './deterministicClock';
 export * from './resourceBudget';
 export * from './featureRegistry';
+export * from './typescriptOwnership';
+export * from './eventJournal';

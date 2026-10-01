@@ -1,41 +1,27 @@
 # AAPW Modern Runtime R35
 
-R35 is the first cohesive application-level runtime layer above the existing V3 simulation services.
+R35 consolidates the TypeScript-first application runtime above the existing V3 simulation services.
 
-## Architectural goals
+## New platform services
 
-R35 keeps the deterministic simulation primitives already present in the repository and adds an application control plane around them. The layer is intentionally renderer-neutral: browser/Three.js integration remains behind the existing V3 facade and legacy bridges.
+R35 adds versioned runtime contracts, immutable state revisions, device-neutral input normalization, budget-aware scheduling, dependency-aware asset streaming, bounded observability, recovery/circuit breaking, typed command dispatch, checksummed save envelopes, bounded worker execution, deterministic fixed-step timing, feature/capability evaluation, resource quotas, and TypeScript ownership governance.
 
-The new surface contains:
+The runtime flow is:
 
-- contracts.ts: versioned runtime state, events, budgets, commands and configuration contracts.
-- stateStore.ts: immutable snapshots, revisions, transactions, selector subscriptions and bounded checkpoints.
-- inputPipeline.ts: device-neutral keyboard/mouse/gamepad/touch normalization with action bitmasks.
-- worldScheduler.ts: budget-aware work scheduling with deadlines, priorities and coalescing.
-- assetOrchestrator.ts: dependency-aware streaming, bounded residency, retries and deterministic eviction.
-- observability.ts: bounded spans, phase metrics, budget diagnostics, counters and health scoring.
-- runtimeApplication.ts: a single application facade wiring input, scheduler, streaming, security and the next-generation runtime.
+    input -> state -> schedule -> simulation -> stream -> network -> persistence -> render -> telemetry
 
-## TypeScript-first policy
+Each phase is budgeted. Work can be deferred, retried, degraded, restored or faulted according to explicit policy.
 
-The production runtime source of truth is TypeScript. Existing JavaScript compatibility shims are not promoted to implementation owners. New R35 code is covered by a dedicated strict allowJs=false compiler boundary and a CI workflow.
+## Language migration
 
-## Runtime flow
+Production source is TypeScript-first. JavaScript files that remain are compatibility boundaries, legacy archives, or vendor material. R35 makes this distinction testable with machine-readable ownership evidence.
 
-input -> state snapshot -> scheduler -> simulation -> streaming -> telemetry -> health -> snapshot
+## Integration
 
-Every phase has an explicit budget. Work that cannot fit is deferred rather than silently over-running the frame. Asset dependencies are loaded before dependent consumers are marked ready. Runtime commands are sanitized and rate-limited at the application boundary.
-
-## Determinism
-
-Simulation-facing APIs receive an explicit tick. Runtime state transitions are versioned and checkpointable. R35 does not introduce Math.random(), dynamic code generation, or wall-clock dependence into simulation decisions.
+src/3d/nextgen/r35/runtimeApplication.ts is the application facade. It composes the existing V3 runtime with the R35 control plane without forcing an immediate rewrite of renderer and legacy browser entrypoints.
 
 ## Validation
 
-Run:
-
     npm run check:r35
 
-The command performs a structural guard, a strict R35 typecheck and the R35 regression suite.
-
-R35 is intended as a consolidation layer. It does not remove existing V3 services; it gives the project one typed application-level entry point so future migration work can retire duplicated orchestration surfaces safely.
+This runs the R35 structural guard, strict compiler boundary and regression suites.

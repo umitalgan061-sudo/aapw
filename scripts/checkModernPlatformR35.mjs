@@ -16,22 +16,24 @@ const files = [
   'src/3d/nextgen/r35/deterministicClock.ts',
   'src/3d/nextgen/r35/resourceBudget.ts',
   'src/3d/nextgen/r35/featureRegistry.ts',
+  'src/3d/nextgen/r35/typescriptOwnership.ts',
+  'src/3d/nextgen/r35/eventJournal.ts',
   'src/3d/nextgen/r35/index.ts',
   'tests/modern/r35UnifiedRuntime.test.ts',
   'tests/modern/r35AssetInput.test.ts',
   'tests/modern/r35ObservabilityScheduler.test.ts',
   'tests/modern/r35ContractIntegrity.test.ts',
   'tests/modern/r35PlatformServices.test.ts',
-  'tests/modern/r35AdditionalServices.test.ts'
+  'tests/modern/r35AdditionalServices.test.ts',
+  'tests/modern/r35Ownership.test.ts',
+  'tests/modern/r35EventJournal.test.ts',
+  'tests/modern/r35ApplicationInvariant.test.ts'
 ];
 
 const failures = [];
 for (const relative of files) {
-  try {
-    await access(join(process.cwd(), relative));
-  } catch {
-    failures.push(relative + ': missing');
-  }
+  try { await access(join(process.cwd(), relative)); }
+  catch { failures.push(relative + ': missing'); }
 }
 
 const index = await readFile('src/3d/nextgen/index.ts', 'utf8');
