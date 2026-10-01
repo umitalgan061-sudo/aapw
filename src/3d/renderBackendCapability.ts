@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Capability-first rendering backend selection for the browser 3D client.
  *
@@ -8,6 +7,15 @@
  * not create a renderer and therefore cannot steal scene/asset ownership from sceneManager.js.
  * @module renderBackendCapability
  */
+
+interface NavigatorCapabilities extends Navigator {
+  readonly gpu?: { readonly requestAdapter?: unknown };
+  readonly deviceMemory?: number;
+}
+
+interface CapabilityWindow extends Window {
+  readonly devicePixelRatio: number;
+}
 
 const DEFAULT_POLICY = Object.freeze({
   preferWebGPU: true,
@@ -32,7 +40,7 @@ function clamp01(value) {
   return Math.min(1, Math.max(0, finite(value)));
 }
 
-function readCoarsePointer({ windowObject = globalThis.window } = {}) {
+function readCoarsePointer({ windowObject = globalThis.window }: { readonly windowObject?: CapabilityWindow } = {}) {
   try {
     return Boolean(windowObject?.matchMedia?.('(pointer: coarse)')?.matches);
   } catch {
@@ -40,7 +48,7 @@ function readCoarsePointer({ windowObject = globalThis.window } = {}) {
   }
 }
 
-function safeDevicePixelRatio({ windowObject = globalThis.window } = {}) {
+function safeDevicePixelRatio({ windowObject = globalThis.window }: { readonly windowObject?: CapabilityWindow } = {}) {
   try {
     return Math.max(1, finite(windowObject?.devicePixelRatio, 1));
   } catch {
@@ -48,15 +56,15 @@ function safeDevicePixelRatio({ windowObject = globalThis.window } = {}) {
   }
 }
 
-function detectWebGPU({ navigatorObject = globalThis.navigator } = {}) {
+function detectWebGPU({ navigatorObject = globalThis.navigator }: { readonly navigatorObject?: NavigatorCapabilities } = {}) {
   return Boolean(navigatorObject?.gpu?.requestAdapter);
 }
 
-function detectWebGLContext({ documentObject = globalThis.document, kind = 'webgl2' } = {}) {
+function detectWebGLContext({ documentObject = globalThis.document, kind = 'webgl2' }: { readonly documentObject?: Document; readonly kind?: 'webgl2' | 'webgl' } = {}) {
   try {
     const canvas = documentObject?.createElement?.('canvas');
     if (!canvas?.getContext) return false;
-    const context = canvas.getContext(kind, { failIfMajorPerformanceCaveat: false });
+    const context = canvas.getContext(kind, { failIfMajorPerformanceCaveat: false }) as WebGLRenderingContext | WebGL2RenderingContext | null;
     if (!context) return false;
     const loseContext = context.getExtension?.('WEBGL_lose_context');
     loseContext?.loseContext?.();
@@ -70,6 +78,10 @@ export function detectRenderCapabilities({
   navigatorObject = globalThis.navigator,
   documentObject = globalThis.document,
   windowObject = globalThis.window,
+}: {
+  readonly navigatorObject?: NavigatorCapabilities;
+  readonly documentObject?: Document;
+  readonly windowObject?: CapabilityWindow;
 } = {}) {
   const webgpu = detectWebGPU({ navigatorObject });
   const webgl2 = detectWebGLContext({ documentObject, kind: 'webgl2' });
