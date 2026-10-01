@@ -1,0 +1,21 @@
+name: Kizil Ufuk - Player Combat Lock-on Projection v11
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatLockOnProjectionV11.js'
+      - 'scripts/checkPlayerCombatLockOnProjectionV11.mjs'
+      - '.github/workflows/player-combat-lock-on-projection-v11.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: git merge-base --is-ancestor origin/main HEAD
+      - run: node --check src/3d/gameplay/playerCombatLockOnProjectionV11.js
+      - run: node scripts/checkPlayerCombatLockOnProjectionV11.mjs
+      - run: node scripts/checkPlayerCombatLockOnProjectionV11.mjs > /tmp/a && node scripts/checkPlayerCombatLockOnProjectionV11.mjs > /tmp/b && cmp /tmp/a /tmp/b
+      - run: test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - run: '! grep -R -n "EditorMaterialStudio\|WorldAssetPlacementPipeline\|MaterialAssignmentCore\|from '\''three'\''" src/3d/gameplay/playerCombatLockOnProjectionV11.js scripts/checkPlayerCombatLockOnProjectionV11.mjs'
