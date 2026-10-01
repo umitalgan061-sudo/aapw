@@ -41,6 +41,7 @@ const EVENT_PRIORITY: Readonly<Record<CombatEvent['type'], CombatCuePriority>> =
   'attack-start': 1,
   hit: 2,
   blocked: 2,
+  parried: 3,
   critical: 3,
   stagger: 3,
   death: 3,
@@ -189,7 +190,7 @@ function cameraFor(event: CombatEvent, intensity: number, reducedMotion: boolean
   const semantic = SEMANTICS[event.type];
   const raw = clamp(intensity * (event.type === 'death' ? 1.05 : event.type === 'critical' ? 1 : 0.7), 0, maxAmplitude);
   const amplitude = reducedMotion ? raw * DEFAULT_CONFIG.reducedMotionCameraScale : raw;
-  const mode: CombatCameraCue = event.type === 'parried' ? 'critical-shake' : event.type === 'death' ? 'death-pulse' : event.type === 'critical' ? 'critical-shake' : event.type === 'hit' || event.type === 'blocked' || event.type === 'parried' || event.type === 'stagger' ? 'impact-shake' : event.type === 'attack-start' || event.type === 'dodge' ? 'micro-shake' : 'none';
+  const mode: CombatCameraCue = event.type === 'parried' || event.type === 'critical' ? 'critical-shake' : event.type === 'death' ? 'death-pulse' : event.type === 'hit' || event.type === 'blocked' || event.type === 'stagger' ? 'impact-shake' : event.type === 'attack-start' || event.type === 'dodge' ? 'micro-shake' : 'none';
   const durationMs = event.type === 'parried' ? 105 : event.type === 'critical' ? 120 : event.type === 'death' ? 180 : event.type === 'stagger' ? 110 : event.type === 'dodge' ? 45 : 70;
   const frequencyHz = event.type === 'death' ? 7 : event.type === 'critical' ? 11 : 15;
   return Object.freeze({ mode, amplitude: round(amplitude), durationMs, frequencyHz, reducedMotionAmplitude: round(raw * DEFAULT_CONFIG.reducedMotionCameraScale) });
@@ -258,7 +259,8 @@ function cueFor(event: CombatEvent, context: CombatPresentationContext, config: 
   const vfx = Object.freeze({ ...baseVfx, scale: round(baseVfx.scale * damageProfile.impactScale), durationMs: damageProfile.impactDurationMs });
   const spatialAudio = context.listener ? resolveCombatSpatialAudio(position, context.listener, 0) : null;
   const spatializedAudio = spatialAudio ? Object.freeze({ ...audio, volume: applySpatialAudioToVolume(audio.volume, spatialAudio) }) : audio;
-  const reaction = resolveCombatReactionIntent({ cue: Object.freeze({ id: 'preview', tick: event.tick, priority: EVENT_PRIORITY[event.type], semantic, sourceId: event.sourceId, targetId: event.targetId ?? null, position: Object.freeze(position), direction: Object.freeze(direction), intensity: round(intensity), blocked, defenseOutcome, counterWindowTicks, poiseDamage: finite(event.poiseDamage, 0), critical, hitstopTicks, vfx, audio, camera, haptics, fingerprint: 0, damageType: damageProfile.damageType, damageFamily: damageProfile.family, materialResponse: damageProfile.materialResponse, spatialAudio: null }), targetPoiseRatio: context.targetPoiseRatio, targetGrounded: context.targetGrounded });
+  const reactionCue = Object.freeze({ id: 'preview', tick: event.tick, priority: EVENT_PRIORITY[event.type], semantic, sourceId: event.sourceId, targetId: event.targetId ?? null, position: Object.freeze(position), direction: Object.freeze(direction), intensity: round(intensity), blocked, defenseOutcome, counterWindowTicks, poiseDamage: finite(event.poiseDamage, 0), critical, hitstopTicks, vfx, audio, camera, haptics, fingerprint: 0, damageType: damageProfile.damageType, damageFamily: damageProfile.family, materialResponse: damageProfile.materialResponse, spatialAudio: null });
+  const reaction = resolveCombatReactionIntent({ cue: reactionCue, ...(context.targetPoiseRatio === undefined ? {} : { targetPoiseRatio: context.targetPoiseRatio }), ...(context.targetGrounded === undefined ? {} : { targetGrounded: context.targetGrounded }) });
   const fingerprint = deterministicHash([event.tick, event.sourceId, event.targetId ?? 0, EVENT_PRIORITY[event.type], Math.round(intensity * 1000)]);
   return Object.freeze({
     id: 'combat-' + eventFingerprint(event),
