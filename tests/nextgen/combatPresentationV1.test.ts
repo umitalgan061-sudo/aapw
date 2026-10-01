@@ -459,6 +459,8 @@ describe('deterministic parry presentation', () => {
     expect(parry?.damage).toBe(0);
     expect(combat.getState(defender)?.health).toBe(100);
     expect(combat.getState(attacker)?.phase).toBe('stunned');
+    expect(combat.getState(defender)?.counterWindowTicks).toBe(8);
+    expect(parry?.counterWindowTicks).toBe(8);
   });
 
   it('turns the simulation parry event into an explicit presentation defense outcome', () => {
@@ -479,5 +481,6 @@ describe('deterministic parry presentation', () => {
     expect(cue?.defenseOutcome).toBe('parried');
     expect(cue?.hitstopTicks).toBeGreaterThanOrEqual(4);
     expect(cue?.intensity).toBeGreaterThan(0.9);
+    expect(cue?.counterWindowTicks).toBe(8);
   });
 });
