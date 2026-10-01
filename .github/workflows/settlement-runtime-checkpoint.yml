@@ -1,0 +1,38 @@
+name: Settlement Runtime Checkpoint
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementRuntimeCheckpoint.js'
+      - 'scripts/checkSettlementRuntimeCheckpoint.mjs'
+      - '.github/workflows/settlement-runtime-checkpoint.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementRuntimeCheckpoint.js'
+      - 'scripts/checkSettlementRuntimeCheckpoint.mjs'
+      - '.github/workflows/settlement-runtime-checkpoint.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact syntax
+        run: |
+          node --check src/3d/gameplay/settlementRuntimeCheckpoint.js
+          node --check scripts/checkSettlementRuntimeCheckpoint.mjs
+      - name: Executable persistence contract
+        run: node scripts/checkSettlementRuntimeCheckpoint.mjs
+      - name: Runtime boundaries
+        shell: bash
+        run: |
+          ! grep -n "EditorMaterialStudio\|WorldAssetPlacementPipeline\|MaterialAssignmentCore" src/3d/gameplay/settlementRuntimeCheckpoint.js
+          test "$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/settlementRuntimeCheckpoint.js scripts/checkSettlementRuntimeCheckpoint.mjs .github/workflows/settlement-runtime-checkpoint.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
