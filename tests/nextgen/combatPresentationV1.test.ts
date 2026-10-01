@@ -10,6 +10,8 @@ import { applyCombatPresentationQuality, resolveCombatPresentationQuality, tuneC
 import { CombatPresentationBus, validateCombatPresentationBusReport } from '../../src/3d/nextgen/combatPresentationBusV1';
 import { resolveCombatSpatialAudio, validateCombatSpatialAudio } from '../../src/3d/nextgen/combatPresentationSpatialAudioV1';
 import { resolveCombatReactionIntent, validateCombatReactionIntent } from '../../src/3d/nextgen/combatPresentationReactionV1';
+import { buildCombatPresentationBrowserEnvelope, CombatPresentationBrowserBridge, validateCombatPresentationBrowserEnvelope } from '../../src/3d/nextgen/combatPresentationBrowserBridgeV1';
+import { dispatchCombatHapticPulses, resolveHapticChannel, validateCombatHapticDispatch } from '../../src/3d/nextgen/combatPresentationHapticsV1';
 import { runCombatPresentationVerticalSlice, validateCombatPresentationScenario } from '../../src/3d/nextgen/combatPresentationScenarioV1';
 import { CombatSimulation, createCombatStats, type CombatEvent, type CombatantState } from '../../src/3d/nextgen/combatSimulation';
 import { vec3, type Vec3 } from '../../src/3d/nextgen/deterministicMath';
@@ -348,5 +350,50 @@ describe('spatial audio and animation reaction', () => {
     expect(intent.attackCancelRecommended).toBe(true);
     expect(intent.upperBodyAdditive).toBeGreaterThan(0);
     expect(intent.footPlantWeight).toBeGreaterThan(0);
+  });
+});
+
+
+describe('browser bridge and haptic transport', () => {
+  it('keeps browser event envelopes bounded and data-only', () => {
+    const director = new CombatPresentationDirector();
+    const frame = director.ingest([{ tick: 14, type: 'critical', sourceId: combatId(1), targetId: combatId(2), damage: 60 }] as never, { states: [] });
+    const queue = new CombatPresentationQueue();
+    queue.enqueue(frame.cues, 'gamepad', 14);
+    const dispatches = queue.dispatch(14);
+    const envelope = buildCombatPresentationBrowserEnvelope(dispatches, [], { maxDispatches: 4, now: () => 123.5 });
+    expect(validateCombatPresentationBrowserEnvelope(envelope)).toBe(true);
+    expect(envelope.createdAtMonotonicMs).toBe(123.5);
+    expect(envelope.dispatches.length).toBe(1);
+  });
+
+  it('emits through an injected browser event transport without importing DOM UI code', () => {
+    const received: Event[] = [];
+    const bridge = new CombatPresentationBrowserBridge({ now: () => 77 });
+    bridge.attach((event) => { received.push(event); return true; });
+    const envelope = bridge.emit([], []);
+    expect(bridge.connected()).toBe(true);
+    expect(validateCombatPresentationBrowserEnvelope(envelope)).toBe(true);
+    expect(received).toHaveLength(1);
+    bridge.detach();
+    expect(bridge.connected()).toBe(false);
+  });
+
+  it('maps gamepad and touch haptic channels while keeping desktop input silent', async () => {
+    expect(resolveHapticChannel('gamepad')).toBe('gamepad');
+    expect(resolveHapticChannel('touch')).toBe('vibrate');
+    expect(resolveHapticChannel('mouse')).toBe('none');
+    const pulses = [{ device: 'gamepad' as const, durationMs: 70, amplitude: 0.8, frequencyHz: 60, attack: 0.1, release: 0.3 }];
+    let effects = 0;
+    const result = await dispatchCombatHapticPulses(pulses, 'gamepad', {
+      gamepad: {
+        playEffect: async () => { effects += 1; },
+      },
+    });
+    expect(result.gamepadEffects).toBe(1);
+    expect(effects).toBe(1);
+    expect(validateCombatHapticDispatch(result)).toBe(true);
+    const desktop = await dispatchCombatHapticPulses(pulses, 'mouse', {});
+    expect(desktop.attempted).toBe(0);
   });
 });
