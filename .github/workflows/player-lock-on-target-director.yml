@@ -1,0 +1,50 @@
+name: player-lock-on-target-director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerLockOnTargetDirector.js'
+      - 'scripts/checkPlayerLockOnTargetDirector.mjs'
+      - '.github/workflows/player-lock-on-target-director.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact main ancestry and focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          BASE="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$BASE" HEAD
+          CHANGED="$(git diff --name-only "$BASE"...HEAD)"
+          ALLOW='^(src/3d/gameplay/playerLockOnTargetDirector\.js|scripts/checkPlayerLockOnTargetDirector\.mjs|\.github/workflows/player-lock-on-target-director\.yml)$'
+          if [[ -z "$CHANGED" ]]; then exit 1; fi
+          while IFS= read -r path; do [[ "$path" =~ $ALLOW ]] || { echo "out-of-scope: $path"; exit 1; }; done <<< "$CHANGED"
+          LINES="$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$LINES" -le 3000
+
+      - name: Syntax check
+        run: |
+          node --check src/3d/gameplay/playerLockOnTargetDirector.js
+          node --check scripts/checkPlayerLockOnTargetDirector.mjs
+
+      - name: Run executable contract
+        run: node scripts/checkPlayerLockOnTargetDirector.mjs
+
+      - name: Protect runtime/editor boundary and whitespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio\|document\.\|window\." src/3d/gameplay/playerLockOnTargetDirector.js scripts/checkPlayerLockOnTargetDirector.mjs
+          ! grep -R "MaterialAssignmentCore\|WorldAssetPlacementPipeline" src/3d/gameplay/playerLockOnTargetDirector.js
+          git diff --check
