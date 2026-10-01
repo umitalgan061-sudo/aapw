@@ -1,5 +1,4 @@
 /** Production TypeScript owner for src/3d/camera.js. Legacy .js remains compatibility-only. */
-// @ts-nocheck
 /**
  * Camera controls for the 3D Westeros world.
  *
