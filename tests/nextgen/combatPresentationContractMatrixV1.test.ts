@@ -11,6 +11,7 @@ import { resolveCombatPresentationQuality, tuneCombatPresentationCue } from '../
 import { createCombatPresentationBus } from '../../src/3d/nextgen/combatPresentationBusV1';
 import { auditCombatPresentationAssets, buildCombatAssetProof } from '../../src/3d/nextgen/combatPresentationAssetsV1';
 import { validateCombatPresentationContract } from '../../src/3d/nextgen/combatPresentationContractV1';
+import { resolveCombatCameraFocus, smoothCombatCameraFocus, validateCombatCameraFocus } from '../../src/3d/nextgen/combatPresentationCameraFocusV1';
 import type { CombatEvent } from '../../src/3d/nextgen/combatSimulation';
 import { vec3 } from '../../src/3d/nextgen/deterministicMath';
 
@@ -133,5 +134,34 @@ describe('combat presentation contract matrix', () => {
     const telemetry = createCombatPresentationTelemetry(); telemetry.record(frame,dispatches,queue.pendingCount());
     const report = validateCombatPresentationContract({ frame, dispatches, accessibility:projectCombatAccessibility(frame.cues,{device:'gamepad'}), assetAudit:auditCombatPresentationAssets(), quality:resolveCombatPresentationQuality({frameP95Ms:5,pendingQueue:queue.pendingCount(),droppedCues:frame.droppedCues,reducedMotion:false,device:'gamepad'}), telemetry:telemetry.summary(), timelineSamples:[createCombatPresentationTimeline(cue).sample(0)] });
     expect(report.valid).toBe(true);
+  });
+});
+
+describe('camera focus framing adapter', () => {
+  it('ranks lock-on presentation targets without replacing authoritative selection', () => {
+    const result = resolveCombatCameraFocus(vec3(0,0,0), vec3(0,0,1), [
+      { id:'far', position:vec3(0,0,14), priority:1, healthRatio:1, targetable:true },
+      { id:'locked', position:vec3(2,0,5), priority:0, healthRatio:0.6, locked:true, targetable:true },
+      { id:'near', position:vec3(-1,0,4), priority:1, healthRatio:0.8, targetable:true },
+      { id:'hidden', position:vec3(0,0,2), targetable:false },
+    ]);
+    expect(validateCombatCameraFocus(result)).toBe(true);
+    expect(result.targetId).toBe('locked');
+    expect(result.targetCount).toBe(3);
+    expect(result.framingDistanceMeters).toBeGreaterThan(2);
+  });
+
+  it('smooths focus transitions while keeping the winning target identity', () => {
+    const previous = resolveCombatCameraFocus(vec3(0,0,0), vec3(0,0,1), [
+      { id:'a', position:vec3(0,0,4), priority:1, targetable:true },
+    ]);
+    const current = resolveCombatCameraFocus(vec3(0.5,0,0), vec3(0.2,0,1), [
+      { id:'b', position:vec3(2,0,5), priority:3, targetable:true },
+    ]);
+    const smoothed = smoothCombatCameraFocus(previous, current, 0.4);
+    expect(smoothed.targetId).toBe('b');
+    expect(smoothed.focusPoint.x).toBeGreaterThan(previous.focusPoint.x);
+    expect(smoothed.focusPoint.x).toBeLessThan(current.focusPoint.x);
+    expect(validateCombatCameraFocus(smoothed)).toBe(true);
   });
 });
