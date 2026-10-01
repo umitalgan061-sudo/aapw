@@ -1,0 +1,32 @@
+name: player-guard-parry-director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerGuardParryDirector.js'
+      - 'scripts/checkPlayerGuardParryDirector.mjs'
+      - '.github/workflows/player-guard-parry-director.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Exact main ancestry
+        run: git merge-base --is-ancestor origin/main "$GITHUB_SHA"
+      - name: Diff budget and scope
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          test "$(printf '%s\n' "$files" | sed '/^$/d' | wc -l)" -eq 3
+          ! printf '%s\n' "$files" | grep -E 'EditorMaterialStudio|src/3d/materials|src/3d/world'
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerGuardParryDirector.js
+          node --check scripts/checkPlayerGuardParryDirector.mjs
+      - name: Executable contract
+        run: node scripts/checkPlayerGuardParryDirector.mjs
+      - name: Runtime editor boundary
+        run: '! grep -R "EditorMaterialStudio\|document\.\|window\." src/3d/gameplay/playerGuardParryDirector.js scripts/checkPlayerGuardParryDirector.mjs'
