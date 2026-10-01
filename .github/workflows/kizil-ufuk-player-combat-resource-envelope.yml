@@ -1,0 +1,31 @@
+name: Kızıl Ufuk Player Combat Resource Envelope
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatResourceEnvelope.js'
+      - 'scripts/checkPlayerCombatResourceEnvelope.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-resource-envelope.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerCombatResourceEnvelope.js && node --check scripts/checkPlayerCombatResourceEnvelope.mjs
+      - name: Executable contract
+        run: node scripts/checkPlayerCombatResourceEnvelope.mjs
+      - name: Diff guard
+        run: |
+          changed=$(git diff --numstat "$BASE_SHA" "$GITHUB_SHA" -- src/3d/gameplay/playerCombatResourceEnvelope.js scripts/checkPlayerCombatResourceEnvelope.mjs .github/workflows/kizil-ufuk-player-combat-resource-envelope.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
