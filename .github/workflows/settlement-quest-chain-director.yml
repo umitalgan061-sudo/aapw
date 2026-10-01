@@ -1,0 +1,37 @@
+name: Settlement Quest Chain Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementQuestChainDirector.js'
+      - 'scripts/checkSettlementQuestChainDirector.mjs'
+      - '.github/workflows/settlement-quest-chain-director.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementQuestChainDirector.js'
+      - 'scripts/checkSettlementQuestChainDirector.mjs'
+      - '.github/workflows/settlement-quest-chain-director.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: |
+          node --check src/3d/gameplay/settlementQuestChainDirector.js
+          node --check scripts/checkSettlementQuestChainDirector.mjs
+      - name: Execute deterministic quest chain regression
+        run: node scripts/checkSettlementQuestChainDirector.mjs
+      - name: Runtime/editor boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -nE 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline|BoxGeometry|MeshBasicMaterial|MeshStandardMaterial' src/3d/gameplay/settlementQuestChainDirector.js; then
+            echo 'quest-chain projection must not own editor/material/geometry runtime'
+            exit 1
+          fi
