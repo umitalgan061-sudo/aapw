@@ -1,0 +1,52 @@
+name: NextGen R40 Typed Runtime
+
+on:
+  pull_request:
+    paths:
+      - "src/3d/modern/r40/**"
+      - "tests/modern/r40/**"
+      - "scripts/checkR40Architecture.ts"
+      - "tsconfig.r40.json"
+      - "package.json"
+      - ".github/workflows/nextgen-r40.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/3d/modern/r40/**"
+      - "tests/modern/r40/**"
+      - "scripts/checkR40Architecture.ts"
+      - "tsconfig.r40.json"
+      - "package.json"
+      - ".github/workflows/nextgen-r40.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  r40:
+    name: exact-head-r40
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact event revision
+        uses: actions/checkout@v5
+        with:
+          ref: \${{ github.sha }}
+          fetch-depth: 1
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.21.0
+          cache: npm
+      - name: Install
+        run: npm install --ignore-scripts
+      - name: Architecture guard
+        run: npm run verify:r40
+      - name: Strict R40 typecheck
+        run: npm run typecheck:r40
+      - name: R40 tests
+        run: npm run test:r40
+      - name: Full modern build
+        run: npm run build:modern
+      - name: Repository health summary
+        run: npm run health
