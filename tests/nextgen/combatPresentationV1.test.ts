@@ -205,6 +205,7 @@ describe('runtime facade presentation integration', () => {
     expect(result.presentationFrame.version).toBe(1);
     expect(Array.isArray(result.presentationDispatches)).toBe(true);
     expect(Array.isArray(result.presentationAccessibility)).toBe(true);
+    expect(Array.isArray(result.presentationNetworkPackets)).toBe(true);
     expect(runtime.summary().combatants).toBe(1);
   });
 });
