@@ -1,0 +1,30 @@
+name: Player Equipment Combat Stat Profile
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentCombatStatProfile.js'
+      - 'scripts/checkPlayerEquipmentCombatStatProfile.mjs'
+      - '.github/workflows/player-equipment-combat-stat-profile.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/playerEquipmentCombatStatProfile.js'
+      - 'scripts/checkPlayerEquipmentCombatStatProfile.mjs'
+      - '.github/workflows/player-equipment-combat-stat-profile.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerEquipmentCombatStatProfile.js && node --check scripts/checkPlayerEquipmentCombatStatProfile.mjs
+      - name: Contract
+        run: node scripts/checkPlayerEquipmentCombatStatProfile.mjs
+      - name: Scope and editor boundary
+        shell: bash
+        run: |
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" src/3d/gameplay/playerEquipmentCombatStatProfile.js scripts/checkPlayerEquipmentCombatStatProfile.mjs
