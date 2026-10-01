@@ -1,0 +1,26 @@
+name: player-combat-resource-director
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatResourceDirector.js'
+      - 'scripts/checkPlayerCombatResourceDirector.mjs'
+      - '.github/workflows/player-combat-resource-director.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check src/3d/gameplay/playerCombatResourceDirector.js
+      - run: node --check scripts/checkPlayerCombatResourceDirector.mjs
+      - run: node scripts/checkPlayerCombatResourceDirector.mjs
+      - name: Guard runtime/editor boundary
+        run: |
+          ! grep -nE "EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline" src/3d/gameplay/playerCombatResourceDirector.js scripts/checkPlayerCombatResourceDirector.mjs
+      - name: Guard focused additive scope
+        run: |
+          test "$(git diff --name-only origin/main...HEAD | wc -l | tr -d ' ')" -le 3
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - run: git diff --check
