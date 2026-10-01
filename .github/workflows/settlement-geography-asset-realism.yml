@@ -1,0 +1,56 @@
+name: Settlement Geography Asset Realism
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/villages.js'
+      - 'src/3d/world/settlementGeographyPolicy.js'
+      - 'src/3d/world/settlementHouseTypeMix.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/materials/**'
+      - 'scripts/checkSettlementGeographyPolicy.mjs'
+      - 'scripts/checkSettlementGeographyBrowser.mjs'
+      - '.github/workflows/settlement-geography-asset-realism.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  settlement-geography-asset-realism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact pull request head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          lfs: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/villages.js
+          node --check src/3d/world/settlementGeographyPolicy.js
+          node --check src/3d/world/settlementHouseTypeMix.js
+          node --check scripts/checkSettlementGeographyPolicy.mjs
+          node --check scripts/checkSettlementGeographyBrowser.mjs
+
+      - name: Geography policy and fallback contract
+        run: node scripts/checkSettlementGeographyPolicy.mjs
+
+      - name: Shared placement and real GLB runtime contract
+        run: node scripts/checkSettlementGeographyBrowser.mjs
+
+      - name: Existing authored settlement asset contract
+        run: node scripts/checkVillageArchitectureAssets.js
+
+      - name: Diff whitespace
+        run: git diff --check HEAD^ HEAD
