@@ -106,6 +106,7 @@ export class ProductionRuntimeSupervisorR36 {
   #disposed = false;
   #lastDecision: ProductionRuntimeDecision | null = null;
   #healthyFrames = 0;
+  #wasThrottled = false;
 
   constructor(
     capabilityProbe: CapabilityProbe = {},
@@ -175,8 +176,9 @@ export class ProductionRuntimeSupervisorR36 {
         ...this.#basePreference,
         quality: emergency,
       }));
-      const decision = this.#makeDecision('critical', emergency, policy, watchdog, hardening, this.circuit.snapshot(), false, 'critical-pressure');
       this.circuit.recordFailure('runtime.frame', new Error('Critical runtime pressure.'));
+      const decision = this.#makeDecision('critical', emergency, policy, watchdog, hardening, this.circuit.snapshot(), false, 'critical-pressure');
+      this.#wasThrottled = true;
       this.#lastDecision = decision;
       return decision;
     }
@@ -188,18 +190,20 @@ export class ProductionRuntimeSupervisorR36 {
         ...this.#basePreference,
         quality: nextQuality,
       }));
-      const decision = this.#makeDecision('throttled', nextQuality, policy, watchdog, hardening, this.circuit.snapshot(), false, 'adaptive-throttle');
       this.circuit.recordSuccess('runtime.frame');
+      const decision = this.#makeDecision('throttled', nextQuality, policy, watchdog, hardening, this.circuit.snapshot(), false, 'adaptive-throttle');
+      this.#wasThrottled = true;
       this.#lastDecision = decision;
       return decision;
     }
 
     this.#healthyFrames += 1;
     let policy = this.renderer.policy();
-    if (this.#healthyFrames >= this.#policy.recoverAfterFrames && policy.tier !== this.#basePreference.quality && this.#basePreference.quality !== 'auto') {
+    if (this.#healthyFrames >= this.#policy.recoverAfterFrames && this.#wasThrottled) {
       policy = this.renderer.requestPreference(this.#basePreference);
       this.#healthyFrames = 0;
       this.#generation += 1;
+      this.#wasThrottled = false;
     }
 
     this.circuit.recordSuccess('runtime.frame');
@@ -267,10 +271,11 @@ export class ProductionRuntimeSupervisorR36 {
   reset(): ProductionRuntimeDecision {
     if (this.#disposed) return this.snapshot().lastDecision;
     this.hardening.reset();
-    this.watchdog.dispose();
+    this.watchdog.reset();
     this.circuit.reset();
     this.#generation += 1;
     this.#healthyFrames = 0;
+    this.#wasThrottled = false;
     const policy = this.renderer.requestPreference(this.#basePreference);
     const decision = this.#makeDecision('nominal', policy.tier, policy, this.watchdog.snapshot(), this.hardening.snapshot(), this.circuit.snapshot(), true, 'reset');
     this.#lastDecision = decision;
