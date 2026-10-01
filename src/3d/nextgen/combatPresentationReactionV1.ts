@@ -1,6 +1,6 @@
 /** Animation-ready impact reaction intent derived from combat presentation cues. */
 import type { CombatPresentationCue } from './combatPresentationV1';
-type CombatReactionCue = Pick<CombatPresentationCue, 'id' | 'semantic' | 'intensity' |  'direction' | 'damageType'>;
+type CombatReactionCue = Pick<CombatPresentationCue, 'id' | 'semantic' | 'intensity' | 'poiseDamage' | 'direction' | 'damageType'>;
 import { getCombatDamageTypeProfile } from './combatPresentationDamageTypeV1';
 import { normalize3, type Vec3 } from './deterministicMath';
 
