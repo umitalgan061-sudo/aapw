@@ -74,7 +74,7 @@ export class SimulationPipelineR37 {
 export const createMovementSystemR37 = (): SimulationSystem => Object.freeze({
   id: 'movement',
   order: 100,
-  update(context) {
+  update(context: SimulationSystemContext) {
     const sprintMultiplier = context.input.sprint ? 1.75 : 1;
     const speed = 4 * sprintMultiplier;
     for (const actor of context.actors) {
@@ -112,7 +112,7 @@ export const createCombatSystemR37 = (): SimulationSystem => Object.freeze({
       if (command.kind !== 'attack') continue;
       const targetId = typeof command.payload.targetId === 'string' ? command.payload.targetId : null;
       if (!targetId) continue;
-      const target = context.actors.find((actor) => actor.id === targetId);
+      const target = context.actors.find((actor: SimulationMutableActor) => actor.id === targetId);
       if (!target || !target.alive) continue;
       const amount = clamp(finite(command.payload.damage, 10), 1, 1000);
       target.setHealth(clamp(target.health - amount, 0, target.maxHealth));
@@ -135,3 +135,7 @@ export const createGravitySystemR37 = (gravity = 9.81): SimulationSystem => Obje
     }
   },
 });
+
+function nowMs(): number {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : 0;
+}
