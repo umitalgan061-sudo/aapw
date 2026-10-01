@@ -1,0 +1,39 @@
+name: Kizil Ufuk - Player Combat Intent Buffer
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatIntentBuffer.js'
+      - 'scripts/checkPlayerCombatIntentBuffer.mjs'
+      - '.github/workflows/player-combat-intent-buffer.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Exact main ancestry
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Diff cap and whitespace
+        shell: bash
+        run: |
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END{print a+d+0}')" -le 3000
+          test -z "$(git diff --check origin/main...HEAD)"
+      - name: Runtime boundary
+        shell: bash
+        run: |
+          ! grep -R "EditorMaterialStudio" src/3d/gameplay/playerCombatIntentBuffer.js
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+      - name: Syntax and focused contract
+        shell: bash
+        run: |
+          node --check src/3d/gameplay/playerCombatIntentBuffer.js
+          node --check scripts/checkPlayerCombatIntentBuffer.mjs
+          node scripts/checkPlayerCombatIntentBuffer.mjs
