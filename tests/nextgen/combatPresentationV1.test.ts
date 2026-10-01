@@ -7,6 +7,7 @@ import { getCombatDamageTypeProfile, resolveCombatSurfaceReaction, validateComba
 import { createCombatPresentationTimeline, timelineEnvelope, validateCombatPresentationTimeline } from '../../src/3d/nextgen/combatPresentationTimelineV1';
 import { createCombatPresentationTelemetry } from '../../src/3d/nextgen/combatPresentationTelemetryV1';
 import { applyCombatPresentationQuality, resolveCombatPresentationQuality, tuneCombatPresentationCue } from '../../src/3d/nextgen/combatPresentationQualityV1';
+import { CombatPresentationBus, validateCombatPresentationBusReport } from '../../src/3d/nextgen/combatPresentationBusV1';
 import { runCombatPresentationVerticalSlice, validateCombatPresentationScenario } from '../../src/3d/nextgen/combatPresentationScenarioV1';
 import { CombatSimulation, createCombatStats, type CombatEvent, type CombatantState } from '../../src/3d/nextgen/combatSimulation';
 import { vec3, type Vec3 } from '../../src/3d/nextgen/deterministicMath';
@@ -271,5 +272,37 @@ describe('adaptive presentation quality and telemetry', () => {
     expect(summary.totalDropped).toBe(0);
     expect(summary.health).toBe('healthy');
     expect(summary.peakPendingQueue).toBeGreaterThan(0);
+  });
+});
+
+
+describe('presentation consumer bus', () => {
+  it('fans out only enabled channels and isolates consumer failures', () => {
+    const director = new CombatPresentationDirector();
+    const frame = director.ingest([{ tick: 12, type: 'critical', sourceId: combatId(1), targetId: combatId(2), damage: 50, damageType: 'slash' }] as never, { states: [] });
+    const queue = new CombatPresentationQueue();
+    queue.enqueue(frame.cues, 'gamepad', 12);
+    const dispatches = queue.dispatch(12);
+    const bus = new CombatPresentationBus();
+    const deliveries: string[] = [];
+    bus.subscribe({
+      id: 'vfx-consumer',
+      channels: ['vfx'],
+      priority: 10,
+      consume() { deliveries.push('vfx'); },
+    });
+    bus.subscribe({
+      id: 'telemetry-failing-consumer',
+      channels: ['camera'],
+      priority: 5,
+      consume() { throw new Error('telemetry-test-failure'); },
+    });
+    const report = bus.dispatch(dispatches, [], 12);
+    expect(report.dispatched).toBe(dispatches.length);
+    expect(report.delivered).toBeGreaterThanOrEqual(1);
+    expect(report.consumerFailures).toBe(1);
+    expect(deliveries).toEqual(['vfx']);
+    expect(validateCombatPresentationBusReport(report)).toBe(true);
+    expect(bus.failureLog()[0]).toContain('telemetry-test-failure');
   });
 });
