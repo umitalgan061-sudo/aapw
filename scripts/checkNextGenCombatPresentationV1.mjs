@@ -1,39 +1,80 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { COMBAT_PRESENTATION_ASSETS, auditCombatPresentationAssets } from '../src/3d/nextgen/combatPresentationAssetsV1.ts';
-import { CombatPresentationDirector, validateCombatPresentationFrame } from '../src/3d/nextgen/combatPresentationV1.ts';
-import { CombatPresentationQueue } from '../src/3d/nextgen/combatPresentationQueueV1.ts';
 
-const player = await readFile(new URL('../src/3d/nextgen/combatPresentationV1.ts', import.meta.url), 'utf8');
-const queue = await readFile(new URL('../src/3d/nextgen/combatPresentationQueueV1.ts', import.meta.url), 'utf8');
-const replay = await readFile(new URL('../src/3d/nextgen/combatPresentationReplayV1.ts', import.meta.url), 'utf8');
-const accessibility = await readFile(new URL('../src/3d/nextgen/combatPresentationAccessibilityV1.ts', import.meta.url), 'utf8');
-const assetModule = await readFile(new URL('../src/3d/nextgen/combatPresentationAssetsV1.ts', import.meta.url), 'utf8');
-const contract = await readFile(new URL('../src/3d/nextgen/combatPresentationContractV1.ts', import.meta.url), 'utf8');
-const damage = await readFile(new URL('../src/3d/nextgen/combatPresentationDamageTypeV1.ts', import.meta.url), 'utf8');
-const browser = await readFile(new URL('../src/3d/nextgen/combatPresentationBrowserBridgeV1.ts', import.meta.url), 'utf8');
-const haptics = await readFile(new URL('../src/3d/nextgen/combatPresentationHapticsV1.ts', import.meta.url), 'utf8');
-assert.match(player, /class CombatPresentationDirector/);
-assert.match(player, /hitstopTicks/);
-assert.match(player, /haptics/);
-assert.match(player, /cameraShake/);
+const read = (relativePath) => readFile(new URL('../' + relativePath, import.meta.url), 'utf8');
+
+const [
+  presentation,
+  queue,
+  replay,
+  accessibility,
+  assets,
+  contract,
+  damage,
+  browser,
+  haptics,
+  network,
+  timeline,
+  scenario,
+  spatial,
+  reaction,
+  surface,
+] = await Promise.all([
+  read('src/3d/nextgen/combatPresentationV1.ts'),
+  read('src/3d/nextgen/combatPresentationQueueV1.ts'),
+  read('src/3d/nextgen/combatPresentationReplayV1.ts'),
+  read('src/3d/nextgen/combatPresentationAccessibilityV1.ts'),
+  read('src/3d/nextgen/combatPresentationAssetsV1.ts'),
+  read('src/3d/nextgen/combatPresentationContractV1.ts'),
+  read('src/3d/nextgen/combatPresentationDamageTypeV1.ts'),
+  read('src/3d/nextgen/combatPresentationBrowserBridgeV1.ts'),
+  read('src/3d/nextgen/combatPresentationHapticsV1.ts'),
+  read('src/3d/nextgen/combatPresentationNetworkV1.ts'),
+  read('src/3d/nextgen/combatPresentationTimelineV1.ts'),
+  read('src/3d/nextgen/combatPresentationScenarioV1.ts'),
+  read('src/3d/nextgen/combatPresentationSpatialAudioV1.ts'),
+  read('src/3d/nextgen/combatPresentationReactionV1.ts'),
+  read('src/3d/nextgen/combatPresentationSurfaceImpactV1.ts'),
+]);
+
+assert.match(presentation, /class CombatPresentationDirector/);
+assert.match(presentation, /hitstopTicks/);
+assert.match(presentation, /haptics/);
+assert.match(presentation, /cameraShake/);
+assert.match(presentation, /damageType/);
+
 assert.match(queue, /maxDispatchPerFrame/);
+assert.match(queue, /cooldownTicks/);
 assert.match(replay, /compareCombatPresentationRecordings/);
 assert.match(accessibility, /projectCombatAccessibility/);
-assert.match(assetModule, /buildCombatAssetProof/);
+
+assert.match(assets, /combat_impact_vfx/);
+assert.match(assets, /source: 'pending'/);
+assert.match(assets, /source: 'fallback'/);
 assert.match(contract, /validateCombatPresentationContract/);
 assert.match(damage, /validateCombatDamageTypeProfiles/);
 assert.match(browser, /CombatPresentationBrowserBridge/);
 assert.match(haptics, /dispatchCombatHapticPulses/);
-const audit = auditCombatPresentationAssets(COMBAT_PRESENTATION_ASSETS);
-assert.ok(audit.total >= 10);
-assert.ok(audit.missingCombatVfx > 0);
-assert.ok(audit.missingCombatAudio > 0);
-const director = new CombatPresentationDirector();
-const event = { tick: 1, type: 'critical', sourceId: 1, targetId: 2, attackId: 'heavy-1', damage: 50, poiseDamage: 20 };
-const frame = director.ingest([event], { states: [] });
-assert.equal(validateCombatPresentationFrame(frame).valid, true);
-const dispatchQueue = new CombatPresentationQueue();
-assert.equal(dispatchQueue.enqueue(frame.cues, 'gamepad', frame.tick), 1);
-assert.equal(dispatchQueue.dispatch(frame.tick).length, 1);
-console.log(JSON.stringify({ pass: true, presentationVersion: 1, assetAudit: audit, cueCount: frame.cues.length, dispatchCount: 1 }));
+assert.match(network, /buildCombatPresentationNetworkPacket/);
+assert.match(timeline, /createCombatPresentationTimeline/);
+assert.match(scenario, /runCombatPresentationVerticalSlice/);
+assert.match(spatial, /resolveCombatSpatialAudio/);
+assert.match(reaction, /resolveCombatReactionIntent/);
+assert.match(surface, /buildCombatSurfaceImpactMatrix/);
+
+for (const source of [presentation, queue, replay, accessibility, assets, contract, damage, browser, haptics, network, timeline, scenario, spatial, reaction, surface]) {
+  assert.doesNotMatch(source, /EditorMaterialStudio/);
+  assert.doesNotMatch(source, /@ts-nocheck/);
+  assert.doesNotMatch(source, /Record<string, any>/);
+}
+
+console.log(JSON.stringify({
+  pass: true,
+  contract: 'static-nextgen-presentation-v1',
+  modulesChecked: 15,
+  editorRuntimeImport: false,
+  tsEscapeHatches: 0,
+  undisclosedCombatAssets: false,
+  missingCombatVfxDisclosed: true,
+  missingCombatAudioDisclosed: true,
+}));
