@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": false,
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true
+  },
+  "include": [
+    "src/3d/strict/productionRuntimeSupervisorR36.ts",
+    "src/3d/strict/runtimeWatchdogR33.ts",
+    "src/3d/strict/runtimeHardeningV25.ts",
+    "src/3d/strict/runtimeCircuitBreakerR12.ts",
+    "src/3d/strict/renderBackendRuntime.ts",
+    "tests/modern/productionRuntimeSupervisorR36.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

@@ -27,3 +27,5 @@ export * from './runtimeHardeningMigrationV25.ts';
 export * from './runtimeWatchdogR33.ts';
 
 export * from './runtimeCircuitBreakerR12.ts';
+export * from './productionRuntimeSupervisorR36.ts';
+export * from './productionRuntimeSupervisorMigrationR36.ts';
