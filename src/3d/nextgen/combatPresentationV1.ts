@@ -4,6 +4,8 @@ import type { CombatEvent, CombatantId, CombatantState } from './combatSimulatio
 import { deterministicHash, directionFromYaw, normalize3, sub3, type Vec3 } from './deterministicMath';
 import { resolveCombatPresentationAsset, type CombatCueSemantic } from './combatPresentationAssetsV1';
 import { buildDamageTypeAudioCue, buildDamageTypeHapticCue, getCombatDamageTypeProfile } from './combatPresentationDamageTypeV1';
+import { resolveCombatSpatialAudio, applySpatialAudioToVolume, type CombatListenerPose, type CombatSpatialAudioState } from './combatPresentationSpatialAudioV1';
+import { resolveCombatReactionIntent, type CombatReactionIntent } from './combatPresentationReactionV1';
 
 export type CombatPresentationDevice = 'keyboard' | 'mouse' | 'gamepad' | 'touch' | 'virtual' | 'replay';
 export type CombatCuePriority = 0 | 1 | 2 | 3;
@@ -124,6 +126,8 @@ export interface CombatPresentationCue {
   readonly damageType: string;
   readonly damageFamily: string;
   readonly materialResponse: string;
+  readonly spatialAudio: CombatSpatialAudioState | null;
+  readonly reaction: CombatReactionIntent;
 }
 
 export interface CombatPresentationFrame {
@@ -142,6 +146,9 @@ export interface CombatPresentationContext {
   readonly device?: CombatPresentationDevice;
   readonly reducedMotion?: boolean;
   readonly muted?: boolean;
+  readonly listener?: CombatListenerPose;
+  readonly targetPoiseRatio?: number;
+  readonly targetGrounded?: boolean;
 }
 
 function finite(value: number, fallback = 0): number { return Number.isFinite(value) ? value : fallback; }
@@ -238,7 +245,11 @@ function cueFor(event: CombatEvent, context: CombatPresentationContext, config: 
   const hitstopTicks = hitstopFor(event, config.hitstopMaxTicks);
   const haptics = hapticsFor(event, context.device ?? 'virtual', intensity, config.hapticMaxAmplitude);
   const damageProfile = getCombatDamageTypeProfile(event.damageType);
-  const vfx = Object.freeze({ ...vfxFor(event, source, target, intensity), scale: round(vfxFor(event, source, target, intensity).scale * damageProfile.impactScale), durationMs: damageProfile.impactDurationMs });
+  const baseVfx = vfxFor(event, source, target, intensity);
+  const vfx = Object.freeze({ ...baseVfx, scale: round(baseVfx.scale * damageProfile.impactScale), durationMs: damageProfile.impactDurationMs });
+  const spatialAudio = context.listener ? resolveCombatSpatialAudio(position, context.listener, 0) : null;
+  const spatializedAudio = spatialAudio ? Object.freeze({ ...audio, volume: applySpatialAudioToVolume(audio.volume, spatialAudio) }) : audio;
+  const reaction = resolveCombatReactionIntent({ cue: Object.freeze({ id: 'preview', tick: event.tick, priority: EVENT_PRIORITY[event.type], semantic, sourceId: event.sourceId, targetId: event.targetId ?? null, position: Object.freeze(position), direction: Object.freeze(direction), intensity: round(intensity), blocked, critical, hitstopTicks, vfx, audio, camera, haptics, fingerprint: 0, damageType: damageProfile.damageType, damageFamily: damageProfile.family, materialResponse: damageProfile.materialResponse, spatialAudio: null, reaction: null as never }), targetPoiseRatio: context.targetPoiseRatio, targetGrounded: context.targetGrounded });
   const fingerprint = deterministicHash([event.tick, event.sourceId, event.targetId ?? 0, EVENT_PRIORITY[event.type], Math.round(intensity * 1000)]);
   return Object.freeze({
     id: 'combat-' + eventFingerprint(event),
@@ -250,10 +261,12 @@ function cueFor(event: CombatEvent, context: CombatPresentationContext, config: 
     position: Object.freeze(position),
     direction: Object.freeze(direction),
     intensity: round(intensity),
-    blocked, critical, hitstopTicks, vfx, audio, camera, haptics, fingerprint,
+    blocked, critical, hitstopTicks, vfx, audio: spatializedAudio, camera, haptics, fingerprint,
     damageType: damageProfile.damageType,
     damageFamily: damageProfile.family,
     materialResponse: damageProfile.materialResponse,
+    spatialAudio,
+    reaction,
   });
 }
 
