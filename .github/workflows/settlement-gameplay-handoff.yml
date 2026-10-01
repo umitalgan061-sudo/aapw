@@ -1,0 +1,36 @@
+name: Settlement Gameplay Handoff
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementGameplayHandoff.js'
+      - 'src/3d/gameplay/settlementVerticalSlice.js'
+      - 'scripts/checkSettlementGameplayHandoff.mjs'
+      - '.github/workflows/settlement-gameplay-handoff.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementGameplayHandoff.js'
+      - 'src/3d/gameplay/settlementVerticalSlice.js'
+      - 'scripts/checkSettlementGameplayHandoff.mjs'
+      - '.github/workflows/settlement-gameplay-handoff.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact syntax
+        run: |
+          node --check src/3d/gameplay/settlementGameplayHandoff.js
+          node --check scripts/checkSettlementGameplayHandoff.mjs
+      - name: Executable handoff contract
+        run: node scripts/checkSettlementGameplayHandoff.mjs
+      - name: Runtime boundary
+        shell: bash
+        run: |
+          ! grep -n "EditorMaterialStudio" src/3d/gameplay/settlementGameplayHandoff.js
+          ! grep -n "createMaterialManifest\|WorldAssetPlacementPipeline" src/3d/gameplay/settlementGameplayHandoff.js
