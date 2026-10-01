@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { resolvePlayerCombatReactionIntent, isPlayerCombatReactionIntent } from '../src/3d/gameplay/playerCombatReactionIntent.ts';
+
+const profile = { mainHand: { damageMultiplier: 1, poiseMultiplier: 1 }, armor: { staminaDrainMultiplier: 1 } };
+const hit = resolvePlayerCombatReactionIntent(profile, { outcome: 'hit', rawAmount: 30, poise: 100, maxPoise: 100, impactDirection: 0.4 });
+assert.equal(hit.family, 'hit');
+assert.equal(hit.feedbackTier, 'minor');
+assert.equal(isPlayerCombatReactionIntent(hit), true);
+assert(Object.isFrozen(hit));
+const stagger = resolvePlayerCombatReactionIntent(profile, { outcome: 'guard-break', rawAmount: 120, poise: 50, maxPoise: 100, impactDirection: 2 });
+assert.equal(stagger.family, 'stagger');
+assert.equal(stagger.staggered, true);
+const suppressed = resolvePlayerCombatReactionIntent(profile, { outcome: 'hit', rawAmount: 30, airborne: true });
+assert.equal(suppressed.active, false);
+assert.equal(suppressed.family, 'hit');
+const a = resolvePlayerCombatReactionIntent(profile, { outcome: 'parried', rawAmount: 1, impactDirection: -1 });
+const b = resolvePlayerCombatReactionIntent(profile, { outcome: 'parried', rawAmount: 1, impactDirection: -1 });
+assert.deepEqual(a, b);
+assert.equal(isPlayerCombatReactionIntent({ ...hit, intentKey: 'tampered' }), false);
+console.log('[checkPlayerCombatReactionIntent] PASS hit/guard/parry/stagger suppression, determinism, freeze, fail-closed shape');
