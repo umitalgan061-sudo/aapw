@@ -1,0 +1,91 @@
+name: Buzul Muhafızı Snow Relief v4
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainSnowReliefDirector.js'
+      - 'scripts/checkTerrainSnowReliefDirector.mjs'
+      - 'scripts/checkTerrainSnowReliefBrowser.mjs'
+      - '.github/workflows/buzul-muhafizi-snow-relief-v4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  snow-relief-v4:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+          ref: '${{ github.event.pull_request.head.sha || github.sha }}'
+      - name: Exact main freshness and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          MAIN=$(git rev-parse origin/main)
+          test "$(git merge-base HEAD "$MAIN")" = "$MAIN"
+          ADD=$(git diff --numstat "$MAIN...HEAD" | awk '{a+=$1} END {print a+0}')
+          DEL=$(git diff --numstat "$MAIN...HEAD" | awk '{d+=$2} END {print d+0}')
+          TOTAL=$((ADD + DEL))
+          echo "BASE=$MAIN HEAD=$(git rev-parse HEAD) TOTAL=$TOTAL"
+          test "$TOTAL" -le 3000
+          test "$TOTAL" -ge 250
+          git diff --check "$MAIN...HEAD"
+          git diff --name-only "$MAIN...HEAD" | while IFS= read -r path; do
+            case "$path" in
+              src/3d/world/terrainSnowReliefDirector.js|scripts/checkTerrainSnowReliefDirector.mjs|scripts/checkTerrainSnowReliefBrowser.mjs|.github/workflows/buzul-muhafizi-snow-relief-v4.yml) ;;
+              *) echo "unexpected path: $path"; exit 1;;
+            esac
+          done
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install runtime dependency
+        run: npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
+      - name: Syntax
+        run: |
+          node --check src/3d/world/terrainSnowReliefDirector.js
+          node --check scripts/checkTerrainSnowReliefDirector.mjs
+          node --check scripts/checkTerrainSnowReliefBrowser.mjs
+      - name: Deterministic field and relief contract
+        run: node scripts/checkTerrainSnowReliefDirector.mjs
+      - name: Install Playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Shipped runtime browser probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkTerrainSnowReliefBrowser.mjs
+      - name: Final freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          MAIN=$(git rev-parse origin/main)
+          test "$(git merge-base HEAD "$MAIN")" = "$MAIN"
+          git diff --check "$MAIN...HEAD"
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buzul-muhafizi-snow-relief-v4-evidence
+          if-no-files-found: warn
+          path: artifacts/terrain-snow-relief/
