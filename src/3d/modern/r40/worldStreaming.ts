@@ -42,7 +42,7 @@ export class WorldStreamingOrchestrator {
     this.limits = Object.freeze({
       maxRequestsPerTick: 64,
       maxDistance: 1200,
-      placeholderDistance: 120,
+      placeholderDistance: 90,
       ...limits,
     });
   }
