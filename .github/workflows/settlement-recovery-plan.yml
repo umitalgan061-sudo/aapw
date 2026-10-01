@@ -1,0 +1,37 @@
+name: Settlement Recovery Plan
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementRecoveryPlan.js'
+      - 'scripts/checkSettlementRecoveryPlan.mjs'
+      - '.github/workflows/settlement-recovery-plan.yml'
+  push:
+    branches:
+      - 'agent/gunbatimi-settlement-recovery-plan-20260914'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact-main ancestry
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Syntax
+        run: node --check src/3d/gameplay/settlementRecoveryPlan.js
+      - name: Regression
+        run: node scripts/checkSettlementRecoveryPlan.mjs
+      - name: Determinism
+        run: |
+          node scripts/checkSettlementRecoveryPlan.mjs > /tmp/recovery-a.txt
+          node scripts/checkSettlementRecoveryPlan.mjs > /tmp/recovery-b.txt
+          diff -u /tmp/recovery-a.txt /tmp/recovery-b.txt
+      - name: Runtime boundary and diff budget
+        run: |
+          ! grep -R "EditorMaterialStudio\|document\.\|window\." src/3d/gameplay/settlementRecoveryPlan.js
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
