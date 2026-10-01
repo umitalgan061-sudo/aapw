@@ -1,0 +1,25 @@
+name: RPG Settlement Slice
+on:
+  pull_request:
+    paths:
+      - 'gameplay/rpgSettlementSlice.mjs'
+      - 'scripts/checkRpgSettlementSlice.mjs'
+      - '.github/workflows/rpg-settlement-slice.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'gameplay/rpgSettlementSlice.mjs'
+      - 'scripts/checkRpgSettlementSlice.mjs'
+      - '.github/workflows/rpg-settlement-slice.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check gameplay/rpgSettlementSlice.mjs
+      - run: node --check scripts/checkRpgSettlementSlice.mjs
+      - run: node scripts/checkRpgSettlementSlice.mjs
