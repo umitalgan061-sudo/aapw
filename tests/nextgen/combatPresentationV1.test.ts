@@ -8,6 +8,8 @@ import { createCombatPresentationTimeline, timelineEnvelope, validateCombatPrese
 import { createCombatPresentationTelemetry } from '../../src/3d/nextgen/combatPresentationTelemetryV1';
 import { applyCombatPresentationQuality, resolveCombatPresentationQuality, tuneCombatPresentationCue } from '../../src/3d/nextgen/combatPresentationQualityV1';
 import { CombatPresentationBus, validateCombatPresentationBusReport } from '../../src/3d/nextgen/combatPresentationBusV1';
+import { resolveCombatSpatialAudio, validateCombatSpatialAudio } from '../../src/3d/nextgen/combatPresentationSpatialAudioV1';
+import { resolveCombatReactionIntent, validateCombatReactionIntent } from '../../src/3d/nextgen/combatPresentationReactionV1';
 import { runCombatPresentationVerticalSlice, validateCombatPresentationScenario } from '../../src/3d/nextgen/combatPresentationScenarioV1';
 import { CombatSimulation, createCombatStats, type CombatEvent, type CombatantState } from '../../src/3d/nextgen/combatSimulation';
 import { vec3, type Vec3 } from '../../src/3d/nextgen/deterministicMath';
@@ -304,5 +306,47 @@ describe('presentation consumer bus', () => {
     expect(deliveries).toEqual(['vfx']);
     expect(validateCombatPresentationBusReport(report)).toBe(true);
     expect(bus.failureLog()[0]).toContain('telemetry-test-failure');
+  });
+});
+
+
+describe('spatial audio and animation reaction', () => {
+  it('derives stable pan, attenuation and occlusion without renderer dependencies', () => {
+    const state = resolveCombatSpatialAudio(
+      vec3(4, 0, 2),
+      { position: vec3(0, 0, 0), forward: vec3(0, 0, 1) },
+      0.25,
+    );
+    expect(validateCombatSpatialAudio(state)).toBe(true);
+    expect(state.distanceMeters).toBeCloseTo(4.472, 3);
+    expect(state.pan).toBeGreaterThan(0);
+    expect(state.volumeMultiplier).toBeLessThan(state.attenuation);
+  });
+
+  it('turns damage and poise pressure into animation-ready recoil intent', () => {
+    const director = new CombatPresentationDirector();
+    const cue = director.ingest([{
+      tick: 9,
+      type: 'stagger',
+      sourceId: combatId(1),
+      targetId: combatId(2),
+      damage: 34,
+      poiseDamage: 22,
+      damageType: 'blunt',
+    }] as never, {
+      states: [],
+    }).cues[0]!;
+    const intent = resolveCombatReactionIntent({
+      cue,
+      targetForward: vec3(0, 0, 1),
+      targetVelocity: vec3(0, 0, 3),
+      targetPoiseRatio: 0.1,
+      targetGrounded: true,
+    });
+    expect(validateCombatReactionIntent(intent)).toBe(true);
+    expect(intent.animationLayer).toBe('stagger');
+    expect(intent.attackCancelRecommended).toBe(true);
+    expect(intent.upperBodyAdditive).toBeGreaterThan(0);
+    expect(intent.footPlantWeight).toBeGreaterThan(0);
   });
 });
