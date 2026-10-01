@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { resolveCombatImpact, serializeCombatImpact } from '../src/3d/gameplay/playerCombatImpactResolution.js';
+
+const base = { attackerFaction: 'player', attack: { kind: 'light', baseDamage: 20, active: true, comboStep: 2 }, weapon: { damageMultiplier: 1.1, poiseMultiplier: 1 }, target: { id: 'enemy-01', faction: 'raider', health: 100, armor: 0, poise: 20 }, contact: { inReach: true, facingValid: true, confidence: 1 }, random: 0.2 };
+const first = resolveCombatImpact(base);
+const second = resolveCombatImpact(base);
+assert.deepEqual(first, second, 'impact resolution must be deterministic');
+assert.equal(first.outcome, 'hit');
+assert(first.appliedDamage > 0);
+assert(first.poiseDamage > 0);
+assert(Object.isFrozen(first));
+assert.equal(serializeCombatImpact(first), serializeCombatImpact(second));
+assert.equal(resolveCombatImpact({ ...base, target: { ...base.target, guard: true, poise: 1000 } }).outcome, 'blocked');
+assert.equal(resolveCombatImpact({ ...base, target: { ...base.target, parry: true } }).outcome, 'parried');
+assert.equal(resolveCombatImpact({ ...base, contact: { inReach: false } }).reason, 'out-of-reach');
+assert.equal(resolveCombatImpact({ ...base, target: { ...base.target, faction: 'player' } }).reason, 'friendly-fire-blocked');
+assert.equal(resolveCombatImpact({ ...base, attack: { kind: 'heavy', active: false } }).reason, 'inactive-attack');
+assert.equal(resolveCombatImpact({ ...base, target: { ...base.target, health: 1 } }).canDefeat, true);
+assert(Number.isFinite(resolveCombatImpact({ attack: { kind: 'heavy', baseDamage: Infinity }, target: { armor: NaN }, contact: { confidence: NaN } }).appliedDamage));
+console.log('player combat impact resolution contract: PASS');

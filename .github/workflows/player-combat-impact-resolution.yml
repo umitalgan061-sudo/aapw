@@ -1,0 +1,19 @@
+name: Player Combat Impact Resolution
+on:
+  pull_request:
+    paths:
+      - src/3d/gameplay/playerCombatImpactResolution.js
+      - scripts/checkPlayerCombatImpactResolution.mjs
+      - .github/workflows/player-combat-impact-resolution.yml
+  workflow_dispatch:
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git merge-base --is-ancestor origin/main HEAD
+      - run: node --check src/3d/gameplay/playerCombatImpactResolution.js
+      - run: node --check scripts/checkPlayerCombatImpactResolution.mjs
+      - run: node scripts/checkPlayerCombatImpactResolution.mjs
