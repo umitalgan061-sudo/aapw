@@ -13,6 +13,8 @@ import { resolveCombatReactionIntent, validateCombatReactionIntent } from '../..
 import { buildCombatPresentationBrowserEnvelope, CombatPresentationBrowserBridge, validateCombatPresentationBrowserEnvelope } from '../../src/3d/nextgen/combatPresentationBrowserBridgeV1';
 import { dispatchCombatHapticPulses, resolveHapticChannel, validateCombatHapticDispatch } from '../../src/3d/nextgen/combatPresentationHapticsV1';
 import { runCombatPresentationVerticalSlice, validateCombatPresentationScenario } from '../../src/3d/nextgen/combatPresentationScenarioV1';
+import { buildCombatPresentationNetworkPacket } from '../../src/3d/nextgen/combatPresentationNetworkV1';
+import type { PlayerInput } from '../../src/3d/nextgen/playerPrediction';
 import { CombatSimulation, createCombatStats, type CombatEvent, type CombatantState } from '../../src/3d/nextgen/combatSimulation';
 import { vec3, type Vec3 } from '../../src/3d/nextgen/deterministicMath';
 
@@ -62,7 +64,7 @@ describe('nextgen combat presentation', () => {
 
   it('deduplicates replayed events and keeps tick ordering monotonic', () => {
     const director = new CombatPresentationDirector();
-    const event = { tick: 10, type: 'hit', sourceId: combatId(1), targetId: combatId(2), attackId: 'light-1', damage: 10, poiseDamage: 4 } as never;
+    const event: CombatEvent = { tick: 10, type: 'hit', sourceId: combatId(1), targetId: combatId(2), attackId: 'light-1', damage: 10, poiseDamage: 4 };
     expect(director.ingest([event], { states: [] }).cues.length).toBe(1);
     expect(director.ingest([event], { states: [] }).cues.length).toBe(0);
     expect(() => director.ingest([{ ...event, tick: 9 }], { states: [] })).toThrow(/monotonic/);
@@ -198,7 +200,7 @@ describe('runtime facade presentation integration', () => {
     runtime.setPresentationDevice('gamepad');
     runtime.setPresentationAccessibility('reduced-motion');
     runtime.setMuted(true);
-    runtime.queuePlayerInput(player, { tick: 0, move: { x: 0, y: 1 }, sprint: false, lookYaw: 0 });
+    const input: PlayerInput = { tick: 0, sequence: 1, move: { x: 0, y: 1 }, sprint: false, jump: false, dodge: false, lookYaw: 0 }; runtime.queuePlayerInput(player, input);
     runtime.startCombatAttack(player, 'light-1');
     for (let i = 0; i < 14; i += 1) await runtime.frame(async () => new Response(new Uint8Array(0), { status: 404 }));
     const result = await runtime.frame(async () => new Response(new Uint8Array(0), { status: 404 }));
@@ -474,7 +476,7 @@ describe('deterministic parry presentation', () => {
     combat.setPose(defender, vec3(0, 0, 1.5), vec3(0, 0, -1));
     combat.setParrying(defender, true);
     combat.startAttack(attacker, 'light-1');
-    let events = [];
+    let events: readonly CombatEvent[] = [];
     for (let i = 0; i < 20 && !events.some((event) => event.type === 'parried'); i += 1) events = [...combat.step()];
     const frame = new CombatPresentationDirector().ingest(events, { states: combat.snapshot(), device: 'gamepad' });
     const cue = frame.cues.find((item) => item.defenseOutcome === 'parried');
