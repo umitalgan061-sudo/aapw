@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SecurityGate, RuntimeStateGraph, SpatialEntityWorld, AssetCatalog, entityId, assetId, tick, commandId, commandReplayKey, validateJsonSerializable } from '../../../src/3d/modern/r40';
+import { SecurityGate, RuntimeStateGraph, SpatialEntityWorld, AssetCatalog, AssetStreamingController, entityId, assetId, tick, commandId, commandReplayKey, validateJsonSerializable } from '../../../src/3d/modern/r40';
 
 describe('R40 adversarial and bounded-failure behavior', () => {
   it('caps object keys', () => {
@@ -42,7 +42,7 @@ describe('R40 adversarial and bounded-failure behavior', () => {
   });
   it('caps asset queue depth', () => {
     const catalog = new AssetCatalog();
-    const loader = new (await import('../../../src/3d/modern/r40')).AssetStreamingController(catalog, { maxQueue: 1 });
+    const loader = new AssetStreamingController(catalog, { maxQueue: 1 });
     const entry = (id: string) => ({ id: assetId(id), uri: 'https://example.com/' + id + '.glb', bytes: 10, digest: 'abcdef12', priority: 1, optional: true, contentType: 'model' as const });
     catalog.register(entry('a')); catalog.register(entry('b'));
     expect(loader.request({ id: assetId('a'), distance: 1, priorityBias: 0, hardDeadlineTick: null, allowPlaceholder: true }, tick(1))).toBe(true);
