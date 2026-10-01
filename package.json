@@ -175,7 +175,11 @@
     "verify:production-runtime-r36": "node scripts/checkProductionRuntimeR36.mjs",
     "typecheck:production-runtime-r36": "tsc -p tsconfig.production-runtime-r36.json --noEmit",
     "test:production-runtime-r36": "npm test -- tests/modern/productionRuntimeSupervisorR36.test.ts",
-    "check:production-runtime-r36": "npm run verify:production-runtime-r36 && npm run typecheck:production-runtime-r36 && npm run test:production-runtime-r36"
+    "check:production-runtime-r36": "npm run verify:production-runtime-r36 && npm run typecheck:production-runtime-r36 && npm run test:production-runtime-r36",
+    "typecheck:nextgen-combat-presentation": "tsc -p tsconfig.nextgen-combat-presentation-v1.json --noEmit",
+    "test:nextgen-combat-presentation": "vitest run tests/nextgen/combatPresentationV1.test.ts tests/nextgen/combatPresentationContractMatrixV1.test.ts",
+    "verify:nextgen-combat-presentation": "node scripts/checkNextGenCombatPresentationV1.mjs",
+    "check:nextgen-combat-presentation": "npm run verify:nextgen-combat-presentation && npm run typecheck:nextgen-combat-presentation && npm run test:nextgen-combat-presentation"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

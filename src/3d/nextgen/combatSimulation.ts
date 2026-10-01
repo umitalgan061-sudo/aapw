@@ -48,16 +48,21 @@ export interface CombatantState {
   hitstopTicks: number;
   stunTicks: number;
   lastHitBy: CombatantId | null;
+  counterWindowTicks: number;
+  counterAttack: boolean;
 }
 
 export interface CombatEvent {
   tick: number;
-  type: 'attack-start' | 'hit' | 'blocked' | 'critical' | 'stagger' | 'death' | 'dodge';
+  type: 'attack-start' | 'hit' | 'blocked' | 'parried' | 'critical' | 'stagger' | 'death' | 'dodge';
   sourceId: CombatantId;
   targetId?: CombatantId;
   attackId?: string;
   damage?: number;
   poiseDamage?: number;
+  damageType?: DamageType;
+  counterWindowTicks?: number;
+  counterAttack?: boolean;
 }
 
 export interface CombatConfig {
@@ -66,6 +71,7 @@ export interface CombatConfig {
   poiseFloor: number;
   friendlyFire: boolean;
   maxCombatants: number;
+  counterDamageMultiplier: number;
 }
 
 const DEFAULT_CONFIG: CombatConfig = {
@@ -74,6 +80,7 @@ const DEFAULT_CONFIG: CombatConfig = {
   poiseFloor: 0,
   friendlyFire: false,
   maxCombatants: 512,
+  counterDamageMultiplier: 1.35,
 };
 
 const DEFAULT_ATTACKS: AttackDefinition[] = [
@@ -91,6 +98,7 @@ export class CombatSimulation {
   #states = new Map<CombatantId, CombatantState>();
   #stats = new Map<CombatantId, CombatStats>();
   #blocked = new Set<CombatantId>();
+  #parrying = new Set<CombatantId>();
   #events: CombatEvent[] = [];
   #rng: DeterministicRng;
   #tick = 0;
@@ -103,20 +111,21 @@ export class CombatSimulation {
     if (this.#states.has(id)) throw new Error(`combatant ${id} already exists`);
     const normalized: CombatStats = { maxHealth: stats.maxHealth, maxStamina: stats.maxStamina, staminaRegen: stats.staminaRegen, armor: { ...stats.armor }, poise: stats.poise, poiseRecovery: stats.poiseRecovery, moveSpeedMultiplier: stats.moveSpeedMultiplier > 0 ? stats.moveSpeedMultiplier : 1 };
     this.#stats.set(id, normalized);
-    this.#states.set(id, { id, position: { ...position }, forward: { x: 0, y: 0, z: 1 }, health: normalized.maxHealth, stamina: normalized.maxStamina, poise: normalized.poise, phase: 'idle', phaseTicksRemaining: 0, currentAttack: null, comboStep: 0, invulnerableTicks: 0, hitstopTicks: 0, stunTicks: 0, lastHitBy: null });
+    this.#states.set(id, { id, position: { ...position }, forward: { x: 0, y: 0, z: 1 }, health: normalized.maxHealth, stamina: normalized.maxStamina, poise: normalized.poise, phase: 'idle', phaseTicksRemaining: 0, currentAttack: null, comboStep: 0, invulnerableTicks: 0, hitstopTicks: 0, stunTicks: 0, lastHitBy: null, counterWindowTicks: 0, counterAttack: false });
   }
 
-  remove(id: CombatantId): boolean { const removedState = this.#states.delete(id); const removedStats = this.#stats.delete(id); this.#blocked.delete(id); return removedState || removedStats; }
+  remove(id: CombatantId): boolean { const removedState = this.#states.delete(id); const removedStats = this.#stats.delete(id); this.#blocked.delete(id); this.#parrying.delete(id); return removedState || removedStats; }
   getState(id: CombatantId): CombatantState | undefined { const state = this.#states.get(id); return state ? cloneState(state) : undefined; }
   setPose(id: CombatantId, position: Vec3, forward: Vec3): void { const state = this.require(id); state.position = { ...position }; const direction = normalize3(forward); state.forward = direction.x === 0 && direction.y === 0 && direction.z === 0 ? { x: 0, y: 0, z: 1 } : direction; }
   setBlocking(id: CombatantId, blocking: boolean): void { this.require(id); if (blocking) this.#blocked.add(id); else this.#blocked.delete(id); }
+  setParrying(id: CombatantId, parrying: boolean): void { this.require(id); if (parrying) this.#parrying.add(id); else this.#parrying.delete(id); }
 
   startAttack(id: CombatantId, attackId: string): boolean {
     const state = this.require(id); const definition = this.attacks.get(attackId);
     if (!definition || state.phase === 'dead' || state.phase === 'stunned') return false;
     if (state.stamina < definition.staminaCost || state.hitstopTicks > 0) return false;
-    state.stamina -= definition.staminaCost; state.phase = 'startup'; state.phaseTicksRemaining = definition.startupTicks; state.currentAttack = attackId;
-    this.#events.push({ tick: this.#tick, type: 'attack-start', sourceId: id, attackId }); return true;
+    state.stamina -= definition.staminaCost; state.counterAttack = state.counterWindowTicks > 0; state.counterWindowTicks = 0; state.phase = 'startup'; state.phaseTicksRemaining = definition.startupTicks; state.currentAttack = attackId;
+    this.#events.push({ tick: this.#tick, type: 'attack-start', sourceId: id, attackId, damageType: definition.damageType }); return true;
   }
 
   dodge(id: CombatantId, direction: Vec3, ticks = 10): boolean {
@@ -136,7 +145,7 @@ export class CombatSimulation {
   snapshot(): CombatantState[] { return [...this.#states.values()].sort((a, b) => a.id - b.id).map(cloneState); }
 
   private updateTimers(state: CombatantState): void {
-    if (state.invulnerableTicks > 0) state.invulnerableTicks -= 1; if (state.hitstopTicks > 0) state.hitstopTicks -= 1;
+    if (state.invulnerableTicks > 0) state.invulnerableTicks -= 1; if (state.hitstopTicks > 0) state.hitstopTicks -= 1; if (state.counterWindowTicks > 0) state.counterWindowTicks -= 1;
     if (state.stunTicks > 0) { state.stunTicks -= 1; if (state.stunTicks === 0 && state.phase === 'stunned') state.phase = 'idle'; return; }
     if (state.phaseTicksRemaining > 0) state.phaseTicksRemaining -= 1; if (state.phaseTicksRemaining > 0 || !state.currentAttack) return;
     const attack = this.attacks.get(state.currentAttack); if (!attack) { state.currentAttack = null; state.phase = 'idle'; return; }
@@ -155,15 +164,18 @@ export class CombatSimulation {
   }
 
   private applyHit(attacker: CombatantState, target: CombatantState, attack: AttackDefinition): void {
-    const stats = this.#stats.get(target.id); if (!stats) return; const blocked = this.#blocked.has(target.id); const armor = Math.max(0, stats.armor[attack.damageType] ?? 0);
-    const mitigation = clamp(armor / (armor + 100), 0, 0.85); const critical = this.#rng.nextFloat() < attack.criticalChance;
-    let damage = attack.damage * (critical ? attack.criticalMultiplier : 1) * (1 - mitigation); if (blocked) damage *= this.config.blockDamageMultiplier; damage = Math.max(1, damage);
+    const stats = this.#stats.get(target.id); if (!stats) return; const parried = this.#parrying.has(target.id); const blocked = !parried && this.#blocked.has(target.id); const armor = Math.max(0, stats.armor[attack.damageType] ?? 0);
+    const mitigation = clamp(armor / (armor + 100), 0, 0.85);
+    if (parried) { target.counterAttack = false; target.hitstopTicks = Math.max(target.hitstopTicks, 3); attacker.hitstopTicks = Math.max(attacker.hitstopTicks, 4); attacker.phase = 'stunned'; attacker.stunTicks = Math.max(attacker.stunTicks, Math.max(1, attack.staggerTicks)); attacker.currentAttack = null; attacker.phaseTicksRemaining = 0; target.counterWindowTicks = 8; this.#events.push({ tick: this.#tick, type: 'parried', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage: 0, poiseDamage: 0, damageType: attack.damageType, counterWindowTicks: target.counterWindowTicks }); return; }
+    const critical = this.#rng.nextFloat() < attack.criticalChance;
+    let damage = attack.damage * (critical ? attack.criticalMultiplier : 1) * (1 - mitigation); if (attacker.counterAttack) damage *= this.config.counterDamageMultiplier; if (blocked) damage *= this.config.blockDamageMultiplier; damage = Math.max(1, damage);
     target.health = Math.max(0, target.health - damage); target.lastHitBy = attacker.id; const poiseDamage = attack.poiseDamage * (blocked ? 0.35 : 1); target.poise = Math.max(this.config.poiseFloor, target.poise - poiseDamage);
     attacker.hitstopTicks = Math.max(attacker.hitstopTicks, critical ? 3 : 2); target.hitstopTicks = Math.max(target.hitstopTicks, 2);
-    this.#events.push({ tick: this.#tick, type: blocked ? 'blocked' : 'hit', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage, poiseDamage });
-    if (critical) this.#events.push({ tick: this.#tick, type: 'critical', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage });
+    this.#events.push({ tick: this.#tick, type: blocked ? 'blocked' : 'hit', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage, poiseDamage, damageType: attack.damageType, counterAttack: attacker.counterAttack });
+    if (critical) this.#events.push({ tick: this.#tick, type: 'critical', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage, damageType: attack.damageType, counterAttack: attacker.counterAttack });
+    attacker.counterAttack = false;
     if (target.poise <= this.config.poiseFloor && target.health > 0 && !blocked) this.applyStagger(target, attack.staggerTicks);
-    if (target.health <= 0) { target.phase = 'dead'; target.currentAttack = null; this.#events.push({ tick: this.#tick, type: 'death', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage }); }
+    if (target.health <= 0) { target.phase = 'dead'; target.currentAttack = null; this.#events.push({ tick: this.#tick, type: 'death', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage, damageType: attack.damageType }); }
   }
 
   private applyStagger(target: CombatantState, ticks: number): void { target.phase = 'stunned'; target.stunTicks = Math.max(1, ticks); target.currentAttack = null; target.phaseTicksRemaining = 0; this.#events.push({ tick: this.#tick, type: 'stagger', sourceId: target.lastHitBy ?? target.id, targetId: target.id }); }
