@@ -5,6 +5,8 @@ import { compareCombatPresentationRecordings, replayCombatPresentation, summariz
 import { buildCombatFeedbackSummary, eventToSemanticHint, projectCombatAccessibility, validateCombatAccessibilitySignal } from '../../src/3d/nextgen/combatPresentationAccessibilityV1';
 import { getCombatDamageTypeProfile, resolveCombatSurfaceReaction, validateCombatDamageTypeProfiles } from '../../src/3d/nextgen/combatPresentationDamageTypeV1';
 import { createCombatPresentationTimeline, timelineEnvelope, validateCombatPresentationTimeline } from '../../src/3d/nextgen/combatPresentationTimelineV1';
+import { createCombatPresentationTelemetry } from '../../src/3d/nextgen/combatPresentationTelemetryV1';
+import { applyCombatPresentationQuality, resolveCombatPresentationQuality, tuneCombatPresentationCue } from '../../src/3d/nextgen/combatPresentationQualityV1';
 import { runCombatPresentationVerticalSlice, validateCombatPresentationScenario } from '../../src/3d/nextgen/combatPresentationScenarioV1';
 import { CombatSimulation, createCombatStats, type CombatEvent, type CombatantState } from '../../src/3d/nextgen/combatSimulation';
 import { vec3, type Vec3 } from '../../src/3d/nextgen/deterministicMath';
@@ -232,5 +234,42 @@ describe('combat presentation vertical slice', () => {
     expect(report.eventTypes.dodge).toBeGreaterThan(0);
     expect(Object.keys(report.damageTypes).length).toBeGreaterThan(0);
     expect(report.droppedCues).toBe(0);
+  });
+});
+
+
+describe('adaptive presentation quality and telemetry', () => {
+  it('drops optional presentation load under pressure while preserving critical cues', () => {
+    const decision = resolveCombatPresentationQuality({
+      frameP95Ms: 25,
+      pendingQueue: 120,
+      droppedCues: 8,
+      reducedMotion: false,
+      device: 'gamepad',
+    });
+    expect(decision.quality).toBe('reduced');
+    expect(decision.preserveCritical).toBe(true);
+    expect(decision.vfxScale).toBeLessThan(1);
+
+    const director = new CombatPresentationDirector();
+    const cue = director.ingest([{ tick: 1, type: 'critical', sourceId: combatId(1), targetId: combatId(2), damage: 50, damageType: 'slash' }] as never, { states: [] }).cues[0]!;
+    const tuned = tuneCombatPresentationCue(cue, decision);
+    expect(tuned.vfx.intensity).toBeGreaterThanOrEqual(0.9 * cue.intensity);
+    expect(tuned.camera.amplitude).toBeLessThanOrEqual(cue.camera.amplitude);
+    expect(applyCombatPresentationQuality(decision, cue).preserved).toBe(true);
+  });
+
+  it('reports healthy presentation telemetry without drops', () => {
+    const telemetry = createCombatPresentationTelemetry(12);
+    const director = new CombatPresentationDirector();
+    for (let tick = 1; tick <= 12; tick += 1) {
+      const frame = director.ingest([{ tick, type: 'hit', sourceId: combatId(1), targetId: combatId(2), damage: 10 }] as never, { states: [] });
+      telemetry.record(frame, [], tick % 2);
+    }
+    const summary = telemetry.summary();
+    expect(summary.samples).toBe(12);
+    expect(summary.totalDropped).toBe(0);
+    expect(summary.health).toBe('healthy');
+    expect(summary.peakPendingQueue).toBeGreaterThan(0);
   });
 });
