@@ -1,0 +1,41 @@
+name: buzul-muhafizi-environment-visual-adoption-v44
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentVisualAdoptionV44.js'
+      - 'scripts/checkEnvironmentVisualAdoptionV44.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-visual-adoption-v44.yml'
+
+jobs:
+  environment-visual-adoption-v44:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: exact-main ancestry
+        run: |
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: focused scope and line budget
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          test "$(printf '%s\n' "$files" | sed '/^$/d' | wc -l)" -eq 3
+          ! printf '%s\n' "$files" | grep -Ev '^(src/3d/world/environmentVisualAdoptionV44.js|scripts/checkEnvironmentVisualAdoptionV44.mjs|.github/workflows/buzul-muhafizi-environment-visual-adoption-v44.yml)$'
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+      - name: syntax
+        run: |
+          node --check src/3d/world/environmentVisualAdoptionV44.js
+          node --check scripts/checkEnvironmentVisualAdoptionV44.mjs
+      - name: executable regression
+        run: node scripts/checkEnvironmentVisualAdoptionV44.mjs
+      - name: boundary guard
+        run: |
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline\|terrain.js\|water.js\|sceneManager.js\|naturalGeology.js\|rivers.js\|roads.js" src/3d/world/environmentVisualAdoptionV44.js scripts/checkEnvironmentVisualAdoptionV44.mjs
+      - name: diff hygiene
+        run: |
+          test "$(git diff --check origin/main...HEAD | wc -l)" -eq 0
