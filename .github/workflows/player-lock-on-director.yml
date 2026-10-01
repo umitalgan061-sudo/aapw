@@ -1,0 +1,22 @@
+name: player-lock-on-director
+on:
+  push:
+    branches: [codex/kizil-ufuk-lock-on-director-20260910]
+  pull_request:
+    paths:
+      - src/3d/gameplay/playerLockOnDirector.js
+      - scripts/checkPlayerLockOnDirector.mjs
+      - .github/workflows/player-lock-on-director.yml
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check src/3d/gameplay/playerLockOnDirector.js
+      - run: node --check scripts/checkPlayerLockOnDirector.mjs
+      - run: node scripts/checkPlayerLockOnDirector.mjs
+      - run: git diff --check
+      - run: test $(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d}') -le 3000
