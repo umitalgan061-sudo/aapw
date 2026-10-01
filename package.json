@@ -179,7 +179,11 @@
     "verify:r40": "node --experimental-strip-types scripts/checkR40Architecture.ts",
     "typecheck:r40": "tsc -p tsconfig.r40.json --noEmit",
     "test:r40": "vitest run tests/modern/r40 --passWithNoTests",
-    "check:r40": "npm run verify:r40 && npm run typecheck:r40 && npm run test:r40"
+    "check:r40": "npm run verify:r40 && npm run typecheck:r40 && npm run test:r40",
+    "verify:runtime-r37": "node scripts/checkRuntimeR37.mjs",
+    "typecheck:runtime-r37": "tsc -p tsconfig.runtime-r37.json --noEmit",
+    "test:runtime-r37": "vitest run tests/modern/r37 --passWithNoTests",
+    "check:runtime-r37": "npm run verify:runtime-r37 && npm run typecheck:runtime-r37 && npm run test:runtime-r37"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

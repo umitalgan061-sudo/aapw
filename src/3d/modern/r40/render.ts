@@ -68,7 +68,7 @@ export class RenderQualityGovernor {
       budget.drawCalls / Math.max(1, this.budget.drawCalls), budget.triangles / Math.max(1, this.budget.triangles), budget.memoryBytes / Math.max(1, this.budget.memoryBytes));
     if (pressure > 1.15) { this.#bad += 1; this.#good = 0; } else if (pressure < 0.72) { this.#good += 1; this.#bad = 0; } else { this.#good = 0; this.#bad = 0; }
     let tier = this.#quality.tier; let reason: RenderDecision['reason'] = 'steady';
-    if (pressure > 1.8) { tier = Math.max(0, tier - 2) as 0 | 1 | 2 | 3 | 4; reason = 'panic'; }
+    if (pressure > 2.5) { tier = Math.max(0, tier - 2) as 0 | 1 | 2 | 3 | 4; reason = 'panic'; }
     else if (this.#bad >= 8) { tier = Math.max(0, tier - 1) as 0 | 1 | 2 | 3 | 4; this.#bad = 0; reason = 'downgrade'; }
     else if (this.#good >= 60) { tier = Math.min(4, tier + 1) as 0 | 1 | 2 | 3 | 4; this.#good = 0; reason = 'upgrade'; }
     this.#quality = qualityTier(tier); return Object.freeze({ quality: this.#quality, budget, reason, pressure: clamp(pressure, 0, 4) });

@@ -1,0 +1,41 @@
+name: runtime-r37
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/strict/r37/**'
+      - 'tests/modern/r37/**'
+      - 'scripts/checkRuntimeR37.mjs'
+      - 'tsconfig.runtime-r37.json'
+      - 'package.json'
+      - '.github/workflows/runtime-r37.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/strict/r37/**'
+      - 'tests/modern/r37/**'
+      - 'scripts/checkRuntimeR37.mjs'
+      - 'tsconfig.runtime-r37.json'
+      - 'package.json'
+      - '.github/workflows/runtime-r37.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-r37-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  strict:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node scripts/checkRuntimeR37.mjs
+      - run: npx tsc -p tsconfig.runtime-r37.json --noEmit
+      - run: npx vitest run tests/modern/r37 --passWithNoTests
