@@ -91,3 +91,4 @@ export * from './combatPresentationQualityV1';
 export * from './combatPresentationBusV1';
 export * from './combatPresentationSpatialAudioV1';
 export * from './combatPresentationReactionV1';
+export * from './combatPresentationContractV1';
