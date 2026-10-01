@@ -1,0 +1,40 @@
+name: Settlement interaction telemetry
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementInteractionTelemetry.js'
+      - 'scripts/checkSettlementInteractionTelemetry.mjs'
+      - '.github/workflows/settlement-interaction-telemetry.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main ancestry
+        run: git merge-base --is-ancestor origin/main "$GITHUB_SHA"
+      - name: Focused scope and diff budget
+        shell: bash
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          expected=$'.github/workflows/settlement-interaction-telemetry.yml\nscripts/checkSettlementInteractionTelemetry.mjs\nsrc/3d/gameplay/settlementInteractionTelemetry.js'
+          test "$files" = "$expected"
+          total=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$total" -le 3000
+      - name: Syntax and regression
+        run: |
+          node --check src/3d/gameplay/settlementInteractionTelemetry.js
+          node --check scripts/checkSettlementInteractionTelemetry.mjs
+          node scripts/checkSettlementInteractionTelemetry.mjs
+      - name: Shared material/editor boundary
+        shell: bash
+        run: |
+          ! grep -RInE 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline|three/examples/jsm|document\.|window\.' src/3d/gameplay/settlementInteractionTelemetry.js scripts/checkSettlementInteractionTelemetry.mjs
