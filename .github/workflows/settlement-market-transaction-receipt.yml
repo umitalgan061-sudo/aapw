@@ -1,0 +1,19 @@
+name: settlement-market-transaction-receipt
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementMarketTransactionReceipt.ts'
+      - 'scripts/checkSettlementMarketTransactionReceipt.mjs'
+      - '.github/workflows/settlement-market-transaction-receipt.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --experimental-strip-types scripts/checkSettlementMarketTransactionReceipt.mjs
+      - run: node --check scripts/checkSettlementMarketTransactionReceipt.mjs
