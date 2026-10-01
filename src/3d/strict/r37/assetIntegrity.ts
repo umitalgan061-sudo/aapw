@@ -59,16 +59,16 @@ export class AssetIntegrityR37 {
     try {
       url = new URL(manifest.url, 'https://local.invalid');
     } catch {
-      return this.reject(id, 'invalid-url', manifest);
+      return this.#reject(id, 'invalid-url', manifest);
     }
-    if (!this.config.allowedProtocols.includes(url.protocol)) return this.reject(id, 'protocol-not-allowed', manifest);
-    if (url.username || url.password) return this.reject(id, 'credentials-in-url', manifest);
+    if (!this.config.allowedProtocols.includes(url.protocol)) return this.#reject(id, 'protocol-not-allowed', manifest);
+    if (url.username || url.password) return this.#reject(id, 'credentials-in-url', manifest);
     const byteLength = Math.max(0, Math.trunc(finite(manifest.byteLength)));
-    if (byteLength > this.config.maxBytes) return this.reject(id, 'asset-too-large', manifest);
+    if (byteLength > this.config.maxBytes) return this.#reject(id, 'asset-too-large', manifest);
     const contentType = manifest.contentType ? String(manifest.contentType).toLowerCase().slice(0, 128) : undefined;
-    if (contentType && !this.config.allowedTypes.includes(contentType)) return this.reject(id, 'content-type-not-allowed', manifest);
+    if (contentType && !this.config.allowedTypes.includes(contentType)) return this.#reject(id, 'content-type-not-allowed', manifest);
     const sha256 = manifest.sha256 ? String(manifest.sha256).toLowerCase().slice(0, 64) : undefined;
-    if (sha256 && !/^[0-9a-f]{64}$/.test(sha256)) return this.reject(id, 'invalid-sha256', manifest);
+    if (sha256 && !/^[0-9a-f]{64}$/.test(sha256)) return this.#reject(id, 'invalid-sha256', manifest);
     const normalized = Object.freeze({
       id,
       url: manifest.url.slice(0, 2048),
