@@ -1,0 +1,40 @@
+name: Settlement Quest Progress Model
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementQuestProgressModel.js'
+      - 'src/3d/gameplay/settlementCampaignQuestChains.js'
+      - 'scripts/checkSettlementQuestProgressModel.mjs'
+      - '.github/workflows/settlement-quest-progress-model.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementQuestProgressModel.js'
+      - 'scripts/checkSettlementQuestProgressModel.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/settlementQuestProgressModel.js
+          node --check scripts/checkSettlementQuestProgressModel.mjs
+      - name: Executable regression
+        run: node scripts/checkSettlementQuestProgressModel.mjs
+      - name: Runtime/editor boundary
+        run: |
+          ! grep -n "EditorMaterialStudio\\|document\\.\\|window\\." src/3d/gameplay/settlementQuestProgressModel.js
+      - name: Diff budget
+        run: |
+          test "$(git diff --numstat HEAD^ HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
