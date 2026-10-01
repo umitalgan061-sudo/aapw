@@ -1,0 +1,21 @@
+name: Settlement Service Travel Plan
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/settlementServiceTravelPlan.ts'
+      - 'tests/modern/settlementServiceTravelPlan.test.ts'
+      - '.github/workflows/settlement-service-travel-plan.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run tests/modern/settlementServiceTravelPlan.test.ts
+      - run: npx tsc --noEmit
