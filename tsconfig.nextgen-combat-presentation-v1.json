@@ -14,6 +14,7 @@
     "tests/nextgen/combatPresentationV1.test.ts",
     "src/3d/nextgen/combatPresentationDamageTypeV1.ts",
     "src/3d/nextgen/combatPresentationTimelineV1.ts",
-    "src/3d/nextgen/combatPresentationScenarioV1.ts"
+    "src/3d/nextgen/combatPresentationScenarioV1.ts",
+    "src/3d/nextgen/combatPresentationBusV1.ts"
   ]
 }
