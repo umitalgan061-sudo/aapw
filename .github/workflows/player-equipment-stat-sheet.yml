@@ -1,0 +1,43 @@
+name: player equipment stat sheet
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentStatSheet.js'
+      - 'scripts/checkPlayerEquipmentStatSheet.mjs'
+      - '.github/workflows/player-equipment-stat-sheet.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact-main ancestry and focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor origin/main HEAD
+          files=$(git diff --name-only origin/main...HEAD)
+          test "$(printf '%s\n' "$files" | wc -l | tr -d ' ')" -eq 3
+          test "$(printf '%s\n' "$files" | grep -c '^src/3d/gameplay/playerEquipmentStatSheet.js$')" -eq 1
+          test "$(printf '%s\n' "$files" | grep -c '^scripts/checkPlayerEquipmentStatSheet.mjs$')" -eq 1
+          test "$(printf '%s\n' "$files" | grep -c '^.github/workflows/player-equipment-stat-sheet.yml$')" -eq 1
+          additions=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$additions" -le 3000
+      - name: Syntax and runtime contract
+        run: |
+          node --check src/3d/gameplay/playerEquipmentStatSheet.js
+          node --check scripts/checkPlayerEquipmentStatSheet.mjs
+          node scripts/checkPlayerEquipmentStatSheet.mjs
+      - name: Shared boundary guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio\\|from .*MaterialAssignmentCore\\|from .*WorldAssetPlacementPipeline" src/3d/gameplay/playerEquipmentStatSheet.js scripts/checkPlayerEquipmentStatSheet.mjs
+      - name: Diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! git diff --check origin/main...HEAD
