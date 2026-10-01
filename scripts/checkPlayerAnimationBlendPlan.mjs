@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { buildPlayerAnimationBlendPlan, serializePlayerAnimationBlendPlan } from '../src/3d/gameplay/playerAnimationBlendPlan.js';
+import { resolvePlayerEquipmentCombatProfile } from '../src/3d/gameplay/playerEquipmentCombatProfile.js';
+
+const profile = resolvePlayerEquipmentCombatProfile({ mainHand: { id: 'longsword' }, chest: { id: 'leather' } });
+const input = { movementState: 'attack-heavy', attackKind: 'heavy', comboStep: 2, speedMps: 2, grounded: true };
+const a = buildPlayerAnimationBlendPlan(profile, input, { rootMotion: true });
+const b = buildPlayerAnimationBlendPlan(profile, input, { rootMotion: true });
+assert.deepEqual(a, b);
+assert.equal(a.action, 'idle');
+assert.equal(a.locomotionLayer, 'attack');
+assert.equal(a.rootMotion, true);
+assert.ok(a.weights.combat > a.weights.locomotion);
+assert.ok(a.crossFadeSeconds >= 0.03 && a.crossFadeSeconds <= 0.4);
+assert.equal(serializePlayerAnimationBlendPlan(a), serializePlayerAnimationBlendPlan(b));
+const malformed = buildPlayerAnimationBlendPlan(profile, { movementState: 'guard', attackKind: 'unknown', comboStep: 99, speedMps: 'bad' });
+assert.equal(malformed.comboStep, 3);
+assert.equal(malformed.grounded, true);
+assert.ok(Number.isFinite(malformed.timeScale));
+console.log('player animation blend plan contract: ok');
