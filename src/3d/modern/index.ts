@@ -112,3 +112,4 @@ export * from './r28/index.ts';
 export * from './r29/index.ts';
 
 export * from '../strict/r31/indexR31.ts';
+export * from './gameplay/index.ts';
