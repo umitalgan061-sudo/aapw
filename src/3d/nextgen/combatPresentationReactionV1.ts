@@ -1,9 +1,10 @@
 /** Animation-ready impact reaction intent derived from combat presentation cues. */
 import type { CombatPresentationCue } from './combatPresentationV1';
+type CombatReactionCue = Pick<CombatPresentationCue, 'id' | 'semantic' | 'intensity' | 'poiseDamage' | 'direction' | 'damageType'>;
 import { getCombatDamageTypeProfile } from './combatPresentationDamageTypeV1';
 import { normalize3, type Vec3 } from './deterministicMath';
 
-export interface CombatReactionInput { readonly cue: CombatPresentationCue; readonly targetForward?: Vec3; readonly targetVelocity?: Vec3; readonly targetPoiseRatio?: number; readonly targetGrounded?: boolean; }
+export interface CombatReactionInput { readonly cue: CombatReactionCue; readonly targetForward?: Vec3; readonly targetVelocity?: Vec3; readonly targetPoiseRatio?: number; readonly targetGrounded?: boolean; }
 export interface CombatReactionIntent { readonly cueId:string; readonly intensity:number; readonly recoilMeters:number; readonly recoilDirection:Readonly<Vec3>; readonly upperBodyAdditive:number; readonly lowerBodyStability:number; readonly pelvisCorrectionWeight:number; readonly footPlantWeight:number; readonly staggerLikelihood:number; readonly attackCancelRecommended:boolean; readonly animationLayer:'impact'|'stagger'|'death'|'dodge'; readonly damageFamily:string; readonly materialResponse:string; }
 
 const clamp=(v:number,min=0,max=1)=>Math.max(min,Math.min(max,Number.isFinite(v)?v:min));
