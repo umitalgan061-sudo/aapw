@@ -1,0 +1,45 @@
+name: Settlement Runtime Disposal
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementCampaignRuntime.js'
+      - 'scripts/checkSettlementCampaignRuntimeDisposal.mjs'
+      - '.github/workflows/settlement-runtime-disposal.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementCampaignRuntime.js'
+      - 'scripts/checkSettlementCampaignRuntimeDisposal.mjs'
+      - '.github/workflows/settlement-runtime-disposal.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: node --check scripts/checkSettlementCampaignRuntimeDisposal.mjs
+      - name: Execute disposal regression
+        run: node scripts/checkSettlementCampaignRuntimeDisposal.mjs
+      - name: Enforce focused additive scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(git diff --name-only "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}")
+          allowed=$'src/3d/gameplay/settlementCampaignRuntime.js\nscripts/checkSettlementCampaignRuntimeDisposal.mjs\n.github/workflows/settlement-runtime-disposal.yml'
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            grep -Fxq "$file" <<< "$allowed" || { echo "Unexpected changed file: $file"; exit 1; }
+          done <<< "$files"
+          additions=$(git diff --numstat "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          [ "$additions" -le 3000 ] || { echo "Diff budget exceeded: $additions"; exit 1; }
+      - name: Runtime boundary guard
+        run: |
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" scripts/checkSettlementCampaignRuntimeDisposal.mjs
