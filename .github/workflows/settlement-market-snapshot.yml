@@ -1,0 +1,23 @@
+name: Settlement Market Snapshot
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementMarketSnapshot.ts'
+      - 'scripts/checkSettlementMarketSnapshot.mjs'
+      - '.github/workflows/settlement-market-snapshot.yml'
+  push:
+    branches:
+      - 'agent/gunbatimi-settlement-market-snapshot-r23-20260924'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --experimental-strip-types scripts/checkSettlementMarketSnapshot.mjs
+      - run: node --check scripts/checkSettlementMarketSnapshot.mjs
+      - run: node --check src/3d/gameplay/settlementMarketSnapshot.ts
