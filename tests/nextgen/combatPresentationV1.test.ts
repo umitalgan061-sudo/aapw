@@ -3,7 +3,7 @@ import { CombatPresentationDirector, buildCombatPresentationFrame, validateComba
 import { CombatPresentationQueue, validateCombatPresentationDispatch } from '../../src/3d/nextgen/combatPresentationQueueV1';
 import { compareCombatPresentationRecordings, replayCombatPresentation, summarizeCombatPresentationRecording } from '../../src/3d/nextgen/combatPresentationReplayV1';
 import { buildCombatFeedbackSummary, eventToSemanticHint, projectCombatAccessibility, validateCombatAccessibilitySignal } from '../../src/3d/nextgen/combatPresentationAccessibilityV1';
-import { CombatSimulation, createCombatStats } from '../../src/3d/nextgen/combatSimulation';
+import { CombatSimulation, createCombatStats, type CombatEvent, type CombatantState } from '../../src/3d/nextgen/combatSimulation';
 import { vec3, type Vec3 } from '../../src/3d/nextgen/deterministicMath';
 
 const combatId = (value: number) => value as never;
@@ -16,10 +16,10 @@ function runHitScenario(seed = 42) {
   combat.spawn(target, vec3(0, 0, 1.1), createCombatStats());
   combat.setPose(attacker, vec3(0, 0, 0), vec3(0, 0, 1));
   combat.startAttack(attacker, 'light-1');
-  const byTick = new Map<number, readonly import('../../src/3d/gameplay/three-runtime-min').CombatEvent[]>();
+  const byTick = new Map<number, readonly CombatEvent[]>();
   for (let i = 0; i < 40; i += 1) {
     const events = combat.step();
-    if (events.length) byTick.set(combat.tick, events as never);
+    if (events.length) byTick.set(combat.tick, events);
   }
   return { combat, byTick, states: new Map([[combat.tick, states(combat)]]) };
 }
@@ -116,7 +116,7 @@ describe('presentation queue', () => {
 describe('replay and accessibility', () => {
   it('replays the same presentation recording deterministically', () => {
     const { byTick } = runHitScenario(123);
-    const ctx = new Map<number, readonly import('../../src/3d/gameplay/three-runtime-min').CombatantState[]>();
+    const ctx = new Map<number, readonly CombatantState[]>();
     for (const tick of byTick.keys()) ctx.set(tick, []);
     const a = replayCombatPresentation(byTick, ctx);
     const b = replayCombatPresentation(byTick, ctx);
