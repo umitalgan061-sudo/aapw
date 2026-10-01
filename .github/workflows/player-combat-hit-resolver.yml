@@ -1,0 +1,26 @@
+name: Player Combat Hit Resolver
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatHitResolver.js'
+      - 'scripts/checkPlayerCombatHitResolver.mjs'
+      - '.github/workflows/player-combat-hit-resolver.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Exact main ancestry
+        run: git merge-base --is-ancestor origin/main HEAD
+      - name: Diff cap
+        run: test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - name: Runtime boundary
+        run: '! grep -nE "EditorMaterialStudio|document\\.|window\\." src/3d/gameplay/playerCombatHitResolver.js'
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerCombatHitResolver.js && node --check scripts/checkPlayerCombatHitResolver.mjs
+      - name: Focused contract
+        run: node scripts/checkPlayerCombatHitResolver.mjs
