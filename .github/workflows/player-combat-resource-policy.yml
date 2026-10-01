@@ -1,0 +1,23 @@
+name: Player Combat Resource Policy
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatResourcePolicy.js'
+      - 'scripts/checkPlayerCombatResourcePolicy.mjs'
+      - '.github/workflows/player-combat-resource-policy.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerCombatResourcePolicy.js
+          node --check scripts/checkPlayerCombatResourcePolicy.mjs
+      - name: Focused contract
+        run: node scripts/checkPlayerCombatResourcePolicy.mjs
