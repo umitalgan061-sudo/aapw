@@ -159,8 +159,9 @@ export class CombatSimulation {
 
   private applyHit(attacker: CombatantState, target: CombatantState, attack: AttackDefinition): void {
     const stats = this.#stats.get(target.id); if (!stats) return; const parried = this.#parrying.has(target.id); const blocked = !parried && this.#blocked.has(target.id); const armor = Math.max(0, stats.armor[attack.damageType] ?? 0);
-    const mitigation = clamp(armor / (armor + 100), 0, 0.85); const critical = this.#rng.nextFloat() < attack.criticalChance;
+    const mitigation = clamp(armor / (armor + 100), 0, 0.85);
     if (parried) { target.hitstopTicks = Math.max(target.hitstopTicks, 3); attacker.hitstopTicks = Math.max(attacker.hitstopTicks, 4); attacker.phase = 'stunned'; attacker.stunTicks = Math.max(attacker.stunTicks, Math.max(1, attack.staggerTicks)); attacker.currentAttack = null; attacker.phaseTicksRemaining = 0; this.#events.push({ tick: this.#tick, type: 'parried', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage: 0, poiseDamage: 0, damageType: attack.damageType }); return; }
+    const critical = this.#rng.nextFloat() < attack.criticalChance;
     let damage = attack.damage * (critical ? attack.criticalMultiplier : 1) * (1 - mitigation); if (blocked) damage *= this.config.blockDamageMultiplier; damage = Math.max(1, damage);
     target.health = Math.max(0, target.health - damage); target.lastHitBy = attacker.id; const poiseDamage = attack.poiseDamage * (blocked ? 0.35 : 1); target.poise = Math.max(this.config.poiseFloor, target.poise - poiseDamage);
     attacker.hitstopTicks = Math.max(attacker.hitstopTicks, critical ? 3 : 2); target.hitstopTicks = Math.max(target.hitstopTicks, 2);
