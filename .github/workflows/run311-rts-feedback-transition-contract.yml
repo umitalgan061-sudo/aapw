@@ -1,0 +1,112 @@
+name: Run311 RTS Feedback Transition Contract
+
+on:
+  push:
+    branches:
+      - run311-rts-feedback-transition-contract
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run311-rts-feedback-transition-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Europe/Istanbul
+  BASE_SHA: 09448963fdac06db9f2a35d9fc2e72d1882badfb
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-current-main test-only additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          test "$(git diff --name-only "$BASE_SHA"...HEAD | sort)" = $'.github/workflows/run311-rts-feedback-transition-contract.yml\nscripts/checkRun311RtsFeedbackTransition.js'
+          git diff --numstat "$BASE_SHA"...HEAD | awk '$2 != 0 { print "non-additive Run311 diff: " $0; exit 1 }'
+          node --check scripts/checkRun311RtsFeedbackTransition.js
+
+      - name: Transition-contract source guard
+        run: |
+          set -euo pipefail
+          grep -F 'installTransitionRecorder' scripts/checkRun311RtsFeedbackTransition.js
+          grep -F 'transitions.visible.length >= 1' scripts/checkRun311RtsFeedbackTransition.js
+          grep -F "entry.left === '245px' && entry.top === '430px'" scripts/checkRun311RtsFeedbackTransition.js
+          grep -F "record.final.status.includes('ilerliyor')" scripts/checkRun311RtsFeedbackTransition.js
+          grep -F 'runtimeFilesChanged: 0' scripts/checkRun311RtsFeedbackTransition.js
+          grep -F 'transitionBasedFeedbackContract: true' scripts/checkRun311RtsFeedbackTransition.js
+          git diff --quiet "$BASE_SHA"...HEAD -- rts.html src/3d/rts scripts/checkRun208RtsCommandFeedback.js
+
+      - name: Install Playwright outside project manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Transition-based destination feedback proof
+        run: node scripts/checkRun311RtsFeedbackTransition.js
+
+      - name: Existing non-stale RTS regressions
+        run: |
+          set -euo pipefail
+          node scripts/checkRun207RtsSurface.js
+          node scripts/checkRun210RtsSurfaceTexture.js
+          node scripts/checkRun211RtsKeyboardShortcuts.js
+          node scripts/checkRun212RtsCommandStatus.js
+          node scripts/checkRun213RtsSelectionReadability.js
+
+      - name: PWA performance determinism world-safety and debt gates
+        run: |
+          set -euo pipefail
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkMobilePerfBudget.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkWorldReferenceMap.js
+          node scripts/checkWorldReferenceWaterMask.js
+          node scripts/checkWorldReferenceAlignment.js
+          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/terrainSeatSafetyCheck.js
+          node scripts/roadNetworkSafetyCheck.js
+          node scripts/analyzePerfTrend.js
+          node scripts/checkTechnicalDebt.js
+
+      - name: Full Chromium smoke and console regression
+        run: |
+          set -euo pipefail
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run311-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run311-smoke.log")" -ge 34
+          grep -F 'zero console/page errors' "$RUNNER_TEMP/run311-smoke.log"
+
+      - name: Upload Run311 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: run311-rts-feedback-transition-${{ github.sha }}
+          path: artifacts/run311-rts-feedback-transition
+          if-no-files-found: error
+
+      - name: Final exact-main test-only additive gate
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
+          git diff --check "$BASE_SHA" HEAD
+          git diff --numstat "$BASE_SHA"...HEAD | awk '$2 != 0 { print "non-additive Run311 final diff: " $0; exit 1 }'
