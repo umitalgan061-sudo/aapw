@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": false,
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true
+  },
+  "include": [
+    "src/3d/strict/runtimeWatchdogR33.ts",
+    "src/3d/renderBackendCapability.ts",
+    "src/3d/camera.ts",
+    "tests/modern/strictRuntimeR33.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

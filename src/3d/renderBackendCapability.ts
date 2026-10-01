@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Capability-first rendering backend selection for the browser 3D client.
  *
@@ -9,6 +8,61 @@
  * @module renderBackendCapability
  */
 
+interface NavigatorCapabilities {
+  readonly gpu?: { readonly requestAdapter?: unknown };
+  readonly hardwareConcurrency?: number;
+  readonly deviceMemory?: number;
+}
+
+export type RenderBackendId = 'webgpu' | 'webgl2' | 'webgl' | 'none';
+export type RenderTier = 'ultra' | 'high' | 'balanced' | 'compatibility' | 'unsupported';
+
+export interface RenderCapabilities {
+  readonly webgpu: boolean;
+  readonly webgl2: boolean;
+  readonly webgl: boolean;
+  readonly cpuCores: number;
+  readonly memoryGiB: number;
+  readonly coarsePointer: boolean;
+  readonly pixelRatio: number;
+  readonly secureContext: boolean;
+  readonly offscreenCanvas: boolean;
+  readonly worker: boolean;
+  readonly sharedArrayBuffer: boolean;
+  readonly crossOriginIsolated: boolean;
+}
+
+export interface RenderBackendPolicy {
+  readonly preferWebGPU: boolean;
+  readonly requireWebGPUForUltra: boolean;
+  readonly allowWebGPUWorker: boolean;
+  readonly minimumDevicePixelRatio: number;
+  readonly maxDevicePixelRatio: number;
+}
+
+export interface RenderBackendSelection {
+  readonly backend: RenderBackendId;
+  readonly tier: RenderTier;
+  readonly hardwareScore: number;
+}
+
+export interface RenderProfile {
+  readonly backend: RenderBackendId;
+  readonly tier: RenderTier;
+  readonly pixelRatioCap: number;
+  readonly shadowMap: number;
+  readonly waterSegments: number;
+  readonly vegetationMultiplier: number;
+  readonly enableExpensivePostFX: boolean;
+  readonly enableTemporalHistory: boolean;
+  readonly enableWorkerRendering: boolean;
+}
+
+interface CapabilityWindow {
+  readonly devicePixelRatio?: number;
+  readonly matchMedia?: Window['matchMedia'];
+}
+
 const DEFAULT_POLICY = Object.freeze({
   preferWebGPU: true,
   requireWebGPUForUltra: false,
@@ -17,22 +71,18 @@ const DEFAULT_POLICY = Object.freeze({
   maxDevicePixelRatio: 2,
 });
 
-const BACKENDS = Object.freeze({
+const BACKENDS: Readonly<{ WEBGPU: 'webgpu'; WEBGL2: 'webgl2'; WEBGL: 'webgl'; NONE: 'none' }> = Object.freeze({
   WEBGPU: 'webgpu',
   WEBGL2: 'webgl2',
   WEBGL: 'webgl',
   NONE: 'none',
 });
 
-function finite(value, fallback = 0) {
+function finite(value: unknown, fallback = 0): number {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
 }
 
-function clamp01(value) {
-  return Math.min(1, Math.max(0, finite(value)));
-}
-
-function readCoarsePointer({ windowObject = globalThis.window } = {}) {
+function readCoarsePointer({ windowObject = globalThis.window }: { readonly windowObject?: CapabilityWindow } = {}): boolean {
   try {
     return Boolean(windowObject?.matchMedia?.('(pointer: coarse)')?.matches);
   } catch {
@@ -40,7 +90,7 @@ function readCoarsePointer({ windowObject = globalThis.window } = {}) {
   }
 }
 
-function safeDevicePixelRatio({ windowObject = globalThis.window } = {}) {
+function safeDevicePixelRatio({ windowObject = globalThis.window }: { readonly windowObject?: CapabilityWindow } = {}): number {
   try {
     return Math.max(1, finite(windowObject?.devicePixelRatio, 1));
   } catch {
@@ -48,15 +98,15 @@ function safeDevicePixelRatio({ windowObject = globalThis.window } = {}) {
   }
 }
 
-function detectWebGPU({ navigatorObject = globalThis.navigator } = {}) {
+function detectWebGPU({ navigatorObject = globalThis.navigator }: { readonly navigatorObject?: NavigatorCapabilities } = {}): boolean {
   return Boolean(navigatorObject?.gpu?.requestAdapter);
 }
 
-function detectWebGLContext({ documentObject = globalThis.document, kind = 'webgl2' } = {}) {
+function detectWebGLContext({ documentObject = globalThis.document, kind = 'webgl2' }: { readonly documentObject?: Document; readonly kind?: 'webgl2' | 'webgl' } = {}): boolean {
   try {
     const canvas = documentObject?.createElement?.('canvas');
     if (!canvas?.getContext) return false;
-    const context = canvas.getContext(kind, { failIfMajorPerformanceCaveat: false });
+    const context = canvas.getContext(kind, { failIfMajorPerformanceCaveat: false }) as WebGLRenderingContext | WebGL2RenderingContext | null;
     if (!context) return false;
     const loseContext = context.getExtension?.('WEBGL_lose_context');
     loseContext?.loseContext?.();
@@ -70,7 +120,15 @@ export function detectRenderCapabilities({
   navigatorObject = globalThis.navigator,
   documentObject = globalThis.document,
   windowObject = globalThis.window,
-} = {}) {
+}: {
+  readonly navigatorObject?: NavigatorCapabilities;
+  readonly documentObject?: Document;
+  readonly windowObject?: CapabilityWindow;
+}: {
+  readonly navigatorObject?: NavigatorCapabilities;
+  readonly documentObject?: Document;
+  readonly windowObject?: CapabilityWindow;
+} = {}): RenderCapabilities {
   const webgpu = detectWebGPU({ navigatorObject });
   const webgl2 = detectWebGLContext({ documentObject, kind: 'webgl2' });
   const webgl = webgl2 || detectWebGLContext({ documentObject, kind: 'webgl' });
@@ -95,7 +153,7 @@ export function detectRenderCapabilities({
   });
 }
 
-function scoreHardware(capabilities) {
+function scoreHardware(capabilities: RenderCapabilities): number {
   const cpuScore = Math.min(1, capabilities.cpuCores / 8);
   const memoryScore = capabilities.memoryGiB > 0 ? Math.min(1, capabilities.memoryGiB / 8) : cpuScore;
   const gpuScore = capabilities.webgpu ? 1 : capabilities.webgl2 ? 0.72 : capabilities.webgl ? 0.45 : 0;
@@ -103,12 +161,12 @@ function scoreHardware(capabilities) {
   return Math.min(1, gpuScore * 0.62 + cpuScore * 0.2 + memoryScore * 0.12 + desktopBonus);
 }
 
-export function selectRenderBackend(capabilities, policy = DEFAULT_POLICY) {
-  const merged = { ...DEFAULT_POLICY, ...policy };
+export function selectRenderBackend(capabilities: RenderCapabilities, policy: Partial<RenderBackendPolicy> = DEFAULT_POLICY): RenderBackendSelection {
+  const merged: RenderBackendPolicy = { ...DEFAULT_POLICY, ...policy };
   const hardwareScore = scoreHardware(capabilities);
   const canUseWebGPU = capabilities.webgpu && capabilities.secureContext;
-  let backend = BACKENDS.NONE;
-  let tier = 'unsupported';
+  let backend: RenderBackendId = BACKENDS.NONE;
+  let tier: RenderTier = 'unsupported';
   if (canUseWebGPU && merged.preferWebGPU) {
     backend = BACKENDS.WEBGPU;
     tier = hardwareScore >= 0.78 ? 'ultra' : hardwareScore >= 0.56 ? 'high' : 'balanced';
@@ -123,7 +181,7 @@ export function selectRenderBackend(capabilities, policy = DEFAULT_POLICY) {
   return Object.freeze({ backend, tier, hardwareScore: Number(hardwareScore.toFixed(4)) });
 }
 
-export function buildRenderProfile(capabilities, selection, policy = DEFAULT_POLICY) {
+export function buildRenderProfile(capabilities: RenderCapabilities, selection: RenderBackendSelection, policy: Partial<RenderBackendPolicy> = DEFAULT_POLICY): RenderProfile {
   const merged = { ...DEFAULT_POLICY, ...policy };
   const baseRatio = Math.min(merged.maxDevicePixelRatio, Math.max(merged.minimumDevicePixelRatio, capabilities.pixelRatio));
   const mobilePenalty = capabilities.coarsePointer ? 0.75 : 1;
@@ -144,7 +202,7 @@ export function buildRenderProfile(capabilities, selection, policy = DEFAULT_POL
   });
 }
 
-export function createRenderBackendReport({ capabilities, selection, profile }) {
+export function createRenderBackendReport({ capabilities, selection, profile }: { readonly capabilities: RenderCapabilities; readonly selection: RenderBackendSelection; readonly profile: RenderProfile }) {
   const unsupported = [];
   if (!capabilities.webgpu) unsupported.push('webgpu');
   if (!capabilities.webgl2) unsupported.push('webgl2');
@@ -162,7 +220,7 @@ export function createRenderBackendReport({ capabilities, selection, profile }) 
   });
 }
 
-export function resolveRenderBackend({ capabilities = detectRenderCapabilities(), policy = DEFAULT_POLICY } = {}) {
+export function resolveRenderBackend({ capabilities = detectRenderCapabilities(), policy = DEFAULT_POLICY }: { readonly capabilities?: RenderCapabilities; readonly policy?: Partial<RenderBackendPolicy> } = {}) {
   const selection = selectRenderBackend(capabilities, policy);
   const profile = buildRenderProfile(capabilities, selection, policy);
   return createRenderBackendReport({ capabilities, selection, profile });
