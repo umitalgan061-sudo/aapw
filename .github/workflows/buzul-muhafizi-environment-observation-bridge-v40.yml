@@ -1,0 +1,38 @@
+name: Buzul Muhafizi Environment Observation Bridge v40
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  environment-observation-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact-main ancestry
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Verify focused scope and diff budget
+        shell: bash
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          expected=$'.github/workflows/buzul-muhafizi-environment-observation-bridge-v40.yml\nscripts/checkEnvironmentObservationBridgeV40.mjs\nsrc/3d/world/environmentObservationBridgeV40.js'
+          test "$files" = "$expected"
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+          ! grep -R "EditorMaterialStudio\|new THREE\|createGeometry" src/3d/world/environmentObservationBridgeV40.js
+      - name: Syntax check
+        run: node --check src/3d/world/environmentObservationBridgeV40.js
+      - name: Execute bridge regression
+        run: node scripts/checkEnvironmentObservationBridgeV40.mjs
