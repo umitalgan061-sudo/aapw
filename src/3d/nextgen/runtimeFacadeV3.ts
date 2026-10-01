@@ -10,6 +10,16 @@ import { RuntimeTelemetryV3, createDefaultTelemetry, type FrameTelemetry } from 
 import { SaveSystemV3, createWorldSaveState, registerDefaultSaveMigrations, type WorldSaveState } from './saveSystemV3';
 import { SnapshotHistory, type NetworkSnapshot, type NetworkDelta, snapshotDelta, applyDelta } from './networkProtocolV3';
 import { WorkerTaskBroker } from './workerProtocolV3';
+import { CombatPresentationDirector, type CombatPresentationDevice, type CombatPresentationFrame, type CombatPresentationConfig } from './combatPresentationV1';
+import { CombatPresentationQueue, type CombatPresentationDispatch, type CombatPresentationQueueConfig } from './combatPresentationQueueV1';
+import { projectCombatAccessibility, type CombatAccessibilityMode, type CombatAccessibilitySignal } from './combatPresentationAccessibilityV1';
+import { auditCombatPresentationAssets } from './combatPresentationAssetsV1';
+import { validateCombatPresentationContract, type CombatPresentationContractReport } from './combatPresentationContractV1';
+import type { CombatListenerPose } from './combatPresentationSpatialAudioV1';
+import { buildCombatPresentationNetworkPacket, type CombatPresentationNetworkPacket } from './combatPresentationNetworkV1';
+import { createCombatPresentationTelemetry, type CombatPresentationTelemetry, type CombatPresentationTelemetrySummary } from './combatPresentationTelemetryV1';
+import { resolveCombatPresentationQuality, tuneCombatPresentationCue, type CombatPresentationQuality, type CombatPresentationQualityDecision } from './combatPresentationQualityV1';
+import { CombatPresentationBus, type CombatPresentationConsumer, type CombatPresentationBusReport } from './combatPresentationBusV1';
 
 export interface NextGenConfig {
   fixedDeltaSeconds: number;
@@ -18,6 +28,8 @@ export interface NextGenConfig {
   navigationCellSize: number;
   assetBudget?: Partial<StreamingBudget>;
   snapshotHistory: number;
+  combatPresentation?: Partial<CombatPresentationConfig>;
+  combatPresentationQueue?: Partial<CombatPresentationQueueConfig>;
 }
 
 export interface RuntimeFrameResult {
@@ -26,6 +38,14 @@ export interface RuntimeFrameResult {
   combatEvents: readonly CombatEvent[];
   aiDecisions: readonly AiDecision[];
   streamResults: readonly AssetRecord[];
+  presentationFrame: CombatPresentationFrame;
+  presentationDispatches: readonly CombatPresentationDispatch[];
+  presentationAccessibility: readonly CombatAccessibilitySignal[];
+  presentationQuality: CombatPresentationQualityDecision;
+  presentationTelemetry: CombatPresentationTelemetrySummary;
+  presentationBus: CombatPresentationBusReport;
+  presentationContract: CombatPresentationContractReport;
+  presentationNetworkPackets: readonly CombatPresentationNetworkPacket[];
 }
 
 const DEFAULT_CONFIG: NextGenConfig = {
@@ -34,6 +54,8 @@ const DEFAULT_CONFIG: NextGenConfig = {
   navigationHeight: 128,
   navigationCellSize: 2,
   snapshotHistory: 32,
+  combatPresentation: Object.freeze({}),
+  combatPresentationQueue: Object.freeze({}),
 };
 
 export class NextGenRuntimeV3 {
@@ -47,6 +69,16 @@ export class NextGenRuntimeV3 {
   readonly networkHistory: SnapshotHistory;
   readonly workers: WorkerTaskBroker;
   readonly saveSystem: SaveSystemV3<WorldSaveState>;
+  readonly combatPresentation: CombatPresentationDirector;
+  readonly combatPresentationQueue: CombatPresentationQueue;
+  readonly combatPresentationTelemetry: CombatPresentationTelemetry;
+  readonly combatPresentationBus: CombatPresentationBus;
+  #presentationDevice: CombatPresentationDevice = 'virtual';
+  #presentationReducedMotion = false;
+  #presentationMuted = false;
+  #presentationAccessibility: CombatAccessibilityMode = 'standard';
+  #presentationListener: CombatListenerPose | null = null;
+  #presentationNetworkSequence = 0;
   #brains = new Map<number, AiBrain>();
   #predictors = new Map<number, PlayerPredictor>();
   #lastNetworkSnapshot: NetworkSnapshot | null = null;
@@ -64,6 +96,10 @@ export class NextGenRuntimeV3 {
     this.networkHistory = new SnapshotHistory(this.config.snapshotHistory);
     this.workers = new WorkerTaskBroker();
     this.saveSystem = new SaveSystemV3();
+    this.combatPresentation = new CombatPresentationDirector(this.config.combatPresentation);
+    this.combatPresentationQueue = new CombatPresentationQueue(this.config.combatPresentationQueue);
+    this.combatPresentationTelemetry = createCombatPresentationTelemetry();
+    this.combatPresentationBus = new CombatPresentationBus();
     registerDefaultSaveMigrations(this.saveSystem);
     this.registerDefaultWorkers();
   }
@@ -100,6 +136,13 @@ export class NextGenRuntimeV3 {
   startCombatAttack(entityId: number, attackId: string): boolean { return this.combat.startAttack(entityId as unknown as CombatantId, attackId); }
   setCombatPose(entityId: number, position: PlayerState['position'], forward: PlayerState['position']): void { this.combat.setPose(entityId as unknown as CombatantId, position, forward); }
   setBlocking(entityId: number, blocking: boolean): void { this.combat.setBlocking(entityId as unknown as CombatantId, blocking); }
+  setPresentationDevice(device: CombatPresentationDevice): void { this.#presentationDevice = device; }
+  setReducedMotion(reduced: boolean): void { this.#presentationReducedMotion = reduced; }
+  setMuted(muted: boolean): void { this.#presentationMuted = muted; }
+  setPresentationAccessibility(mode: CombatAccessibilityMode): void { this.#presentationAccessibility = mode; }
+  setPresentationListener(listener: CombatListenerPose | null): void { this.#presentationListener = listener; }
+  subscribeCombatPresentationConsumer(consumer: CombatPresentationConsumer): void { this.combatPresentationBus.subscribe(consumer); }
+  unsubscribeCombatPresentationConsumer(id: string): boolean { return this.combatPresentationBus.unsubscribe(id); }
 
   perceive(entityId: number, stimulus: AiStimulus): void { this.#brains.get(entityId)?.perceive(stimulus, this.kernel.clock.tick); }
 
@@ -116,6 +159,26 @@ export class NextGenRuntimeV3 {
     const snapshot = this.kernel.step();
     const streamResults = await this.assets.pump(fetcher);
     const combatEvents = this.combat.step();
+    const listenerPlayer = [...this.#predictors.values()][0]?.state;
+    const listener = this.#presentationListener ?? (listenerPlayer ? { position: listenerPlayer.position, forward: { x: Math.sin(listenerPlayer.yaw), y: 0, z: Math.cos(listenerPlayer.yaw) } } : undefined);
+    const presentationFrame = this.combatPresentation.ingest(combatEvents, { states: this.combat.snapshot(), device: this.#presentationDevice, reducedMotion: this.#presentationReducedMotion, muted: this.#presentationMuted, listener });
+        const presentationQuality = resolveCombatPresentationQuality({ frameP95Ms: this.telemetry.summarize().frameP95Ms, pendingQueue: this.combatPresentationQueue.pendingCount(), droppedCues: presentationFrame.droppedCues, reducedMotion: this.#presentationReducedMotion, device: this.#presentationDevice });
+    this.combatPresentationQueue.clear();
+    const qualityCues = presentationFrame.cues.map((cue) => tuneCombatPresentationCue(cue, presentationQuality));
+    this.combatPresentationQueue.enqueue(qualityCues, this.#presentationDevice, presentationFrame.tick);
+    const presentationDispatches = this.combatPresentationQueue.dispatch(presentationFrame.tick);
+    this.combatPresentationTelemetry.record(presentationFrame, presentationDispatches, this.combatPresentationQueue.pendingCount());
+    const presentationAccessibility = projectCombatAccessibility(qualityCues, { mode: this.#presentationAccessibility, device: this.#presentationDevice });
+    const presentationBus = this.combatPresentationBus.dispatch(presentationDispatches, presentationAccessibility, presentationFrame.tick);
+    const presentationNetworkPackets = Object.freeze(presentationDispatches.map((dispatch) => buildCombatPresentationNetworkPacket(dispatch.cue, ++this.#presentationNetworkSequence)));
+    const presentationContract = validateCombatPresentationContract({
+      frame: presentationFrame,
+      dispatches: presentationDispatches,
+      accessibility: presentationAccessibility,
+      assetAudit: auditCombatPresentationAssets(),
+      quality: presentationQuality,
+      telemetry: this.combatPresentationTelemetry.summary(),
+    });
     const aiDecisions: AiDecision[] = [];
     for (const [entityId, brain] of this.#brains) {
       const player = this.#predictors.get(entityId)?.state;
@@ -126,7 +189,8 @@ export class NextGenRuntimeV3 {
     const elapsed = performance.now() - before;
     const frame: FrameTelemetry = { tick: snapshot.tick, cpuMs: elapsed, renderMs: 0, simulationMs: elapsed, networkMs: 0, streamingMs: 0, gpuMs: null, entityCount: this.world.entityCount(), drawCalls: 0, triangles: 0 };
     this.telemetry.record(frame);
-    return { tick: snapshot.tick, snapshot, combatEvents, aiDecisions, streamResults };
+    return { tick: snapshot.tick, snapshot, combatEvents, aiDecisions, streamResults, presentationFrame, presentationDispatches, presentationAccessibility, presentationQuality, presentationTelemetry: this.combatPresentationTelemetry.summary(), presentationBus, presentationContract };
+
   }
 
   buildNetworkSnapshot(entities: readonly NetworkSnapshot['entities'][number][]): NetworkSnapshot {

@@ -1,0 +1,66 @@
+name: Nextgen Combat Presentation V1
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/nextgen/combatSimulation.ts'
+      - 'src/3d/nextgen/combatPresentationV1.ts'
+      - 'src/3d/nextgen/combatPresentationQueueV1.ts'
+      - 'src/3d/nextgen/combatPresentationReplayV1.ts'
+      - 'src/3d/nextgen/combatPresentationAccessibilityV1.ts'
+      - 'src/3d/nextgen/combatPresentationBusV1.ts'
+      - 'src/3d/nextgen/combatPresentationBrowserBridgeV1.ts'
+      - 'src/3d/nextgen/combatPresentationCameraFocusV1.ts'
+      - 'src/3d/nextgen/combatPresentationHapticsV1.ts'
+      - 'src/3d/nextgen/combatPresentationInputLatencyV1.ts'
+      - 'src/3d/nextgen/combatPresentationDamageTypeV1.ts'
+      - 'src/3d/nextgen/combatPresentationQualityV1.ts'
+      - 'src/3d/nextgen/combatPresentationScenarioV1.ts'
+      - 'src/3d/nextgen/combatPresentationTelemetryV1.ts'
+      - 'src/3d/nextgen/combatPresentationTimelineV1.ts'
+      - 'src/3d/nextgen/combatPresentationScenarioV1.ts'
+      - 'src/3d/nextgen/combatPresentationTimelineV1.ts'
+      - 'src/3d/nextgen/combatPresentationDamageTypeV1.ts'
+      - 'src/3d/nextgen/runtimeFacadeV3.ts'
+      - 'tests/nextgen/combatPresentationV1.test.ts'
+      - 'tsconfig.nextgen-combat-presentation-v1.json'
+      - 'scripts/checkNextGenCombatPresentationV1.mjs'
+      - 'package.json'
+      - '.github/workflows/nextgen-combat-presentation-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nextgen-combat-presentation-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          lfs: false
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: package.json
+      - name: Install
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Architecture proof
+        run: npm run verify:nextgen-combat-presentation
+      - name: Strict TypeScript
+        run: npm run typecheck:nextgen-combat-presentation
+      - name: Deterministic regression and contract matrix
+        run: npm run test:nextgen-combat-presentation
+      - name: Existing nextgen regression
+        run: npm test -- tests/nextgen/nextgenRuntimeV3.test.ts
+      - name: Diff hygiene
+        run: git diff --check
