@@ -56,9 +56,10 @@ export function runCombatPresentationVerticalSlice(seed = 0xC0FFEE, totalTicks =
   const originalRecorder = new CombatPresentationRecorder(seed);
   for (const frame of frames) originalRecorder.record(frame, eventsByTick.get(frame.tick)?.length ?? 0);
   const originalRecording = originalRecorder.recording();
-  const replayEqual = compareCombatPresentationRecordings(originalRecording, replay).equal;
+  const replayDiff = compareCombatPresentationRecordings(originalRecording, replay);
+  const replayEqual = replayDiff.equal;
   if (!timelineChecks.every(Boolean)) throw new Error('combat presentation timeline validation failed');
-  return Object.freeze({ version: 1, seed, totalTicks, totalEvents: [...eventsByTick.values()].reduce((sum, events) => sum + events.length, 0), totalCues: finalCues.length, totalDispatches: dispatches.length, droppedCues: frames.reduce((sum, frame) => sum + frame.droppedCues, 0), eventTypes: Object.freeze(eventTypes), damageTypes: Object.freeze(damageTypes), feedbackSummary, deterministicDigest, replayEqual, steps: Object.freeze(steps), frames: Object.freeze(frames), dispatches: Object.freeze(dispatches) });
+  return Object.freeze({ version: 1, seed, totalTicks, totalEvents: [...eventsByTick.values()].reduce((sum, events) => sum + events.length, 0), totalCues: finalCues.length, totalDispatches: dispatches.length, droppedCues: frames.reduce((sum, frame) => sum + frame.droppedCues, 0), eventTypes: Object.freeze(eventTypes), damageTypes: Object.freeze(damageTypes), feedbackSummary, deterministicDigest, replayEqual, replayFirstMismatchTick: replayDiff.firstMismatchTick, steps: Object.freeze(steps), frames: Object.freeze(frames), dispatches: Object.freeze(dispatches) });
 }
 
 export function validateCombatPresentationScenario(report: CombatPresentationScenarioReport): Readonly<{ valid: boolean; errors: readonly string[] }> {
@@ -67,7 +68,7 @@ export function validateCombatPresentationScenario(report: CombatPresentationSce
   if (report.totalTicks <= 0) errors.push('scenario has no simulation ticks');
   if (report.totalEvents <= 0) errors.push('scenario produced no combat events');
   if (report.totalCues <= 0) errors.push('scenario produced no presentation cues');
-  if (!report.replayEqual) errors.push('scenario replay diverged');
+  if (!report.replayEqual) errors.push(`scenario replay diverged at tick ${report.replayFirstMismatchTick ?? 'unknown'}`);
   if (report.droppedCues > 0) errors.push('scenario dropped presentation cues');
   if (report.eventTypes.hit + report.eventTypes.blocked + report.eventTypes.parried === 0) errors.push('scenario did not exercise hit/block/parry feedback');
   if (report.eventTypes.parried === 0) errors.push('scenario did not exercise a parry response');
