@@ -1,0 +1,42 @@
+name: Buzul Muhafızı Snow Surface Contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainSnowSurfaceContract.js'
+      - 'scripts/checkTerrainSnowSurfaceContract.mjs'
+      - '.github/workflows/buzul-muhafizi-snow-surface-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: '${{ github.event.pull_request.head.sha || github.sha }}'
+      - name: Exact main and diff guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          main_sha="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$main_sha")" = "$main_sha"
+          add="$(git diff --numstat "$main_sha...HEAD" | awk '{a+=$1} END {print a+0}')"
+          del="$(git diff --numstat "$main_sha...HEAD" | awk '{d+=$2} END {print d+0}')"
+          total=$((add + del))
+          test "$total" -le 3000
+          git diff --check "$main_sha...HEAD"
+          git diff --name-only "$main_sha...HEAD" | grep -Ev '^(src/3d/world/terrainSnowSurfaceContract.js|scripts/checkTerrainSnowSurfaceContract.mjs|\.github/workflows/buzul-muhafizi-snow-surface-contract\.yml)$' && exit 1 || true
+      - name: Syntax
+        run: node --check src/3d/world/terrainSnowSurfaceContract.js && node --check scripts/checkTerrainSnowSurfaceContract.mjs
+      - name: Contract
+        run: node scripts/checkTerrainSnowSurfaceContract.mjs
