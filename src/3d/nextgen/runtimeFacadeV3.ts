@@ -14,7 +14,7 @@ import { CombatPresentationDirector, type CombatPresentationDevice, type CombatP
 import { CombatPresentationQueue, type CombatPresentationDispatch, type CombatPresentationQueueConfig } from './combatPresentationQueueV1';
 import { projectCombatAccessibility, type CombatAccessibilityMode, type CombatAccessibilitySignal } from './combatPresentationAccessibilityV1';
 import { createCombatPresentationTelemetry, type CombatPresentationTelemetry, type CombatPresentationTelemetrySummary } from './combatPresentationTelemetryV1';
-import { applyCombatPresentationQuality, resolveCombatPresentationQuality, tuneCombatPresentationCue, type CombatPresentationQuality, type CombatPresentationQualityDecision } from './combatPresentationQualityV1';
+import { resolveCombatPresentationQuality, tuneCombatPresentationCue, type CombatPresentationQuality, type CombatPresentationQualityDecision } from './combatPresentationQualityV1';
 
 export interface NextGenConfig {
   fixedDeltaSeconds: number;
@@ -145,9 +145,7 @@ export class NextGenRuntimeV3 {
     const streamResults = await this.assets.pump(fetcher);
     const combatEvents = this.combat.step();
     const presentationFrame = this.combatPresentation.ingest(combatEvents, { states: this.combat.snapshot(), device: this.#presentationDevice, reducedMotion: this.#presentationReducedMotion, muted: this.#presentationMuted });
-    this.combatPresentationQueue.enqueue(presentationFrame.cues, this.#presentationDevice, presentationFrame.tick);
-    const preQualitySummary = this.combatPresentationTelemetry.summary();
-    const presentationQuality = resolveCombatPresentationQuality({ frameP95Ms: this.telemetry.summarize().frameP95Ms, pendingQueue: this.combatPresentationQueue.pendingCount(), droppedCues: presentationFrame.droppedCues, reducedMotion: this.#presentationReducedMotion, device: this.#presentationDevice });
+        const presentationQuality = resolveCombatPresentationQuality({ frameP95Ms: this.telemetry.summarize().frameP95Ms, pendingQueue: this.combatPresentationQueue.pendingCount(), droppedCues: presentationFrame.droppedCues, reducedMotion: this.#presentationReducedMotion, device: this.#presentationDevice });
     this.combatPresentationQueue.clear();
     const qualityCues = presentationFrame.cues.map((cue) => tuneCombatPresentationCue(cue, presentationQuality));
     this.combatPresentationQueue.enqueue(qualityCues, this.#presentationDevice, presentationFrame.tick);
