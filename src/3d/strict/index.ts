@@ -23,3 +23,5 @@ export * from './runtimeHealthBudget.ts';
 
 export * from './runtimeHardeningV25.ts';
 export * from './runtimeHardeningMigrationV25.ts';
+
+export * from './runtimeWatchdogR33.ts';
