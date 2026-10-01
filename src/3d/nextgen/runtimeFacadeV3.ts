@@ -16,6 +16,7 @@ import { projectCombatAccessibility, type CombatAccessibilityMode, type CombatAc
 import { auditCombatPresentationAssets } from './combatPresentationAssetsV1';
 import { validateCombatPresentationContract, type CombatPresentationContractReport } from './combatPresentationContractV1';
 import type { CombatListenerPose } from './combatPresentationSpatialAudioV1';
+import { buildCombatPresentationNetworkPacket, type CombatPresentationNetworkPacket } from './combatPresentationNetworkV1';
 import { createCombatPresentationTelemetry, type CombatPresentationTelemetry, type CombatPresentationTelemetrySummary } from './combatPresentationTelemetryV1';
 import { resolveCombatPresentationQuality, tuneCombatPresentationCue, type CombatPresentationQuality, type CombatPresentationQualityDecision } from './combatPresentationQualityV1';
 import { CombatPresentationBus, type CombatPresentationConsumer, type CombatPresentationBusReport } from './combatPresentationBusV1';
@@ -44,6 +45,7 @@ export interface RuntimeFrameResult {
   presentationTelemetry: CombatPresentationTelemetrySummary;
   presentationBus: CombatPresentationBusReport;
   presentationContract: CombatPresentationContractReport;
+  presentationNetworkPackets: readonly CombatPresentationNetworkPacket[];
 }
 
 const DEFAULT_CONFIG: NextGenConfig = {
@@ -76,6 +78,7 @@ export class NextGenRuntimeV3 {
   #presentationMuted = false;
   #presentationAccessibility: CombatAccessibilityMode = 'standard';
   #presentationListener: CombatListenerPose | null = null;
+  #presentationNetworkSequence = 0;
   #brains = new Map<number, AiBrain>();
   #predictors = new Map<number, PlayerPredictor>();
   #lastNetworkSnapshot: NetworkSnapshot | null = null;
@@ -167,6 +170,7 @@ export class NextGenRuntimeV3 {
     this.combatPresentationTelemetry.record(presentationFrame, presentationDispatches, this.combatPresentationQueue.pendingCount());
     const presentationAccessibility = projectCombatAccessibility(qualityCues, { mode: this.#presentationAccessibility, device: this.#presentationDevice });
     const presentationBus = this.combatPresentationBus.dispatch(presentationDispatches, presentationAccessibility, presentationFrame.tick);
+    const presentationNetworkPackets = Object.freeze(presentationDispatches.map((dispatch) => buildCombatPresentationNetworkPacket(dispatch.cue, ++this.#presentationNetworkSequence)));
     const presentationContract = validateCombatPresentationContract({
       frame: presentationFrame,
       dispatches: presentationDispatches,
