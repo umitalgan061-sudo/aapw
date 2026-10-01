@@ -21,6 +21,8 @@
     "src/3d/nextgen/combatPresentationBrowserBridgeV1.ts",
     "src/3d/nextgen/combatPresentationHapticsV1.ts",
     "src/3d/nextgen/combatPresentationCameraFocusV1.ts",
-    "src/3d/nextgen/combatPresentationInputLatencyV1.ts"
+    "src/3d/nextgen/combatPresentationInputLatencyV1.ts",
+    "src/3d/nextgen/combatPresentationNetworkV1.ts",
+    "src/3d/nextgen/combatPresentationImpulseStackV1.ts"
   ]
 }
