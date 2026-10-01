@@ -1,0 +1,50 @@
+name: Buzul Muhafızı — Snowline Ecotone Director v13
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/snowlineEcotoneDirector.js'
+      - 'scripts/checkSnowlineEcotoneDirector.mjs'
+      - '.github/workflows/buzul-muhafizi-snowline-ecotone-v13.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Verify bounded diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+      - name: Syntax check
+        run: |
+          node --check src/3d/world/snowlineEcotoneDirector.js
+          node --check scripts/checkSnowlineEcotoneDirector.mjs
+      - name: Execute deterministic contract
+        run: node scripts/checkSnowlineEcotoneDirector.mjs
+      - name: Enforce shared material/editor boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" src/3d/world/snowlineEcotoneDirector.js scripts/checkSnowlineEcotoneDirector.mjs
+      - name: Diff hygiene
+        run: git diff --check origin/main...HEAD
