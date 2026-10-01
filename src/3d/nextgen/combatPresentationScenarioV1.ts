@@ -33,7 +33,8 @@ export function runCombatPresentationVerticalSlice(seed = 0xC0FFEE, totalTicks =
     if (tick === 32) { combat.setBlocking(guard, true); combat.startAttack(player, 'heavy-1'); }
     if (tick === 48) combat.setBlocking(guard, false);
     if (tick === 64) combat.dodge(guard, vec3(-1, 0, 0), 8);
-    if (tick === 72) combat.startAttack(guard, 'frost-cut');
+    if (tick === 72) { combat.setParrying(player, true); combat.startAttack(guard, 'frost-cut'); }
+    if (tick === 73) { combat.setParrying(player, false); if ((combat.getState(player)?.counterWindowTicks ?? 0) > 0) combat.startAttack(player, 'frost-cut'); }
     if (tick === 92) combat.startAttack(player, 'heavy-1');
     const events = combat.step();
     if (events.length) eventsByTick.set(combat.tick, events);
@@ -77,7 +78,7 @@ export function validateCombatPresentationScenario(report: CombatPresentationSce
   if (report.totalCues <= 0) errors.push('scenario produced no presentation cues');
   if (!report.replayEqual) errors.push('scenario replay diverged');
   if (report.droppedCues > 0) errors.push('scenario dropped presentation cues');
-  if (report.eventTypes.hit + report.eventTypes.blocked === 0) errors.push('scenario did not exercise hit/block feedback');
+  if (report.eventTypes.hit + report.eventTypes.blocked + report.eventTypes.parried === 0) errors.push('scenario did not exercise hit/block/parry feedback');
   if (report.eventTypes.dodge === 0) errors.push('scenario did not exercise dodge feedback');
   return Object.freeze({ valid: errors.length === 0, errors: Object.freeze(errors) });
 }
