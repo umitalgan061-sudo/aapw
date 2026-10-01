@@ -175,7 +175,11 @@
     "verify:production-runtime-r36": "node scripts/checkProductionRuntimeR36.mjs",
     "typecheck:production-runtime-r36": "tsc -p tsconfig.production-runtime-r36.json --noEmit",
     "test:production-runtime-r36": "npm test -- tests/modern/productionRuntimeSupervisorR36.test.ts",
-    "check:production-runtime-r36": "npm run verify:production-runtime-r36 && npm run typecheck:production-runtime-r36 && npm run test:production-runtime-r36"
+    "check:production-runtime-r36": "npm run verify:production-runtime-r36 && npm run typecheck:production-runtime-r36 && npm run test:production-runtime-r36",
+    "verify:runtime-r37": "node scripts/checkRuntimeR37.mjs",
+    "typecheck:runtime-r37": "tsc -p tsconfig.runtime-r37.json --noEmit",
+    "test:runtime-r37": "vitest run tests/modern/r37 --passWithNoTests",
+    "check:runtime-r37": "npm run verify:runtime-r37 && npm run typecheck:runtime-r37 && npm run test:runtime-r37"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
