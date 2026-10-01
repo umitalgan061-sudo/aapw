@@ -20,7 +20,7 @@ export class RuntimeOrchestratorR35 {
   }
   start():void{if(this.#phase==='boot'||this.#phase==='paused')this.#phase='active';}
   pause():void{if(this.#phase==='active')this.#phase='paused';}
-  step(ticks=1):void{if(this.#phase!=='active')return;const n=clamp(Math.trunc(ticks),1,8);for(let i=0;i<n;i++){const events=this.world.step(1);this.#clock={tick:this.world.tick,step:this.#clock.step,elapsed:this.world.tick*this.#clock.step};this.telemetry.record('world.entities',this.world.snapshotAll().length,this.world.tick);this.telemetry.record('world.events',events.length,this.world.tick);}}
+  step(ticks=1):void{if(this.#phase!=='active')return;const n=clamp(Math.trunc(ticks),1,120);for(let i=0;i<n;i++){const events=this.world.step(1);this.#clock={tick:this.world.tick,step:this.#clock.step,elapsed:this.world.tick*this.#clock.step};this.telemetry.record('world.entities',this.world.snapshotAll().length,this.world.tick);this.telemetry.record('world.events',events.length,this.world.tick);}}
   setPlayerPosition(position:R35Vec3):void{this.world.setPlayerPosition(position);}
   addAgent(input:Parameters<WorldSimulationR35['addAgent']>[0]):boolean{return this.world.addAgent(input);}
   registerQuest(def:R35QuestDefinition):void{const r=this.quests.register(def);if(!r.ok)this.#warnings.push(r.error.code);}
