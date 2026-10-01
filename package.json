@@ -163,7 +163,15 @@
     "check:strict-runtime-r33": "npm run verify:strict-runtime-r33 && npm run typecheck:strict-runtime-r33 && npm run test:strict-runtime-r33",
     "verify:world-payload-r34": "node scripts/checkWorldPayloadMigrationR34.mjs",
     "test:world-payload-r34": "npm test -- tests/modern/worldPayloadMigrationR34.test.ts",
-    "check:world-payload-r34": "npm run verify:world-payload-r34 && npm run test:world-payload-r34 && npm run typecheck"
+    "check:world-payload-r34": "npm run verify:world-payload-r34 && npm run test:world-payload-r34 && npm run typecheck",
+    "verify:runtime-circuit-r12": "node scripts/checkRuntimeCircuitBreakerR12.mjs",
+    "test:runtime-circuit-r12": "npm test -- tests/modern/runtimeCircuitBreakerR12.test.ts",
+    "check:runtime-circuit-r12": "npm run verify:runtime-circuit-r12 && npm run test:runtime-circuit-r12 && npm run typecheck",
+    "check:production-runtime": "npm run check:runtime-circuit-r12 && npm run check:strict-runtime-r33 && npm run check:modern:r29",
+    "verify:modern:r35": "node scripts/checkModernPlatformR35.mjs",
+    "typecheck:r35": "tsc -p tsconfig.r35.json --noEmit",
+    "test:r35": "vitest run tests/modern/r35UnifiedRuntime.test.ts tests/modern/r35AssetInput.test.ts tests/modern/r35ObservabilityScheduler.test.ts tests/modern/r35ContractIntegrity.test.ts",
+    "check:r35": "npm run verify:modern:r35 && npm run typecheck:r35 && npm run test:r35"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
