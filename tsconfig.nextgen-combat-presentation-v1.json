@@ -17,6 +17,8 @@
     "src/3d/nextgen/combatPresentationScenarioV1.ts",
     "src/3d/nextgen/combatPresentationBusV1.ts",
     "src/3d/nextgen/combatPresentationSpatialAudioV1.ts",
-    "src/3d/nextgen/combatPresentationReactionV1.ts"
+    "src/3d/nextgen/combatPresentationReactionV1.ts",
+    "src/3d/nextgen/combatPresentationBrowserBridgeV1.ts",
+    "src/3d/nextgen/combatPresentationHapticsV1.ts"
   ]
 }
