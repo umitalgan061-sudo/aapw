@@ -1,0 +1,26 @@
+name: player-combat-event-packet
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatEventPacket.ts'
+      - 'scripts/checkPlayerCombatEventPacket.mjs'
+      - '.github/workflows/player-combat-event-packet.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact PR ancestry
+        run: |
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: TypeScript syntax
+        run: node --check src/3d/gameplay/playerCombatEventPacket.ts
+      - name: Focused deterministic proof
+        run: node --experimental-strip-types scripts/checkPlayerCombatEventPacket.mjs
