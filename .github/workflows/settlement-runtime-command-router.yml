@@ -1,0 +1,38 @@
+name: settlement-runtime-command-router
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementRuntimeCommandRouter.js'
+      - 'src/3d/gameplay/settlementCampaignContent.js'
+      - 'scripts/checkSettlementRuntimeCommandRouter.mjs'
+      - '.github/workflows/settlement-runtime-command-router.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementRuntimeCommandRouter.js'
+      - 'src/3d/gameplay/settlementCampaignContent.js'
+      - 'scripts/checkSettlementRuntimeCommandRouter.mjs'
+      - '.github/workflows/settlement-runtime-command-router.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check src/3d/gameplay/settlementRuntimeCommandRouter.js
+      - run: node scripts/checkSettlementRuntimeCommandRouter.mjs
+      - name: Diff budget
+        shell: bash
+        run: |
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          head="${{ github.event.pull_request.head.sha || github.sha }}"
+          test -n "$base"
+          changed=$(git diff --numstat "$base" "$head" -- src/3d/gameplay/settlementRuntimeCommandRouter.js scripts/checkSettlementRuntimeCommandRouter.mjs .github/workflows/settlement-runtime-command-router.yml | awk '{a+=$1+$2} END {print a+0}')
+          test "$changed" -le 3000
+      - name: Runtime boundary
+        run: |
+          ! grep -n "EditorMaterialStudio\|document\.\|window\." src/3d/gameplay/settlementRuntimeCommandRouter.js
