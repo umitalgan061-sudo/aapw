@@ -11,6 +11,9 @@
     "src/3d/nextgen/combatPresentationAccessibilityV1.ts",
     "src/3d/nextgen/combatSimulation.ts",
     "src/3d/nextgen/runtimeFacadeV3.ts",
-    "tests/nextgen/combatPresentationV1.test.ts"
+    "tests/nextgen/combatPresentationV1.test.ts",
+    "src/3d/nextgen/combatPresentationDamageTypeV1.ts",
+    "src/3d/nextgen/combatPresentationTimelineV1.ts",
+    "src/3d/nextgen/combatPresentationScenarioV1.ts"
   ]
 }
