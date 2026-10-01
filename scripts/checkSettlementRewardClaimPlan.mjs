@@ -1,0 +1,82 @@
+import assert from 'node:assert/strict';
+import { isSettlementRewardClaimPlan, projectSettlementRewardClaimPlan } from '../src/3d/gameplay/settlementRewardClaimPlan.ts';
+
+const preview = { chains: [
+  { id: 'tavern-chain', readyToClaim: true, locked: false, reward: { xp: 40, copper: 10, skillPoints: 1, perks: ['barter', 'night-owl'] } },
+  { id: 'stable-chain', readyToClaim: true, locked: false, reward: { xp: 60, copper: 20, skillPoints: 2, perks: ['rider'] } },
+  { id: 'locked-chain', readyToClaim: true, locked: true, reward: { xp: 999, copper: 999, skillPoints: 9, perks: ['iron-will'] } },
+  { id: 'blocked-chain', readyToClaim: false, locked: false, reward: { xp: 120, copper: 40, skillPoints: 4, perks: ['barter'] } },
+] };
+const first = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['stable-chain', 'tavern-chain'] });
+const second = projectSettlementRewardClaimPlan({ preview: { chains: [...preview.chains].reverse() }, requestedChainIds: ['tavern-chain', 'stable-chain', 'stable-chain'] });
+assert.equal(first.canClaim, true);
+assert.equal(first.reason, 'ready');
+assert.deepEqual(first.claimableChainIds, ['stable-chain', 'tavern-chain']);
+assert.deepEqual(first.totals, { xp: 100, copper: 30, skillPoints: 3 });
+assert.deepEqual(first.grantedPerks, ['barter', 'night-owl', 'rider']);
+assert.deepEqual(second.grantedPerks, first.grantedPerks);
+assert.equal(first.signature, second.signature);
+assert.equal(isSettlementRewardClaimPlan(first), true);
+assert.equal(Object.isFrozen(first), true);
+assert.equal(Object.isFrozen(first.totals), true);
+assert.equal(Object.isFrozen(first.grantedPerks), true);
+assert.throws(() => { first.requestedChainIds.push('tamper'); }, TypeError);
+
+const duplicateReady = projectSettlementRewardClaimPlan({
+  preview: { chains: [
+    { id: 'stable-chain', readyToClaim: true, locked: false, reward: { xp: 60, copper: 20, skillPoints: 2, perks: ['rider'] } },
+    { id: 'stable-chain', readyToClaim: false, locked: true, reward: { xp: 999, copper: 999, skillPoints: 9, perks: ['cheat'] } },
+  ] },
+  requestedChainIds: ['stable-chain'],
+});
+const duplicateBlockedFirst = projectSettlementRewardClaimPlan({
+  preview: { chains: [
+    { id: 'stable-chain', readyToClaim: false, locked: true, reward: { xp: 999, copper: 999, skillPoints: 9, perks: ['cheat'] } },
+    { id: 'stable-chain', readyToClaim: true, locked: false, reward: { xp: 60, copper: 20, skillPoints: 2, perks: ['rider'] } },
+  ] },
+  requestedChainIds: ['stable-chain'],
+});
+assert.equal(duplicateReady.signature, duplicateBlockedFirst.signature);
+assert.equal(duplicateReady.canClaim, true);
+assert.deepEqual(duplicateReady.totals, { xp: 60, copper: 20, skillPoints: 2 });
+assert.deepEqual(duplicateReady.grantedPerks, ['rider']);
+
+const blocked = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['blocked-chain'] });
+assert.equal(blocked.canClaim, false);
+assert.equal(blocked.reason, 'not-claimable');
+assert.deepEqual(blocked.blockedChainIds, ['blocked-chain']);
+assert.deepEqual(blocked.grantedPerks, []);
+
+const locked = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['locked-chain'] });
+assert.equal(locked.canClaim, false);
+assert.equal(locked.reason, 'not-claimable');
+assert.deepEqual(locked.blockedChainIds, ['locked-chain']);
+
+const missing = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['missing-chain'] });
+assert.equal(missing.canClaim, false);
+assert.equal(missing.reason, 'missing-chain');
+assert.deepEqual(missing.missingChainIds, ['missing-chain']);
+
+const mixed = projectSettlementRewardClaimPlan({ preview, requestedChainIds: ['tavern-chain', 'blocked-chain'] });
+assert.equal(mixed.canClaim, false);
+assert.equal(mixed.reason, 'not-claimable');
+assert.deepEqual(mixed.claimableChainIds, ['tavern-chain']);
+assert.deepEqual(mixed.blockedChainIds, ['blocked-chain']);
+assert.deepEqual(mixed.grantedPerks, ['barter', 'night-owl']);
+
+const empty = projectSettlementRewardClaimPlan({ preview, requestedChainIds: [] });
+assert.equal(empty.canClaim, false);
+assert.equal(empty.reason, 'empty-selection');
+assert.deepEqual(empty.grantedPerks, []);
+
+const inconsistentReady = { ...first, canClaim: false };
+assert.equal(isSettlementRewardClaimPlan(inconsistentReady), false);
+const tampered = { ...first, totals: { ...first.totals } };
+assert.equal(isSettlementRewardClaimPlan(tampered), false);
+const tamperedPerks = { ...first, grantedPerks: Object.freeze(['night-owl']) };
+assert.equal(isSettlementRewardClaimPlan(tamperedPerks), false);
+const reordered = { ...first, claimableChainIds: Object.freeze(['tavern-chain', 'stable-chain']) };
+assert.equal(isSettlementRewardClaimPlan(reordered), false);
+assert.doesNotThrow(() => isSettlementRewardClaimPlan(Object.freeze({ version: 2, reason: 'ready', canClaim: true })));
+assert.equal(isSettlementRewardClaimPlan(Object.freeze({ version: 2, reason: 'ready', canClaim: true })), false);
+console.log('settlement reward claim plan proof passed');
