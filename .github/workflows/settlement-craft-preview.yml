@@ -1,0 +1,18 @@
+name: Settlement Craft Preview
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementCraftPreview.ts'
+      - 'scripts/checkSettlementCraftPreview.mjs'
+      - '.github/workflows/settlement-craft-preview.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --experimental-strip-types scripts/checkSettlementCraftPreview.mjs
