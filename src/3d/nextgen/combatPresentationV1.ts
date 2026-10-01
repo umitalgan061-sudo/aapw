@@ -218,9 +218,17 @@ function hapticsFor(event: CombatEvent, device: CombatPresentationDevice, intens
   const amplitude = clamp(intensity * (event.type === 'blocked' ? 0.55 : event.type === 'dodge' ? 0.45 : 0.8), 0, maxAmplitude);
   const frequencyHz = event.type === 'critical' ? 58 : event.type === 'death' ? 42 : event.type === 'blocked' ? 72 : 64;
   const typed = buildDamageTypeHapticCue(event, device, durationMs);
-  if (typed.length === 0) return typed;
   const pulse = typed[0];
-  return Object.freeze([Object.freeze({ ...pulse, amplitude: round(clamp(pulse.amplitude * amplitude / Math.max(0.001, intensity || 1), 0, maxAmplitude)) })]);
+  if (!pulse) return Object.freeze([]);
+  const normalized: CombatHapticPulse = {
+    device: pulse.device ?? device,
+    durationMs: finite(pulse.durationMs, durationMs),
+    amplitude: round(clamp(finite(pulse.amplitude, 0) * amplitude / Math.max(0.001, intensity || 1), 0, maxAmplitude)),
+    frequencyHz: finite(pulse.frequencyHz, 60),
+    attack: finite(pulse.attack, 0.1),
+    release: finite(pulse.release, 0.3),
+  };
+  return Object.freeze([Object.freeze(normalized)]);
 }
 
 function vfxFor(event: CombatEvent, source: CombatantState | null, target: CombatantState | null, intensity: number): CombatVfxCue {
@@ -275,7 +283,7 @@ function cueFor(event: CombatEvent, context: CombatPresentationContext, config: 
     position: Object.freeze(position),
     direction: Object.freeze(direction),
     intensity: round(intensity),
-    blocked, defenseOutcome, counterWindowTicks, poiseDamage: finite(event.poiseDamage, 0), critical, hitstopTicks, vfx, audio: spatializedAudio, camera, haptics, fingerprint,
+    blocked, defenseOutcome, counterWindowTicks, counterAttack, poiseDamage: finite(event.poiseDamage, 0), critical, hitstopTicks, vfx, audio: spatializedAudio, camera, haptics, fingerprint,
     damageType: damageProfile.damageType,
     damageFamily: damageProfile.family,
     materialResponse: damageProfile.materialResponse,
