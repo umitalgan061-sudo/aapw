@@ -398,3 +398,44 @@ describe('browser bridge and haptic transport', () => {
     expect(desktop.attempted).toBe(0);
   });
 });
+
+
+describe('authoritative damage type propagation', () => {
+  it('preserves damage type from attack definition into emitted combat events', () => {
+    const combat = new CombatSimulation(909);
+    const attacker = combatId(1);
+    const target = combatId(2);
+    combat.spawn(attacker, vec3(0, 0, 0), createCombatStats());
+    combat.spawn(target, vec3(0, 0, 1), createCombatStats());
+    combat.setPose(attacker, vec3(0, 0, 0), vec3(0, 0, 1));
+    expect(combat.startAttack(attacker, 'frost-cut')).toBe(true);
+    const observed: string[] = [];
+    for (let tick = 0; tick < 40; tick += 1) {
+      for (const event of combat.step()) {
+        if (event.damageType) observed.push(event.damageType);
+      }
+    }
+    expect(observed.length).toBeGreaterThan(0);
+    expect(observed.every((type) => type === 'frost')).toBe(true);
+  });
+
+  it('keeps network presentation packets deterministic for equivalent cues', () => {
+    const director = new CombatPresentationDirector();
+    const event = {
+      tick: 4,
+      type: 'critical',
+      sourceId: combatId(1),
+      targetId: combatId(2),
+      attackId: 'heavy-1',
+      damage: 70,
+      poiseDamage: 20,
+      damageType: 'arcane',
+    } as never;
+    const cue = director.ingest([event], { states: [] }).cues[0]!;
+    const first = buildCombatPresentationNetworkPacket(cue, 4);
+    const second = buildCombatPresentationNetworkPacket(cue, 4);
+    expect(first).toEqual(second);
+    expect(first.damageType).toBe('arcane');
+    expect(first.digest).toBe(second.digest);
+  });
+});
