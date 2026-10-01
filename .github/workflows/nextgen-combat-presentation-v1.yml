@@ -12,6 +12,7 @@ on:
       - 'src/3d/nextgen/combatPresentationBrowserBridgeV1.ts'
       - 'src/3d/nextgen/combatPresentationCameraFocusV1.ts'
       - 'src/3d/nextgen/combatPresentationHapticsV1.ts'
+      - 'src/3d/nextgen/combatPresentationInputLatencyV1.ts'
       - 'src/3d/nextgen/combatPresentationDamageTypeV1.ts'
       - 'src/3d/nextgen/combatPresentationQualityV1.ts'
       - 'src/3d/nextgen/combatPresentationScenarioV1.ts'
