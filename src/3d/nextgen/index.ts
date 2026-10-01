@@ -88,3 +88,4 @@ export * from './combatPresentationTimelineV1';
 export * from './combatPresentationScenarioV1';
 export * from './combatPresentationTelemetryV1';
 export * from './combatPresentationQualityV1';
+export * from './combatPresentationBusV1';
