@@ -1,0 +1,48 @@
+name: Buzul Muhafızı — Environment Runtime Bridge v59
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentRuntimeBridgeV59.js'
+      - 'src/3d/world/terrainEnvironmentEcotone.js'
+      - 'scripts/checkEnvironmentRuntimeBridgeV59.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-runtime-bridge-v59.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  environment-runtime-bridge-v59:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact-main ancestry and focused diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+          changed=$(git diff --numstat origin/main...HEAD -- src/3d/world/environmentRuntimeBridgeV59.js scripts/checkEnvironmentRuntimeBridgeV59.mjs .github/workflows/buzul-muhafizi-environment-runtime-bridge-v59.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+          test "$(git diff --name-only origin/main...HEAD | wc -l | tr -d ' ')" -eq 3
+          ! git diff --check origin/main...HEAD
+      - name: Syntax check
+        run: |
+          node --check src/3d/world/environmentRuntimeBridgeV59.js
+          node --check scripts/checkEnvironmentRuntimeBridgeV59.mjs
+      - name: Execute runtime regression
+        run: node scripts/checkEnvironmentRuntimeBridgeV59.mjs
+      - name: Enforce ownership boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -nE "EditorMaterialStudio|window\.|document\.|THREE\.|new (Box|Sphere|Cone|Plane)Geometry|createGeometry|hydrate|loadGLB|attachToScene" src/3d/world/environmentRuntimeBridgeV59.js
+          grep -q "merged-590" src/3d/world/environmentRuntimeBridgeV59.js
+          grep -q "materialPlacementSequence" src/3d/world/environmentRuntimeBridgeV59.js
