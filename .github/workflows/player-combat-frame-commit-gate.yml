@@ -1,0 +1,23 @@
+name: Player Combat Frame Commit Gate
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatFrameCommitGate.js'
+      - 'scripts/checkPlayerCombatFrameCommitGate.mjs'
+      - '.github/workflows/player-combat-frame-commit-gate.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerCombatFrameCommitGate.js && node --check scripts/checkPlayerCombatFrameCommitGate.mjs
+      - name: Focused contract
+        run: node scripts/checkPlayerCombatFrameCommitGate.mjs
+      - name: Determinism
+        run: test "$(node scripts/checkPlayerCombatFrameCommitGate.mjs)" = "PLAYER_COMBAT_FRAME_COMMIT_GATE_OK"
