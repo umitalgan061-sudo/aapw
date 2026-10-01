@@ -19,7 +19,7 @@ export class SecurityGate {
     try {
       const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
       if (bytes > this.limits.maxPayloadBytes) return this.reject('PAYLOAD_TOO_LARGE', 'serialized payload exceeds configured budget');
-      this.walk(value, 0, new Set<object>());
+      this.#walk(value, 0, new Set<object>());
       return Object.freeze({ accepted: true, code: 'OK', reason: 'accepted', digest: hashJson(value) });
     } catch (error) {
       return this.reject('PAYLOAD_INVALID', error instanceof Error ? error.message : String(error));
