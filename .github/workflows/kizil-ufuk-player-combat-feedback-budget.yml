@@ -1,0 +1,40 @@
+name: Kızıl Ufuk Player Combat Feedback Budget
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatFeedbackBudget.js'
+      - 'scripts/checkPlayerCombatFeedbackBudget.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-feedback-budget.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact head and scope
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD)
+          printf '%s\n' "$files"
+          test -n "$files"
+          while IFS= read -r file; do
+            case "$file" in
+              src/3d/gameplay/playerCombatFeedbackBudget.js|scripts/checkPlayerCombatFeedbackBudget.mjs|.github/workflows/kizil-ufuk-player-combat-feedback-budget.yml) ;;
+              *) echo "Unexpected changed path: $file"; exit 1 ;;
+            esac
+          done <<< "$files"
+          additions=$(git diff --numstat "${{ github.event.pull_request.base.sha }}" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$additions" -le 3000
+      - name: Syntax check
+        run: |
+          node --check src/3d/gameplay/playerCombatFeedbackBudget.js
+          node --check scripts/checkPlayerCombatFeedbackBudget.mjs
+      - name: Execute deterministic contract
+        run: node scripts/checkPlayerCombatFeedbackBudget.mjs
