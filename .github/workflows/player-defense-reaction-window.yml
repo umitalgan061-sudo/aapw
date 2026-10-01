@@ -1,0 +1,30 @@
+name: player-defense-reaction-window
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerDefenseReactionWindow.js'
+      - 'scripts/checkPlayerDefenseReactionWindow.mjs'
+      - '.github/workflows/player-defense-reaction-window.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerDefenseReactionWindow.js
+          node --check scripts/checkPlayerDefenseReactionWindow.mjs
+      - name: Runtime regression
+        run: node scripts/checkPlayerDefenseReactionWindow.mjs
+      - name: Determinism
+        run: |
+          node scripts/checkPlayerDefenseReactionWindow.mjs > /tmp/defense-a.txt
+          node scripts/checkPlayerDefenseReactionWindow.mjs > /tmp/defense-b.txt
+          cmp /tmp/defense-a.txt /tmp/defense-b.txt
+      - name: Runtime/editor boundary
+        run: |
+          ! grep -R "EditorMaterialStudio\|from 'three'\|from \"three\"" src/3d/gameplay/playerDefenseReactionWindow.js
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
