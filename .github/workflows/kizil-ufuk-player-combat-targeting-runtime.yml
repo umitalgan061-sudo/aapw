@@ -1,0 +1,40 @@
+name: Kızıl Ufuk Player Combat Targeting Runtime
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatTargetingDirector.js'
+      - 'src/3d/gameplay/playerCombatTargetingRuntime.js'
+      - 'scripts/checkPlayerCombatTargetingRuntime.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-targeting-runtime.yml'
+  push:
+    branches: ['agent/kizil-ufuk-player-director-20260915']
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact head identity
+        run: test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+      - name: Scope and size
+        shell: bash
+        run: |
+          git diff --name-only "${{ github.event.pull_request.base.sha || github.event.before }}" HEAD | tee changed.txt
+          test "$(wc -l < changed.txt)" -le 4
+          ! grep -Ev '^(src/3d/gameplay/playerCombatTargetingDirector.js|src/3d/gameplay/playerCombatTargetingRuntime.js|scripts/checkPlayerCombatTargetingRuntime.mjs|.github/workflows/kizil-ufuk-player-combat-targeting-runtime.yml)$' changed.txt
+          additions=$(git diff --numstat "${{ github.event.pull_request.base.sha || github.event.before }}" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$additions" -le 3000
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerCombatTargetingDirector.js
+          node --check src/3d/gameplay/playerCombatTargetingRuntime.js
+          node --check scripts/checkPlayerCombatTargetingRuntime.mjs
+      - name: Deterministic runtime regression
+        run: |
+          first=$(node scripts/checkPlayerCombatTargetingRuntime.mjs)
+          second=$(node scripts/checkPlayerCombatTargetingRuntime.mjs)
+          test "$first" = "$second"
+          echo "$first"
