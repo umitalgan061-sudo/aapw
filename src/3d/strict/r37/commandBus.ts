@@ -110,6 +110,12 @@ export class CommandBusR37 {
     })));
   }
 
+  clear(): void {
+    this.#commands = [];
+    this.#events = [];
+    this.#sequence = 0;
+  }
+
   clearBefore(tick: number): void {
     this.#commands = this.#commands.filter((command) => command.tick >= tick);
     this.#events = this.#events.filter((event) => event.tick >= tick);
