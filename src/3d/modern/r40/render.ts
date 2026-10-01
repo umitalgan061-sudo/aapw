@@ -54,7 +54,9 @@ export function qualityTier(tier: 0 | 1 | 2 | 3 | 4): QualityState {
     3: Object.freeze({ tier: 3, renderScale: 0.9, shadows: true, foliageDensity: 0.75, postFx: 0.8, maxAudioVoices: 64 }),
     4: Object.freeze({ tier: 4, renderScale: 1, shadows: true, foliageDensity: 1, postFx: 1, maxAudioVoices: 96 }),
   });
-  return table[tier];
+  const state = table[tier];
+  if (!state) throw new RangeError('unsupported quality tier');
+  return state;
 }
 export class RenderQualityGovernor {
   readonly budget: FrameBudget; #quality: QualityState; #good = 0; #bad = 0;
