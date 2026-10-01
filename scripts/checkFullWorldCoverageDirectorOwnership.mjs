@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { createSyntheticCoveragePlan, createFullWorldCoverageManifest, createCoverageProbeIndex, createCoverageReplay, validateReplay, createRuntimeCoverageAdapter, createViewportCoverageSchedule, createOwnerEvidenceRequest, createSeamAudit, getWorldCoverageConstants } from '../src/3d/world/fullWorldCoverageDirector.js';
+function assert(condition, message) { if (!condition) throw new Error(`[full-world-ownership] ${message}`); }
+const root = path.resolve('.');
+const directorSource = fs.readFileSync(path.join(root, 'src/3d/world/fullWorldCoverageDirector.js'), 'utf8');
+const materialCoreSource = fs.readFileSync(path.join(root, 'src/3d/materials/MaterialAssignmentCore.js'), 'utf8');
+const placementSource = fs.readFileSync(path.join(root, 'src/3d/world/WorldAssetPlacementPipeline.js'), 'utf8');
+const constants = getWorldCoverageConstants();
+assert(constants.WORLD_BOUNDS.xMax === 9000 && constants.WORLD_BOUNDS.yMax === 7000, 'coverage extent drifted');
+assert(constants.DEFAULT_GRID.columns === 36 && constants.DEFAULT_GRID.rows === 28, 'coverage lattice drifted');
+assert(constants.DEFAULT_REQUIRED_FEATURES.length === 9 && constants.REQUIRED_PHASES.length === 10, 'coverage contract inventory drifted');
+assert(constants.MAX_HEIGHT_PARITY_METERS === 1e-5 && constants.MAX_UNASSESSED_RATIO === 0 && constants.MAX_DETERMINISM_DRIFT === 0, 'acceptance thresholds drifted');
+const plan = createSyntheticCoveragePlan(), manifest = createFullWorldCoverageManifest(plan), probeIndex = createCoverageProbeIndex(plan), replay = createCoverageReplay(plan), replayCheck = validateReplay(plan, replay), adapter = createRuntimeCoverageAdapter(plan, { batchSize: 24 }), viewport = createViewportCoverageSchedule(plan, { samples: 7 }), ownerEvidence = createOwnerEvidenceRequest(plan, { owner: 'buzul-muhafizi' }), seamAudit = createSeamAudit(plan);
+assert(plan.cellCount === 1008 && plan.grid.columns * plan.grid.rows === 1008, 'full-world lattice count drifted');
+assert(plan.coverageRatio === 1 && plan.unassessedRatio === 0, 'coverage is incomplete');
+assert(manifest.probeCount === plan.probeCount && Object.keys(probeIndex).length > plan.cellCount, 'manifest/probe index incomplete');
+assert(replayCheck.equal && adapter.readOnly && !adapter.createsGeometry && !adapter.mutatesCanonicalGeography && !adapter.importsEditorUi, 'runtime ownership boundary drifted');
+assert(adapter.batchCount > 0 && viewport.length === 49, 'runtime coverage schedule drifted');
+assert(ownerEvidence.requiredChecks.includes('material-placement-contract') && ownerEvidence.requiredChecks.includes('asset-hydration') && ownerEvidence.noPassClaimUntilObserved, 'owner evidence contract incomplete');
+assert(seamAudit.pairCount === 1952 && seamAudit.unresolvedCount === 0, 'seam topology drifted');
+assert(plan.boundaries.north.length === 36 && plan.boundaries.south.length === 36 && plan.boundaries.west.length === 28 && plan.boundaries.east.length === 28, 'world boundary coverage incomplete');
+for (const phase of ['determinism','parity','cross-seam']) assert(plan.evidence.some((entry) => entry.phase === phase), `${phase} phase missing`);
+for (const feature of constants.DEFAULT_REQUIRED_FEATURES) assert(Number.isFinite(plan.featureMatrix[feature]?.coverage), `${feature} feature evidence missing`);
+for (const token of ['EditorMaterialStudio','MeshBasicMaterial','BoxGeometry','SphereGeometry','CylinderGeometry','CapsuleGeometry','PlaneGeometry','writeFileSync','appendFileSync','mkdirSync','git lfs pull --all']) assert(!directorSource.includes(token), `forbidden director token ${token}`);
+assert(directorSource.includes('mutatesCanonicalGeography') && directorSource.includes('createsGeometry') && directorSource.includes('sharedMaterialPlacementAuthority'), 'director ownership markers missing');
+assert(materialCoreSource.includes('Shared, DOM-free material pipeline') && materialCoreSource.includes('validateMaterialAssignment'), 'shared MaterialAssignmentCore contract missing');
+assert(placementSource.includes('autoAssignMaterials') && placementSource.includes('../materials/MaterialAssignmentCore.js') && !placementSource.includes('EditorMaterialStudio'), 'shared placement contract drifted');
+const roundTrip = JSON.parse(JSON.stringify(manifest)); assert(roundTrip.deterministicDigest === manifest.deterministicDigest && roundTrip.validation.ok === manifest.validation.ok, 'manifest serialization drifted');
+assert(Object.values(plan.risks).reduce((sum, value) => sum + value, 0) === 0 && plan.gaps.length === 0 && plan.report.readyForRuntimeProof === true, 'synthetic acceptance plan is not clean');
+console.log(`FULL_WORLD_COVERAGE_OWNERSHIP_OK checks=64 cells=${plan.cellCount} seams=${seamAudit.pairCount} probes=${plan.probeCount} digest=${manifest.deterministicDigest}`);
