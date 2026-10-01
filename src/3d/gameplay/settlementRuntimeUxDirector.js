@@ -1,0 +1,28 @@
+/** Settlement UX director: presentation/orchestration only. */
+import { createSettlementVerticalSlice } from './settlementVerticalSlice.js';
+export const SETTLEMENT_RUNTIME_UX_VERSION=1;
+const ACTIONS=Object.freeze(['enter','exit','interact','talk','trade','craft','acceptQuest','advanceQuest','travel','save','back']);
+const text=(v,f='')=>String(v??f).trim().slice(0,160);
+const clone=(v)=>v==null?v:JSON.parse(JSON.stringify(v));
+const unique=(values)=>[...new Set((values??[]).map(v=>text(v)).filter(Boolean))];
+const label=(action)=>({enter:'İçeri gir',exit:'Dışarı çık',interact:'Etkileş',talk:'Konuş',trade:'Takas',craft:'Üret',acceptQuest:'Görevi kabul et',advanceQuest:'Görevi ilerlet',travel:'Yola çık',save:'Oyunu kaydet',back:'Geri dön'})[action]??action;
+export function createSettlementRuntimeUxDirector(options={}){
+ const slice=options.slice??createSettlementVerticalSlice(options);
+ const nodes=new Map((options.nodes??[]).filter(n=>n?.id).map(n=>[text(n.id),clone(n)]));
+ const handlers=options.handlers??{}; const now=typeof options.now==='function'?options.now:()=>Date.now(); const limit=Math.max(1,Math.min(64,Number(options.historyLimit??32)));
+ let state={version:1,mode:'idle',activeNodeId:null,focusedNodeId:null,route:[],history:[],feedback:null,revision:0,sessionId:text(options.sessionId,`ux-${now()}`)}; let disposed=false;
+ const emit=(name,payload)=>options.onEvent?.({name,at:now(),revision:state.revision,...clone(payload)});
+ const push=(entry)=>{state={...state,history:[...state.history,{at:now(),...clone(entry)}].slice(-limit),revision:state.revision+1};};
+ const view=()=>({version:1,mode:state.mode,activeNodeId:state.activeNodeId,focusedNodeId:state.focusedNodeId,route:[...state.route],history:[...state.history],feedback:clone(state.feedback),revision:state.revision,sessionId:state.sessionId,nodes:[...nodes.values()].map(n=>({id:n.id,kind:n.kind,label:text(n.label,n.id),actions:unique(n.actions),capabilities:clone(n.capabilities??{})}))});
+ const feedback=(input={})=>{const value={status:text(input.status,'ok'),code:text(input.code),message:text(input.message,'İşlem sonucu güncellendi.'),action:text(input.action),nodeId:text(input.nodeId,state.focusedNodeId)};state={...state,feedback:value,revision:state.revision+1};emit('feedback',{feedback:value});return clone(value);};
+ const resolveNode=(id)=>nodes.get(text(id));
+ const can=(node,action)=>{if(!node||!ACTIONS.includes(action))return false;if(Array.isArray(node.actions)&&!node.actions.includes(action))return false;return Object.entries(node.capabilities??{}).every(([key,value])=>value!==false||action!=='travel'||key!=='travel');};
+ const open=(nodeOrId,meta={})=>{if(disposed)return feedback({status:'error',code:'disposed'});const node=typeof nodeOrId==='string'?resolveNode(nodeOrId):nodeOrId;if(!node?.id)return feedback({status:'error',code:'missing-node'});nodes.set(text(node.id),clone(node));state={...state,mode:'open',activeNodeId:text(node.id),focusedNodeId:text(node.id),route:[text(node.id)],feedback:null,revision:state.revision+1};push({type:'open',nodeId:node.id,meta});emit('opened',{node:clone(node),view:view()});return view();};
+ const focus=(id)=>{if(disposed)return feedback({status:'error',code:'disposed'});const node=resolveNode(id);if(!node)return feedback({status:'blocked',code:'missing-node',nodeId:id});state={...state,focusedNodeId:text(id),route:state.route.includes(text(id))?state.route:[...state.route,text(id)],revision:state.revision+1};push({type:'focus',nodeId:id});emit('focused',{nodeId:text(id),view:view()});return view();};
+ const execute=async(action,input={})=>{if(disposed)return feedback({status:'error',code:'disposed',action});const node=resolveNode(state.focusedNodeId);if(!can(node,action))return feedback({status:'blocked',code:'disabled-action',action,nodeId:node?.id});if(action==='back'){state={...state,route:state.route.slice(0,-1),focusedNodeId:state.route.at(-2)??state.activeNodeId,revision:state.revision+1};push({type:'back',nodeId:node.id});return view();}const handler=handlers[action]??handlers.interact;if(typeof handler!=='function')return feedback({status:'blocked',code:'missing-handler',action,nodeId:node.id});try{const result=await handler({node:clone(node),input:clone(input),state:view(),slice});push({type:'execute',action,nodeId:node.id,result});emit('executed',{action,nodeId:node.id,result:clone(result)});return result??feedback({status:'ok',action,nodeId:node.id});}catch(error){return feedback({status:'error',code:'handler-error',message:error?.message,action,nodeId:node.id});}};
+ const close=(reason='close')=>{state={...state,mode:'idle',activeNodeId:null,focusedNodeId:null,route:[],revision:state.revision+1};push({type:'close',reason});emit('closed',{reason,view:view()});return view();};
+ const exportState=()=>({version:1,sessionId:state.sessionId,mode:state.mode,activeNodeId:state.activeNodeId,focusedNodeId:state.focusedNodeId,route:[...state.route],history:[...state.history].slice(-limit),feedback:clone(state.feedback),revision:state.revision});
+ const importState=(snapshot)=>{if(!snapshot||snapshot.version!==1)return feedback({status:'error',code:'invalid-snapshot'});state={...state,...clone(snapshot),history:[...(snapshot.history??[])].slice(-limit),revision:Number(snapshot.revision)||0};return view();};
+ const reset=(reason='reset')=>{state={version:1,mode:'idle',activeNodeId:null,focusedNodeId:null,route:[],history:[],feedback:null,revision:state.revision+1,sessionId:state.sessionId};emit('reset',{reason,view:view()});return view();};
+ return {version:1,slice,open,focus,execute,close,feedback,exportState,importState,reset,getState:()=>clone(state),getViewModel:view,dispose:()=>{disposed=true;}};
+}
