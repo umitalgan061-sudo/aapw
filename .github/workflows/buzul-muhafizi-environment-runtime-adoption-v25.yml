@@ -1,0 +1,40 @@
+name: Buzul Muhafizi — Environment Visual Quality Runtime v25
+
+on:
+  push:
+    branches:
+      - buzul-muhafizi/exact-main-environment-runtime-adoption-v25-20260909
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  environment-runtime-adoption:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - name: Exact-main ancestry
+        run: |
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Exact scope and budget
+        run: |
+          files="$(git diff --name-only origin/main...HEAD)"
+          test "$files" = ".github/workflows/buzul-muhafizi-environment-runtime-adoption-v25.yml
+scripts/checkEnvironmentVisualQualityRuntime.mjs
+src/3d/world/environmentVisualQualityRuntime.js"
+          lines="$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$lines" -le 3000
+      - name: Syntax
+        run: node --check src/3d/world/environmentVisualQualityRuntime.js && node --check scripts/checkEnvironmentVisualQualityRuntime.mjs
+      - name: Runtime contract
+        run: node scripts/checkEnvironmentVisualQualityRuntime.mjs
+      - name: Shared boundary
+        run: |
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" -n src/3d/world/environmentVisualQualityRuntime.js scripts/checkEnvironmentVisualQualityRuntime.mjs
+      - name: Diff hygiene
+        run: git diff --check origin/main...HEAD
