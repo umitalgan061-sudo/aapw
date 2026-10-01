@@ -3,6 +3,9 @@ import { CombatPresentationDirector, buildCombatPresentationFrame, validateComba
 import { CombatPresentationQueue, validateCombatPresentationDispatch } from '../../src/3d/nextgen/combatPresentationQueueV1';
 import { compareCombatPresentationRecordings, replayCombatPresentation, summarizeCombatPresentationRecording } from '../../src/3d/nextgen/combatPresentationReplayV1';
 import { buildCombatFeedbackSummary, eventToSemanticHint, projectCombatAccessibility, validateCombatAccessibilitySignal } from '../../src/3d/nextgen/combatPresentationAccessibilityV1';
+import { getCombatDamageTypeProfile, resolveCombatSurfaceReaction, validateCombatDamageTypeProfiles } from '../../src/3d/nextgen/combatPresentationDamageTypeV1';
+import { createCombatPresentationTimeline, timelineEnvelope, validateCombatPresentationTimeline } from '../../src/3d/nextgen/combatPresentationTimelineV1';
+import { runCombatPresentationVerticalSlice, validateCombatPresentationScenario } from '../../src/3d/nextgen/combatPresentationScenarioV1';
 import { CombatSimulation, createCombatStats, type CombatEvent, type CombatantState } from '../../src/3d/nextgen/combatSimulation';
 import { vec3, type Vec3 } from '../../src/3d/nextgen/deterministicMath';
 
@@ -78,6 +81,27 @@ describe('nextgen combat presentation', () => {
     const restored = new CombatPresentationDirector();
     restored.restore(snapshot);
     expect(restored.snapshot()).toEqual(snapshot);
+  });
+});
+
+describe('damage type profiles and timeline', () => {
+  it('validates all authored damage-type presentation profiles', () => {
+    const validation = validateCombatDamageTypeProfiles();
+    expect(validation.valid).toBe(true);
+    expect(getCombatDamageTypeProfile('frost').uiLabel).toBe('BUZ');
+    expect(resolveCombatSurfaceReaction('slash', 'metal').response).toBe('metallic-spark');
+  });
+
+  it('builds an ordered hitstop → impact → recoil timeline', () => {
+    const director = new CombatPresentationDirector();
+    const cue = director.ingest([{ tick: 7, type: 'critical', sourceId: combatId(1), targetId: combatId(2), damage: 60, damageType: 'frost' }] as never, { states: [] }).cues[0];
+    const timeline = createCombatPresentationTimeline(cue!);
+    expect(validateCombatPresentationTimeline(timeline).valid).toBe(true);
+    expect(timeline.stages[0]?.stage).toBe('hitstop');
+    expect(timeline.stages[1]?.stage).toBe('impact-flash');
+    expect(timeline.stages[2]?.stage).toBe('recoil');
+    expect(timeline.sample(0).stage).toBe('hitstop');
+    expect(timelineEnvelope(cue!).end.stage).toBe('clear');
   });
 });
 
@@ -195,5 +219,18 @@ describe('defensive edge cases', () => {
     restored.restore(queue.snapshot());
     expect(restored.pendingCount()).toBe(queue.pendingCount());
     expect(restored.tickValue()).toBe(queue.tickValue());
+  });
+});
+
+describe('combat presentation vertical slice', () => {
+  it('exercises authoritative combat events and produces a validated presentation report', () => {
+    const report = runCombatPresentationVerticalSlice(77, 110);
+    expect(validateCombatPresentationScenario(report).valid).toBe(true);
+    expect(report.totalEvents).toBeGreaterThan(0);
+    expect(report.totalCues).toBeGreaterThan(0);
+    expect(report.feedbackSummary.count).toBe(report.totalCues);
+    expect(report.eventTypes.dodge).toBeGreaterThan(0);
+    expect(Object.keys(report.damageTypes).length).toBeGreaterThan(0);
+    expect(report.droppedCues).toBe(0);
   });
 });
