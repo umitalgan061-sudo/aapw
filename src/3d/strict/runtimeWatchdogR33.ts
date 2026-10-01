@@ -124,6 +124,15 @@ export class RuntimeWatchdogR33 {
     });
   }
 
+  reset(): void {
+    if (this.#state === 'disposed') return;
+    this.#history = [];
+    this.#state = 'nominal';
+    this.#badFrames = 0;
+    this.#goodFrames = 0;
+    this.#score = 0;
+  }
+
   dispose(): void {
     this.#history = [];
     this.#state = 'disposed';
