@@ -43,7 +43,7 @@ export function runCombatPresentationVerticalSlice(seed = 0xC0FFEE, totalTicks =
     const delivered = queue.dispatch(frame.tick);
     frames.push(frame); dispatches.push(...delivered);
     for (const event of events) { increment(eventTypes, event.type); if (event.damageType) increment(damageTypes, event.damageType); }
-    steps.push(Object.freeze({ tick: frame.tick, action: tick === 0 ? 'player-light' : tick === 32 ? 'guard-heavy-pressure' : tick === 64 ? 'guard-dodge' : tick === 72 ? 'frost-counter' : tick === 92 ? 'player-heavy' : 'simulation', eventTypes: Object.freeze(events.map((event) => event.type)), cueCount: frame.cues.length + pushed * 0, dispatchCount: delivered.length, hitstopTicks: frame.hitstopTicks, digest: frame.deterministicDigest }));
+    steps.push(Object.freeze({ tick: frame.tick, action: tick === 0 ? 'player-light' : tick === 32 ? 'guard-heavy-pressure' : tick === 64 ? 'guard-dodge' : tick === 72 ? 'frost-counter' : tick === 92 ? 'player-heavy' : 'simulation', eventTypes: Object.freeze(events.map((event) => event.type)), cueCount: frame.cues.length, dispatchCount: delivered.length, hitstopTicks: frame.hitstopTicks, digest: frame.deterministicDigest }));
   }
   const finalCues = frames.flatMap((frame) => frame.cues);
   const feedbackSummary = buildCombatFeedbackSummary(finalCues);
