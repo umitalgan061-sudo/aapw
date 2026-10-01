@@ -39,9 +39,9 @@ export interface EquipmentDefinitionR35 {
   readonly id: string;
   readonly itemId: string;
   readonly slot: EquipmentSlotR35;
-  readonly twoHanded?: boolean;
-  readonly levelRequired?: number;
-  readonly requiredTags?: readonly string[];
+  readonly twoHanded?: boolean | undefined;
+  readonly levelRequired?: number | undefined;
+  readonly requiredTags?: readonly string[] | undefined;
   readonly modifiers: Readonly<Partial<Record<EquipmentStatR35, number>>>;
   readonly tags: readonly string[];
 }
@@ -86,10 +86,10 @@ export interface EquipmentSnapshotR35 {
 export interface EquipmentResultR35 {
   readonly ok: boolean;
   readonly slot: EquipmentSlotR35;
-  readonly definitionId?: string;
-  readonly replaced?: EquippedEntryR35;
-  readonly clearedSlot?: EquipmentSlotR35;
-  readonly reason?: string;
+  readonly definitionId?: string | undefined;
+  readonly replaced?: EquippedEntryR35 | undefined;
+  readonly clearedSlot?: EquipmentSlotR35 | undefined;
+  readonly reason?: string | undefined;
 }
 
 const SLOTS: readonly EquipmentSlotR35[] = [
