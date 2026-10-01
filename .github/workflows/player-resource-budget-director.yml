@@ -1,0 +1,24 @@
+name: player-resource-budget-director
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerResourceBudgetDirector.js'
+      - 'scripts/checkPlayerResourceBudgetDirector.mjs'
+      - '.github/workflows/player-resource-budget-director.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: syntax
+        run: node --check src/3d/gameplay/playerResourceBudgetDirector.js && node --check scripts/checkPlayerResourceBudgetDirector.mjs
+      - name: executable contract
+        run: node scripts/checkPlayerResourceBudgetDirector.mjs
+      - name: boundary guard
+        run: |
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" src/3d/gameplay/playerResourceBudgetDirector.js scripts/checkPlayerResourceBudgetDirector.mjs
+      - name: diff hygiene
+        run: git diff --check
