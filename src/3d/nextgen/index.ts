@@ -86,3 +86,5 @@ export * from './combatPresentationAccessibilityV1';
 export * from './combatPresentationDamageTypeV1';
 export * from './combatPresentationTimelineV1';
 export * from './combatPresentationScenarioV1';
+export * from './combatPresentationTelemetryV1';
+export * from './combatPresentationQualityV1';
