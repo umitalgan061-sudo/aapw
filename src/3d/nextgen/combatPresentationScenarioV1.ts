@@ -26,7 +26,7 @@ export function runCombatPresentationVerticalSlice(seed = 0xC0FFEE, totalTicks =
   combat.setPose(target, vec3(0, 0, 2.2), vec3(0, 0, -1));
   const eventsByTick = new Map<number, readonly CombatEvent[]>();
   const frames: CombatPresentationFrame[] = []; const dispatches: CombatPresentationDispatch[] = []; const steps: CombatPresentationScenarioStep[] = []; const statesByTick = new Map<number, ReturnType<CombatSimulation['snapshot']>>();
-  const eventTypes: Record<CombatEvent['type'], number> = { 'attack-start': 0, hit: 0, blocked: 0, critical: 0, stagger: 0, death: 0, dodge: 0 };
+  const eventTypes: Record<CombatEvent['type'], number> = { 'attack-start': 0, hit: 0, blocked: 0, parried: 0, critical: 0, stagger: 0, death: 0, dodge: 0 };
   const damageTypes: Record<string, number> = {};
   for (let tick = 0; tick < totalTicks; tick += 1) {
     if (tick === 0) combat.startAttack(player, 'light-1');
