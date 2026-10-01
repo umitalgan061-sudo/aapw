@@ -1,0 +1,33 @@
+name: Settlement Service Board
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementServiceBoard.js'
+      - 'scripts/checkSettlementServiceBoard.mjs'
+      - '.github/workflows/settlement-service-board.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementServiceBoard.js'
+      - 'scripts/checkSettlementServiceBoard.mjs'
+      - '.github/workflows/settlement-service-board.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: syntax
+        run: node --check src/3d/gameplay/settlementServiceBoard.js && node --check scripts/checkSettlementServiceBoard.mjs
+      - name: regression
+        run: node scripts/checkSettlementServiceBoard.mjs
+      - name: boundary
+        run: |
+          ! grep -n "EditorMaterialStudio\\|MaterialAssignmentCore\\|WorldAssetPlacementPipeline" src/3d/gameplay/settlementServiceBoard.js
+      - name: diff-budget
+        run: |
+          test "$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/settlementServiceBoard.js scripts/checkSettlementServiceBoard.mjs .github/workflows/settlement-service-board.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
