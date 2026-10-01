@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.nextgen.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": false
+  },
+  "include": [
+    "src/3d/nextgen/combatPresentationV1.ts",
+    "src/3d/nextgen/combatPresentationQueueV1.ts",
+    "src/3d/nextgen/combatPresentationReplayV1.ts",
+    "src/3d/nextgen/combatPresentationAccessibilityV1.ts",
+    "src/3d/nextgen/combatSimulation.ts",
+    "src/3d/nextgen/runtimeFacadeV3.ts",
+    "tests/nextgen/combatPresentationV1.test.ts"
+  ]
+}
