@@ -29,7 +29,7 @@ export function migrateWorldSnapshot(input: unknown): { readonly snapshot: World
     tick: Math.max(0, Math.trunc(Number(source.tick ?? 0))),
     mode: 'running',
     entities: Object.freeze(entities.filter(Boolean).map((entity) => normalizeLegacyEntity(entity))),
-    flags: Object.freeze(Object.fromEntries(Object.entries(flags).filter(([, value]) => typeof value === 'boolean'))),
+    flags: Object.freeze(Object.fromEntries(Object.entries(flags).filter(([, value]) => typeof value === 'boolean').map(([key, value]) => [key, Boolean(value)]))) as Readonly<Record<string, boolean>>,
     values: Object.freeze(Object.fromEntries(Object.entries(values).filter(([, value]) => Number.isFinite(Number(value))).map(([key, value]) => [key, Number(value)]))),
   });
   return Object.freeze({
