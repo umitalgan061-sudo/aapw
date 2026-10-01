@@ -1,0 +1,36 @@
+name: Runtime Circuit Breaker R12
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/strict/runtimeCircuitBreakerR12.ts'
+      - 'src/3d/modern/modernRuntimeFacade.ts'
+      - 'tests/modern/runtimeCircuitBreakerR12.test.ts'
+      - 'scripts/checkRuntimeCircuitBreakerR12.mjs'
+      - 'package.json'
+      - '.github/workflows/runtime-circuit-r12.yml'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-circuit-r12-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:runtime-circuit-r12
+      - run: npm run test:runtime-circuit-r12
+      - run: npm run typecheck

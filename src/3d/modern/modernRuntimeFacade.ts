@@ -7,6 +7,7 @@ import { RenderBridge } from './renderBridge';
 import { RecoveryController } from './recoveryController';
 import { RuntimeHardeningSupervisorV25, type HardeningDecision } from '../strict/runtimeHardeningV25.ts';
 import { RuntimeWatchdogR33, type RuntimeWatchdogSnapshot } from '../strict/runtimeWatchdogR33.ts';
+import { RuntimeCircuitBreakerR12, type RuntimeCircuitSnapshot } from '../strict/runtimeCircuitBreakerR12.ts';
 
 export interface LegacyStateSink {
   set?: (key: string, value: unknown) => void;
@@ -39,6 +40,7 @@ export interface ModernRuntimeFacadeSnapshot {
   readonly digest: string;
   readonly hardening: HardeningDecision;
   readonly watchdog: RuntimeWatchdogSnapshot;
+  readonly circuit: RuntimeCircuitSnapshot;
 }
 
 /**
@@ -53,6 +55,7 @@ export class ModernRuntimeFacade {
   readonly recovery: RecoveryController;
   readonly hardening: RuntimeHardeningSupervisorV25;
   readonly watchdog: RuntimeWatchdogR33;
+  readonly circuit: RuntimeCircuitBreakerR12;
 
   #legacyState: LegacyStateSink;
   #legacyRenderer: LegacyRendererSink;
@@ -71,6 +74,7 @@ export class ModernRuntimeFacade {
     this.renderer = new RenderBridge({ backend: this.kernel.profile.preferredBackend, diagnostics: this.kernel.diagnostics, recovery: this.recovery });
     this.hardening = new RuntimeHardeningSupervisorV25();
     this.watchdog = new RuntimeWatchdogR33();
+    this.circuit = new RuntimeCircuitBreakerR12();
     this.lifecycle = new RuntimeLifecycle({ kernel: this.kernel });
     this.kernel.events.on('render:quality-changed', (change) => {
       this.#legacyState.set?.('renderQuality', change.next);
@@ -107,8 +111,15 @@ export class ModernRuntimeFacade {
       const init = await this.initialize();
       if (!init.ok) return init;
     }
+    if (!this.circuit.canExecute()) {
+      const snapshot = this.circuit.snapshot();
+      const error: PlatformError = { code: 'MODERN_FACADE_CIRCUIT_OPEN', message: `Runtime circuit is ${snapshot.state}.`, retryable: true, cause: snapshot };
+      this.kernel.diagnostics.error(error.code, error.message, 'facade');
+      return { ok: false, error };
+    }
     try {
       const result = await this.lifecycle.frame(input);
+      this.circuit.recordSuccess('facade.frame');
       const assetStats = this.assets.stats();
       this.#lastHardening = this.hardening.observeFrame({
         frame: Number(result.frame.frame),
@@ -135,6 +146,7 @@ export class ModernRuntimeFacade {
       await this.renderer.setQuality(result.quality, this.kernel.quality.decision.renderScale);
       return { ok: true, value: state };
     } catch (cause) {
+      this.circuit.recordFailure('facade.frame', cause);
       this.hardening.recordFailure('facade.frame', cause);
       const error: PlatformError = { code: 'MODERN_FACADE_FRAME_FAILED', message: String(cause), retryable: true, cause };
       this.kernel.diagnostics.error(error.code, error.message, 'facade');
@@ -164,6 +176,8 @@ export class ModernRuntimeFacade {
     await this.renderer.dispose();
     this.assets.clear();
     this.watchdog.dispose();
+    this.circuit.dispose();
+    this.hardening.dispose();
     this.#initialized = false;
   }
 
@@ -181,6 +195,7 @@ export class ModernRuntimeFacade {
       digest: checksum({ phase: this.lifecycle.state.phase, frame, quality, backend, streamedCells, entities, pressure, hardening: hardening.state }),
       hardening,
       watchdog,
+      circuit: this.circuit.snapshot(),
     });
     this.#lastSnapshot = state;
     return state;
@@ -195,6 +210,7 @@ export class ModernRuntimeFacade {
       recovery: this.recovery.state(),
       hardening: this.hardening.snapshot(),
       watchdog: this.watchdog.snapshot(),
+      circuit: this.circuit.snapshot(),
       assets: this.assets.stats(),
     });
   }
