@@ -5,12 +5,20 @@ export class TypedServiceRegistry {
   #entries = new Map<string, Entry>();
   provide<T>(token: ServiceToken<T>, value: T, dependencies: readonly string[] = [], disposer?: () => void): boolean {
     if (!token.id || this.#entries.has(token.id) || dependencies.some((dep) => !this.#entries.has(dep))) return false;
-    this.#entries.set(token.id, Object.freeze({ id: token.id, value, dependencies: Object.freeze([...dependencies]), disposer }));
+    const entry: Entry = disposer === undefined
+      ? Object.freeze({ id: token.id, value, dependencies: Object.freeze([...dependencies]) })
+      : Object.freeze({ id: token.id, value, dependencies: Object.freeze([...dependencies]), disposer });
+    this.#entries.set(token.id, entry);
     return true;
   }
   replace<T>(token: ServiceToken<T>, value: T, disposer?: () => void): boolean {
     const previous = this.#entries.get(token.id); if (!previous) return false;
-    previous.disposer?.(); this.#entries.set(token.id, Object.freeze({ ...previous, value, disposer })); return true;
+    previous.disposer?.();
+    const entry: Entry = disposer === undefined
+      ? Object.freeze({ ...previous, value })
+      : Object.freeze({ ...previous, value, disposer });
+    this.#entries.set(token.id, entry);
+    return true;
   }
   get<T>(token: ServiceToken<T>): T | null { return (this.#entries.get(token.id)?.value as T | undefined) ?? null; }
   has(token: ServiceToken<unknown>): boolean { return this.#entries.has(token.id); }
