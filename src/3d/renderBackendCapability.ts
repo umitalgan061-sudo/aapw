@@ -8,8 +8,9 @@
  * @module renderBackendCapability
  */
 
-interface NavigatorCapabilities extends Navigator {
+interface NavigatorCapabilities {
   readonly gpu?: { readonly requestAdapter?: unknown };
+  readonly hardwareConcurrency?: number;
   readonly deviceMemory?: number;
 }
 
@@ -57,8 +58,9 @@ export interface RenderProfile {
   readonly enableWorkerRendering: boolean;
 }
 
-interface CapabilityWindow extends Window {
-  readonly devicePixelRatio: number;
+interface CapabilityWindow {
+  readonly devicePixelRatio?: number;
+  readonly matchMedia?: Window['matchMedia'];
 }
 
 const DEFAULT_POLICY = Object.freeze({
