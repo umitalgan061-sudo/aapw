@@ -72,6 +72,7 @@ export interface CombatConfig {
   friendlyFire: boolean;
   maxCombatants: number;
   counterDamageMultiplier: number;
+  counterStaminaMultiplier: number;
 }
 
 const DEFAULT_CONFIG: CombatConfig = {
@@ -81,6 +82,7 @@ const DEFAULT_CONFIG: CombatConfig = {
   friendlyFire: false,
   maxCombatants: 512,
   counterDamageMultiplier: 1.35,
+  counterStaminaMultiplier: 0.8,
 };
 
 const DEFAULT_ATTACKS: AttackDefinition[] = [
@@ -123,8 +125,9 @@ export class CombatSimulation {
   startAttack(id: CombatantId, attackId: string): boolean {
     const state = this.require(id); const definition = this.attacks.get(attackId);
     if (!definition || state.phase === 'dead' || state.phase === 'stunned') return false;
-    if (state.stamina < definition.staminaCost || state.hitstopTicks > 0) return false;
-    state.stamina -= definition.staminaCost; state.counterAttack = state.counterWindowTicks > 0; state.counterWindowTicks = 0; state.phase = 'startup'; state.phaseTicksRemaining = definition.startupTicks; state.currentAttack = attackId;
+    const counterAttack = state.counterWindowTicks > 0; const staminaCost = definition.staminaCost * (counterAttack ? this.config.counterStaminaMultiplier : 1);
+    if (state.stamina < staminaCost || state.hitstopTicks > 0) return false;
+    state.stamina -= staminaCost; state.counterAttack = counterAttack; state.counterWindowTicks = 0; state.phase = 'startup'; state.phaseTicksRemaining = definition.startupTicks; state.currentAttack = attackId;
     this.#events.push({ tick: this.#tick, type: 'attack-start', sourceId: id, attackId, damageType: definition.damageType }); return true;
   }
 
