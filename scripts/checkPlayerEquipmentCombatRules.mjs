@@ -123,7 +123,7 @@ assert.ok(delta.changedSlots.includes('head'));
 finiteTree(delta);
 
 const transitionHard = resolvePlayerEquipmentTransition(before, after, { movementState: 'attack-light', attackKind: 'light', comboStep: 2, speedMps: 2, grounded: true });
-assert.equal(transitionHard.animation.hardReset, true);
+assert.equal(transitionHard.hardReset, true);
 assert.equal(transitionHard.animation.hardReset, true);
 assert.ok(transitionHard.animation.crossfadeSeconds > 0);
 assert.ok(transitionHard.socketsToRefresh.includes('mainHand'));
