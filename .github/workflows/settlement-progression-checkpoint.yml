@@ -1,0 +1,20 @@
+name: settlement-progression-checkpoint
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementProgressionCheckpoint.js'
+      - 'scripts/checkSettlementProgressionCheckpoint.mjs'
+      - '.github/workflows/settlement-progression-checkpoint.yml'
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node --check src/3d/gameplay/settlementProgressionCheckpoint.js
+      - run: node scripts/checkSettlementProgressionCheckpoint.mjs
+      - run: node scripts/checkSettlementProgressionCheckpoint.mjs > /tmp/second.log
+      - run: test "$(cat /tmp/second.log)" = "settlement progression checkpoint regression: ok"
+      - run: '! grep -R "EditorMaterialStudio" src/3d/gameplay/settlementProgressionCheckpoint.js'
+      - run: git diff --check "$GITHUB_BASE_REF"...HEAD
