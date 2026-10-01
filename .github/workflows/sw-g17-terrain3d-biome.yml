@@ -12,7 +12,6 @@ on:
       - 'scripts/checkSWG17Biome.mjs'
       - 'scripts/checkSWG17BiomeVisualEvidence.mjs'
       - 'godot/terrain-authoring/scripts/validate_g17_terrain3d_biome.gd'
-      - 'godot/terrain-authoring/corner_claims/SW.json'
       - '.github/workflows/sw-g17-terrain3d-biome.yml'
   workflow_dispatch:
 
