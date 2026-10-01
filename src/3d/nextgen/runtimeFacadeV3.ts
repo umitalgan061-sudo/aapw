@@ -13,6 +13,7 @@ import { WorkerTaskBroker } from './workerProtocolV3';
 import { CombatPresentationDirector, type CombatPresentationDevice, type CombatPresentationFrame, type CombatPresentationConfig } from './combatPresentationV1';
 import { CombatPresentationQueue, type CombatPresentationDispatch, type CombatPresentationQueueConfig } from './combatPresentationQueueV1';
 import { projectCombatAccessibility, type CombatAccessibilityMode, type CombatAccessibilitySignal } from './combatPresentationAccessibilityV1';
+import type { CombatListenerPose } from './combatPresentationSpatialAudioV1';
 import { createCombatPresentationTelemetry, type CombatPresentationTelemetry, type CombatPresentationTelemetrySummary } from './combatPresentationTelemetryV1';
 import { resolveCombatPresentationQuality, tuneCombatPresentationCue, type CombatPresentationQuality, type CombatPresentationQualityDecision } from './combatPresentationQualityV1';
 import { CombatPresentationBus, type CombatPresentationConsumer, type CombatPresentationBusReport } from './combatPresentationBusV1';
@@ -71,6 +72,7 @@ export class NextGenRuntimeV3 {
   #presentationReducedMotion = false;
   #presentationMuted = false;
   #presentationAccessibility: CombatAccessibilityMode = 'standard';
+  #presentationListener: CombatListenerPose | null = null;
   #brains = new Map<number, AiBrain>();
   #predictors = new Map<number, PlayerPredictor>();
   #lastNetworkSnapshot: NetworkSnapshot | null = null;
@@ -132,6 +134,7 @@ export class NextGenRuntimeV3 {
   setReducedMotion(reduced: boolean): void { this.#presentationReducedMotion = reduced; }
   setMuted(muted: boolean): void { this.#presentationMuted = muted; }
   setPresentationAccessibility(mode: CombatAccessibilityMode): void { this.#presentationAccessibility = mode; }
+  setPresentationListener(listener: CombatListenerPose | null): void { this.#presentationListener = listener; }
   subscribeCombatPresentationConsumer(consumer: CombatPresentationConsumer): void { this.combatPresentationBus.subscribe(consumer); }
   unsubscribeCombatPresentationConsumer(id: string): boolean { return this.combatPresentationBus.unsubscribe(id); }
 
@@ -150,7 +153,9 @@ export class NextGenRuntimeV3 {
     const snapshot = this.kernel.step();
     const streamResults = await this.assets.pump(fetcher);
     const combatEvents = this.combat.step();
-    const presentationFrame = this.combatPresentation.ingest(combatEvents, { states: this.combat.snapshot(), device: this.#presentationDevice, reducedMotion: this.#presentationReducedMotion, muted: this.#presentationMuted });
+    const listenerPlayer = [...this.#predictors.values()][0]?.state;
+    const listener = this.#presentationListener ?? (listenerPlayer ? { position: listenerPlayer.position, forward: { x: Math.sin(listenerPlayer.yaw), y: 0, z: Math.cos(listenerPlayer.yaw) } } : undefined);
+    const presentationFrame = this.combatPresentation.ingest(combatEvents, { states: this.combat.snapshot(), device: this.#presentationDevice, reducedMotion: this.#presentationReducedMotion, muted: this.#presentationMuted, listener });
         const presentationQuality = resolveCombatPresentationQuality({ frameP95Ms: this.telemetry.summarize().frameP95Ms, pendingQueue: this.combatPresentationQueue.pendingCount(), droppedCues: presentationFrame.droppedCues, reducedMotion: this.#presentationReducedMotion, device: this.#presentationDevice });
     this.combatPresentationQueue.clear();
     const qualityCues = presentationFrame.cues.map((cue) => tuneCombatPresentationCue(cue, presentationQuality));
