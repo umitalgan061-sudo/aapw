@@ -10,11 +10,9 @@ import {
 import {
   RuntimeWatchdogR33,
   type RuntimeWatchdogSnapshot,
-  type RuntimeWatchdogState,
 } from './runtimeWatchdogR33.ts';
 import {
   StrictRenderBackendRuntime,
-  buildStrictRenderPolicy,
   probeRenderCapabilities,
   type CapabilityProbe,
   type RendererPreference,
