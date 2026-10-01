@@ -156,7 +156,7 @@ export interface CombatPresentationContext {
   readonly targetGrounded?: boolean;
 }
 
-function finite(value: number | undefined, fallback = 0): number { return Number.isFinite(value) ? value : fallback; }
+function finite(value: number | undefined, fallback = 0): number { return value !== undefined && Number.isFinite(value) ? value : fallback; }
 function clamp(value: number, min: number, max: number): number { return Math.max(min, Math.min(max, finite(value, min))); }
 function round(value: number, decimals = 4): number { const factor = 10 ** decimals; return Math.round(value * factor) / factor; }
 function stateOf(states: readonly CombatantState[], id: CombatantId | undefined): CombatantState | null { return id === undefined ? null : states.find((state) => state.id === id) ?? null; }
