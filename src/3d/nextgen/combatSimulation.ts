@@ -58,6 +58,7 @@ export interface CombatEvent {
   attackId?: string;
   damage?: number;
   poiseDamage?: number;
+  damageType?: DamageType;
 }
 
 export interface CombatConfig {
@@ -116,7 +117,7 @@ export class CombatSimulation {
     if (!definition || state.phase === 'dead' || state.phase === 'stunned') return false;
     if (state.stamina < definition.staminaCost || state.hitstopTicks > 0) return false;
     state.stamina -= definition.staminaCost; state.phase = 'startup'; state.phaseTicksRemaining = definition.startupTicks; state.currentAttack = attackId;
-    this.#events.push({ tick: this.#tick, type: 'attack-start', sourceId: id, attackId }); return true;
+    this.#events.push({ tick: this.#tick, type: 'attack-start', sourceId: id, attackId, damageType: definition.damageType }); return true;
   }
 
   dodge(id: CombatantId, direction: Vec3, ticks = 10): boolean {
@@ -160,10 +161,10 @@ export class CombatSimulation {
     let damage = attack.damage * (critical ? attack.criticalMultiplier : 1) * (1 - mitigation); if (blocked) damage *= this.config.blockDamageMultiplier; damage = Math.max(1, damage);
     target.health = Math.max(0, target.health - damage); target.lastHitBy = attacker.id; const poiseDamage = attack.poiseDamage * (blocked ? 0.35 : 1); target.poise = Math.max(this.config.poiseFloor, target.poise - poiseDamage);
     attacker.hitstopTicks = Math.max(attacker.hitstopTicks, critical ? 3 : 2); target.hitstopTicks = Math.max(target.hitstopTicks, 2);
-    this.#events.push({ tick: this.#tick, type: blocked ? 'blocked' : 'hit', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage, poiseDamage });
-    if (critical) this.#events.push({ tick: this.#tick, type: 'critical', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage });
+    this.#events.push({ tick: this.#tick, type: blocked ? 'blocked' : 'hit', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage, poiseDamage, damageType: attack.damageType });
+    if (critical) this.#events.push({ tick: this.#tick, type: 'critical', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage, damageType: attack.damageType });
     if (target.poise <= this.config.poiseFloor && target.health > 0 && !blocked) this.applyStagger(target, attack.staggerTicks);
-    if (target.health <= 0) { target.phase = 'dead'; target.currentAttack = null; this.#events.push({ tick: this.#tick, type: 'death', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage }); }
+    if (target.health <= 0) { target.phase = 'dead'; target.currentAttack = null; this.#events.push({ tick: this.#tick, type: 'death', sourceId: attacker.id, targetId: target.id, attackId: attack.id, damage, damageType: attack.damageType }); }
   }
 
   private applyStagger(target: CombatantState, ticks: number): void { target.phase = 'stunned'; target.stunTicks = Math.max(1, ticks); target.currentAttack = null; target.phaseTicksRemaining = 0; this.#events.push({ tick: this.#tick, type: 'stagger', sourceId: target.lastHitBy ?? target.id, targetId: target.id }); }

@@ -1,0 +1,29 @@
+{
+  "extends": "./tsconfig.nextgen.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": false
+  },
+  "include": [
+    "src/3d/nextgen/combatPresentationV1.ts",
+    "src/3d/nextgen/combatPresentationQueueV1.ts",
+    "src/3d/nextgen/combatPresentationReplayV1.ts",
+    "src/3d/nextgen/combatPresentationAccessibilityV1.ts",
+    "src/3d/nextgen/combatSimulation.ts",
+    "src/3d/nextgen/runtimeFacadeV3.ts",
+    "tests/nextgen/combatPresentationV1.test.ts",
+    "src/3d/nextgen/combatPresentationDamageTypeV1.ts",
+    "src/3d/nextgen/combatPresentationTimelineV1.ts",
+    "src/3d/nextgen/combatPresentationScenarioV1.ts",
+    "src/3d/nextgen/combatPresentationBusV1.ts",
+    "src/3d/nextgen/combatPresentationSpatialAudioV1.ts",
+    "src/3d/nextgen/combatPresentationReactionV1.ts",
+    "src/3d/nextgen/combatPresentationBrowserBridgeV1.ts",
+    "src/3d/nextgen/combatPresentationHapticsV1.ts",
+    "src/3d/nextgen/combatPresentationCameraFocusV1.ts",
+    "src/3d/nextgen/combatPresentationInputLatencyV1.ts",
+    "src/3d/nextgen/combatPresentationNetworkV1.ts",
+    "src/3d/nextgen/combatPresentationImpulseStackV1.ts",
+    "src/3d/nextgen/combatPresentationSurfaceImpactV1.ts"
+  ]
+}

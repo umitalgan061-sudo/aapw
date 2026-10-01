@@ -81,3 +81,23 @@ export * from './legacyInteropV3';
 export * from './cameraRuntimeV3';
 
 export * from './r35/index';
+
+export * from './combatPresentationV1';
+export * from './combatPresentationQueueV1';
+export * from './combatPresentationReplayV1';
+export * from './combatPresentationAccessibilityV1';
+export * from './combatPresentationDamageTypeV1';
+export * from './combatPresentationTimelineV1';
+export * from './combatPresentationScenarioV1';
+export * from './combatPresentationTelemetryV1';
+export * from './combatPresentationQualityV1';
+export * from './combatPresentationBusV1';
+export * from './combatPresentationSpatialAudioV1';
+export * from './combatPresentationReactionV1';
+export * from './combatPresentationContractV1';
+export * from './combatPresentationCameraFocusV1';
+export * from './combatPresentationBrowserBridgeV1';
+export * from './combatPresentationHapticsV1';
+export * from './combatPresentationInputLatencyV1';
+export * from './combatPresentationNetworkV1';
+export * from './combatPresentationImpulseStackV1';
