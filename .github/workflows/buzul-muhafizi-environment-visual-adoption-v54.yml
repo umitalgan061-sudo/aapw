@@ -1,0 +1,39 @@
+name: Buzul Muhafizi - environment visual adoption v54
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentVisualAdoptionV54.js'
+      - 'scripts/checkEnvironmentVisualAdoptionV54.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-visual-adoption-v54.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/world/environmentVisualAdoptionV54.js'
+      - 'scripts/checkEnvironmentVisualAdoptionV54.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-visual-adoption-v54.yml'
+permissions:
+  contents: read
+jobs:
+  environment-visual-adoption-v54:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check
+        run: |
+          node --check src/3d/world/environmentVisualAdoptionV54.js
+          node --check scripts/checkEnvironmentVisualAdoptionV54.mjs
+      - name: Execute deterministic contract regression
+        run: node scripts/checkEnvironmentVisualAdoptionV54.mjs
+      - name: Enforce shared material/editor boundary
+        run: |
+          ! grep -n "EditorMaterialStudio" src/3d/world/environmentVisualAdoptionV54.js
+          ! grep -n "createGeometry\|new THREE\.\|import .*three" src/3d/world/environmentVisualAdoptionV54.js
+      - name: Enforce focused diff budget
+        run: |
+          changed=$(git diff --numstat "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}" -- src/3d/world/environmentVisualAdoptionV54.js scripts/checkEnvironmentVisualAdoptionV54.mjs .github/workflows/buzul-muhafizi-environment-visual-adoption-v54.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+          test "$changed" -gt 1200
