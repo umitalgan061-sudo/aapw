@@ -1,0 +1,26 @@
+name: Kızıl Ufuk Player Equipment Combat Loadout
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentCombatLoadout.js'
+      - 'src/3d/gameplay/playerEquipmentCombatProfile.js'
+      - 'scripts/checkKizilUfukPlayerEquipmentCombatLoadout.mjs'
+      - '.github/workflows/kizil-ufuk-player-equipment-combat-loadout.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exact head
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerEquipmentCombatLoadout.js
+          node --check src/3d/gameplay/playerEquipmentCombatProfile.js
+          node --check scripts/checkKizilUfukPlayerEquipmentCombatLoadout.mjs
+      - name: Focused contract
+        run: node scripts/checkKizilUfukPlayerEquipmentCombatLoadout.mjs
+      - name: Changed-line guard
+        run: |
+          lines=$(git diff --numstat "$GITHUB_BASE_REF"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$lines" -le 3000
