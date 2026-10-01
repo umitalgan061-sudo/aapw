@@ -1,0 +1,24 @@
+name: player-combat-turn-intent-director
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatTurnIntentDirector.js'
+      - 'scripts/checkPlayerCombatTurnIntentDirector.mjs'
+      - '.github/workflows/player-combat-turn-intent-director.yml'
+  push:
+    branches: [main]
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: syntax
+        run: node --check src/3d/gameplay/playerCombatTurnIntentDirector.js && node --check scripts/checkPlayerCombatTurnIntentDirector.mjs
+      - name: contract
+        run: node scripts/checkPlayerCombatTurnIntentDirector.mjs
+      - name: boundary
+        run: |
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" src/3d/gameplay/playerCombatTurnIntentDirector.js scripts/checkPlayerCombatTurnIntentDirector.mjs
