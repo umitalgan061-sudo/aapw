@@ -7,6 +7,23 @@ export interface PlayerJumpArcOptions {
   readonly maxFallSpeedMps?: number;
 }
 
+export interface PlayerJumpIntentOptions {
+  readonly jumpRequested?: boolean;
+  readonly runIntent?: boolean;
+  readonly isGrounded: boolean;
+  readonly coyoteRemainingSeconds?: number;
+  readonly jumpBufferRemainingSeconds?: number;
+  readonly deltaSeconds?: number;
+  readonly coyoteTimeSeconds?: number;
+  readonly jumpBufferSeconds?: number;
+}
+
+export interface PlayerJumpIntentSnapshot {
+  readonly shouldJump: boolean;
+  readonly coyoteRemainingSeconds: number;
+  readonly jumpBufferRemainingSeconds: number;
+}
+
 export interface PlayerJumpArcSnapshot {
   readonly heightAboveGroundMeters: number;
   readonly velocityYMps: number;
@@ -27,6 +44,32 @@ const normalizeStep = (value: number, fallback: number): number =>
 
 const normalizeFallSpeed = (value: number, fallback: number): number =>
   Math.max(1, Math.min(200, finite(value, fallback)));
+
+export function resolvePlayerJumpIntent({
+  jumpRequested = false,
+  runIntent = false,
+  isGrounded,
+  coyoteRemainingSeconds = 0,
+  jumpBufferRemainingSeconds = 0,
+  deltaSeconds = 0,
+  coyoteTimeSeconds = 0.12,
+  jumpBufferSeconds = 0.12,
+}: PlayerJumpIntentOptions): PlayerJumpIntentSnapshot {
+  const dt = Math.max(0, finite(deltaSeconds, 0));
+  const coyoteMax = Math.max(0, Math.min(0.5, finite(coyoteTimeSeconds, 0.12)));
+  const bufferMax = Math.max(0, Math.min(0.5, finite(jumpBufferSeconds, 0.12)));
+  const coyote = isGrounded ? coyoteMax : Math.max(0, finite(coyoteRemainingSeconds, 0) - dt);
+  const requested = Boolean(jumpRequested) && !Boolean(runIntent);
+  const buffer = requested
+    ? bufferMax
+    : Math.max(0, finite(jumpBufferRemainingSeconds, 0) - dt);
+  const shouldJump = buffer > 0 && (isGrounded || coyote > 0);
+  return Object.freeze({
+    shouldJump,
+    coyoteRemainingSeconds: shouldJump ? 0 : coyote,
+    jumpBufferRemainingSeconds: shouldJump ? 0 : buffer,
+  });
+}
 
 /**
  * Pure ballistic step for the playable character.
