@@ -1,0 +1,51 @@
+name: Buzul Muhafizi Visual Continuity Audit v15
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainEnvironmentVisualContinuityAudit.js'
+      - 'scripts/checkTerrainEnvironmentVisualContinuityAudit.mjs'
+      - '.github/workflows/buzul-muhafizi-visual-continuity-audit-v15.yml'
+  push:
+    branches:
+      - 'buzul-muhafizi/exact-main-visual-continuity-audit-v15-20260908'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main ancestry
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Diff budget and scope
+        run: |
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+          files=$(git diff --name-only origin/main...HEAD)
+          test -n "$files"
+          while IFS= read -r file; do
+            case "$file" in
+              src/3d/world/terrainEnvironmentVisualContinuityAudit.js|scripts/checkTerrainEnvironmentVisualContinuityAudit.mjs|.github/workflows/buzul-muhafizi-visual-continuity-audit-v15.yml) ;;
+              *) echo "out-of-scope: $file"; exit 1 ;;
+            esac
+          done <<< "$files"
+      - name: Syntax
+        run: |
+          node --check src/3d/world/terrainEnvironmentVisualContinuityAudit.js
+          node --check scripts/checkTerrainEnvironmentVisualContinuityAudit.mjs
+      - name: Executable audit
+        run: node scripts/checkTerrainEnvironmentVisualContinuityAudit.mjs
+      - name: Shared material/editor boundary
+        run: |
+          ! grep -R "EditorMaterialStudio\\|MaterialAssignmentCore\\|WorldAssetPlacementPipeline" src/3d/world/terrainEnvironmentVisualContinuityAudit.js scripts/checkTerrainEnvironmentVisualContinuityAudit.mjs
+      - name: Diff hygiene
+        run: git diff --check origin/main...HEAD
