@@ -20,7 +20,7 @@ describe('R37 production orchestrator', () => {
     const result = runtime.step({ deltaSeconds: 1 / 60, cameraPosition: { x: 0, y: 0, z: 0 } });
     expect(result.version).toBe(37);
     expect(result.metrics.entities).toBe(1);
-    expect(result.budget.tick()).toBeGreaterThan(0);
+    expect(result.budget.tick).toBeGreaterThan(0);
     expect(result.replayFrames).toBe(1);
     expect(runtime.diagnosticsReport().telemetry.length).toBeGreaterThan(0);
   });
