@@ -8,7 +8,7 @@ export interface R35Clock { readonly tick:number; readonly step:number; readonly
 export interface R35Event<T extends string = string, P = unknown> {
   readonly id:R35Id; readonly type:T; readonly tick:number; readonly source:R35Id; readonly payload:P;
 }
-export interface R35Result<T> { readonly ok:true; readonly value:T; } | { readonly ok:false; readonly error:R35Error; }
+export type R35Result<T> = { readonly ok:true; readonly value:T; } | { readonly ok:false; readonly error:R35Error; }
 export interface R35Error { readonly code:string; readonly message:string; readonly retryable:boolean; }
 export interface R35Metric { readonly name:string; readonly value:number; readonly tick:number; readonly tags:Readonly<Record<string,string>>; }
 export interface R35Budget { readonly cpu:number; readonly gpu:number; readonly memory:number; readonly entities:number; readonly events:number; }

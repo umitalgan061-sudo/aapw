@@ -27,8 +27,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: npm
       - name: Install dependencies
-        run: npm install --no-package-lock --ignore-scripts
+        run: npm ci
       - name: Source guard
         run: node scripts/checkModernPlatformR35.mjs
       - name: TypeScript contracts
