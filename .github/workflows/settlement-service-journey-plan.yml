@@ -1,0 +1,21 @@
+name: Settlement Service Journey Plan
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/settlementServiceJourneyPlan.ts'
+      - 'scripts/checkSettlementServiceJourneyPlan.mjs'
+      - '.github/workflows/settlement-service-journey-plan.yml'
+
+jobs:
+  journey-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run focused journey proof
+        run: node --experimental-strip-types scripts/checkSettlementServiceJourneyPlan.mjs
+      - name: TypeScript syntax check
+        run: node --experimental-strip-types --check src/3d/modern/settlementServiceJourneyPlan.ts
