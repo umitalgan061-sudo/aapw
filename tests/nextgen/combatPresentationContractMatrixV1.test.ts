@@ -11,6 +11,7 @@ import { resolveCombatPresentationQuality, tuneCombatPresentationCue } from '../
 import { createCombatPresentationBus } from '../../src/3d/nextgen/combatPresentationBusV1';
 import { auditCombatPresentationAssets, buildCombatAssetProof } from '../../src/3d/nextgen/combatPresentationAssetsV1';
 import { validateCombatPresentationContract } from '../../src/3d/nextgen/combatPresentationContractV1';
+import { buildCombatPresentationNetworkPacket, encodeCombatPresentationNetworkPacket, decodeCombatPresentationNetworkPacket, buildCombatPresentationNetworkAudit, sortAndDedupeCombatPresentationPackets } from '../../src/3d/nextgen/combatPresentationNetworkV1';
 import { resolveCombatCameraFocus, smoothCombatCameraFocus, validateCombatCameraFocus } from '../../src/3d/nextgen/combatPresentationCameraFocusV1';
 import { buildCombatSurfaceImpactMatrix, summarizeCombatSurfaceImpactMatrix, validateCombatSurfaceImpactRoute } from '../../src/3d/nextgen/combatPresentationSurfaceImpactV1';
 import { combatInputPresentationBudget, resolveCombatInputDeviceParity, resolveCombatPresentationInputLatency, validateCombatPresentationInputResult } from '../../src/3d/nextgen/combatPresentationInputLatencyV1';
@@ -18,12 +19,13 @@ import type { CombatEvent } from '../../src/3d/nextgen/combatSimulation';
 import { vec3 } from '../../src/3d/nextgen/deterministicMath';
 
 const id = (value:number) => value as never;
+const combatId = id;
 const cueFor = (type:CombatEvent['type'], damageType:CombatEvent['damageType']='slash') => {
   const director = new CombatPresentationDirector();
   const event = { tick: 10, type, sourceId:id(1), targetId:id(2), attackId:'test', damage: type === 'dodge' ? 0 : 24, poiseDamage: type === 'stagger' ? 30 : 8, damageType } as CombatEvent;
   return director.ingest([event], { states:[
-    { id:id(1), position:vec3(0,0,0), forward:vec3(0,0,1), phase:'idle', phaseTicksRemaining:0, health:100, stamina:100, poise:50, currentAttack:null, comboStep:0, invulnerableTicks:0, hitstopTicks:0, stunTicks:0, lastHitBy:null },
-    { id:id(2), position:vec3(0,0,2), forward:vec3(0,0,-1), phase:'idle', phaseTicksRemaining:0, health:100, stamina:80, poise:20, currentAttack:null, comboStep:0, invulnerableTicks:0, hitstopTicks:0, stunTicks:0, lastHitBy:null },
+    { id:id(1), position:vec3(0,0,0), forward:vec3(0,0,1), phase:'idle', phaseTicksRemaining:0, health:100, stamina:100, poise:50, currentAttack:null, comboStep:0, invulnerableTicks:0, hitstopTicks:0, stunTicks:0, lastHitBy:null, counterWindowTicks:0, counterAttack:false },
+    { id:id(2), position:vec3(0,0,2), forward:vec3(0,0,-1), phase:'idle', phaseTicksRemaining:0, health:100, stamina:80, poise:20, currentAttack:null, comboStep:0, invulnerableTicks:0, hitstopTicks:0, stunTicks:0, lastHitBy:null, counterWindowTicks:0, counterAttack:false },
   ] }).cues[0]!;
 };
 
