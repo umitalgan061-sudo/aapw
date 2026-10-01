@@ -227,3 +227,48 @@ describe('combat input latency parity', () => {
     expect(Object.values(report.byDevice).reduce((sum, value) => sum + value, 0)).toBe(6);
   });
 });
+
+
+describe('network presentation and impulse stack', () => {
+  it('round-trips a presentation packet with bounded remote validation', () => {
+    const cue = cueFor('critical', 'frost');
+    const packet = buildCombatPresentationNetworkPacket(cue, 11);
+    const encoded = encodeCombatPresentationNetworkPacket(packet);
+    const decoded = decodeCombatPresentationNetworkPacket(encoded);
+    expect(decoded).toEqual(packet);
+    const audit = buildCombatPresentationNetworkAudit([packet, packet], { localTick: 10, maxAgeTicks: 8, maxFutureTicks: 2, maxPackets: 4 });
+    expect(audit.valid).toBe(true);
+    expect(audit.accepted).toBe(1);
+    expect(audit.dropped).toBe(1);
+    expect(sortAndDedupeCombatPresentationPackets([packet, packet])).toHaveLength(1);
+  });
+
+  it('bounds remote packet age and future-lead without mutating combat state', () => {
+    const cue = cueFor('hit');
+    const packet = buildCombatPresentationNetworkPacket(cue, 5);
+    const stale = { ...packet, tick: 0 };
+    const future = { ...packet, tick: 99 };
+    expect(buildCombatPresentationNetworkAudit([stale], { localTick: 20, maxAgeTicks: 4 }).valid).toBe(false);
+    expect(buildCombatPresentationNetworkAudit([future], { localTick: 20, maxFutureTicks: 2 }).valid).toBe(false);
+  });
+
+  it('accumulates multi-impact recoil deterministically and clamps the camera envelope', () => {
+    const director = new CombatPresentationDirector();
+    const frame = director.ingest([
+      { tick: 3, type: 'hit', sourceId: combatId(1), targetId: combatId(2), damage: 12, damageType: 'slash' },
+      { tick: 3, type: 'critical', sourceId: combatId(2), targetId: combatId(1), damage: 58, damageType: 'blunt' },
+      { tick: 3, type: 'stagger', sourceId: combatId(2), targetId: combatId(1), damage: 10, poiseDamage: 30, damageType: 'blunt' },
+    ] as never, { states: [] });
+    const stackA = createCombatImpulseStack({ maxImpulses: 8 });
+    const stackB = createCombatImpulseStack({ maxImpulses: 8 });
+    stackA.addCues(frame.cues);
+    stackB.addCues(frame.cues);
+    const a = stackA.sample(0.04);
+    const b = stackB.sample(0.04);
+    expect(a).toEqual(b);
+    expect(validateCombatImpulseState(a)).toBe(true);
+    expect(Math.abs(a.yawDegrees)).toBeLessThanOrEqual(10);
+    expect(Math.abs(a.pitchDegrees)).toBeLessThanOrEqual(8);
+    expect(Math.hypot(a.recoil.x, a.recoil.y, a.recoil.z)).toBeLessThanOrEqual(0.18);
+  });
+});
