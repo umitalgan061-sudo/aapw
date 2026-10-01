@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "noEmit": true
+  },
+  "include": [
+    "src/3d/gameplay/playerPhysics.ts",
+    "tests/modern/playerPhysicsStability.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
