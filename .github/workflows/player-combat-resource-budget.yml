@@ -1,0 +1,25 @@
+name: Player Combat Resource Budget
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatResourceBudget.ts'
+      - 'scripts/checkPlayerCombatResourceBudget.mjs'
+      - '.github/workflows/player-combat-resource-budget.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact-main ancestry
+        run: git merge-base --is-ancestor origin/main HEAD
+      - name: TypeScript syntax
+        run: node --experimental-strip-types --check src/3d/gameplay/playerCombatResourceBudget.ts
+      - name: Focused proof
+        run: node --experimental-strip-types scripts/checkPlayerCombatResourceBudget.mjs
