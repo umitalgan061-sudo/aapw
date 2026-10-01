@@ -250,7 +250,8 @@ export class GameplaySessionAuthorityR35 {
     this.#experience += gain;
 
     while (this.#experience >= this.experienceForNextLevel()) {
-      this.#experience -= this.experienceForNextLevel();
+      const required = this.experienceForNextLevel();
+      this.#experience -= required;
       this.#level += 1;
       this.equipment.setLevel(this.#level);
     }
