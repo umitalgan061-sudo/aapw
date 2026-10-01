@@ -12,6 +12,7 @@ import { SnapshotHistory, type NetworkSnapshot, type NetworkDelta, snapshotDelta
 import { WorkerTaskBroker } from './workerProtocolV3';
 import { CombatPresentationDirector, type CombatPresentationDevice, type CombatPresentationFrame, type CombatPresentationConfig } from './combatPresentationV1';
 import { CombatPresentationQueue, type CombatPresentationDispatch, type CombatPresentationQueueConfig } from './combatPresentationQueueV1';
+import { projectCombatAccessibility, type CombatAccessibilityMode, type CombatAccessibilitySignal } from './combatPresentationAccessibilityV1';
 
 export interface NextGenConfig {
   fixedDeltaSeconds: number;
@@ -32,6 +33,7 @@ export interface RuntimeFrameResult {
   streamResults: readonly AssetRecord[];
   presentationFrame: CombatPresentationFrame;
   presentationDispatches: readonly CombatPresentationDispatch[];
+  presentationAccessibility: readonly CombatAccessibilitySignal[];
 }
 
 const DEFAULT_CONFIG: NextGenConfig = {
@@ -60,6 +62,7 @@ export class NextGenRuntimeV3 {
   #presentationDevice: CombatPresentationDevice = 'virtual';
   #presentationReducedMotion = false;
   #presentationMuted = false;
+  #presentationAccessibility: CombatAccessibilityMode = 'standard';
   #brains = new Map<number, AiBrain>();
   #predictors = new Map<number, PlayerPredictor>();
   #lastNetworkSnapshot: NetworkSnapshot | null = null;
@@ -118,6 +121,7 @@ export class NextGenRuntimeV3 {
   setPresentationDevice(device: CombatPresentationDevice): void { this.#presentationDevice = device; }
   setReducedMotion(reduced: boolean): void { this.#presentationReducedMotion = reduced; }
   setMuted(muted: boolean): void { this.#presentationMuted = muted; }
+  setPresentationAccessibility(mode: CombatAccessibilityMode): void { this.#presentationAccessibility = mode; }
 
   perceive(entityId: number, stimulus: AiStimulus): void { this.#brains.get(entityId)?.perceive(stimulus, this.kernel.clock.tick); }
 
@@ -137,6 +141,7 @@ export class NextGenRuntimeV3 {
     const presentationFrame = this.combatPresentation.ingest(combatEvents, { states: this.combat.snapshot(), device: this.#presentationDevice, reducedMotion: this.#presentationReducedMotion, muted: this.#presentationMuted });
     this.combatPresentationQueue.enqueue(presentationFrame.cues, this.#presentationDevice, presentationFrame.tick);
     const presentationDispatches = this.combatPresentationQueue.dispatch(presentationFrame.tick);
+    const presentationAccessibility = projectCombatAccessibility(presentationFrame.cues, { mode: this.#presentationAccessibility, device: this.#presentationDevice });
     const aiDecisions: AiDecision[] = [];
     for (const [entityId, brain] of this.#brains) {
       const player = this.#predictors.get(entityId)?.state;
@@ -147,7 +152,7 @@ export class NextGenRuntimeV3 {
     const elapsed = performance.now() - before;
     const frame: FrameTelemetry = { tick: snapshot.tick, cpuMs: elapsed, renderMs: 0, simulationMs: elapsed, networkMs: 0, streamingMs: 0, gpuMs: null, entityCount: this.world.entityCount(), drawCalls: 0, triangles: 0 };
     this.telemetry.record(frame);
-    return { tick: snapshot.tick, snapshot, combatEvents, aiDecisions, streamResults, presentationFrame, presentationDispatches };
+    return { tick: snapshot.tick, snapshot, combatEvents, aiDecisions, streamResults, presentationFrame, presentationDispatches, presentationAccessibility };
 
   }
 
