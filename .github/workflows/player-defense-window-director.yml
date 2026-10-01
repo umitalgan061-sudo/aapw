@@ -1,0 +1,30 @@
+name: player-defense-window-director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerDefenseWindowDirector.js'
+      - 'scripts/checkPlayerDefenseWindowDirector.mjs'
+      - '.github/workflows/player-defense-window-director.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check
+        run: node --check src/3d/gameplay/playerDefenseWindowDirector.js && node --check scripts/checkPlayerDefenseWindowDirector.mjs
+      - name: Executable regression
+        run: node scripts/checkPlayerDefenseWindowDirector.mjs
+      - name: Runtime boundary
+        run: |
+          ! grep -R "EditorMaterialStudio" -n src/3d/gameplay/playerDefenseWindowDirector.js
+          ! grep -R "MaterialAssignmentCore\|WorldAssetPlacementPipeline" -n src/3d/gameplay/playerDefenseWindowDirector.js
+      - name: Diff budget
+        run: |
+          additions=$(git diff --numstat origin/main...HEAD -- . ':!package-lock.json' | awk '{a += $1} END {print a + 0}')
+          deletions=$(git diff --numstat origin/main...HEAD -- . ':!package-lock.json' | awk '{d += $2} END {print d + 0}')
+          test $((additions + deletions)) -le 3000
