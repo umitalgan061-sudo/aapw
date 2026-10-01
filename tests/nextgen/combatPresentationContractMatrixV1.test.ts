@@ -4,6 +4,7 @@ import { CombatPresentationQueue } from '../../src/3d/nextgen/combatPresentation
 import { projectCombatAccessibility } from '../../src/3d/nextgen/combatPresentationAccessibilityV1';
 import { getCombatDamageTypeProfile, listCombatDamageTypeProfiles, resolveCombatSurfaceReaction } from '../../src/3d/nextgen/combatPresentationDamageTypeV1';
 import { resolveCombatSpatialAudio } from '../../src/3d/nextgen/combatPresentationSpatialAudioV1';
+import { createCombatImpulseStack, validateCombatImpulseState } from '../../src/3d/nextgen/combatPresentationImpulseStackV1';
 import { resolveCombatReactionIntent } from '../../src/3d/nextgen/combatPresentationReactionV1';
 import { createCombatPresentationTimeline } from '../../src/3d/nextgen/combatPresentationTimelineV1';
 import { createCombatPresentationTelemetry } from '../../src/3d/nextgen/combatPresentationTelemetryV1';
