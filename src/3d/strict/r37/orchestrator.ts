@@ -77,13 +77,13 @@ export class RuntimeOrchestratorR37 {
       maxCommandsPerTick: Math.max(1, Math.trunc(finite(config.maxCommandsPerTick, 96))),
       commandHistoryCapacity: Math.max(32, Math.trunc(finite(config.commandHistoryCapacity, 512))),
       snapshotHistoryCapacity: Math.max(2, Math.trunc(finite(config.snapshotHistoryCapacity, 64))),
-      budgetUnits: Math.max(1, finite(config.budgetUnits, 100)),
-      maxTelemetrySamples: Math.max(32, Math.trunc(finite(config.maxTelemetrySamples, 512))),
-      maxReplayFrames: Math.max(32, Math.trunc(finite(config.maxReplayFrames, 1024))),
-      workerConcurrency: Math.max(1, Math.trunc(finite(config.workerConcurrency, 4))),
+      budgetUnits: Math.max(1, finite(config.budgetUnits ?? 100, 100)),
+      maxTelemetrySamples: Math.max(32, Math.trunc(finite(config.maxTelemetrySamples ?? 512, 512))),
+      maxReplayFrames: Math.max(32, Math.trunc(finite(config.maxReplayFrames ?? 1024, 1024))),
+      workerConcurrency: Math.max(1, Math.trunc(finite(config.workerConcurrency ?? 4, 4))),
     });
     this.runtime = new UnifiedRuntimeR37(this.config);
-    this.budget = new ResourceBudgetR37({ maxUnits: this.config.budgetUnits });
+    this.budget = new ResourceBudgetR37({ maxUnits: this.config.budgetUnits! });
     this.diagnostics = new DiagnosticsReporterR37(undefined);
     this.timeline = new EventTimelineR37();
     this.replay = new InputReplayR37(this.config.maxReplayFrames);
@@ -94,7 +94,7 @@ export class RuntimeOrchestratorR37 {
     this.assets = new AssetIntegrityR37();
     this.security = new SecurityBoundaryR37();
     this.qualityPolicy = new QualityPolicyR37();
-    this.workers = new WorkerSchedulerR37({ concurrency: this.config.workerConcurrency });
+    this.workers = new WorkerSchedulerR37({ concurrency: this.config.workerConcurrency! });
     this.content = new ContentCatalogR37();
     this.systems = new SimulationPipelineR37();
     this.systems.register(createMovementSystemR37());
