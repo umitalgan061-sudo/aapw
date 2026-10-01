@@ -66,14 +66,14 @@ describe('R40 world streaming and prediction', () => {
   it('corrects small authoritative errors smoothly', () => {
     const controller = new InputPredictionController(entityId('player'));
     controller.predict(tick(1), { x: 1, y: 0, z: 0 });
-    const state = controller.reconcile(tick(1), { tick: tick(1), position: { x: 1, y: 0, z: 0 }, velocity });
+    const state = controller.reconcile(tick(1), { tick: tick(1), position: { x: 1, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 } });
     expect(state.error).toBeGreaterThan(0);
     expect(controller.position().x).toBeGreaterThan(0);
   });
   it('snaps large authoritative errors', () => {
     const controller = new InputPredictionController(entityId('player'), { maxCorrection: 0.1 });
     controller.predict(tick(1), { x: 1, y: 0, z: 0 });
-    controller.reconcile(tick(1), { tick: tick(1), position: { x: 100, y: 0, z: 0 }, velocity });
+    controller.reconcile(tick(1), { tick: tick(1), position: { x: 100, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 } });
     expect(controller.position().x).toBe(100);
   });
   it('clears prediction state', () => {
