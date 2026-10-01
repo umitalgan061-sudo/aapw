@@ -1,0 +1,19 @@
+name: Settlement Trade Receipt
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementTradeReceipt.js'
+      - 'scripts/checkSettlementTradeReceipt.mjs'
+      - '.github/workflows/settlement-trade-receipt.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check src/3d/gameplay/settlementTradeReceipt.js
+      - run: node scripts/checkSettlementTradeReceipt.mjs
