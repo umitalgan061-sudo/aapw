@@ -1,0 +1,57 @@
+name: Safak Kartali living world director matrix
+
+on:
+  push:
+    branches: ['agent/safak-kartali-living-world-20260915-r2']
+    paths:
+      - 'src/3d/gameplay/livingWorldDirectorRuntimeAdapter.js'
+      - 'src/3d/gameplay/livingWorldOccupationSchedule.js'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.js'
+      - 'src/3d/gameplay/livingWorldEventDirectorAdapter.js'
+      - 'scripts/generateSafakKartaliLivingWorldDirectorMatrix.mjs'
+      - 'scripts/livingWorldDirectorScenarioMatrixA.mjs'
+      - 'scripts/livingWorldDirectorScenarioMatrixB.mjs'
+      - '.github/workflows/safak-kartali-living-world-director-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: true
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate and validate 4096 runtime scenarios
+        run: |
+          set -euo pipefail
+          node --check scripts/generateSafakKartaliLivingWorldDirectorMatrix.mjs
+          node scripts/checkSafakKartaliLivingWorldDirectorRuntime.mjs
+          node scripts/generateSafakKartaliLivingWorldDirectorMatrix.mjs
+          test "$(wc -l < artifacts/safak-kartali-living-world-director-matrix.jsonl)" -eq 4097
+          test "$(jq -s 'length' artifacts/safak-kartali-living-world-director-matrix.jsonl)" -eq 4097
+      - name: Validate matrix provenance and uniqueness
+        run: |
+          set -euo pipefail
+          jq -e '.[0].schema == "safak-kartali-living-world-director-matrix-v1"' < <(jq -s '.' artifacts/safak-kartali-living-world-director-matrix.jsonl)
+          test "$(jq -s '[.[].digest] | unique | length' artifacts/safak-kartali-living-world-director-matrix.jsonl)" -gt 1
+      - name: Commit deterministic evidence artifact
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add artifacts/safak-kartali-living-world-director-matrix.jsonl
+          if git diff --cached --quiet; then
+            echo 'Matrix artifact is already current.'
+            exit 0
+          fi
+          git commit -m 'test(living-world): materialize deterministic director matrix'
+          git push origin HEAD:${GITHUB_REF_NAME}

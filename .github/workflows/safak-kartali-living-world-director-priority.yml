@@ -1,0 +1,34 @@
+name: Safak Kartali living world director priority policy
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/livingWorldDirectorPriorityPolicy.js'
+      - 'scripts/livingWorldDirectorScenarioMatrixE.mjs'
+      - '.github/workflows/safak-kartali-living-world-director-priority.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  priority:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax checks
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/livingWorldDirectorPriorityPolicy.js
+          node --check scripts/livingWorldDirectorScenarioMatrixE.mjs
+      - name: Deterministic priority matrix
+        run: node scripts/livingWorldDirectorScenarioMatrixE.mjs
