@@ -1,0 +1,43 @@
+name: player-combat-feedback-cue-plan
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatFeedbackCuePlan.js'
+      - 'scripts/checkPlayerCombatFeedbackCuePlan.mjs'
+      - '.github/workflows/player-combat-feedback-cue-plan.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/playerCombatFeedbackCuePlan.js'
+      - 'scripts/checkPlayerCombatFeedbackCuePlan.mjs'
+      - '.github/workflows/player-combat-feedback-cue-plan.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Exact main ancestry
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            test "$(git merge-base HEAD origin/main)" = "${{ github.event.pull_request.base.sha }}"
+          fi
+      - name: Scope and runtime boundary
+        run: |
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+          ! grep -R "EditorMaterialStudio" src/3d/gameplay/playerCombatFeedbackCuePlan.js scripts/checkPlayerCombatFeedbackCuePlan.mjs
+          ! grep -R "from ['\"].*MaterialAssignmentCore\|from ['\"].*WorldAssetPlacementPipeline" src/3d/gameplay/playerCombatFeedbackCuePlan.js
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerCombatFeedbackCuePlan.js
+          node --check scripts/checkPlayerCombatFeedbackCuePlan.mjs
+      - name: Executable contract
+        run: node scripts/checkPlayerCombatFeedbackCuePlan.mjs
+      - name: Diff hygiene
+        run: test -z "$(git diff --check origin/main...HEAD)"
