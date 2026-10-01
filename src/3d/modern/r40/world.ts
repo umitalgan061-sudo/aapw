@@ -6,7 +6,7 @@ const DEFAULT_LIMITS: WorldLimits = Object.freeze({ maxEntities: 100000, maxStim
 interface Cell { readonly ids: Set<EntityId>; }
 
 function cellKey(p: Vec3, size: number): string { return Math.floor(p.x / size) + ':' + Math.floor(p.y / size) + ':' + Math.floor(p.z / size); }
-function lodFor(distance: number): EntityLod { if (distance <= 75) return 'near'; if (distance <= 250) return 'mid'; if (distance <= 800) return 'far'; return 'sleeping'; }
+function lodFor(distance: number): EntityLod { if (distance <= 75) return 'near'; if (distance < 250) return 'mid'; if (distance <= 800) return 'far'; return 'sleeping'; }
 
 export class SpatialEntityWorld {
   readonly limits: WorldLimits;
@@ -32,15 +32,16 @@ export class SpatialEntityWorld {
   get(id: EntityId): EntityState | null { return this.#entities.get(id) ?? null; }
   values(): readonly EntityState[] { return Object.freeze([...this.#entities.values()]); }
   activeCount(): number { return [...this.#entities.values()].reduce((n, e) => n + (e.active ? 1 : 0), 0); }
-  queryRadius(center: Vec3, radius: number, limit = 512): readonly EntityState[] {
+  queryRadius(center: Vec3, radius: number, limit = 512, maxCells = this.limits.maxCellsPerQuery): readonly EntityState[] {
     const r = clamp(radius, 0, 10000), candidates = new Set<EntityId>();
     const minX = Math.floor((center.x - r) / this.limits.cellSize), maxX = Math.floor((center.x + r) / this.limits.cellSize);
     const minY = Math.floor((center.y - r) / this.limits.cellSize), maxY = Math.floor((center.y + r) / this.limits.cellSize);
     const minZ = Math.floor((center.z - r) / this.limits.cellSize), maxZ = Math.floor((center.z + r) / this.limits.cellSize);
+    const cellBudget = Math.max(1, Math.trunc(maxCells));
     let touched = 0;
-    for (let x = minX; x <= maxX && touched < this.limits.maxCellsPerQuery; x += 1) {
-      for (let y = minY; y <= maxY && touched < this.limits.maxCellsPerQuery; y += 1) {
-        for (let z = minZ; z <= maxZ && touched < this.limits.maxCellsPerQuery; z += 1) {
+    for (let x = minX; x <= maxX && touched < cellBudget; x += 1) {
+      for (let y = minY; y <= maxY && touched < cellBudget; y += 1) {
+        for (let z = minZ; z <= maxZ && touched < cellBudget; z += 1) {
           touched += 1; const cell = this.#cells.get(x + ':' + y + ':' + z); if (!cell) continue;
           for (const id of cell.ids) candidates.add(id);
         }
@@ -52,7 +53,7 @@ export class SpatialEntityWorld {
   }
   updateInterest(point: InterestPoint): number {
     let changed = 0;
-    for (const entity of this.queryRadius(point.position, point.radius, this.limits.maxEntities)) {
+    for (const entity of this.queryRadius(point.position, point.radius, this.limits.maxEntities, Number.MAX_SAFE_INTEGER)) {
       const distance = Math.sqrt(vec3DistanceSquared(entity.transform.position, point.position));
       const next = lodFor(distance / Math.max(0.25, point.weight));
       if (next !== entity.lod) { this.upsert(Object.freeze({ ...entity, lod: next, revision: (Number(entity.revision) + 1) as Revision })); changed += 1; }
