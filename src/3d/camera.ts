@@ -39,7 +39,12 @@ import { OrbitControls } from './vendor/three/addons/controls/OrbitControls.js';
  * @returns {OrbitControls} Call `.update()` once per frame (required for damping) and
  *   `.dispose()` on teardown to remove its pointer/wheel event listeners.
  */
-export function createOrbitCamera(camera, domElement, { minDistance = 20, maxDistance = 1800 } = {}) {
+export interface OrbitCameraOptions {
+  readonly minDistance?: number;
+  readonly maxDistance?: number;
+}
+
+export function createOrbitCamera(camera: THREE.PerspectiveCamera, domElement: HTMLElement, { minDistance = 20, maxDistance = 1800 }: OrbitCameraOptions = {}): OrbitControls {
 	const controls = new OrbitControls(camera, domElement);
 	controls.target.set(0, 0, 0);
 	controls.enableDamping = true;
@@ -82,7 +87,14 @@ const _rayDirection = new THREE.Vector3();
  *   `Vector3` pulled in along the ray — never mutates `desiredPosition` itself, since the caller
  *   needs the original value to restore `camera.position` after render.
  */
-export function resolveCameraCollision(raycaster, target, desiredPosition, collidables, marginMeters, minDistanceMeters) {
+export function resolveCameraCollision(
+  raycaster: THREE.Raycaster,
+  target: THREE.Vector3,
+  desiredPosition: THREE.Vector3,
+  collidables: readonly THREE.Object3D[],
+  marginMeters: number,
+  minDistanceMeters: number,
+): THREE.Vector3 {
 	_rayDirection.subVectors(desiredPosition, target);
 	const desiredDistance = _rayDirection.length();
 	if (desiredDistance < 1e-6 || collidables.length === 0) return desiredPosition;
