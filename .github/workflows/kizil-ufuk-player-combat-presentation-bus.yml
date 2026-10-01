@@ -1,0 +1,34 @@
+name: Kizil Ufuk player combat presentation bus
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatPresentationBus.ts'
+      - 'scripts/checkPlayerCombatPresentationBus.mjs'
+      - '.github/workflows/kizil-ufuk-player-combat-presentation-bus.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-combat-presentation-bus-*'
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify exact main ancestry and bounded diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=$(git rev-parse origin/main)
+          git merge-base --is-ancestor "$BASE" HEAD
+          test "$(git diff --name-only "$BASE"...HEAD | wc -l)" -eq 3
+          test "$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - name: Syntax
+        run: |
+          node --check scripts/checkPlayerCombatPresentationBus.mjs
+          node --experimental-strip-types --check src/3d/gameplay/playerCombatPresentationBus.ts
+      - name: Focused proof
+        run: node --experimental-strip-types scripts/checkPlayerCombatPresentationBus.mjs
