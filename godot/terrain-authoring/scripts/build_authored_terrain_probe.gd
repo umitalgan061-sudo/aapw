@@ -53,14 +53,18 @@ func _build_probe() -> void:
 
 	var height_image := data.get_image(HTerrainData.CHANNEL_HEIGHT)
 	var splat_image := data.get_image(HTerrainData.CHANNEL_SPLAT)
-	if height_image == null or splat_image == null:
-		_fail("Authored probe height/splat images are unavailable")
+	var normal_image := data.get_image(HTerrainData.CHANNEL_NORMAL)
+	if height_image == null or splat_image == null or normal_image == null:
+		_fail("Authored probe height/splat/normal images are unavailable")
 		return
 	if height_image.get_format() != Image.FORMAT_RF:
 		_fail("Authored probe height format must remain RF")
 		return
 	if splat_image.get_format() != Image.FORMAT_RGBA8:
 		_fail("Authored probe splat format must remain RGBA8")
+		return
+	if normal_image.get_format() != Image.FORMAT_RGB8:
+		_fail("Authored probe normal format must remain RGB8")
 		return
 
 	var changed_cells := 0
@@ -104,6 +108,18 @@ func _build_probe() -> void:
 		_fail("Authored probe max height is outside the bounded test range: %s" % max_height)
 		return
 
+	# Keep the authored probe's persisted normal map in sync with the authored height field.
+	# This follows HTerrain's documented encoded-normal convention without touching addon core files.
+	for y in range(RESOLUTION):
+		var forward_y := mini(y + 1, RESOLUTION - 1)
+		for x in range(RESOLUTION):
+			var right_x := mini(x + 1, RESOLUTION - 1)
+			var height := height_image.get_pixel(x, y).r
+			var height_right := height_image.get_pixel(right_x, y).r
+			var height_forward := height_image.get_pixel(x, forward_y).r
+			var normal := Vector3(height - height_right, 1.0, height_forward - height).normalized()
+			normal_image.set_pixel(x, y, HTerrainData.encode_normal(normal))
+
 	data.notify_full_change()
 	if not data.save_data(PROBE_DIRECTORY):
 		_fail("Authored probe could not be saved to %s" % PROBE_DIRECTORY)
@@ -114,7 +130,7 @@ func _build_probe() -> void:
 			_fail("Authored probe output is missing: %s" % file_name)
 			return
 
-	print("TERRAIN_AUTHORED_PROBE_OK resolution=%s changed_cells=%s max_height=%.6f directory=%s" % [
+	print("TERRAIN_AUTHORED_PROBE_OK resolution=%s changed_cells=%s max_height=%.6f normal_sync=cpu_encoded directory=%s" % [
 		RESOLUTION,
 		changed_cells,
 		max_height,
