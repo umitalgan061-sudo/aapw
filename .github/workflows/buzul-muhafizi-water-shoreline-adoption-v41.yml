@@ -1,0 +1,41 @@
+name: Buzul Muhafızı - Water Shoreline Adoption v41
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/waterShorelineAdoptionV41.js'
+      - 'scripts/checkWaterShorelineAdoptionV41.mjs'
+      - '.github/workflows/buzul-muhafizi-water-shoreline-adoption-v41.yml'
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact main ancestry
+        run: |
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Verify focused scope
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          test "$(printf '%s\n' "$files" | grep -c .)" -eq 3
+          printf '%s\n' "$files" | grep -Fx 'src/3d/world/waterShorelineAdoptionV41.js'
+          printf '%s\n' "$files" | grep -Fx 'scripts/checkWaterShorelineAdoptionV41.mjs'
+          printf '%s\n' "$files" | grep -Fx '.github/workflows/buzul-muhafizi-water-shoreline-adoption-v41.yml'
+      - name: Verify diff budget and boundaries
+        run: |
+          additions=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$additions" -le 3000
+          ! git diff --name-only origin/main...HEAD | grep -E '(^|/)(terrain|water|sceneManager|naturalGeology|rivers|roads)\.js$'
+          ! git diff origin/main...HEAD | grep -E 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline'
+          ! git diff origin/main...HEAD | grep -E 'assets/(models|textures|shaders|particles|skyboxes|audio)/'
+      - name: Syntax check
+        run: |
+          node --check src/3d/world/waterShorelineAdoptionV41.js
+          node --check scripts/checkWaterShorelineAdoptionV41.mjs
+      - name: Execute contract regression
+        run: node scripts/checkWaterShorelineAdoptionV41.mjs
