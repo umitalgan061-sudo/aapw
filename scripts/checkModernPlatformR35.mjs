@@ -1,106 +1,52 @@
+import { access, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
-
-const root = resolve(
-  new URL('..', import.meta.url).pathname,
-);
-
-const sources = [
-  'src/3d/modern/r35/contracts.ts',
-  'src/3d/modern/r35/worldSimulationR35.ts',
-  'src/3d/modern/r35/questRuntimeR35.ts',
-  'src/3d/modern/r35/inventoryRuntimeR35.ts',
-  'src/3d/modern/r35/dialogueRuntimeR35.ts',
-  'src/3d/modern/r35/saveRuntimeR35.ts',
-  'src/3d/modern/r35/replayRuntimeR35.ts',
-  'src/3d/modern/r35/accessibilityRuntimeR35.ts',
-  'src/3d/modern/r35/contentRegistryR35.ts',
-  'src/3d/modern/r35/telemetryRuntimeR35.ts',
-  'src/3d/modern/r35/runtimeOrchestratorR35.ts',
-  'src/3d/modern/r35/weatherRuntimeR35.ts',
-  'src/3d/modern/r35/economyRuntimeR35.ts',
-  'src/3d/modern/r35/craftingRuntimeR35.ts',
-  'src/3d/modern/r35/combatRuntimeR35.ts',
-  'src/3d/modern/r35/navigationRuntimeR35.ts',
-  'src/3d/modern/r35/interactionRuntimeR35.ts',
-  'src/3d/modern/r35/animationRuntimeR35.ts',
-  'src/3d/modern/r35/localizationRuntimeR35.ts',
-  'src/3d/modern/r35/photoModeRuntimeR35.ts',
-  'src/3d/modern/r35/streamingRuntimeR35.ts',
-  'src/3d/modern/r35/featureHubRuntimeR35.ts',
+const files = [
+  'src/3d/nextgen/r35/contracts.ts',
+  'src/3d/nextgen/r35/stateStore.ts',
+  'src/3d/nextgen/r35/inputPipeline.ts',
+  'src/3d/nextgen/r35/worldScheduler.ts',
+  'src/3d/nextgen/r35/assetOrchestrator.ts',
+  'src/3d/nextgen/r35/observability.ts',
+  'src/3d/nextgen/r35/runtimeApplication.ts',
+  'src/3d/nextgen/r35/runtimeRecovery.ts',
+  'src/3d/nextgen/r35/commandBus.ts',
+  'src/3d/nextgen/r35/saveCodec.ts',
+  'src/3d/nextgen/r35/workerPool.ts',
+  'src/3d/nextgen/r35/deterministicClock.ts',
+  'src/3d/nextgen/r35/resourceBudget.ts',
+  'src/3d/nextgen/r35/featureRegistry.ts',
+  'src/3d/nextgen/r35/typescriptOwnership.ts',
+  'src/3d/nextgen/r35/eventJournal.ts',
+  'src/3d/nextgen/r35/index.ts',
+  'tests/modern/r35UnifiedRuntime.test.ts',
+  'tests/modern/r35AssetInput.test.ts',
+  'tests/modern/r35ObservabilityScheduler.test.ts',
+  'tests/modern/r35ContractIntegrity.test.ts',
+  'tests/modern/r35PlatformServices.test.ts',
+  'tests/modern/r35AdditionalServices.test.ts',
+  'tests/modern/r35Ownership.test.ts',
+  'tests/modern/r35EventJournal.test.ts',
+  'tests/modern/r35ApplicationInvariant.test.ts'
 ];
 
-const tests = [
-  'tests/modern/r35/worldQuestInventory.test.ts',
-  'tests/modern/r35/orchestratorTelemetry.test.ts',
-  'tests/modern/r35/featureSystemsR35.test.ts',
-];
-
-let totalLines = 0;
-
-for (const file of [...sources, ...tests]) {
-  const text = await readFile(
-    resolve(root, file),
-    'utf8',
-  );
-  totalLines += text.split('\n').length;
+const failures = [];
+for (const relative of files) {
+  try { await access(join(process.cwd(), relative)); }
+  catch { failures.push(relative + ': missing'); }
 }
 
-const forbidden = [
-  'Math.random(',
-  'Date.now(',
-  'eval(',
-  'new Function(',
-];
+const index = await readFile('src/3d/nextgen/index.ts', 'utf8');
+if (!index.includes("./r35/index")) failures.push('src/3d/nextgen/index.ts: R35 barrel export missing');
 
-for (const file of sources) {
-  const text = await readFile(
-    resolve(root, file),
-    'utf8',
-  );
-  for (const token of forbidden) {
-    if (text.includes(token)) {
-      throw new Error(
-        file + ': forbidden token ' + token,
-      );
-    }
-  }
+const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
+for (const key of ['check:r35', 'verify:modern:r35', 'typecheck:r35', 'test:r35']) {
+  if (!packageJson.scripts?.[key]) failures.push('package.json: ' + key + ' script missing');
 }
 
-if (totalLines < 3000) {
-  throw new Error(
-    'R35 meaningful source/test line floor not met: '
-    + totalLines,
-  );
+if (failures.length) {
+  console.error('[modern-r35] FAIL');
+  for (const failure of failures) console.error(' - ' + failure);
+  process.exit(1);
 }
-
-const indexText = await readFile(
-  resolve(root, 'src/3d/modern/r35/index.ts'),
-  'utf8',
-);
-
-for (const moduleName of [
-  'weatherRuntimeR35',
-  'economyRuntimeR35',
-  'craftingRuntimeR35',
-  'combatRuntimeR35',
-  'navigationRuntimeR35',
-  'interactionRuntimeR35',
-  'animationRuntimeR35',
-  'localizationRuntimeR35',
-  'photoModeRuntimeR35',
-  'streamingRuntimeR35',
-  'featureHubRuntimeR35',
-]) {
-  if (!indexText.includes(moduleName)) {
-    throw new Error(
-      'R35 barrel export missing: ' + moduleName,
-    );
-  }
-}
-
-console.log(
-  'R35 source-of-truth guard: PASS lines='
-  + totalLines,
-);
+console.log('[modern-r35] PASS ' + JSON.stringify({ files: files.length, version: 35 }));

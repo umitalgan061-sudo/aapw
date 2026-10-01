@@ -1,0 +1,39 @@
+name: modern-runtime-r35
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/nextgen/r35/**'
+      - 'src/3d/nextgen/index.ts'
+      - 'tests/modern/r35*.test.ts'
+      - 'scripts/checkModernPlatformR35.mjs'
+      - 'tsconfig.r35.json'
+      - 'package.json'
+      - '.github/workflows/modern-runtime-r35.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/nextgen/r35/**'
+      - 'src/3d/nextgen/index.ts'
+      - 'tsconfig.r35.json'
+      - 'scripts/checkModernPlatformR35.mjs'
+      - '.github/workflows/modern-runtime-r35.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modern-r35-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  r35:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run check:r35
