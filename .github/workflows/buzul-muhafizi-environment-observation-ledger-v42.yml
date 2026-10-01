@@ -1,0 +1,44 @@
+name: Buzul Muhafizi Environment Observation Ledger v42
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentObservationLedgerV42.js'
+      - 'scripts/checkEnvironmentObservationLedgerV42.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-observation-ledger-v42.yml'
+  push:
+    paths:
+      - 'src/3d/world/environmentObservationLedgerV42.js'
+      - 'scripts/checkEnvironmentObservationLedgerV42.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-observation-ledger-v42.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact additive scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(git diff --name-only "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}")
+          allowed=$'src/3d/world/environmentObservationLedgerV42.js\nscripts/checkEnvironmentObservationLedgerV42.mjs\n.github/workflows/buzul-muhafizi-environment-observation-ledger-v42.yml'
+          while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+            grep -Fxq "$file" <<<"$allowed" || { echo "out-of-scope file: $file"; exit 1; }
+          done <<<"$files"
+          additions=$(git diff --numstat "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          [[ "$additions" -le 3000 ]] || { echo "changed-line cap exceeded: $additions"; exit 1; }
+      - name: Syntax
+        run: node --check src/3d/world/environmentObservationLedgerV42.js && node --check scripts/checkEnvironmentObservationLedgerV42.mjs
+      - name: Runtime contract
+        run: node scripts/checkEnvironmentObservationLedgerV42.mjs
+      - name: Shared-boundary guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RInE "EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline|terrain\.js|water\.js|sceneManager\.js|naturalGeology\.js|rivers\.js|roads\.js" src/3d/world/environmentObservationLedgerV42.js scripts/checkEnvironmentObservationLedgerV42.mjs
+      - name: Diff hygiene
+        run: git diff --check
