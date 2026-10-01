@@ -235,7 +235,9 @@ describe('defensive edge cases', () => {
 describe('combat presentation vertical slice', () => {
   it('exercises authoritative combat events and produces a validated presentation report', () => {
     const report = runCombatPresentationVerticalSlice(77, 110);
-    expect(validateCombatPresentationScenario(report).valid).toBe(true);
+    const scenarioValidation = validateCombatPresentationScenario(report);
+    expect(scenarioValidation.errors).toEqual([]);
+    expect(scenarioValidation.valid).toBe(true);
     expect(report.totalEvents).toBeGreaterThan(0);
     expect(report.totalCues).toBeGreaterThan(0);
     expect(report.feedbackSummary.count).toBe(report.totalCues);
