@@ -1,0 +1,44 @@
+name: safak-kartali-faction-response-bridge
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldFactionResponseBridge.js'
+      - 'scripts/checkLivingWorldFactionResponseBridge.mjs'
+      - '.github/workflows/safak-kartali-faction-response-bridge.yml'
+  push:
+    paths:
+      - 'src/3d/gameplay/livingWorldFactionResponseBridge.js'
+      - 'scripts/checkLivingWorldFactionResponseBridge.mjs'
+      - '.github/workflows/safak-kartali-faction-response-bridge.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Syntax and executable regression
+        run: |
+          node --check src/3d/gameplay/livingWorldFactionResponseBridge.js
+          node --check scripts/checkLivingWorldFactionResponseBridge.mjs
+          node scripts/checkLivingWorldFactionResponseBridge.mjs
+      - name: Deterministic double run
+        run: |
+          node scripts/checkLivingWorldFactionResponseBridge.mjs > /tmp/faction-a.txt
+          node scripts/checkLivingWorldFactionResponseBridge.mjs > /tmp/faction-b.txt
+          cmp /tmp/faction-a.txt /tmp/faction-b.txt
+      - name: Ownership and contract boundaries
+        run: |
+          ! grep -nE "EditorMaterialStudio|from ['\"]three['\"]|ActorRegistry|DOM" src/3d/gameplay/livingWorldFactionResponseBridge.js
+          grep -n "emitWorldEvent" src/3d/gameplay/livingWorldFactionResponseBridge.js
+      - name: Exact-main ancestry and diff budget
+        run: |
+          git merge-base --is-ancestor "${{ github.event.pull_request.base.sha || github.event.before }}" HEAD
+          changed=$(git diff --numstat "${{ github.event.pull_request.base.sha || github.event.before }}"...HEAD | awk '{a+=$1; d+=$2} END{print a+d+0}')
+          test "$changed" -le 3000
