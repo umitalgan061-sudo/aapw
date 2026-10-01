@@ -1,0 +1,40 @@
+name: Player Combat Momentum Boundary
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatMomentumDirector.js'
+      - 'scripts/checkPlayerCombatMomentumBoundary.mjs'
+      - '.github/workflows/player-combat-momentum-boundary.yml'
+  push:
+    branches:
+      - main
+      - 'agent/kizil-ufuk-combat-momentum-*'
+
+permissions:
+  contents: read
+
+env:
+  EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact checkout
+        run: test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+      - name: Syntax and boundary regression
+        run: |
+          node --check src/3d/gameplay/playerCombatMomentumDirector.js
+          node --check scripts/checkPlayerCombatMomentumBoundary.mjs
+          node scripts/checkPlayerCombatMomentumBoundary.mjs
+      - name: Deterministic double run
+        run: |
+          first="$(node scripts/checkPlayerCombatMomentumBoundary.mjs)"
+          second="$(node scripts/checkPlayerCombatMomentumBoundary.mjs)"
+          test "$first" = "$second"

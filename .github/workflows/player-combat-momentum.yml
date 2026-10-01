@@ -1,0 +1,45 @@
+name: Player Combat Momentum Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatMomentumDirector.js'
+      - 'scripts/checkPlayerCombatMomentumDirector.mjs'
+      - '.github/workflows/player-combat-momentum.yml'
+  push:
+    branches:
+      - main
+      - 'agent/kizil-ufuk-combat-momentum-*'
+
+permissions:
+  contents: read
+
+env:
+  EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact checkout
+        run: test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+      - name: Syntax checks
+        run: |
+          node --check src/3d/gameplay/playerCombatMomentumDirector.js
+          node --check scripts/checkPlayerCombatMomentumDirector.mjs
+      - name: Director regression
+        run: node scripts/checkPlayerCombatMomentumDirector.mjs
+      - name: Deterministic double run
+        run: |
+          first="$(node scripts/checkPlayerCombatMomentumDirector.mjs)"
+          second="$(node scripts/checkPlayerCombatMomentumDirector.mjs)"
+          test "$first" = "$second"
+      - name: Runtime/editor boundary guard
+        run: |
+          ! grep -n "EditorMaterialStudio" src/3d/gameplay/playerCombatMomentumDirector.js
+          ! grep -n "document\." src/3d/gameplay/playerCombatMomentumDirector.js
