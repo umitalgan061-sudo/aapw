@@ -1,0 +1,38 @@
+name: Terrain Environment Cluster Planner
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainEnvironmentClusterPlanner.js'
+      - 'scripts/checkTerrainEnvironmentClusterPlanner.mjs'
+      - '.github/workflows/terrain-environment-cluster.yml'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact main ancestry
+        run: |
+          git fetch origin main --depth=1
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Shared material placement authority
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Planner contract
+        run: node scripts/checkTerrainEnvironmentClusterPlanner.mjs
+      - name: Diff budget
+        run: |
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
