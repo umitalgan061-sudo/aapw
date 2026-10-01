@@ -161,7 +161,7 @@ export class NextGenRuntimeV3 {
     const combatEvents = this.combat.step();
     const listenerPlayer = [...this.#predictors.values()][0]?.state;
     const listener = this.#presentationListener ?? (listenerPlayer ? { position: listenerPlayer.position, forward: { x: Math.sin(listenerPlayer.yaw), y: 0, z: Math.cos(listenerPlayer.yaw) } } : undefined);
-    const presentationFrame = this.combatPresentation.ingest(combatEvents, { states: this.combat.snapshot(), device: this.#presentationDevice, reducedMotion: this.#presentationReducedMotion, muted: this.#presentationMuted, listener });
+    const presentationFrame = this.combatPresentation.ingest(combatEvents, { states: this.combat.snapshot(), device: this.#presentationDevice, reducedMotion: this.#presentationReducedMotion, muted: this.#presentationMuted, ...(listener ? { listener } : {}) });
         const presentationQuality = resolveCombatPresentationQuality({ frameP95Ms: this.telemetry.summarize().frameP95Ms, pendingQueue: this.combatPresentationQueue.pendingCount(), droppedCues: presentationFrame.droppedCues, reducedMotion: this.#presentationReducedMotion, device: this.#presentationDevice });
     this.combatPresentationQueue.clear();
     const qualityCues = presentationFrame.cues.map((cue) => tuneCombatPresentationCue(cue, presentationQuality));
@@ -189,7 +189,7 @@ export class NextGenRuntimeV3 {
     const elapsed = performance.now() - before;
     const frame: FrameTelemetry = { tick: snapshot.tick, cpuMs: elapsed, renderMs: 0, simulationMs: elapsed, networkMs: 0, streamingMs: 0, gpuMs: null, entityCount: this.world.entityCount(), drawCalls: 0, triangles: 0 };
     this.telemetry.record(frame);
-    return { tick: snapshot.tick, snapshot, combatEvents, aiDecisions, streamResults, presentationFrame, presentationDispatches, presentationAccessibility, presentationQuality, presentationTelemetry: this.combatPresentationTelemetry.summary(), presentationBus, presentationContract };
+    return { tick: snapshot.tick, snapshot, combatEvents, aiDecisions, streamResults, presentationFrame, presentationDispatches, presentationAccessibility, presentationQuality, presentationTelemetry: this.combatPresentationTelemetry.summary(), presentationBus, presentationContract, presentationNetworkPackets };
 
   }
 
