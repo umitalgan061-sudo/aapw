@@ -31,13 +31,12 @@ jobs:
       - name: Checkout exact event revision
         uses: actions/checkout@v5
         with:
-          ref: \${{ github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
       - name: Setup Node 24
         uses: actions/setup-node@v6
         with:
           node-version: 24.21.0
-          cache: npm
       - name: Install
         run: npm install --ignore-scripts
       - name: Architecture guard
