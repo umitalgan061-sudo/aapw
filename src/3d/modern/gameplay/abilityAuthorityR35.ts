@@ -28,9 +28,9 @@ export interface AbilityEffectR35 {
   readonly kind: StatusKindR35;
   readonly duration: number;
   readonly magnitude: number;
-  readonly maxStacks?: number;
-  readonly refreshDuration?: boolean;
-  readonly tags?: readonly string[];
+  readonly maxStacks?: number | undefined;
+  readonly refreshDuration?: boolean | undefined;
+  readonly tags?: readonly string[] | undefined;
 }
 
 export interface AbilityPrerequisiteR35 {
@@ -42,15 +42,15 @@ export interface AbilityDefinitionR35 {
   readonly id: string;
   readonly name: string;
   readonly cooldown: number;
-  readonly globalCooldown?: number;
-  readonly castTime?: number;
-  readonly charges?: number;
-  readonly recharge?: number;
-  readonly costs?: readonly AbilityCostR35[];
-  readonly effects?: readonly AbilityEffectR35[];
-  readonly prerequisites?: readonly AbilityPrerequisiteR35[];
+  readonly globalCooldown?: number | undefined;
+  readonly castTime?: number | undefined;
+  readonly charges?: number | undefined;
+  readonly recharge?: number | undefined;
+  readonly costs?: readonly AbilityCostR35[] | undefined;
+  readonly effects?: readonly AbilityEffectR35[] | undefined;
+  readonly prerequisites?: readonly AbilityPrerequisiteR35[] | undefined;
   readonly tags: readonly string[];
-  readonly priority?: number;
+  readonly priority?: number | undefined;
 }
 
 export interface AbilityStateR35 {
@@ -87,7 +87,7 @@ export interface MutableResourcesR35 {
 export interface AbilityCastResultR35 {
   readonly ok: boolean;
   readonly abilityId: string;
-  readonly reason?: string;
+  readonly reason?: string | undefined;
   readonly spent: Readonly<Partial<Record<AbilityResourceR35, number>>>;
   readonly effectInstances: readonly string[];
 }
