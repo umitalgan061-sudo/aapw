@@ -1,0 +1,36 @@
+name: Buzul Muhafızı — Shipped Environment Adoption v38
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/shippedEnvironmentAdoptionV38.js'
+      - 'scripts/checkShippedEnvironmentAdoptionV38.mjs'
+      - '.github/workflows/buzul-muhafizi-shipped-environment-adoption-v38.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact main ancestry
+        run: git merge-base --is-ancestor origin/main HEAD
+      - name: Scope and changed-line guard
+        shell: bash
+        run: |
+          git diff --check origin/main...HEAD
+          lines=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$lines" -le 3000
+          git diff --name-only origin/main...HEAD | grep -Ev '^(src/3d/world/shippedEnvironmentAdoptionV38.js|scripts/checkShippedEnvironmentAdoptionV38.mjs|.github/workflows/buzul-muhafizi-shipped-environment-adoption-v38.yml)$' && exit 1 || true
+      - name: Syntax and executable contract
+        run: |
+          node --check src/3d/world/shippedEnvironmentAdoptionV38.js
+          node --check scripts/checkShippedEnvironmentAdoptionV38.mjs
+          node scripts/checkShippedEnvironmentAdoptionV38.mjs
+      - name: Boundary guard
+        run: |
+          ! grep -R 'EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline' -n src/3d/world/shippedEnvironmentAdoptionV38.js
