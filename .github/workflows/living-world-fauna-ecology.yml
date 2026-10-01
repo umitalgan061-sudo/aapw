@@ -1,0 +1,83 @@
+name: living-world-fauna-ecology
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaDirector.js'
+      - 'src/3d/gameplay/livingWorldFaunaEcologyRuntime.js'
+      - 'src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js'
+      - 'scripts/checkLivingWorldFaunaDirector.mjs'
+      - 'scripts/checkLivingWorldFaunaEcologyRuntime.mjs'
+      - 'scripts/checkLivingWorldFaunaDirectorBridge.mjs'
+      - 'scripts/checkLivingWorldFaunaPerceptionAdapter.mjs'
+      - '.github/workflows/living-world-fauna-ecology.yml'
+  push:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaDirector.js'
+      - 'src/3d/gameplay/livingWorldFaunaEcologyRuntime.js'
+      - 'src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js'
+      - 'scripts/checkLivingWorldFaunaDirector.mjs'
+      - 'scripts/checkLivingWorldFaunaEcologyRuntime.mjs'
+      - 'scripts/checkLivingWorldFaunaDirectorBridge.mjs'
+      - 'scripts/checkLivingWorldFaunaPerceptionAdapter.mjs'
+      - '.github/workflows/living-world-fauna-ecology.yml'
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Resolve base
+        id: refs
+        run: |
+          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "base=$(git rev-parse HEAD^1)" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/livingWorldFaunaDirector.js
+          node --check src/3d/gameplay/livingWorldFaunaEcologyRuntime.js
+          node --check src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js
+          node --check scripts/checkLivingWorldFaunaDirector.mjs
+          node --check scripts/checkLivingWorldFaunaEcologyRuntime.mjs
+          node --check scripts/checkLivingWorldFaunaDirectorBridge.mjs
+          node --check scripts/checkLivingWorldFaunaPerceptionAdapter.mjs
+      - name: Focused regression
+        run: |
+          node scripts/checkLivingWorldFaunaDirector.mjs
+          node scripts/checkLivingWorldFaunaEcologyRuntime.mjs
+          node scripts/checkLivingWorldFaunaDirectorBridge.mjs
+          node scripts/checkLivingWorldFaunaPerceptionAdapter.mjs
+      - name: Deterministic double run
+        run: |
+          node scripts/checkLivingWorldFaunaEcologyRuntime.mjs > /tmp/fauna-ecology-a.txt
+          node scripts/checkLivingWorldFaunaEcologyRuntime.mjs > /tmp/fauna-ecology-b.txt
+          cmp /tmp/fauna-ecology-a.txt /tmp/fauna-ecology-b.txt
+          node scripts/checkLivingWorldFaunaPerceptionAdapter.mjs > /tmp/fauna-perception-a.txt
+          node scripts/checkLivingWorldFaunaPerceptionAdapter.mjs > /tmp/fauna-perception-b.txt
+          cmp /tmp/fauna-perception-a.txt /tmp/fauna-perception-b.txt
+      - name: Ownership and shared placement contract
+        run: |
+          ! grep -nE "EditorMaterialStudio|from ['\"]three['\"]|from ['\"].*ActorRegistry|from ['\"].*EventBus" src/3d/gameplay/livingWorldFaunaDirector.js src/3d/gameplay/livingWorldFaunaEcologyRuntime.js src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js
+          grep -n "MaterialAssignmentCore" src/3d/gameplay/livingWorldFaunaEcologyRuntime.js src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js
+          grep -n "WorldAssetPlacementPipeline" src/3d/gameplay/livingWorldFaunaEcologyRuntime.js src/3d/gameplay/livingWorldFaunaPerceptionAdapter.js
+          grep -n "existing-actor-registry" src/3d/gameplay/livingWorldFaunaEcologyRuntime.js
+          grep -n "existing-world-event-system" src/3d/gameplay/livingWorldFaunaEcologyRuntime.js
+      - name: Exact-main ancestry and budget
+        run: |
+          git merge-base --is-ancestor "${{ steps.refs.outputs.base }}" HEAD
+          changed=$(git diff --numstat "${{ steps.refs.outputs.base }}"...HEAD | awk '{a+=$1; d+=$2} END{print a+d+0}')
+          echo "changed-line-budget=${changed}"
+          test "$changed" -le 3000
+          test "$changed" -ge 2750
