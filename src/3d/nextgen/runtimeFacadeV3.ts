@@ -15,6 +15,7 @@ import { CombatPresentationQueue, type CombatPresentationDispatch, type CombatPr
 import { projectCombatAccessibility, type CombatAccessibilityMode, type CombatAccessibilitySignal } from './combatPresentationAccessibilityV1';
 import { createCombatPresentationTelemetry, type CombatPresentationTelemetry, type CombatPresentationTelemetrySummary } from './combatPresentationTelemetryV1';
 import { resolveCombatPresentationQuality, tuneCombatPresentationCue, type CombatPresentationQuality, type CombatPresentationQualityDecision } from './combatPresentationQualityV1';
+import { CombatPresentationBus, type CombatPresentationConsumer, type CombatPresentationBusReport } from './combatPresentationBusV1';
 
 export interface NextGenConfig {
   fixedDeltaSeconds: number;
@@ -38,6 +39,7 @@ export interface RuntimeFrameResult {
   presentationAccessibility: readonly CombatAccessibilitySignal[];
   presentationQuality: CombatPresentationQualityDecision;
   presentationTelemetry: CombatPresentationTelemetrySummary;
+  presentationBus: CombatPresentationBusReport;
 }
 
 const DEFAULT_CONFIG: NextGenConfig = {
@@ -64,6 +66,7 @@ export class NextGenRuntimeV3 {
   readonly combatPresentation: CombatPresentationDirector;
   readonly combatPresentationQueue: CombatPresentationQueue;
   readonly combatPresentationTelemetry: CombatPresentationTelemetry;
+  readonly combatPresentationBus: CombatPresentationBus;
   #presentationDevice: CombatPresentationDevice = 'virtual';
   #presentationReducedMotion = false;
   #presentationMuted = false;
@@ -88,6 +91,7 @@ export class NextGenRuntimeV3 {
     this.combatPresentation = new CombatPresentationDirector(this.config.combatPresentation);
     this.combatPresentationQueue = new CombatPresentationQueue(this.config.combatPresentationQueue);
     this.combatPresentationTelemetry = createCombatPresentationTelemetry();
+    this.combatPresentationBus = new CombatPresentationBus();
     registerDefaultSaveMigrations(this.saveSystem);
     this.registerDefaultWorkers();
   }
@@ -128,6 +132,8 @@ export class NextGenRuntimeV3 {
   setReducedMotion(reduced: boolean): void { this.#presentationReducedMotion = reduced; }
   setMuted(muted: boolean): void { this.#presentationMuted = muted; }
   setPresentationAccessibility(mode: CombatAccessibilityMode): void { this.#presentationAccessibility = mode; }
+  subscribeCombatPresentationConsumer(consumer: CombatPresentationConsumer): void { this.combatPresentationBus.subscribe(consumer); }
+  unsubscribeCombatPresentationConsumer(id: string): boolean { return this.combatPresentationBus.unsubscribe(id); }
 
   perceive(entityId: number, stimulus: AiStimulus): void { this.#brains.get(entityId)?.perceive(stimulus, this.kernel.clock.tick); }
 
@@ -152,6 +158,7 @@ export class NextGenRuntimeV3 {
     const presentationDispatches = this.combatPresentationQueue.dispatch(presentationFrame.tick);
     this.combatPresentationTelemetry.record(presentationFrame, presentationDispatches, this.combatPresentationQueue.pendingCount());
     const presentationAccessibility = projectCombatAccessibility(qualityCues, { mode: this.#presentationAccessibility, device: this.#presentationDevice });
+    const presentationBus = this.combatPresentationBus.dispatch(presentationDispatches, presentationAccessibility, presentationFrame.tick);
     const aiDecisions: AiDecision[] = [];
     for (const [entityId, brain] of this.#brains) {
       const player = this.#predictors.get(entityId)?.state;
@@ -162,7 +169,7 @@ export class NextGenRuntimeV3 {
     const elapsed = performance.now() - before;
     const frame: FrameTelemetry = { tick: snapshot.tick, cpuMs: elapsed, renderMs: 0, simulationMs: elapsed, networkMs: 0, streamingMs: 0, gpuMs: null, entityCount: this.world.entityCount(), drawCalls: 0, triangles: 0 };
     this.telemetry.record(frame);
-    return { tick: snapshot.tick, snapshot, combatEvents, aiDecisions, streamResults, presentationFrame, presentationDispatches, presentationAccessibility, presentationQuality, presentationTelemetry: this.combatPresentationTelemetry.summary() };
+    return { tick: snapshot.tick, snapshot, combatEvents, aiDecisions, streamResults, presentationFrame, presentationDispatches, presentationAccessibility, presentationQuality, presentationTelemetry: this.combatPresentationTelemetry.summary(), presentationBus };
 
   }
 
