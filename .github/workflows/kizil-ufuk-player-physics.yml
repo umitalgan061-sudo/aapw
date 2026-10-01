@@ -1,0 +1,39 @@
+name: Kızıl Ufuk Player Physics Stability
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerPhysics.ts'
+      - 'tests/modern/playerPhysicsStability.test.ts'
+      - 'tsconfig.player-physics.json'
+      - 'package.json'
+      - '.github/workflows/kizil-ufuk-player-physics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kizil-ufuk-player-physics-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: package.json
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Strict player physics typecheck
+        run: npm run typecheck:player-physics
+      - name: Player physics regression
+        run: npm run test:player-physics
+      - name: Diff hygiene
+        run: git diff --check
