@@ -1,0 +1,33 @@
+name: Settlement Service UX Projection
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementServiceUxProjection.js'
+      - 'scripts/checkSettlementServiceUxProjection.mjs'
+      - '.github/workflows/settlement-service-ux-projection.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: node --check src/3d/gameplay/settlementServiceUxProjection.js
+      - name: Regression
+        run: node scripts/checkSettlementServiceUxProjection.mjs
+      - name: Determinism
+        run: |
+          a=$(node scripts/checkSettlementServiceUxProjection.mjs)
+          b=$(node scripts/checkSettlementServiceUxProjection.mjs)
+          test "$a" = "$b"
+      - name: Runtime/editor boundary
+        run: |
+          ! grep -nE "EditorMaterialStudio|document\\.|window\\.|THREE" src/3d/gameplay/settlementServiceUxProjection.js
+      - name: Diff budget
+        run: |
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
