@@ -62,6 +62,10 @@ export interface ProductionRuntimeDecision {
   readonly circuit: RuntimeCircuitSnapshot;
   readonly recoveryReady: boolean;
   readonly reason: string;
+  readonly simulationBudgetRatio: number;
+  readonly renderBudgetRatio: number;
+  readonly skipBackgroundWork: boolean;
+  readonly disableExpensiveEffects: boolean;
   readonly digest: string;
 }
 
@@ -171,7 +175,10 @@ export class ProductionRuntimeSupervisorR36 {
     if (watchdog.state === 'critical' || watchdog.score >= this.#policy.criticalAfterScore || hardening.state === 'critical') {
       this.#generation += 1;
       this.#healthyFrames = 0;
-      const emergency = lowerQuality(this.renderer.policy().tier, 2);
+      const currentTier = this.renderer.policy().tier;
+      const emergency = qualityRank(currentTier) > qualityRank(this.#policy.emergencyQuality)
+        ? this.#policy.emergencyQuality
+        : lowerQuality(currentTier, 2);
       const policy = this.renderer.requestPreference(Object.freeze({
         ...this.#basePreference,
         quality: emergency,
@@ -342,6 +349,10 @@ export class ProductionRuntimeSupervisorR36 {
     reason: string,
   ): ProductionRuntimeDecision {
     const throttleFactor = 'throttleFactor' in hardening ? hardening.throttleFactor : 1;
+    const simulationBudgetRatio = Number(Math.max(0.25, Math.min(1, throttleFactor)).toFixed(4));
+    const renderBudgetRatio = Number(Math.max(0.35, Math.min(1, throttleFactor * (state === 'critical' ? 0.8 : 1))).toFixed(4));
+    const skipBackgroundWork = state === 'critical' || state === 'circuit-open';
+    const disableExpensiveEffects = state === 'critical' || state === 'throttled' || circuit.state === 'open';
     const digest = JSON.stringify({
       version: 36,
       generation: this.#generation,
@@ -373,6 +384,10 @@ export class ProductionRuntimeSupervisorR36 {
       circuit,
       recoveryReady,
       reason,
+      simulationBudgetRatio,
+      renderBudgetRatio,
+      skipBackgroundWork,
+      disableExpensiveEffects,
       digest,
     });
   }
