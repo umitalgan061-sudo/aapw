@@ -1,0 +1,18 @@
+name: Living World Fauna Threat Telemetry
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldFaunaThreatTelemetry.js'
+      - 'scripts/checkLivingWorldFaunaThreatTelemetry.mjs'
+      - '.github/workflows/living-world-fauna-threat-telemetry.yml'
+jobs:
+  contract:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check src/3d/gameplay/livingWorldFaunaThreatTelemetry.js
+      - run: node scripts/checkLivingWorldFaunaThreatTelemetry.mjs
