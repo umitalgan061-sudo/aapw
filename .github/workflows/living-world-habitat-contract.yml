@@ -1,0 +1,29 @@
+name: Living World Habitat Contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldHabitatContract.js'
+      - 'src/3d/gameplay/livingWorldHabitatRuntimeGate.js'
+      - 'src/3d/gameplay/livingWorldHabitatSpawnBridge.js'
+      - 'scripts/checkLivingWorldHabitatContract.mjs'
+      - 'scripts/checkLivingWorldHabitatRuntimeGate.mjs'
+      - 'scripts/checkLivingWorldHabitatSpawnBridge.mjs'
+      - '.github/workflows/living-world-habitat-contract.yml'
+  workflow_dispatch:
+
+jobs:
+  habitat-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check module syntax
+        run: |
+          node --check src/3d/gameplay/livingWorldHabitatContract.js
+          node --check src/3d/gameplay/livingWorldHabitatRuntimeGate.js
+          node --check src/3d/gameplay/livingWorldHabitatSpawnBridge.js
+      - name: Run habitat contracts
+        run: |
+          node scripts/checkLivingWorldHabitatContract.mjs
+          node scripts/checkLivingWorldHabitatRuntimeGate.mjs
+          node scripts/checkLivingWorldHabitatSpawnBridge.mjs
