@@ -1,0 +1,43 @@
+name: player-combat-reaction-window
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatReactionWindow.js'
+      - 'scripts/checkPlayerCombatReactionWindow.mjs'
+      - '.github/workflows/player-combat-reaction-window.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/playerCombatReactionWindow.js'
+      - 'scripts/checkPlayerCombatReactionWindow.mjs'
+      - '.github/workflows/player-combat-reaction-window.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Exact-main ancestry and scope
+        shell: bash
+        run: |
+          git fetch --no-tags origin main --depth=1
+          base=$(git merge-base HEAD origin/main)
+          test "$base" = "$(git rev-parse origin/main)"
+          files=$(git diff --name-only "$base" HEAD)
+          test "$(printf '%s\n' "$files" | wc -l)" -le 3
+          lines=$(git diff --numstat "$base" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$lines" -le 3000
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerCombatReactionWindow.js && node --check scripts/checkPlayerCombatReactionWindow.mjs
+      - name: Focused contract
+        run: node scripts/checkPlayerCombatReactionWindow.mjs
+      - name: Runtime editor boundary
+        shell: bash
+        run: |
+          ! grep -R "EditorMaterialStudio\|from .*MaterialAssignmentCore\|from .*WorldAssetPlacementPipeline" src/3d/gameplay/playerCombatReactionWindow.js
+      - name: Diff hygiene
+        run: git diff --check
