@@ -1,0 +1,24 @@
+name: Quest Dialogue Condition Contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/interaction.js'
+      - 'scripts/checkQuestDialogueConditionContract.mjs'
+      - '.github/workflows/quest-dialogue-condition-contract.yml'
+  push:
+    branches:
+      - 'agent/gunbatimi-quest-dialogue-contract-20260907-r2'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: node --check scripts/checkQuestDialogueConditionContract.mjs
+      - name: Quest dialogue condition contract
+        run: node scripts/checkQuestDialogueConditionContract.mjs
