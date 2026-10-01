@@ -12,6 +12,7 @@ import { createCombatPresentationBus } from '../../src/3d/nextgen/combatPresenta
 import { auditCombatPresentationAssets, buildCombatAssetProof } from '../../src/3d/nextgen/combatPresentationAssetsV1';
 import { validateCombatPresentationContract } from '../../src/3d/nextgen/combatPresentationContractV1';
 import { resolveCombatCameraFocus, smoothCombatCameraFocus, validateCombatCameraFocus } from '../../src/3d/nextgen/combatPresentationCameraFocusV1';
+import { buildCombatSurfaceImpactMatrix, summarizeCombatSurfaceImpactMatrix, validateCombatSurfaceImpactRoute } from '../../src/3d/nextgen/combatPresentationSurfaceImpactV1';
 import { combatInputPresentationBudget, resolveCombatInputDeviceParity, resolveCombatPresentationInputLatency, validateCombatPresentationInputResult } from '../../src/3d/nextgen/combatPresentationInputLatencyV1';
 import type { CombatEvent } from '../../src/3d/nextgen/combatSimulation';
 import { vec3 } from '../../src/3d/nextgen/deterministicMath';
@@ -270,5 +271,21 @@ describe('network presentation and impulse stack', () => {
     expect(Math.abs(a.yawDegrees)).toBeLessThanOrEqual(10);
     expect(Math.abs(a.pitchDegrees)).toBeLessThanOrEqual(8);
     expect(Math.hypot(a.recoil.x, a.recoil.y, a.recoil.z)).toBeLessThanOrEqual(0.18);
+  });
+});
+
+
+describe('shared-material surface impact routing', () => {
+  it('covers all damage/surface combinations without mutating the shared material authority', () => {
+    const routes = buildCombatSurfaceImpactMatrix();
+    expect(routes).toHaveLength(54);
+    expect(routes.every(validateCombatSurfaceImpactRoute)).toBe(true);
+    const summary = summarizeCombatSurfaceImpactMatrix(routes);
+    expect(summary.routes).toBe(54);
+    expect(summary.metallicRoutes).toBeGreaterThan(0);
+    expect(summary.fireRoutes).toBeGreaterThan(0);
+    expect(summary.frostRoutes).toBeGreaterThan(0);
+    expect(summary.maxVisual).toBeLessThanOrEqual(1);
+    expect(summary.maxHaptic).toBeLessThanOrEqual(1);
   });
 });
