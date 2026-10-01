@@ -6,6 +6,7 @@ import { AssetRuntime } from './assetRuntime';
 import { RenderBridge } from './renderBridge';
 import { RecoveryController } from './recoveryController';
 import { RuntimeHardeningSupervisorV25, type HardeningDecision } from '../strict/runtimeHardeningV25.ts';
+import { RuntimeWatchdogR33, type RuntimeWatchdogSnapshot } from '../strict/runtimeWatchdogR33.ts';
 
 export interface LegacyStateSink {
   set?: (key: string, value: unknown) => void;
@@ -37,6 +38,7 @@ export interface ModernRuntimeFacadeSnapshot {
   readonly entities: number;
   readonly digest: string;
   readonly hardening: HardeningDecision;
+  readonly watchdog: RuntimeWatchdogSnapshot;
 }
 
 /**
@@ -50,6 +52,7 @@ export class ModernRuntimeFacade {
   readonly renderer: RenderBridge;
   readonly recovery: RecoveryController;
   readonly hardening: RuntimeHardeningSupervisorV25;
+  readonly watchdog: RuntimeWatchdogR33;
 
   #legacyState: LegacyStateSink;
   #legacyRenderer: LegacyRendererSink;
@@ -67,6 +70,7 @@ export class ModernRuntimeFacade {
     this.assets = new AssetRuntime({ registry: this.kernel.resources, diagnostics: this.kernel.diagnostics });
     this.renderer = new RenderBridge({ backend: this.kernel.profile.preferredBackend, diagnostics: this.kernel.diagnostics, recovery: this.recovery });
     this.hardening = new RuntimeHardeningSupervisorV25();
+    this.watchdog = new RuntimeWatchdogR33();
     this.lifecycle = new RuntimeLifecycle({ kernel: this.kernel });
     this.kernel.events.on('render:quality-changed', (change) => {
       this.#legacyState.set?.('renderQuality', change.next);
@@ -118,7 +122,15 @@ export class ModernRuntimeFacade {
         assetBacklog: Math.max(0, assetStats.requests - assetStats.ready - assetStats.failures),
         networkJitterMs: 0,
       });
-      const state = this.snapshot(result.frame, result.quality, result.backend, result.pressure.combined, result.streamPlan.retain.length, this.#lastHardening);
+      const watchdog = this.watchdog.observe({
+        frame: Number(result.frame.frame),
+        frameMs: input.frameMs,
+        cpuMs: input.cpuMs,
+        gpuMs: input.gpuMs ?? 0,
+        pressure: result.pressure.combined,
+        hardeningState: this.#lastHardening.state,
+      });
+      const state = this.snapshot(result.frame, result.quality, result.backend, result.pressure.combined, result.streamPlan.retain.length, this.#lastHardening, watchdog);
       this.#writeLegacyState(state);
       await this.renderer.setQuality(result.quality, this.kernel.quality.decision.renderScale);
       return { ok: true, value: state };
@@ -151,10 +163,11 @@ export class ModernRuntimeFacade {
     this.lifecycle.stop('shutdown');
     await this.renderer.dispose();
     this.assets.clear();
+    this.watchdog.dispose();
     this.#initialized = false;
   }
 
-  snapshot(frame = 0, quality: QualityTier = this.kernel.quality.tier, backend = this.renderer.state.backend, pressure = 0, streamedCells = this.kernel.streaming.loadedKeys().length, hardening: HardeningDecision = this.#lastHardening): ModernRuntimeFacadeSnapshot {
+  snapshot(frame = 0, quality: QualityTier = this.kernel.quality.tier, backend = this.renderer.state.backend, pressure = 0, streamedCells = this.kernel.streaming.loadedKeys().length, hardening: HardeningDecision = this.#lastHardening, watchdog: RuntimeWatchdogSnapshot = this.watchdog.snapshot()): ModernRuntimeFacadeSnapshot {
     const entities = this.kernel.createSnapshot().entities.length;
     const state: ModernRuntimeFacadeSnapshot = Object.freeze({
       phase: this.lifecycle.state.phase,
@@ -167,6 +180,7 @@ export class ModernRuntimeFacade {
       entities,
       digest: checksum({ phase: this.lifecycle.state.phase, frame, quality, backend, streamedCells, entities, pressure, hardening: hardening.state }),
       hardening,
+      watchdog,
     });
     this.#lastSnapshot = state;
     return state;
@@ -180,6 +194,7 @@ export class ModernRuntimeFacade {
       renderer: this.renderer.metrics,
       recovery: this.recovery.state(),
       hardening: this.hardening.snapshot(),
+      watchdog: this.watchdog.snapshot(),
       assets: this.assets.stats(),
     });
   }
@@ -191,6 +206,8 @@ export class ModernRuntimeFacade {
     this.#legacyState.set?.('renderPressure', snapshot.pressure);
     this.#legacyState.set?.('runtimePhase', snapshot.phase);
     this.#legacyState.set?.('runtimeDigest', snapshot.digest);
+    this.#legacyState.set?.('runtimeWatchdogState', snapshot.watchdog.state);
+    this.#legacyState.set?.('runtimeWatchdogScore', snapshot.watchdog.score);
     this.#legacyRenderer.setPixelRatio?.(snapshot.renderScale);
     this.#legacyRenderer.setQuality?.(snapshot.quality);
     this.#legacyRenderer.setBackend?.(snapshot.backend);
