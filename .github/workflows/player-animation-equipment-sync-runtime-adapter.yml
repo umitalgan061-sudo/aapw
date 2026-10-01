@@ -1,0 +1,47 @@
+name: Kızıl Ufuk Player Animation Equipment Sync Runtime Adapter
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/playerAnimationEquipmentSyncRuntimeAdapter.js'
+      - 'scripts/checkPlayerAnimationEquipmentSyncRuntimeAdapter.mjs'
+      - '.github/workflows/player-animation-equipment-sync-runtime-adapter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  adapter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerAnimationEquipmentSyncRuntimeAdapter.js
+          node --check scripts/checkPlayerAnimationEquipmentSyncRuntimeAdapter.mjs
+      - name: Runtime/editor boundary
+        run: |
+          ! grep -R -n "EditorMaterialStudio" src/3d/gameplay/playerAnimationEquipmentSyncRuntimeAdapter.js
+          ! grep -R -n "from ['\"]three['\"]" src/3d/gameplay/playerAnimationEquipmentSyncRuntimeAdapter.js
+      - name: Deterministic executable regression twice
+        run: |
+          node scripts/checkPlayerAnimationEquipmentSyncRuntimeAdapter.mjs > /tmp/adapter-a.json
+          node scripts/checkPlayerAnimationEquipmentSyncRuntimeAdapter.mjs > /tmp/adapter-b.json
+          cmp /tmp/adapter-a.json /tmp/adapter-b.json
+      - name: Diff budget
+        run: |
+          base='${{ github.event.pull_request.base.sha || github.event.before }}'
+          head='${{ github.event.pull_request.head.sha || github.sha }}'
+          git fetch --no-tags origin "$base" --depth=1
+          changed=$(git diff --numstat "$base" "$head" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
