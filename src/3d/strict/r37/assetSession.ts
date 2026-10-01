@@ -90,9 +90,8 @@ export class AssetSessionR37 {
       const started = nowMs();
       let result: AssetResult;
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);
         const merged = new AbortController();
+        const timeout = setTimeout(() => merged.abort(), this.config.timeoutMs);
         const relay = () => merged.abort();
         this.#controller.signal.addEventListener('abort', relay, { once: true });
         try {
