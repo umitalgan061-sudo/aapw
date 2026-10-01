@@ -1,0 +1,199 @@
+import { describe, expect, it } from 'vitest';
+import { CombatPresentationDirector, buildCombatPresentationFrame, validateCombatPresentationFrame } from '../../src/3d/nextgen/combatPresentationV1';
+import { CombatPresentationQueue, validateCombatPresentationDispatch } from '../../src/3d/nextgen/combatPresentationQueueV1';
+import { compareCombatPresentationRecordings, replayCombatPresentation, summarizeCombatPresentationRecording } from '../../src/3d/nextgen/combatPresentationReplayV1';
+import { buildCombatFeedbackSummary, eventToSemanticHint, projectCombatAccessibility, validateCombatAccessibilitySignal } from '../../src/3d/nextgen/combatPresentationAccessibilityV1';
+import { CombatSimulation, createCombatStats } from '../../src/3d/nextgen/combatSimulation';
+import { vec3, type Vec3 } from '../../src/3d/nextgen/deterministicMath';
+
+const combatId = (value: number) => value as never;
+const states = (combat: CombatSimulation) => combat.snapshot();
+
+function runHitScenario(seed = 42) {
+  const combat = new CombatSimulation(seed);
+  const attacker = combatId(1); const target = combatId(2);
+  combat.spawn(attacker, vec3(0, 0, 0), createCombatStats());
+  combat.spawn(target, vec3(0, 0, 1.1), createCombatStats());
+  combat.setPose(attacker, vec3(0, 0, 0), vec3(0, 0, 1));
+  combat.startAttack(attacker, 'light-1');
+  const byTick = new Map<number, readonly import('../../src/3d/gameplay/three-runtime-min').CombatEvent[]>();
+  for (let i = 0; i < 40; i += 1) {
+    const events = combat.step();
+    if (events.length) byTick.set(combat.tick, events as never);
+  }
+  return { combat, byTick, states: new Map([[combat.tick, states(combat)]]) };
+}
+
+describe('nextgen combat presentation', () => {
+  it('maps all authoritative combat event families into semantic cues', () => {
+    const director = new CombatPresentationDirector();
+    const eventTypes = ['attack-start', 'hit', 'blocked', 'critical', 'stagger', 'death', 'dodge'] as const;
+    for (const type of eventTypes) {
+      const frame = director.ingest([{ tick: 1, type, sourceId: combatId(1), targetId: combatId(2), attackId: 'light-1', damage: 10, poiseDamage: 4 }] as never, { states: [] });
+      expect(frame.cues.length).toBe(1);
+      expect(frame.cues[0]?.semantic).toBe(eventToSemanticHint({ tick: 1, type, sourceId: combatId(1), targetId: combatId(2), attackId: 'light-1', damage: 10, poiseDamage: 4 } as never));
+      expect(validateCombatPresentationFrame(frame).valid).toBe(true);
+      director.reset();
+    }
+  });
+
+  it('produces stronger critical feedback without exceeding presentation bounds', () => {
+    const director = new CombatPresentationDirector();
+    const frame = director.ingest([
+      { tick: 3, type: 'critical', sourceId: combatId(1), targetId: combatId(2), attackId: 'heavy-1', damage: 60, poiseDamage: 20 },
+      { tick: 3, type: 'hit', sourceId: combatId(1), targetId: combatId(2), attackId: 'heavy-1', damage: 20, poiseDamage: 8 },
+    ], { states: [] });
+    expect(frame.hitstopTicks).toBeGreaterThan(0);
+    expect(frame.cameraShake).toBeGreaterThan(0);
+    expect(frame.cues[0]?.priority).toBe(3);
+    expect(frame.cues[0]?.audio.volume).toBeGreaterThan(frame.cues[1]?.audio.volume ?? 0);
+    expect(validateCombatPresentationFrame(frame).valid).toBe(true);
+  });
+
+  it('deduplicates replayed events and keeps tick ordering monotonic', () => {
+    const director = new CombatPresentationDirector();
+    const event = { tick: 10, type: 'hit', sourceId: combatId(1), targetId: combatId(2), attackId: 'light-1', damage: 10, poiseDamage: 4 } as never;
+    expect(director.ingest([event], { states: [] }).cues.length).toBe(1);
+    expect(director.ingest([event], { states: [] }).cues.length).toBe(0);
+    expect(() => director.ingest([{ ...event, tick: 9 }], { states: [] })).toThrow(/monotonic/);
+  });
+
+  it('creates deterministic cues from world state and event data', () => {
+    const event = { tick: 20, type: 'hit', sourceId: combatId(1), targetId: combatId(2), attackId: 'light-1', damage: 15, poiseDamage: 7 } as never;
+    const context = { states: [
+      { id: combatId(1), position: vec3(0, 0, 0), forward: vec3(0, 0, 1) },
+      { id: combatId(2), position: vec3(0, 0, 1), forward: vec3(0, 0, -1) },
+    ] as never[] };
+    const a = buildCombatPresentationFrame([event], context);
+    const b = buildCombatPresentationFrame([event], context);
+    expect(a).toEqual(b);
+    expect(a.cues[0]?.position).toEqual({ x: 0, y: 0, z: 0.5 });
+    expect(a.cues[0]?.direction).toEqual({ x: 0, y: 0, z: 1 });
+  });
+
+  it('exports immutable snapshots that restore exactly', () => {
+    const director = new CombatPresentationDirector();
+    director.ingest([{ tick: 4, type: 'critical', sourceId: combatId(1), targetId: combatId(2), damage: 50 }] as never, { states: [] });
+    const snapshot = director.snapshot();
+    const restored = new CombatPresentationDirector();
+    restored.restore(snapshot);
+    expect(restored.snapshot()).toEqual(snapshot);
+  });
+});
+
+describe('presentation queue', () => {
+  it('orders important cues first and budgets delivery by channel', () => {
+    const director = new CombatPresentationDirector({ maxCuesPerTick: 20 });
+    const cues = director.ingest(Array.from({ length: 16 }, (_, index) => ({ tick: 2, type: index % 2 ? 'hit' : 'critical', sourceId: combatId(index + 1), targetId: combatId(100 + index), damage: 10 + index })) as never[], { states: [] }).cues;
+    const queue = new CombatPresentationQueue({ maxDispatchPerFrame: 4, maxPerChannelPerFrame: { vfx: 2, sfx: 2, haptic: 2, camera: 2 } });
+    expect(queue.enqueue(cues, 'gamepad', 2)).toBe(16);
+    const dispatches = queue.dispatch(2);
+    expect(dispatches.length).toBe(4);
+    expect(dispatches[0]?.cue.priority).toBe(3);
+    expect(dispatches.every(validateCombatPresentationDispatch)).toBe(true);
+  });
+
+  it('expires stale pending effects rather than leaking memory', () => {
+    const director = new CombatPresentationDirector();
+    const cue = director.ingest([{ tick: 1, type: 'dodge', sourceId: combatId(1) }] as never, { states: [] }).cues;
+    const queue = new CombatPresentationQueue({ maxLifetimeTicks: 2 });
+    queue.enqueue(cue, 'touch', 1);
+    expect(queue.pendingCount()).toBe(1);
+    expect(queue.dispatch(10)).toEqual([]);
+    expect(queue.pendingCount()).toBe(0);
+  });
+
+  it('does not duplicate cooldown-limited impacts', () => {
+    const director = new CombatPresentationDirector();
+    const first = director.ingest([{ tick: 5, type: 'critical', sourceId: combatId(1), targetId: combatId(2), attackId: 'heavy-1', damage: 60 }] as never, { states: [] }).cues;
+    const queue = new CombatPresentationQueue();
+    expect(queue.enqueue(first, 'touch', 5)).toBe(1);
+    queue.dispatch(5);
+    expect(queue.enqueue(first, 'touch', 6)).toBe(0);
+  });
+});
+
+describe('replay and accessibility', () => {
+  it('replays the same presentation recording deterministically', () => {
+    const { byTick } = runHitScenario(123);
+    const ctx = new Map<number, readonly import('../../src/3d/gameplay/three-runtime-min').CombatantState[]>();
+    for (const tick of byTick.keys()) ctx.set(tick, []);
+    const a = replayCombatPresentation(byTick, ctx);
+    const b = replayCombatPresentation(byTick, ctx);
+    expect(compareCombatPresentationRecordings(a, b).equal).toBe(true);
+    expect(summarizeCombatPresentationRecording(a).digest).toBe(summarizeCombatPresentationRecording(b).digest);
+  });
+
+  it('projects touch/gamepad haptics while keeping mouse/keyboard silent', () => {
+    const director = new CombatPresentationDirector();
+    const frame = director.ingest([{ tick: 8, type: 'critical', sourceId: combatId(1), targetId: combatId(2), damage: 55 }] as never, { states: [] });
+    const touch = projectCombatAccessibility(frame.cues, { device: 'touch' });
+    const keyboard = projectCombatAccessibility(frame.cues, { device: 'keyboard' });
+    expect(touch[0]?.haptic).toBe(true);
+    expect(keyboard[0]?.haptic).toBe(false);
+    expect(touch[0]?.ariaLive).toBe('assertive');
+    expect(touch.every(validateCombatAccessibilitySignal)).toBe(true);
+  });
+
+  it('keeps reduced motion independent of combat semantics', () => {
+    const director = new CombatPresentationDirector();
+    const frame = director.ingest([{ tick: 8, type: 'critical', sourceId: combatId(1), targetId: combatId(2), damage: 55 }] as never, { states: [] });
+    const standard = projectCombatAccessibility(frame.cues, { mode: 'standard' });
+    const reduced = projectCombatAccessibility(frame.cues, { mode: 'reduced-motion' });
+    expect(reduced[0]?.semantic).toBe(standard[0]?.semantic);
+    expect(reduced[0]?.motionScale).toBeLessThan(standard[0]?.motionScale ?? 1);
+  });
+
+  it('summarizes the feedback set for HUD/debug consumers', () => {
+    const director = new CombatPresentationDirector();
+    const frame = director.ingest([
+      { tick: 1, type: 'hit', sourceId: combatId(1), targetId: combatId(2), damage: 10 },
+      { tick: 1, type: 'critical', sourceId: combatId(1), targetId: combatId(2), damage: 40 },
+      { tick: 1, type: 'blocked', sourceId: combatId(2), targetId: combatId(1), damage: 5 },
+    ] as never, { states: [] });
+    const summary = buildCombatFeedbackSummary(frame.cues);
+    expect(summary.count).toBe(3);
+    expect(summary.criticals).toBe(1);
+    expect(summary.blocked).toBe(1);
+    expect(summary.strongest).toBe('critical-impact');
+  });
+});
+
+describe('runtime facade presentation integration', () => {
+  it('returns presentation frame fields from the actual nextgen frame result', async () => {
+    const { createNextGenRuntime } = await import('../../src/3d/nextgen/runtimeFacadeV3');
+    const runtime = createNextGenRuntime({ navigationWidth: 8, navigationHeight: 8, navigationCellSize: 1 });
+    const player = runtime.createPlayer();
+    runtime.setPresentationDevice('gamepad');
+    runtime.setPresentationAccessibility('reduced-motion');
+    runtime.setMuted(true);
+    runtime.queuePlayerInput(player, { tick: 0, move: { x: 0, y: 1 }, sprint: false, lookYaw: 0 });
+    runtime.startCombatAttack(player, 'light-1');
+    for (let i = 0; i < 14; i += 1) await runtime.frame(async () => new Response(new Uint8Array(0), { status: 404 }));
+    const result = await runtime.frame(async () => new Response(new Uint8Array(0), { status: 404 }));
+    expect(result.presentationFrame.version).toBe(1);
+    expect(Array.isArray(result.presentationDispatches)).toBe(true);
+    expect(Array.isArray(result.presentationAccessibility)).toBe(true);
+    expect(runtime.summary().combatants).toBe(1);
+  });
+});
+
+describe('defensive edge cases', () => {
+  it('clamps pathological camera and audio values through the cue contract', () => {
+    const frame = buildCombatPresentationFrame([{ tick: 1, type: 'hit', sourceId: combatId(1), targetId: combatId(2), damage: Number.POSITIVE_INFINITY, poiseDamage: Number.NaN }] as never, { states: [] });
+    expect(validateCombatPresentationFrame(frame).valid).toBe(true);
+    expect(frame.cues[0]?.intensity).toBeLessThanOrEqual(1);
+    expect(frame.cues[0]?.audio.volume).toBeLessThanOrEqual(1);
+  });
+
+  it('keeps the presentation queue snapshot portable', () => {
+    const director = new CombatPresentationDirector();
+    const cue = director.ingest([{ tick: 3, type: 'death', sourceId: combatId(1), targetId: combatId(2), damage: 100 }] as never, { states: [] }).cues;
+    const queue = new CombatPresentationQueue();
+    queue.enqueue(cue, 'replay', 3);
+    const restored = new CombatPresentationQueue();
+    restored.restore(queue.snapshot());
+    expect(restored.pendingCount()).toBe(queue.pendingCount());
+    expect(restored.tickValue()).toBe(queue.tickValue());
+  });
+});
