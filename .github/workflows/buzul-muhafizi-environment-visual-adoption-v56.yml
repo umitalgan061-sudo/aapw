@@ -1,0 +1,47 @@
+name: Buzul Muhafizi Environment Visual Adoption V56
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentVisualAdoptionV56.js'
+      - 'scripts/checkEnvironmentVisualAdoptionV56.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-visual-adoption-v56.yml'
+  push:
+    branches:
+      - 'buzul-muhafizi/exact-main-environment-visual-adoption-v56-20260910'
+
+permissions:
+  contents: read
+
+jobs:
+  environment-visual-adoption-v56:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check src/3d/world/environmentVisualAdoptionV56.js
+          node --check scripts/checkEnvironmentVisualAdoptionV56.mjs
+      - name: Executable regression
+        run: node scripts/checkEnvironmentVisualAdoptionV56.mjs
+      - name: Runtime boundary
+        run: |
+          ! grep -nE "EditorMaterialStudio|three|THREE|createGeometry|new Mesh|new BoxGeometry|new ConeGeometry" \
+            src/3d/world/environmentVisualAdoptionV56.js
+      - name: Shared contract and scope
+        run: |
+          grep -n "MaterialAssignmentCore.js" src/3d/world/environmentVisualAdoptionV56.js
+          grep -n "WorldAssetPlacementPipeline.js" src/3d/world/environmentVisualAdoptionV56.js
+          git diff --check
+          changed=$(git diff --numstat "$GITHUB_EVENT_BEFORE" "$GITHUB_SHA" -- \
+            src/3d/world/environmentVisualAdoptionV56.js \
+            scripts/checkEnvironmentVisualAdoptionV56.mjs \
+            .github/workflows/buzul-muhafizi-environment-visual-adoption-v56.yml | \
+            awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
