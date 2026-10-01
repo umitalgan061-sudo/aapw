@@ -93,3 +93,6 @@ export * from './combatPresentationSpatialAudioV1';
 export * from './combatPresentationReactionV1';
 export * from './combatPresentationContractV1';
 export * from './combatPresentationCameraFocusV1';
+export * from './combatPresentationBrowserBridgeV1';
+export * from './combatPresentationHapticsV1';
+export * from './combatPresentationInputLatencyV1';
