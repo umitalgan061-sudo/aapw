@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CombatPresentationDirector } from '../../src/3d/nextgen/combatPresentationV1';
 import { CombatPresentationQueue } from '../../src/3d/nextgen/combatPresentationQueueV1';
 import { projectCombatAccessibility } from '../../src/3d/nextgen/combatPresentationAccessibilityV1';
-import { getCombatDamageTypeProfile, listCombatDamageTypeProfiles } from '../../src/3d/nextgen/combatPresentationDamageTypeV1';
+import { getCombatDamageTypeProfile, listCombatDamageTypeProfiles, resolveCombatSurfaceReaction } from '../../src/3d/nextgen/combatPresentationDamageTypeV1';
 import { resolveCombatSpatialAudio } from '../../src/3d/nextgen/combatPresentationSpatialAudioV1';
 import { resolveCombatReactionIntent } from '../../src/3d/nextgen/combatPresentationReactionV1';
 import { createCombatPresentationTimeline } from '../../src/3d/nextgen/combatPresentationTimelineV1';
@@ -39,11 +39,13 @@ describe('combat presentation contract matrix', () => {
   it('keeps surface reaction matrix bounded across all six damage types', () => {
     const surfaces = ['skin','cloth','leather','metal','stone','ice'] as const;
     for (const profile of listCombatDamageTypeProfiles()) for (const surface of surfaces) {
-      const reaction = resolveCombatSpatialAudio(vec3(3,0,4), { position:vec3(0,0,0), forward:vec3(0,0,1) });
-      expect(reaction.volumeMultiplier).toBeGreaterThanOrEqual(0);
-      expect(reaction.volumeMultiplier).toBeLessThanOrEqual(1);
+      const surfaceReaction = resolveCombatSurfaceReaction(profile.damageType, surface);
+      const spatial = resolveCombatSpatialAudio(vec3(3,0,4), { position:vec3(0,0,0), forward:vec3(0,0,1) });
+      expect(surfaceReaction.intensity).toBeGreaterThanOrEqual(0);
+      expect(surfaceReaction.pulse).toBeGreaterThanOrEqual(0);
+      expect(spatial.volumeMultiplier).toBeGreaterThanOrEqual(0);
+      expect(spatial.volumeMultiplier).toBeLessThanOrEqual(1);
       expect(getCombatDamageTypeProfile(profile.damageType).damageType).toBe(profile.damageType);
-      void surface;
     }
   });
 
