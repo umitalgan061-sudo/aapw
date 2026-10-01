@@ -1,0 +1,33 @@
+name: Settlement Action Receipt
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementActionReceipt.js'
+      - 'scripts/checkSettlementActionReceipt.mjs'
+      - '.github/workflows/settlement-action-receipt.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementActionReceipt.js'
+      - 'scripts/checkSettlementActionReceipt.mjs'
+      - '.github/workflows/settlement-action-receipt.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: node --check src/3d/gameplay/settlementActionReceipt.js && node --check scripts/checkSettlementActionReceipt.mjs
+      - name: Executable contract
+        run: node scripts/checkSettlementActionReceipt.mjs
+      - name: Runtime/editor boundary
+        run: |
+          ! grep -R "EditorMaterialStudio\|document\.\|window\." src/3d/gameplay/settlementActionReceipt.js
+      - name: Diff hygiene
+        run: |
+          test "$(git diff --numstat HEAD~1 HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
