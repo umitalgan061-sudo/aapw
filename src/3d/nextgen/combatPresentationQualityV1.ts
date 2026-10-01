@@ -1,5 +1,5 @@
 /** Quality shedding policy for combat presentation under frame pressure. */
-import type { CombatPresentationDevice } from './combatPresentationV1';
+import type { CombatPresentationCue, CombatPresentationDevice } from './combatPresentationV1';
 export type CombatPresentationQuality='cinematic'|'balanced'|'reduced';
 export interface CombatPresentationQualityInput{readonly frameP95Ms:number;readonly pendingQueue:number;readonly droppedCues:number;readonly reducedMotion:boolean;readonly device:CombatPresentationDevice;}
 export interface CombatPresentationQualityDecision{readonly quality:CombatPresentationQuality;readonly vfxScale:number;readonly cameraScale:number;readonly hapticScale:number;readonly audioScale:number;readonly preserveCritical:boolean;readonly reason:string;}
@@ -16,4 +16,13 @@ export function resolveCombatPresentationQuality(input:CombatPresentationQuality
 export function applyCombatPresentationQuality(decision:CombatPresentationQualityDecision,cue:{readonly intensity:number;readonly priority:number}):Readonly<{intensity:number;cameraScale:number;hapticScale:number;audioScale:number;preserved:boolean}>{
   const critical=cue.priority>=3 && decision.preserveCritical;
   return Object.freeze({intensity:clamp(cue.intensity*(critical?Math.max(0.9,decision.vfxScale):decision.vfxScale)),cameraScale:decision.cameraScale,hapticScale:decision.hapticScale,audioScale:decision.audioScale,preserved:critical});
+}
+
+export function tuneCombatPresentationCue(cue: CombatPresentationCue, decision: CombatPresentationQualityDecision): CombatPresentationCue {
+  const applied = applyCombatPresentationQuality(decision, cue);
+  const audio = Object.freeze({ ...cue.audio, volume: Number(Math.min(1, cue.audio.volume * applied.audioScale).toFixed(3)) });
+  const camera = Object.freeze({ ...cue.camera, amplitude: Number(Math.min(1, cue.camera.amplitude * applied.cameraScale).toFixed(3)) });
+  const vfx = Object.freeze({ ...cue.vfx, intensity: applied.intensity, scale: Number((cue.vfx.scale * (cue.priority >= 3 && decision.preserveCritical ? 1 : decision.vfxScale)).toFixed(3)) });
+  const haptics = Object.freeze(cue.haptics.map((pulse) => Object.freeze({ ...pulse, amplitude: Number(Math.min(1, pulse.amplitude * applied.hapticScale).toFixed(3)) })));
+  return Object.freeze({ ...cue, audio, camera, vfx, haptics });
 }
