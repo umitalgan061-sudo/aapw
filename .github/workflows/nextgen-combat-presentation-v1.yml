@@ -58,7 +58,7 @@ jobs:
         run: npm run verify:nextgen-combat-presentation
       - name: Strict TypeScript
         run: npm run typecheck:nextgen-combat-presentation
-      - name: Deterministic regression
+      - name: Deterministic regression and contract matrix
         run: npm run test:nextgen-combat-presentation
       - name: Existing nextgen regression
         run: npm test -- tests/nextgen/nextgenRuntimeV3.test.ts
