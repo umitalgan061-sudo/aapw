@@ -460,6 +460,7 @@ describe('deterministic parry presentation', () => {
     expect(combat.getState(defender)?.health).toBe(100);
     expect(combat.getState(attacker)?.phase).toBe('stunned');
     expect(combat.getState(defender)?.counterWindowTicks).toBe(8);
+    expect(combat.getState(defender)?.counterWindowTicks).toBe(8);
     expect(parry?.counterWindowTicks).toBe(8);
   });
 
@@ -482,5 +483,39 @@ describe('deterministic parry presentation', () => {
     expect(cue?.hitstopTicks).toBeGreaterThanOrEqual(4);
     expect(cue?.intensity).toBeGreaterThan(0.9);
     expect(cue?.counterWindowTicks).toBe(8);
+  });
+});
+
+
+describe('deterministic parry counter attack', () => {
+  it('consumes the parry window exactly once and amplifies the follow-up hit', () => {
+    const combat = new CombatSimulation(41);
+    const attacker = combatId(1);
+    const defender = combatId(2);
+    combat.spawn(attacker, vec3(0, 0, 0), createCombatStats());
+    combat.spawn(defender, vec3(0, 0, 1.5), createCombatStats());
+    combat.setPose(attacker, vec3(0, 0, 0), vec3(0, 0, 1));
+    combat.setPose(defender, vec3(0, 0, 1.5), vec3(0, 0, -1));
+    combat.setParrying(defender, true);
+    combat.startAttack(attacker, 'light-1');
+    for (let i = 0; i < 20; i += 1) if (combat.step().some((e) => e.type === 'parried')) break;
+    expect(combat.getState(defender)?.counterWindowTicks).toBe(8);
+    combat.setParrying(defender, false);
+    expect(combat.startAttack(defender, 'light-1')).toBe(true);
+    expect(combat.getState(defender)?.counterWindowTicks).toBe(0);
+    const observed: Array<{ damage?: number; counterAttack?: boolean }> = [];
+    for (let i = 0; i < 20; i += 1) for (const event of combat.step()) if (event.sourceId === defender && (event.type === 'hit' || event.type === 'critical')) observed.push(event);
+    expect(observed.some((event) => event.counterAttack === true)).toBe(true);
+    expect(Math.max(...observed.map((event) => event.damage ?? 0))).toBeGreaterThan(18);
+  });
+
+  it('keeps counter presentation distinct from a normal hit without new asset authority', () => {
+    const cue = new CombatPresentationDirector().ingest([{
+      tick: 8, type: 'hit', sourceId: combatId(2), targetId: combatId(1), attackId: 'light-1',
+      damage: 24.3, poiseDamage: 12, damageType: 'slash', counterAttack: true,
+    }], { states: [], device: 'gamepad' }).cues[0];
+    expect(cue?.counterAttack).toBe(true);
+    expect(cue?.defenseOutcome).toBe('none');
+    expect(cue?.intensity).toBeGreaterThan(0.8);
   });
 });
