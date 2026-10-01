@@ -40,3 +40,6 @@ export * from './workerBridge';
 export * from './sceneBridge';
 export * from './snapshotReplication';
 export * from './diagnostics';
+
+export * from './worldStreaming';
+export * from './inputPrediction';
