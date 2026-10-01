@@ -160,7 +160,10 @@
     "verify:strict-runtime-r33": "node scripts/checkStrictRuntimeR33.mjs",
     "typecheck:strict-runtime-r33": "tsc -p tsconfig.strict-runtime-r33.json --noEmit",
     "test:strict-runtime-r33": "npm test -- tests/modern/strictRuntimeR33.test.ts",
-    "check:strict-runtime-r33": "npm run verify:strict-runtime-r33 && npm run typecheck:strict-runtime-r33 && npm run test:strict-runtime-r33"
+    "check:strict-runtime-r33": "npm run verify:strict-runtime-r33 && npm run typecheck:strict-runtime-r33 && npm run test:strict-runtime-r33",
+    "typecheck:player-physics": "tsc -p tsconfig.player-physics.json --noEmit",
+    "test:player-physics": "vitest run tests/modern/playerPhysicsStability.test.ts",
+    "check:player-physics": "npm run typecheck:player-physics && npm run test:player-physics"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
