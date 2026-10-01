@@ -83,3 +83,4 @@ export * from './combatPresentationV1';
 export * from './combatPresentationQueueV1';
 export * from './combatPresentationReplayV1';
 export * from './combatPresentationAccessibilityV1';
+export * from './combatPresentationDamageTypeV1';
