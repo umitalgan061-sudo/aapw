@@ -1,0 +1,21 @@
+
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true
+  },
+  "include": [
+    "src/3d/strict/r41/**/*.ts",
+    "scripts/checkRuntimeR41Architecture.ts",
+    "scripts/checkTypeScriptOwnershipR41.ts",
+    "tests/modern/r41*.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

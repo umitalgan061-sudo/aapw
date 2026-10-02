@@ -183,7 +183,12 @@
     "verify:runtime-r37": "node scripts/checkRuntimeR37.mjs",
     "typecheck:runtime-r37": "tsc -p tsconfig.runtime-r37.json --noEmit",
     "test:runtime-r37": "vitest run tests/modern/r37 --passWithNoTests",
-    "check:runtime-r37": "npm run verify:runtime-r37 && npm run typecheck:runtime-r37 && npm run test:runtime-r37"
+    "check:runtime-r37": "npm run verify:runtime-r37 && npm run typecheck:runtime-r37 && npm run test:runtime-r37",
+    "verify:runtime-r41": "node --experimental-strip-types scripts/checkRuntimeR41Architecture.ts",
+    "verify:typescript-ownership-r41": "node --experimental-strip-types scripts/checkTypeScriptOwnershipR41.ts",
+    "typecheck:runtime-r41": "tsc -p tsconfig.runtime-r41.json --noEmit",
+    "test:runtime-r41": "vitest run tests/modern/r41*.test.ts --passWithNoTests",
+    "check:runtime-r41": "npm run verify:runtime-r41 && npm run verify:typescript-ownership-r41 && npm run typecheck:runtime-r41 && npm run test:runtime-r41"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
