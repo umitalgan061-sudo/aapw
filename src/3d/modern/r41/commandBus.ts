@@ -1,0 +1,15 @@
+import{PRIORITY_WEIGHT}from'./contracts';import type{CommandEnvelope,CommandPriority,CommandResult,Tick}from'./contracts';
+export interface CommandContext{readonly tick:Tick;readonly signal:AbortSignal;}
+export type CommandHandler<T=unknown,R=unknown>=(payload:T,context:CommandContext)=>R|Promise<R>;
+export type CommandMiddleware=<T,R>(command:CommandEnvelope<T>,context:CommandContext,next:()=>Promise<CommandResult<R>>)=>Promise<CommandResult<R>>;
+export class TypedCommandBus{
+ #handlers=new Map<string,CommandHandler<unknown,unknown>>();#middleware:CommandMiddleware[]=[];#history=new Map<string,CommandResult>();readonly maxHistory:number;
+ constructor(maxHistory=4096){this.maxHistory=Math.max(64,Math.trunc(maxHistory));}
+ register<T,R>(type:string,handler:CommandHandler<T,R>):()=>void{if(!type||this.#handlers.has(type))throw new Error('COMMAND_REGISTRATION_INVALID');this.#handlers.set(type,handler as CommandHandler<unknown,unknown>);return()=>this.#handlers.delete(type);}
+ use(middleware:CommandMiddleware):()=>void{this.#middleware.push(middleware);return()=>{this.#middleware=this.#middleware.filter(v=>v!==middleware);};}
+ async dispatch<T,R>(command:CommandEnvelope<T>,context:CommandContext):Promise<CommandResult<R>>{const previous=this.#history.get(command.id);if(previous)return Object.freeze({...previous,duplicate:true})as CommandResult<R>;if(command.deadlineTick<context.tick.index)return Object.freeze({accepted:false,duplicate:false,errorCode:'COMMAND_EXPIRED',completedTick:context.tick.index});const handler=this.#handlers.get(command.type);if(!handler)return Object.freeze({accepted:false,duplicate:false,errorCode:'COMMAND_UNHANDLED',completedTick:context.tick.index});
+ const invoke=async()=>{try{const value=await handler(command.payload,context)as R;const result=Object.freeze({accepted:true,duplicate:false,value,completedTick:context.tick.index});this.remember(command.id,result);return result;}catch(error){const result=Object.freeze({accepted:false,duplicate:false,errorCode:'COMMAND_FAILED',errorMessage:error instanceof Error?error.message:'COMMAND_FAILED',completedTick:context.tick.index});this.remember(command.id,result);return result;}};let chain=invoke;for(let i=this.#middleware.length-1;i>=0;i-=1){const current=this.#middleware[i]!;const next=chain;chain=()=>current(command,context,next);}return chain();}
+ remember(id:string,result:CommandResult):void{this.#history.set(id,result);while(this.#history.size>this.maxHistory){const first=this.#history.keys().next().value;if(first===undefined)break;this.#history.delete(first);}}
+ priority(priority:CommandPriority):number{return PRIORITY_WEIGHT[priority];}clear():void{this.#history.clear();}size():number{return this.#history.size;}has(type:string):boolean{return this.#handlers.has(type);}
+}
+export function createCommand<T>(id:string,type:string,payload:T,tick:number,priority:CommandPriority='normal',source:CommandEnvelope<T>['source']='engine',lifetime=30):CommandEnvelope<T>{return Object.freeze({id,type,payload,tickCreated:tick,createdTick:tick,deadlineTick:tick+Math.max(1,Math.trunc(lifetime)),priority,source});}
