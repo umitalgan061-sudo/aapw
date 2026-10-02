@@ -1,0 +1,6 @@
+export interface PhysicsBodyCost{readonly id:string;readonly distance:number;readonly speed:number;readonly dynamic:boolean;readonly priority:number;}
+export class PhysicsBudgetPolicy{
+ readonly maxDynamic:number;readonly fullRadius:number;readonly reducedRadius:number;
+ constructor(options:{readonly maxDynamic?:number;readonly fullRadius?:number;readonly reducedRadius?:number}={}){this.maxDynamic=Math.max(1,Math.trunc(options.maxDynamic??256));this.fullRadius=Math.max(1,options.fullRadius??50);this.reducedRadius=Math.max(this.fullRadius,options.reducedRadius??180);}
+ evaluate(bodies:readonly PhysicsBodyCost[]){let dynamic=0;return Object.freeze([...bodies].sort((a,b)=>a.distance-b.distance||b.priority-a.priority||a.id.localeCompare(b.id)).map(body=>{if(!body.dynamic)return Object.freeze({id:body.id,mode:'sleep' as const,iterations:1,substeps:1});const near=body.distance<=this.fullRadius,mid=body.distance<=this.reducedRadius,mode=near&&dynamic<this.maxDynamic?'full':mid?'reduced':'sleep';if(mode==='full')dynamic+=1;return Object.freeze({id:body.id,mode,iterations:mode==='full'?8:mode==='reduced'?3:1,substeps:mode==='full'?Math.max(1,Math.ceil(Math.min(2,Math.max(1,Math.abs(body.speed)/6)))):1});}));}
+}
