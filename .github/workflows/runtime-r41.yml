@@ -1,0 +1,45 @@
+
+name: runtime-r41
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/strict/r41/**'
+      - 'tests/modern/r41*.test.ts'
+      - 'scripts/checkRuntimeR41Architecture.ts'
+      - 'scripts/checkTypeScriptOwnershipR41.ts'
+      - 'tsconfig.runtime-r41.json'
+      - 'package.json'
+      - '.github/workflows/runtime-r41.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/strict/r41/**'
+      - 'tests/modern/r41*.test.ts'
+      - 'scripts/checkRuntimeR41Architecture.ts'
+      - 'scripts/checkTypeScriptOwnershipR41.ts'
+      - 'tsconfig.runtime-r41.json'
+      - 'package.json'
+      - '.github/workflows/runtime-r41.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-r41-\${{ github.workflow }}-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  strict:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node --experimental-strip-types scripts/checkRuntimeR41Architecture.ts
+      - run: node --experimental-strip-types scripts/checkTypeScriptOwnershipR41.ts
+      - run: npx tsc -p tsconfig.runtime-r41.json --noEmit
+      - run: npx vitest run tests/modern/r41Runtime.test.ts tests/modern/r41Ownership.test.ts --passWithNoTests
