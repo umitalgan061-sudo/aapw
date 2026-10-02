@@ -219,27 +219,6 @@ function compareCandidates(a: StreamCandidate, b: StreamCandidate): number {
   return a.id.localeCompare(b.id);
 }
 
-StreamPlannerR41.prototype.toCandidate = function(
-  this: StreamingPlannerR41,
-  entity: Entity,
-  distance: number,
-  score: number,
-  quality: QualityTier,
-  resident: boolean,
-  priority: Priority | null,
-): StreamCandidate {
-  return Object.freeze({
-    id: entity.id,
-    position: entity.transform.position,
-    distance,
-    score,
-    lod: lodForDistance(distance, quality),
-    priority: priority ?? 'background',
-    estimatedMs: estimateStreamCost(entity, quality),
-    resident,
-  });
-} as unknown as (entity: Entity, distance: number, score: number, quality: QualityTier, resident: boolean, priority: Priority | null) => StreamCandidate;
-
 function estimateStreamCost(entity: Entity, quality: QualityTier): number {
   const base = entity.kind === 'dragon' || entity.kind === 'structure' ? 0.8 : entity.kind === 'npc' || entity.kind === 'animal' ? 0.35 : 0.2;
   const multiplier = quality === 'ultra' ? 1.5 : quality === 'high' ? 1.25 : quality === 'minimal' ? 0.75 : 1;
