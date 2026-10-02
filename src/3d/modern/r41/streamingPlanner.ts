@@ -1,0 +1,8 @@
+import type{CommandPriority}from'./contracts';
+export interface StreamChunk{readonly id:string;readonly distance:number;readonly importance:number;readonly bytes:number;readonly priority:CommandPriority;readonly dependencies:readonly string[];readonly visible:boolean;}
+export class AdaptiveStreamingPlanner{
+ readonly maxBytesPerTick:number;readonly maxLoadsPerTick:number;readonly unloadDistance:number;
+ constructor(options:{readonly maxBytesPerTick?:number;readonly maxLoadsPerTick?:number;readonly unloadDistance?:number}={}){this.maxBytesPerTick=Math.max(1024,Math.trunc(options.maxBytesPerTick??16*1024*1024));this.maxLoadsPerTick=Math.max(1,Math.trunc(options.maxLoadsPerTick??8));this.unloadDistance=Math.max(1,options.unloadDistance??512);}
+ plan(chunks:readonly StreamChunk[],resident:ReadonlySet<string>){const ordered=[...chunks].sort((a,b)=>score(b)-score(a)||a.id.localeCompare(b.id));const load:string[]=[];const defer:string[]=[];let budget=this.maxBytesPerTick;for(const chunk of ordered){if(resident.has(chunk.id))continue;if(chunk.dependencies.some(dep=>!resident.has(dep)))defer.push(chunk.id);else if(load.length<this.maxLoadsPerTick&&chunk.bytes<=budget){load.push(chunk.id);budget-=chunk.bytes;}else defer.push(chunk.id);}const unload=[...resident].filter(id=>{const c=chunks.find(v=>v.id===id);return Boolean(c&&c.distance>this.unloadDistance&&!c.visible);}).sort();return Object.freeze({load:Object.freeze(load),defer:Object.freeze(defer),unload:Object.freeze(unload),budgetBytes:this.maxBytesPerTick});}
+}
+function score(c:StreamChunk){return(c.priority==='critical'?100:c.priority==='high'?70:c.priority==='normal'?40:c.priority==='low'?20:5)+c.importance*50+(c.visible?30:0)-c.distance*.01;}
