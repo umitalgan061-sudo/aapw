@@ -1,0 +1,12 @@
+import{LANE_ORDER,PRIORITY_WEIGHT}from'./contracts';import type{BudgetProfile,Tick,WorkItem,WorkLane}from'./contracts';
+export interface SchedulerResult{readonly executed:number;readonly consumedMs:number;readonly dropped:number;readonly laneCounts:Readonly<Record<WorkLane,number>>;}
+const zero:Record<WorkLane,number>={input:0,simulation:0,world:0,asset:0,render:0,network:0,persistence:0,telemetry:0};
+export class DeterministicWorkScheduler{
+ #queues=new Map<WorkLane,Array<WorkItem&{sequence:number}>>();#sequence=1;#dropped=0;
+ constructor(){for(const lane of LANE_ORDER)this.#queues.set(lane,[]);}
+ enqueue<T>(item:WorkItem<T>):boolean{if(!item.id||item.estimatedCostMs<0||item.estimatedCostMs>1000){this.#dropped+=1;return false;}const queue=this.#queues.get(item.lane);if(!queue){this.#dropped+=1;return false;}queue.push({...item,sequence:this.#sequence++}as WorkItem&{sequence:number});return true;}
+ execute(tick:Tick,budget:BudgetProfile):SchedulerResult{const counts={...zero};const remaining={...budget.laneBudgets};const all:Array<WorkItem&{sequence:number}>=[];for(const lane of LANE_ORDER)for(const item of this.#queues.get(lane)!)if(item.deadlineTick>=tick.index)all.push(item);all.sort((a,b)=>PRIORITY_WEIGHT[b.priority]-PRIORITY_WEIGHT[a.priority]||a.deadlineTick-b.deadlineTick||a.sequence-b.sequence);const done=new Set<number>();let executed=0,consumed=0;for(const item of all){if(executed>=budget.maxWorkPerTick)break;const left=remaining[item.lane]!;if(item.estimatedCostMs>left&&item.priority!=='critical')continue;item.run(item.payload,tick);remaining[item.lane]=Math.max(0,left-item.estimatedCostMs);consumed+=item.estimatedCostMs;counts[item.lane]+=1;executed+=1;done.add(item.sequence);}for(const lane of LANE_ORDER){const queue=this.#queues.get(lane)!;this.#queues.set(lane,queue.filter(item=>!done.has(item.sequence)&&item.deadlineTick>=tick.index));}return Object.freeze({executed,consumedMs:consumed,dropped:this.#dropped,laneCounts:Object.freeze(counts)});}
+pending(lane?:WorkLane){if(lane)return this.#queues.get(lane)?.length??0;return LANE_ORDER.reduce((n,v)=>n+(this.#queues.get(v)?.length??0),0);}
+drainExpired(tick:number){let removed=0;for(const lane of LANE_ORDER){const queue=this.#queues.get(lane)!;const kept=queue.filter(item=>item.deadlineTick>=tick);removed+=queue.length-kept.length;this.#queues.set(lane,kept);}this.#dropped+=removed;return removed;}
+clear():void{for(const queue of this.#queues.values())queue.splice(0);}dropped():number{return this.#dropped;}
+}
