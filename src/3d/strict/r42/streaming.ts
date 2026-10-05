@@ -80,8 +80,21 @@ export class StreamingPlannerR42 {
       .sort(compareCells)
       .slice(0, this.policy.maxLoadsPerTick);
 
-    const unloads = [...this.#known.values()]
-      .filter(cell => !desired.has(key(cell.x, cell.z)) && cell.distance > this.policy.unloadRadiusCells)
+    const unloadCandidates = [...this.#known.values()]
+      .filter(cell => !desired.has(key(cell.x, cell.z)))
+      .map(cell => {
+        const distance = Math.hypot(cell.x - center[0], cell.z - center[1]);
+        return Object.freeze({
+          ...cell,
+          distance,
+          score: -distance * 100,
+          priority: distance > this.policy.unloadRadiusCells ? 'low' : cell.priority,
+          required: false,
+        } satisfies StreamCell);
+      })
+      .filter(cell => cell.distance > this.policy.unloadRadiusCells);
+
+    const unloads = unloadCandidates
       .sort((a, b) => b.distance - a.distance || key(a.x, a.z).localeCompare(key(b.x, b.z)))
       .slice(0, this.policy.maxUnloadsPerTick);
 
