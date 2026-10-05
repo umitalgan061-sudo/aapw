@@ -134,11 +134,21 @@ export class NetworkAuthorityR42 {
   validatePacket(payload: unknown): payload is SnapshotPacket | DeltaPacket {
     if (!payload || typeof payload !== 'object') return false;
     const objectValue = payload as Record<string, unknown>;
-    return objectValue.protocol === 42
-      && typeof objectValue.tick === 'number'
-      && Number.isSafeInteger(objectValue.tick)
-      && Array.isArray(objectValue.entities ?? objectValue.added)
-      && hashValue(payload) >= 0;
+    if (objectValue.protocol !== 42 || !Number.isSafeInteger(objectValue.sequence)) return false;
+
+    const snapshotLike =
+      Number.isSafeInteger(objectValue.tick)
+      && Number.isSafeInteger(objectValue.acknowledgedInput)
+      && Array.isArray(objectValue.entities);
+
+    const deltaLike =
+      Number.isSafeInteger(objectValue.baseTick)
+      && Number.isSafeInteger(objectValue.targetTick)
+      && Array.isArray(objectValue.added)
+      && Array.isArray(objectValue.changed)
+      && Array.isArray(objectValue.removed);
+
+    return snapshotLike || deltaLike;
   }
 
   get lastSequence(): number {
