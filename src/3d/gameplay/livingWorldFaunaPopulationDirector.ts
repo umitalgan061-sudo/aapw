@@ -21,8 +21,8 @@ import {
   planFaunaGroup,
   planHabitatSpecies,
   auditEcologyPlan,
-} from './livingWorldEcologyPolicy.js';
-import { planFaunaRuntimeTick } from './livingWorldFaunaRuntimeBridge.js';
+} from './livingWorldEcologyPolicy.ts';
+import { planFaunaRuntimeTick } from './livingWorldFaunaRuntimeBridge.ts';
 import { createLivingWorldRuntimeKernel } from './livingWorldRuntimeKernel.ts';
 
 const freeze = (value) => Object.freeze(value);
