@@ -100,11 +100,11 @@ export class SaveCodec<T> {
       if (bytes > this.maxBytes) return { ok: false, error: { code: 'SAVE_SIZE_LIMIT', message: 'Save exceeds configured size budget.', retryable: false } };
       const parsed = JSON.parse(json) as SaveEnvelope<T>;
       if (!parsed || parsed.schema !== this.schema) return { ok: false, error: { code: 'SAVE_SCHEMA_MISMATCH', message: 'Save schema mismatch.', retryable: false } };
-      let payload = parsed.payload;
-      if (parsed.version < this.version) payload = this.migrations.migrate(payload, parsed.version, this.version);
-      if (stableDigest(payload) !== stableDigest(parsed.payload) && parsed.version === this.version) {
+      if (stableDigest(parsed.payload) !== parsed.checksum) {
         return { ok: false, error: { code: 'SAVE_CHECKSUM_MISMATCH', message: 'Save integrity check failed.', retryable: false } };
       }
+      let payload = parsed.payload;
+      if (parsed.version < this.version) payload = this.migrations.migrate(payload, parsed.version, this.version);
       return {
         ok: true,
         value: Object.freeze({
