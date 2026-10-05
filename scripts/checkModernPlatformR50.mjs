@@ -86,7 +86,7 @@ for (const file of sourceFiles) {
   }
 
   for (const line of source.split('\n')) {
-    const match = line.match(/(?:from|import)\s*['"](.\\/[^'"]+)['"]/);
+    const match = line.match(/(?:from|import)\s*['"](\.\/[^'"]+)['"]/);
 
     if (
       match
@@ -191,8 +191,32 @@ for (const scriptName of [
   }
 }
 
+const toolchainRequirements = [
+  ['engines.node', String(packageJson.engines?.node ?? ''), '>=24.21.0'],
+  ['devDependencies.typescript', String(packageJson.devDependencies?.typescript ?? ''), '^7.'],
+  ['devDependencies.vite', String(packageJson.devDependencies?.vite ?? ''), '^8.'],
+];
+
+for (const [label, actual, expected] of toolchainRequirements) {
+  if (!actual.includes(expected)) {
+    throw new Error(
+      '[R50] toolchain requirement missing: ' +
+      label + ' must include ' + expected + '; found ' + actual,
+    );
+  }
+}
+
+for (const [file, source] of contents) {
+  if (/@ts-nocheck|@ts-ignore/.test(source)) {
+    throw new Error(
+      '[R50] TypeScript escape hatch forbidden in production surface: ' +
+      file,
+    );
+  }
+}
+
 console.log(
-  '[R50] production boundary verified: ' +
+  '[R50] production boundary verified: '
   requiredFiles.length +
   ' required files; ' +
   sourceFiles.length +
