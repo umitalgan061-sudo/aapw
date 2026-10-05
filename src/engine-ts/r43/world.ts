@@ -1,5 +1,5 @@
 import { clamp, type EntityId, type Vec2 } from './contracts.ts';
-import { EcsWorld } from './ecs.ts';
+import { ComponentStore, EcsWorld } from './ecs.ts';
 import { SpatialGrid } from './spatial.ts';
 
 export interface Transform2D extends Vec2 {
@@ -31,9 +31,9 @@ export class WorldRuntime {
   readonly spatial: SpatialGrid;
   readonly bounds: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
 
-  #transform: ReturnType<EcsWorld['defineComponent']>;
-  #velocity: ReturnType<EcsWorld['defineComponent']>;
-  #radius: ReturnType<EcsWorld['defineComponent']>;
+  #transform: ComponentStore<Transform2D>;
+  #velocity: ComponentStore<Velocity2D>;
+  #radius: ComponentStore<number>;
   #destroyQueue = new Set<EntityId>();
 
   constructor(bounds: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number }, cellSize = 32) {
