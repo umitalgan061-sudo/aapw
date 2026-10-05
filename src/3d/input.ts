@@ -7,6 +7,217 @@
  * @module input
  */
 
+
+export const PLAYER_INPUT_CONTRACT_VERSION = '2026-10-05-v1' as const;
+export type PlayerInputAction = 'jump' | 'dodge' | 'light' | 'heavy' | 'parry' | 'lock-on';
+export type PlayerInputDevice = 'keyboard' | 'mouse' | 'gamepad' | 'touch' | 'unknown';
+
+export interface PlayerInputAxis {
+	readonly x: number;
+	readonly y: number;
+	readonly magnitude: number;
+}
+
+export interface PlayerInputActionRecord {
+	readonly sequence: number;
+	readonly action: PlayerInputAction;
+	readonly device: PlayerInputDevice;
+	readonly timestampSeconds: number;
+	readonly expiresAtSeconds: number;
+	readonly source: string;
+}
+
+export interface PlayerInputFrame {
+	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
+	readonly sequence: number;
+	readonly timestampSeconds: number;
+	readonly device: PlayerInputDevice;
+	readonly forward: number;
+	readonly strafe: number;
+	readonly magnitude: number;
+	readonly lookX: number;
+	readonly lookY: number;
+	readonly lookMagnitude: number;
+	readonly cameraZoom: number;
+	readonly running: boolean;
+	readonly guarding: boolean;
+	readonly jumpRequested: boolean;
+	readonly lockOnRequested: boolean;
+	readonly dodgeRequested: boolean;
+	readonly parryRequested: boolean;
+	readonly lightRequested: boolean;
+	readonly heavyRequested: boolean;
+	readonly actionCount: number;
+}
+
+export interface PlayerCombatFeedbackDetail {
+	readonly serial?: unknown;
+	readonly outcome?: unknown;
+	readonly appliedAmount?: unknown;
+	readonly blockedAmount?: unknown;
+	readonly source?: unknown;
+}
+
+export interface GamepadButtonState {
+	readonly jump: boolean;
+	readonly dodge: boolean;
+	readonly light: boolean;
+	readonly heavy: boolean;
+	readonly parry: boolean;
+	readonly lockOn: boolean;
+}
+
+export interface GamepadSample {
+	readonly forward: number;
+	readonly strafe: number;
+	readonly magnitude: number;
+	readonly lookX: number;
+	readonly lookY: number;
+	readonly lookMagnitude: number;
+	readonly cameraZoom: number;
+	readonly running: boolean;
+	readonly guarding: boolean;
+	readonly jumpPressed: boolean;
+	readonly dodgePressed: boolean;
+	readonly lightPressed: boolean;
+	readonly heavyPressed: boolean;
+	readonly parryPressed: boolean;
+	readonly lockOnPressed: boolean;
+	readonly buttons: GamepadButtonState;
+	readonly lookDeltaSeconds?: number;
+}
+
+interface PlayerInputTarget extends EventTarget {
+	readonly hidden?: boolean;
+}
+
+interface GamepadHapticProfile {
+	readonly duration: number;
+	readonly weakMagnitude: number;
+	readonly strongMagnitude: number;
+}
+
+interface GamepadHapticActuatorLike {
+	playEffect: (type: string, params: Record<string, number>) => Promise<unknown>;
+}
+
+function finiteInput(value: unknown, fallback = 0): number {
+	const numeric = Number(value);
+	return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+export function normalizePlayerInputAxis(x: unknown, y: unknown, deadzone = GAMEPAD_DEADZONE): PlayerInputAxis {
+	const nx = Math.max(-1, Math.min(1, finiteInput(x)));
+	const ny = Math.max(-1, Math.min(1, finiteInput(y)));
+	const magnitude = Math.min(1, Math.hypot(nx, ny));
+	if (magnitude <= Math.max(0, Math.min(0.95, finiteInput(deadzone, GAMEPAD_DEADZONE))) || magnitude === 0) {
+		return Object.freeze({ x: 0, y: 0, magnitude: 0 });
+	}
+	const normalizedDeadzone = Math.max(0, Math.min(0.95, finiteInput(deadzone, GAMEPAD_DEADZONE)));
+	const remappedMagnitude = Math.min(1, (magnitude - normalizedDeadzone) / (1 - normalizedDeadzone));
+	const scale = remappedMagnitude / magnitude;
+	return Object.freeze({
+		x: Number((nx * scale).toFixed(6)),
+		y: Number((ny * scale).toFixed(6)),
+		magnitude: Number(remappedMagnitude.toFixed(6)),
+	});
+}
+
+export function normalizePlayerInputFrame(input: Partial<PlayerInputFrame> = {}): PlayerInputFrame {
+	const forward = Math.max(-1, Math.min(1, finiteInput(input.forward)));
+	const strafe = Math.max(-1, Math.min(1, finiteInput(input.strafe)));
+	const magnitude = Math.min(1, Math.hypot(forward, strafe));
+	const lookX = Math.max(-1, Math.min(1, finiteInput(input.lookX)));
+	const lookY = Math.max(-1, Math.min(1, finiteInput(input.lookY)));
+	return Object.freeze({
+		version: PLAYER_INPUT_CONTRACT_VERSION,
+		sequence: Number.isSafeInteger(input.sequence) && (input.sequence as number) > 0 ? input.sequence as number : 0,
+		timestampSeconds: Math.max(0, finiteInput(input.timestampSeconds)),
+		device: input.device ?? 'unknown',
+		forward: Number(forward.toFixed(6)),
+		strafe: Number(strafe.toFixed(6)),
+		magnitude: Number(Math.min(1, magnitude).toFixed(6)),
+		lookX: Number(lookX.toFixed(6)),
+		lookY: Number(lookY.toFixed(6)),
+		lookMagnitude: Number(Math.min(1, finiteInput(input.lookMagnitude)).toFixed(6)),
+		cameraZoom: Number(Math.max(-1, Math.min(1, finiteInput(input.cameraZoom))).toFixed(6)),
+		running: Boolean(input.running),
+		guarding: Boolean(input.guarding),
+		jumpRequested: Boolean(input.jumpRequested),
+		lockOnRequested: Boolean(input.lockOnRequested),
+		dodgeRequested: Boolean(input.dodgeRequested),
+		parryRequested: Boolean(input.parryRequested),
+		lightRequested: Boolean(input.lightRequested),
+		heavyRequested: Boolean(input.heavyRequested),
+		actionCount: Number.isSafeInteger(input.actionCount) && (input.actionCount as number) >= 0 ? input.actionCount as number : 0,
+	});
+}
+
+export interface PlayerInputActionBufferOptions {
+	readonly maxEntries?: number;
+	readonly ttlSeconds?: number;
+}
+
+export class PlayerInputActionBuffer {
+	private readonly _maxEntries: number;
+	private readonly _ttlSeconds: number;
+	private _sequence = 0;
+	private _queue: PlayerInputActionRecord[] = [];
+
+	constructor({ maxEntries = 32, ttlSeconds = 0.32 }: PlayerInputActionBufferOptions = {}) {
+		this._maxEntries = Math.max(1, Math.min(128, Math.floor(finiteInput(maxEntries, 32))));
+		this._ttlSeconds = Math.max(0.05, Math.min(2, finiteInput(ttlSeconds, 0.32)));
+	}
+
+	enqueue(action: PlayerInputAction, device: PlayerInputDevice = 'unknown', source = device, timestampSeconds = 0): PlayerInputActionRecord {
+		const now = Math.max(0, finiteInput(timestampSeconds, 0));
+		const record: PlayerInputActionRecord = Object.freeze({
+			sequence: ++this._sequence,
+			action,
+			device,
+			source,
+			timestampSeconds: now,
+			expiresAtSeconds: Number((now + this._ttlSeconds).toFixed(6)),
+		});
+		this._queue.push(record);
+		if (this._queue.length > this._maxEntries) this._queue = this._queue.slice(-this._maxEntries);
+		return record;
+	}
+
+	drain(nowSeconds = 0, limit = this._maxEntries): readonly PlayerInputActionRecord[] {
+		const now = Math.max(0, finiteInput(nowSeconds, 0));
+		const max = Math.max(0, Math.floor(finiteInput(limit, this._maxEntries)));
+		this._queue = this._queue.filter((record) => record.expiresAtSeconds >= now);
+		const records = this._queue.slice(0, max);
+		this._queue = this._queue.slice(records.length);
+		return Object.freeze(records);
+	}
+
+	peek(nowSeconds = 0): readonly PlayerInputActionRecord[] {
+		const now = Math.max(0, finiteInput(nowSeconds, 0));
+		this._queue = this._queue.filter((record) => record.expiresAtSeconds >= now);
+		return Object.freeze([...this._queue]);
+	}
+
+	clear(): void {
+		this._queue = [];
+	}
+
+	snapshot(nowSeconds = 0): Readonly<{ version: typeof PLAYER_INPUT_CONTRACT_VERSION; nextSequence: number; pending: readonly PlayerInputActionRecord[] }> {
+		return Object.freeze({
+			version: PLAYER_INPUT_CONTRACT_VERSION,
+			nextSequence: this._sequence + 1,
+			pending: this.peek(nowSeconds),
+		});
+	}
+}
+
+export function createPlayerInputFrame(
+	input: Omit<Partial<PlayerInputFrame>, 'version'> & { readonly device?: PlayerInputDevice } = {},
+): PlayerInputFrame {
+	return normalizePlayerInputFrame(input);
+}
+
 const FORWARD_KEYS = new Set(['KeyW', 'ArrowUp']);
 const BACK_KEYS = new Set(['KeyS', 'ArrowDown']);
 const RIGHT_KEYS = new Set(['KeyD', 'ArrowRight']);
@@ -47,18 +258,18 @@ const GAMEPAD_COMBAT_FEEDBACK_HAPTICS = Object.freeze({
 	'hit-stagger': Object.freeze({ duration: 128, weakMagnitude: 0.62, strongMagnitude: 0.92 }),
 });
 
-function isInteractiveTarget(target) { return Boolean(target?.closest?.('button, a, input, textarea, select, [contenteditable="true"]')); }
-function buttonPressed(gamepad, index) { return Boolean(gamepad?.buttons?.[index]?.pressed); }
-function buttonValue(gamepad, index) {
+function isInteractiveTarget(target: EventTarget | null): boolean { return target instanceof Element ? Boolean(target.closest('button, a, input, textarea, select, [contenteditable="true"]')) : false; }
+function buttonPressed(gamepad: Gamepad | null, index: number): boolean { return Boolean(gamepad?.buttons?.[index]?.pressed); }
+function buttonValue(gamepad: Gamepad | null, index: number): number {
 	const value = gamepad?.buttons?.[index]?.value;
 	return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : (buttonPressed(gamepad, index) ? 1 : 0);
 }
-export function applyGamepadTriggerDeadzone(value, deadzone = GAMEPAD_TRIGGER_DEADZONE) {
+export function applyGamepadTriggerDeadzone(value: unknown, deadzone: number = GAMEPAD_TRIGGER_DEADZONE): number {
 	const normalized = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 	if (normalized <= deadzone) return 0;
 	return Math.min(1, (normalized - deadzone) / (1 - deadzone));
 }
-function readActionButtons(gamepad) {
+function readActionButtons(gamepad: Gamepad | null): GamepadButtonState {
 	return {
 		jump: buttonPressed(gamepad, GAMEPAD_BUTTON.JUMP),
 		dodge: buttonPressed(gamepad, GAMEPAD_BUTTON.DODGE),
@@ -69,7 +280,7 @@ function readActionButtons(gamepad) {
 	};
 }
 
-export function applyGamepadRadialDeadzone(x, y, deadzone = GAMEPAD_DEADZONE) {
+export function applyGamepadRadialDeadzone(x: unknown, y: unknown, deadzone: number = GAMEPAD_DEADZONE): PlayerInputAxis {
 	const nx = Number.isFinite(x) ? x : 0, ny = Number.isFinite(y) ? y : 0;
 	const magnitude = Math.min(1, Math.hypot(nx, ny));
 	if (magnitude <= deadzone || magnitude === 0) return { x: 0, y: 0, magnitude: 0 };
@@ -78,7 +289,7 @@ export function applyGamepadRadialDeadzone(x, y, deadzone = GAMEPAD_DEADZONE) {
 	return { x: (nx * scale) || 0, y: (ny * scale) || 0, magnitude: remappedMagnitude };
 }
 
-function readGamepadDpad(gamepad) {
+function readGamepadDpad(gamepad: Gamepad | null): PlayerInputAxis {
 	const x = Number(buttonPressed(gamepad, GAMEPAD_BUTTON.DPAD_RIGHT)) - Number(buttonPressed(gamepad, GAMEPAD_BUTTON.DPAD_LEFT));
 	const y = Number(buttonPressed(gamepad, GAMEPAD_BUTTON.DPAD_DOWN)) - Number(buttonPressed(gamepad, GAMEPAD_BUTTON.DPAD_UP));
 	const length = Math.hypot(x, y);
@@ -86,19 +297,19 @@ function readGamepadDpad(gamepad) {
 	return { x: x / length, y: y / length, magnitude: 1 };
 }
 
-export function resolveGamepadSprintIntent(magnitude, sprintPressed, wasRunning = false) {
+export function resolveGamepadSprintIntent(magnitude: unknown, sprintPressed: boolean, wasRunning = false): boolean {
 	if (!sprintPressed) return false;
 	const threshold = wasRunning ? GAMEPAD_SPRINT_RELEASE_MAGNITUDE : GAMEPAD_SPRINT_MIN_MAGNITUDE;
 	return Number.isFinite(magnitude) && magnitude >= threshold;
 }
 
-export function selectPlayerGamepad(gamepads, preferredIndex = null) {
+export function selectPlayerGamepad(gamepads: readonly (Gamepad | null)[] | null | undefined, preferredIndex: number | null = null): Gamepad | null {
 	const standard = Array.from(gamepads ?? []).filter((pad) => pad?.connected && pad.mapping === 'standard');
 	if (preferredIndex !== null) { const sticky = standard.find((pad) => pad.index === preferredIndex); if (sticky) return sticky; }
 	return standard.sort((a, b) => (a.index ?? 999) - (b.index ?? 999))[0] ?? null;
 }
 
-export function samplePlayerGamepad(gamepad, previousButtons = {}, previousRunning = false) {
+export function samplePlayerGamepad(gamepad: Gamepad | null, previousButtons: Partial<GamepadButtonState> = {}, previousRunning = false): GamepadSample {
 	if (!gamepad?.connected || gamepad.mapping !== 'standard') return { forward: 0, strafe: 0, magnitude: 0, lookX: 0, lookY: 0, lookMagnitude: 0, cameraZoom: 0, running: false, guarding: false, jumpPressed: false, dodgePressed: false, lightPressed: false, heavyPressed: false, parryPressed: false, lockOnPressed: false, buttons: { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false } };
 	const stick = applyGamepadRadialDeadzone(gamepad.axes?.[0] ?? 0, gamepad.axes?.[1] ?? 0);
 	const dpad = readGamepadDpad(gamepad), locomotion = stick.magnitude > 0 ? stick : dpad;
@@ -122,21 +333,21 @@ export function samplePlayerGamepad(gamepad, previousButtons = {}, previousRunni
 	};
 }
 
-function readGamepadHapticActuator(gamepad) {
+function readGamepadHapticActuator(gamepad: Gamepad | null): GamepadHapticActuatorLike | null {
 	const vibrationActuator = gamepad?.vibrationActuator;
 	if (typeof vibrationActuator?.playEffect === 'function') return vibrationActuator;
 	const fallbackActuator = gamepad?.hapticActuators?.[0];
 	return typeof fallbackActuator?.playEffect === 'function' ? fallbackActuator : null;
 }
-function requestGamepadHaptic(gamepad, profile) {
+function requestGamepadHaptic(gamepad: Gamepad | null, profile: GamepadHapticProfile | null): Promise<boolean> | null {
 	const actuator = readGamepadHapticActuator(gamepad);
 	if (!profile || gamepad?.mapping !== 'standard' || !gamepad?.connected || !actuator) return null;
 	try { return Promise.resolve(actuator.playEffect('dual-rumble', { startDelay: 0, ...profile })).then(() => true, () => false); } catch { return null; }
 }
-function playGamepadHaptic(gamepad, profile) { return Boolean(requestGamepadHaptic(gamepad, profile)); }
-function readGamepadHapticProfile(profiles, kind) { return typeof kind === 'string' && Object.hasOwn(profiles, kind) ? profiles[kind] : null; }
-function readCombatFeedbackAmount(value) { return Number.isFinite(value) && value > 0 ? value : 0; }
-export function resolvePlayerCombatFeedbackHaptic(feedback) {
+function playGamepadHaptic(gamepad: Gamepad | null, profile: GamepadHapticProfile | null): boolean { return Boolean(requestGamepadHaptic(gamepad, profile)); }
+function readGamepadHapticProfile(profiles: Readonly<Record<string, GamepadHapticProfile>>, kind: unknown): GamepadHapticProfile | null { return typeof kind === 'string' && Object.hasOwn(profiles, kind) ? profiles[kind] : null; }
+function readCombatFeedbackAmount(value: unknown): number { const numeric = Number(value); return Number.isFinite(numeric) && numeric > 0 ? numeric : 0; }
+export function resolvePlayerCombatFeedbackHaptic(feedback: PlayerCombatFeedbackDetail = {}): GamepadHapticProfile | null {
 	const outcome = feedback?.outcome, profile = readGamepadHapticProfile(GAMEPAD_COMBAT_FEEDBACK_HAPTICS, outcome);
 	if (!profile) return null;
 	const appliedAmount = readCombatFeedbackAmount(feedback?.appliedAmount), blockedAmount = readCombatFeedbackAmount(feedback?.blockedAmount);
@@ -145,37 +356,70 @@ export function resolvePlayerCombatFeedbackHaptic(feedback) {
 	if (outcome === 'guard-break' && appliedAmount <= 0 && blockedAmount <= 0) return null;
 	return profile;
 }
-export function pulsePlayerGamepadAction(gamepad, kind) { return playGamepadHaptic(gamepad, readGamepadHapticProfile(GAMEPAD_ACTION_HAPTICS, kind)); }
-export function pulsePlayerGamepadMelee(gamepad, kind) { return pulsePlayerGamepadAction(gamepad, kind); }
-export function pulsePlayerGamepadCombatFeedback(gamepad, feedback) { return playGamepadHaptic(gamepad, resolvePlayerCombatFeedbackHaptic(feedback)); }
+export function pulsePlayerGamepadAction(gamepad: Gamepad | null, kind: unknown): boolean { return playGamepadHaptic(gamepad, readGamepadHapticProfile(GAMEPAD_ACTION_HAPTICS, kind)); }
+export function pulsePlayerGamepadMelee(gamepad: Gamepad | null, kind: unknown): boolean { return pulsePlayerGamepadAction(gamepad, kind); }
+export function pulsePlayerGamepadCombatFeedback(gamepad: Gamepad | null, feedback: PlayerCombatFeedbackDetail): boolean { return playGamepadHaptic(gamepad, resolvePlayerCombatFeedbackHaptic(feedback)); }
 
-export function emitPlayerCombatIntent(kind, source = 'unknown') {
-	if ((kind !== 'light' && kind !== 'heavy') || typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return false;
-	globalThis.dispatchEvent(new globalThis.CustomEvent(COMBAT_INPUT_EVENT, { detail: Object.freeze({ kind, source }) })); return true;
+export function emitPlayerInputAction(action: PlayerInputAction, source: string = 'unknown', device: PlayerInputDevice = 'unknown'): boolean {
+	if (typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return false;
+	const timestampSeconds = Number(((globalThis.performance?.now?.() ?? Date.now()) / 1000).toFixed(6));
+	const detail = Object.freeze({ action, source, device, timestampSeconds });
+	globalThis.dispatchEvent(new globalThis.CustomEvent('aapw:player-input-action', { detail }));
+	return true;
 }
-function emitInputDeviceChange(index, reason) {
+
+export function emitPlayerCombatIntent(kind: 'light' | 'heavy', source = 'unknown'): boolean {
+	return (kind === 'light' || kind === 'heavy') && emitPlayerInputAction(kind, source, source === 'touch' ? 'touch' : source === 'gamepad' ? 'gamepad' : source === 'mouse' ? 'mouse' : 'keyboard')
+		? (typeof globalThis.dispatchEvent === 'function' && typeof globalThis.CustomEvent === 'function'
+			? (globalThis.dispatchEvent(new globalThis.CustomEvent(COMBAT_INPUT_EVENT, { detail: Object.freeze({ kind, source }) })), true)
+			: false)
+		: false;
+}
+function emitInputDeviceChange(index: number | null, reason: string): void {
 	if (typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return;
 	globalThis.dispatchEvent(new globalThis.CustomEvent(INPUT_DEVICE_EVENT, { detail: Object.freeze({ device: index === null ? 'keyboard-pointer' : 'gamepad', gamepadIndex: index, reason }) }));
 }
 
 export class KeyboardInput {
-	constructor(target = window) {
-		this._keys = new Set(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false;
+	private readonly _target: PlayerInputTarget;
+	private readonly _keys = new Set<string>();
+	private readonly _actionBuffer = new PlayerInputActionBuffer({ maxEntries: 48, ttlSeconds: 0.36 });
+	private _jumpRequested = false;
+	private _lockOnRequested = false;
+	private _guardPointerHeld = false;
+	private _gamepadButtons: GamepadButtonState = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false };
+	private _gamepadSprintActive = false;
+	private _activeGamepadIndex: number | null = null;
+	private _lastPollSeconds: number | null = null;
+	private _lastCombatFeedbackSerial = 0;
+	private _pendingCombatFeedbackSerial = 0;
+	private readonly _onKeyDown: (event: KeyboardEvent) => void;
+	private readonly _onKeyUp: (event: KeyboardEvent) => void;
+	private readonly _onPointerDown: (event: PointerEvent) => void;
+	private readonly _onPointerUp: (event: PointerEvent) => void;
+	private readonly _onContextMenu: (event: MouseEvent) => void;
+	private readonly _onCombatFeedback: (event: Event) => void;
+	private readonly _onFocusLoss: (event: Event) => void;
+	private readonly _onVisibilityChange: () => void;
+
+	constructor(target: PlayerInputTarget = window) {
+		
+		this._keys.clear(); this._actionBuffer.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false;
 		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target;
-		this._onKeyDown = (event) => {
+		this._onKeyDown = (event: KeyboardEvent) => {
 			const firstPress = !this._keys.has(event.code);
-			if (JUMP_KEYS.has(event.code) && firstPress) this._jumpRequested = true;
-			if (firstPress && LOCK_ON_KEYS.has(event.code) && !isInteractiveTarget(event.target)) { this._lockOnRequested = true; event.preventDefault?.(); }
-			if (firstPress && LIGHT_ATTACK_KEYS.has(event.code)) emitPlayerCombatIntent('light', 'keyboard');
-			if (firstPress && HEAVY_ATTACK_KEYS.has(event.code)) emitPlayerCombatIntent('heavy', 'keyboard');
+			if (JUMP_KEYS.has(event.code) && firstPress) { this._jumpRequested = true; this._actionBuffer.enqueue('jump', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('jump', 'keyboard', 'keyboard'); }
+			if (firstPress && LOCK_ON_KEYS.has(event.code) && !isInteractiveTarget(event.target)) { this._lockOnRequested = true; this._actionBuffer.enqueue('lock-on', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('lock-on', 'keyboard', 'keyboard'); event.preventDefault?.(); }
+			if (firstPress && LIGHT_ATTACK_KEYS.has(event.code)) { this._actionBuffer.enqueue('light', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('light', 'keyboard'); }
+			if (firstPress && HEAVY_ATTACK_KEYS.has(event.code)) { this._actionBuffer.enqueue('heavy', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('heavy', 'keyboard'); }
 			this._keys.add(event.code);
 		};
-		this._onKeyUp = (event) => this._keys.delete(event.code);
-		this._onPointerDown = (event) => { if (event.button === GUARD_POINTER_BUTTON) { this._guardPointerHeld = true; event.preventDefault?.(); return; } if (event.button === LIGHT_ATTACK_POINTER_BUTTON && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('light', 'mouse'); };
-		this._onPointerUp = (event) => { if (event.button === GUARD_POINTER_BUTTON) this._guardPointerHeld = false; };
-		this._onContextMenu = (event) => { if (this._guardPointerHeld) event.preventDefault?.(); };
-		this._onCombatFeedback = (event) => {
-			const detail = event?.detail, serial = detail?.serial;
+		this._onKeyUp = (event: KeyboardEvent) => { this._keys.delete(event.code); };
+		this._onPointerDown = (event: PointerEvent) => { if (event.button === GUARD_POINTER_BUTTON) { this._guardPointerHeld = true; event.preventDefault?.(); return; } if (event.button === LIGHT_ATTACK_POINTER_BUTTON && !isInteractiveTarget(event.target)) { this._actionBuffer.enqueue('light', 'mouse', 'mouse', this._nowSeconds()); emitPlayerCombatIntent('light', 'mouse'); } };
+		this._onPointerUp = (event: PointerEvent) => { if (event.button === GUARD_POINTER_BUTTON) this._guardPointerHeld = false; };
+		this._onContextMenu = (event: MouseEvent) => { if (this._guardPointerHeld) event.preventDefault?.(); };
+		this._onCombatFeedback = (event: Event) => {
+			const detail = event instanceof CustomEvent ? event.detail as PlayerCombatFeedbackDetail : {}; const serial = detail.serial;
 			if (!Number.isSafeInteger(serial) || serial <= 0 || serial <= Math.max(this._lastCombatFeedbackSerial, this._pendingCombatFeedbackSerial)) return;
 			const pads = globalThis.navigator?.getGamepads?.() ?? [], gamepad = selectPlayerGamepad(pads, this._activeGamepadIndex);
 			if (!gamepad || gamepad.index !== this._activeGamepadIndex) return;
@@ -187,29 +431,38 @@ export class KeyboardInput {
 				if (played && serial > this._lastCombatFeedbackSerial) this._lastCombatFeedbackSerial = serial;
 			});
 		};
-		this._onFocusLoss = (event) => {
+		this._onFocusLoss = (event: Event) => {
 			const hadActiveInput = this._keys.size > 0 || this._jumpRequested || this._lockOnRequested || this._guardPointerHeld || this._activeGamepadIndex !== null;
 			this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null;
 			if (hadActiveInput) emitInputDeviceChange(null, event?.type === 'pagehide' ? 'page-hidden' : event?.type === 'visibilitychange' ? 'visibility-hidden' : 'focus-lost');
 		};
-		this._onVisibilityChange = () => { if (this._target?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss({ type: 'visibilitychange' }); };
+		this._onVisibilityChange = (): void => { if (this._target?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss({ type: 'visibilitychange' }); };
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) target.addEventListener(type, handler);
 	}
-	_pollGamepad() {
+	private _nowSeconds(): number { return Number(((globalThis.performance?.now?.() ?? Date.now()) / 1000).toFixed(6)); }
+
+	_pollGamepad(): GamepadSample {
 		const pads = globalThis.navigator?.getGamepads?.() ?? [], gamepad = selectPlayerGamepad(pads, this._activeGamepadIndex), nextIndex = gamepad?.index ?? null, switched = nextIndex !== this._activeGamepadIndex;
-		const nowSeconds = (globalThis.performance?.now?.() ?? Date.now()) / 1000, lookDeltaSeconds = this._lastPollSeconds === null ? 0 : Math.max(0, Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)); this._lastPollSeconds = nowSeconds;
+		const nowSeconds = this._nowSeconds(), lookDeltaSeconds = this._lastPollSeconds === null ? 0 : Math.max(0, Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)); this._lastPollSeconds = nowSeconds;
 		if (switched) { this._gamepadButtons = gamepad ? readActionButtons(gamepad) : { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = nextIndex; emitInputDeviceChange(nextIndex, gamepad ? 'selected' : 'disconnected'); }
 		const sample = samplePlayerGamepad(gamepad, this._gamepadButtons, this._gamepadSprintActive);
 		if (!switched) {
-			if (sample.jumpPressed) this._jumpRequested = true;
-			if (sample.lockOnPressed) this._lockOnRequested = true;
-			if (sample.dodgePressed && sample.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE) pulsePlayerGamepadAction(gamepad, 'dodge');
-			if (sample.parryPressed) pulsePlayerGamepadAction(gamepad, 'parry');
-			if (sample.lightPressed) { emitPlayerCombatIntent('light', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'light'); }
-			if (sample.heavyPressed) { emitPlayerCombatIntent('heavy', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'heavy'); }
+			if (sample.jumpPressed) { this._jumpRequested = true; this._actionBuffer.enqueue('jump', 'gamepad', 'gamepad', nowSeconds); emitPlayerInputAction('jump', 'gamepad', 'gamepad'); }
+			if (sample.lockOnPressed) { this._lockOnRequested = true; this._actionBuffer.enqueue('lock-on', 'gamepad', 'gamepad', nowSeconds); emitPlayerInputAction('lock-on', 'gamepad', 'gamepad'); }
+			if (sample.dodgePressed && sample.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE) { this._actionBuffer.enqueue('dodge', 'gamepad', 'gamepad', nowSeconds); emitPlayerInputAction('dodge', 'gamepad', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'dodge'); }
+			if (sample.parryPressed) { this._actionBuffer.enqueue('parry', 'gamepad', 'gamepad', nowSeconds); emitPlayerInputAction('parry', 'gamepad', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'parry'); }
+			if (sample.lightPressed) { this._actionBuffer.enqueue('light', 'gamepad', 'gamepad', nowSeconds); emitPlayerCombatIntent('light', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'light'); }
+			if (sample.heavyPressed) { this._actionBuffer.enqueue('heavy', 'gamepad', 'gamepad', nowSeconds); emitPlayerCombatIntent('heavy', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'heavy'); }
 		}
 		this._gamepadButtons = sample.buttons; this._gamepadSprintActive = sample.running; return { ...sample, lookDeltaSeconds };
 	}
+	getInputFrame(): PlayerInputFrame {
+		const axes = this.getAxes();
+		const actions = this._actionBuffer.peek(this._nowSeconds());
+		return createPlayerInputFrame({ ...axes, device: this._activeGamepadIndex === null ? 'keyboard' : 'gamepad', sequence: actions.at(-1)?.sequence ?? 0, timestampSeconds: this._nowSeconds(), actionCount: actions.length, dodgeRequested: actions.some((a) => a.action === 'dodge'), parryRequested: actions.some((a) => a.action === 'parry'), lightRequested: actions.some((a) => a.action === 'light'), heavyRequested: actions.some((a) => a.action === 'heavy') });
+	}
+	consumeActionBuffer(nowSeconds = this._nowSeconds(), limit = 8): readonly PlayerInputActionRecord[] { return this._actionBuffer.drain(nowSeconds, limit); }
+
 	getAxes() {
 		const gamepad = this._pollGamepad(); let forward = gamepad.forward, strafe = gamepad.strafe, running = gamepad.running, guarding = this._guardPointerHeld || gamepad.guarding;
 		for (const code of this._keys) { if (FORWARD_KEYS.has(code)) forward += 1; else if (BACK_KEYS.has(code)) forward -= 1; else if (RIGHT_KEYS.has(code)) strafe += 1; else if (LEFT_KEYS.has(code)) strafe -= 1; else if (RUN_KEYS.has(code)) running = true; else if (GUARD_KEYS.has(code)) guarding = true; }
@@ -220,8 +473,8 @@ export class KeyboardInput {
 		this._jumpRequested = false;
 		return { forward: Math.max(-1, Math.min(1, forward)), strafe: Math.max(-1, Math.min(1, strafe)), running, jumpRequested: jumpRequested || dodgeRequested, lockOnRequested: this._lockOnRequested, guarding, lookX: gamepad.lookX, lookY: gamepad.lookY, cameraZoom: gamepad.cameraZoom, lookDeltaSeconds: gamepad.lookDeltaSeconds };
 	}
-	consumeLockOnRequested() { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
-	dispose() {
+	consumeLockOnRequested(): boolean { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
+	dispose(): void {
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) this._target.removeEventListener(type, handler);
 		this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0;
 	}
