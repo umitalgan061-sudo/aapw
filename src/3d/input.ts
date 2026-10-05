@@ -661,8 +661,12 @@ export class KeyboardInput {
 	private readonly _target: PlayerInputTarget;
 	private readonly _keys = new Set<string>();
 	private _actionBuffer: PlayerInputActionBuffer;
-	private readonly _bindings: PlayerInputBindingProfile;
-	private readonly _calibration: PlayerInputCalibration;
+	private _bindings: PlayerInputBindingProfile;
+	private _calibration: PlayerInputCalibration;
+	private _bindingSets!: Readonly<{
+		forward: ReadonlySet<string>; back: ReadonlySet<string>; right: ReadonlySet<string>; left: ReadonlySet<string>;
+		run: ReadonlySet<string>; jump: ReadonlySet<string>; guard: ReadonlySet<string>; lightAttack: ReadonlySet<string>; heavyAttack: ReadonlySet<string>; lockOn: ReadonlySet<string>;
+	}>;
 	private readonly _recorder: PlayerInputRecorder | null;
 	private _jumpRequested = false;
 	private _lockOnRequested = false;
@@ -686,16 +690,17 @@ export class KeyboardInput {
 		
 		this._bindings = normalizePlayerInputBindings(bindings);
 		this._calibration = normalizePlayerInputCalibration(calibration);
+		this._refreshBindingSets();
 		this._actionBuffer = new PlayerInputActionBuffer(actionBuffer);
 		this._recorder = recorder;
 		this._keys.clear(); this._actionBuffer.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false;
 		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target;
 		this._onKeyDown = (event: Event) => { const keyboardEvent = event as KeyboardEvent;
 			const firstPress = !this._keys.has(keyboardEvent.code);
-			if (new Set(this._bindings.jump).has(keyboardEvent.code) && firstPress) { this._jumpRequested = true; this._actionBuffer.enqueue('jump', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('jump', 'keyboard', 'keyboard'); }
-			if (firstPress && new Set(this._bindings.lockOn).has(keyboardEvent.code) && !isInteractiveTarget(keyboardEvent.target)) { this._lockOnRequested = true; this._actionBuffer.enqueue('lock-on', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('lock-on', 'keyboard', 'keyboard'); keyboardEvent.preventDefault?.(); }
-			if (firstPress && new Set(this._bindings.lightAttack).has(keyboardEvent.code)) { this._actionBuffer.enqueue('light', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('light', 'keyboard'); }
-			if (firstPress && new Set(this._bindings.heavyAttack).has(keyboardEvent.code)) { this._actionBuffer.enqueue('heavy', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('heavy', 'keyboard'); }
+			if (this._bindingSets.jump.has(keyboardEvent.code) && firstPress) { this._jumpRequested = true; this._actionBuffer.enqueue('jump', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('jump', 'keyboard', 'keyboard'); }
+			if (firstPress && this._bindingSets.lockOn.has(keyboardEvent.code) && !isInteractiveTarget(keyboardEvent.target)) { this._lockOnRequested = true; this._actionBuffer.enqueue('lock-on', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('lock-on', 'keyboard', 'keyboard'); keyboardEvent.preventDefault?.(); }
+			if (firstPress && this._bindingSets.lightAttack.has(keyboardEvent.code)) { this._actionBuffer.enqueue('light', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('light', 'keyboard'); }
+			if (firstPress && this._bindingSets.heavyAttack.has(keyboardEvent.code)) { this._actionBuffer.enqueue('heavy', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('heavy', 'keyboard'); }
 			this._keys.add(keyboardEvent.code);
 		};
 		this._onKeyUp = (event: Event) => { this._keys.delete((event as KeyboardEvent).code); };
@@ -723,6 +728,45 @@ export class KeyboardInput {
 		this._onVisibilityChange = (): void => { if (this._target?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss(new Event('visibilitychange')); };
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) target.addEventListener(type, handler);
 	}
+
+	private _refreshBindingSets(): void {
+		this._bindingSets = Object.freeze({
+			forward: new Set(this._bindings.forward),
+			back: new Set(this._bindings.back),
+			right: new Set(this._bindings.right),
+			left: new Set(this._bindings.left),
+			run: new Set(this._bindings.run),
+			jump: new Set(this._bindings.jump),
+			guard: new Set(this._bindings.guard),
+			lightAttack: new Set(this._bindings.lightAttack),
+			heavyAttack: new Set(this._bindings.heavyAttack),
+			lockOn: new Set(this._bindings.lockOn),
+		});
+	}
+
+	setBindingProfile(bindings: Partial<Record<keyof PlayerInputBindingProfile, unknown>>): PlayerInputBindingProfile {
+		this._bindings = normalizePlayerInputBindings(bindings);
+		this._refreshBindingSets();
+		this._keys.clear();
+		return this._bindings;
+	}
+
+	setCalibration(calibration: Partial<PlayerInputCalibration>): PlayerInputCalibration {
+		this._calibration = normalizePlayerInputCalibration(calibration);
+		return this._calibration;
+	}
+
+	resetInputState(): void {
+		this._keys.clear();
+		this._actionBuffer.clear();
+		this._jumpRequested = false;
+		this._lockOnRequested = false;
+		this._guardPointerHeld = false;
+		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false };
+		this._gamepadSprintActive = false;
+		this._lastPollSeconds = null;
+	}
+
 	private _nowSeconds(): number { return Number(((globalThis.performance?.now?.() ?? Date.now()) / 1000).toFixed(6)); }
 
 	_pollGamepad(): GamepadSample {
@@ -749,7 +793,7 @@ export class KeyboardInput {
 
 	getAxes(): Readonly<{ forward:number; strafe:number; running:boolean; jumpRequested:boolean; lockOnRequested:boolean; guarding:boolean; lookX:number; lookY:number; cameraZoom:number; lookDeltaSeconds?:number }> {
 		const gamepad = this._pollGamepad(); let forward = gamepad.forward, strafe = gamepad.strafe, running = gamepad.running, guarding = this._guardPointerHeld || gamepad.guarding;
-		for (const code of this._keys) { if (this._bindings.forward.includes(code)) forward += 1; else if (this._bindings.back.includes(code)) forward -= 1; else if (this._bindings.right.includes(code)) strafe += 1; else if (this._bindings.left.includes(code)) strafe -= 1; else if (this._bindings.run.includes(code)) running = true; else if (this._bindings.guard.includes(code)) guarding = true; }
+		for (const code of this._keys) { if (this._bindingSets.forward.has(code)) forward += 1; else if (this._bindingSets.back.has(code)) forward -= 1; else if (this._bindingSets.right.has(code)) strafe += 1; else if (this._bindingSets.left.has(code)) strafe -= 1; else if (this._bindingSets.run.has(code)) running = true; else if (this._bindingSets.guard.has(code)) guarding = true; }
 		const dodgeRequested = gamepad.dodgePressed && gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE;
 		if (dodgeRequested) running = true;
 		if (gamepad.parryPressed) guarding = true;
@@ -769,7 +813,7 @@ export class KeyboardInput {
 	consumeLockOnRequested(): boolean { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
 	dispose(): void {
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) this._target.removeEventListener(type, handler);
-		this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0;
+		this.resetInputState(); this._activeGamepadIndex = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0;
 	}
 }
 
