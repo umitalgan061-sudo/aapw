@@ -75,7 +75,7 @@ jobs:
           set -euo pipefail
 
           while IFS= read -r file; do
-            if grep -nE 'Math\\.random\\(|Date\\.now\\(|eval\\(|new[[:space:]]+Function\\(' "$file"; then
+            if grep -nE 'Math\.random\(|Date\.now\(|eval\(|new[[:space:]]+Function\(' "$file"; then
               echo "Forbidden primitive found in R50 surface: $file"
               exit 1
             fi
