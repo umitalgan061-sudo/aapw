@@ -1,0 +1,54 @@
+name: Kızıl Ufuk Player Input Parity Modernization
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/input.ts'
+      - 'src/3d/input.js'
+      - 'src/3d/ui/touchJoystick.ts'
+      - 'src/3d/ui/touchJoystick.js'
+      - 'tests/modern/playerInputParityModern.test.ts'
+      - 'tests/modern/playerTouchInputParity.test.ts'
+      - 'scripts/checkPlayerInputParityModernization.mjs'
+      - 'tsconfig.player-input-parity.json'
+      - 'package.json'
+      - '.github/workflows/kizil-ufuk-player-input-parity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kizil-ufuk-player-input-parity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          lfs: false
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: package.json
+      - name: Install toolchain
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Input ownership proof
+        run: npm run verify:player-input-parity
+      - name: Strict input TypeScript
+        run: npm run typecheck:player-input-parity
+      - name: Cross-device regression
+        run: npm run test:player-input-parity
+      - name: Existing gamepad regression
+        run: node scripts/checkPlayerGamepadInput.mjs
+      - name: Existing melee input compatibility
+        run: node scripts/checkPlayerMeleeCombo.mjs
+      - name: Diff hygiene
+        run: git diff --check
