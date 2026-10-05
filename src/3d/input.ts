@@ -734,6 +734,7 @@ export class KeyboardInput {
 	private readonly _keys = new Set<string>();
 	private _actionBuffer: PlayerInputActionBuffer;
 	private _bindings: PlayerInputBindingProfile;
+	private _bindingValidation: PlayerInputBindingValidation;
 	private _calibration: PlayerInputCalibration;
 	private _bindingSets!: Readonly<{
 		forward: ReadonlySet<string>; back: ReadonlySet<string>; right: ReadonlySet<string>; left: ReadonlySet<string>;
@@ -757,10 +758,13 @@ export class KeyboardInput {
 	private readonly _onCombatFeedback: (event: Event) => void;
 	private readonly _onFocusLoss: (event: Event) => void;
 	private readonly _onVisibilityChange: () => void;
+	private readonly _onGamepadConnected: (event: Event) => void;
+	private readonly _onGamepadDisconnected: (event: Event) => void;
 
 	constructor(target: PlayerInputTarget = window, { bindings = {}, calibration = {}, actionBuffer = { maxEntries: 48, ttlSeconds: 0.36 }, recorder = null }: KeyboardInputOptions = {}) {
 		
-		this._bindings = normalizePlayerInputBindings(bindings);
+		this._bindingValidation = validatePlayerInputBindings(bindings);
+		this._bindings = this._bindingValidation.ok ? this._bindingValidation.normalized : DEFAULT_PLAYER_INPUT_BINDINGS;
 		this._calibration = normalizePlayerInputCalibration(calibration);
 		this._refreshBindingSets();
 		this._actionBuffer = new PlayerInputActionBuffer(actionBuffer);
@@ -797,8 +801,23 @@ export class KeyboardInput {
 			this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null;
 			if (hadActiveInput) emitInputDeviceChange(null, event?.type === 'pagehide' ? 'page-hidden' : event?.type === 'visibilitychange' ? 'visibility-hidden' : 'focus-lost');
 		};
+		this._onGamepadConnected = (event: Event): void => {
+			const gamepad = (event as GamepadEvent).gamepad;
+			if (!gamepad || gamepad.mapping !== 'standard') return;
+			if (this._activeGamepadIndex === null) this._activeGamepadIndex = gamepad.index;
+			emitInputDeviceChange(gamepad.index, 'connected');
+		};
+		this._onGamepadDisconnected = (event: Event): void => {
+			const gamepad = (event as GamepadEvent).gamepad;
+			if (!gamepad) return;
+			if (gamepad.index === this._activeGamepadIndex) {
+				this.resetInputState();
+				this._activeGamepadIndex = null;
+				emitInputDeviceChange(null, 'disconnected');
+			}
+		};
 		this._onVisibilityChange = (): void => { if (this._target?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss(new Event('visibilitychange')); };
-		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) target.addEventListener(type, handler);
+		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange], ['gamepadconnected', this._onGamepadConnected], ['gamepaddisconnected', this._onGamepadDisconnected]]) target.addEventListener(type, handler);
 	}
 
 	private _refreshBindingSets(): void {
@@ -817,11 +836,18 @@ export class KeyboardInput {
 	}
 
 	setBindingProfile(bindings: Partial<Record<keyof PlayerInputBindingProfile, unknown>>): PlayerInputBindingProfile {
-		this._bindings = normalizePlayerInputBindings(bindings);
+		const validation = validatePlayerInputBindings(bindings);
+		if (!validation.ok) {
+			this._bindingValidation = validation;
+			return this._bindings;
+		}
+		this._bindingValidation = validation;
+		this._bindings = validation.normalized;
 		this._refreshBindingSets();
 		this._keys.clear();
 		return this._bindings;
 	}
+	getBindingValidation(): PlayerInputBindingValidation { return this._bindingValidation; }
 
 	setCalibration(calibration: Partial<PlayerInputCalibration>): PlayerInputCalibration {
 		this._calibration = normalizePlayerInputCalibration(calibration);
@@ -884,7 +910,7 @@ export class KeyboardInput {
 
 	consumeLockOnRequested(): boolean { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
 	dispose(): void {
-		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) this._target.removeEventListener(type, handler);
+		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange], ['gamepadconnected', this._onGamepadConnected], ['gamepaddisconnected', this._onGamepadDisconnected]]) this._target.removeEventListener(type, handler);
 		this.resetInputState(); this._activeGamepadIndex = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0;
 	}
 }
