@@ -1,0 +1,61 @@
+name: runtime-r42
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/strict/r42/**'
+      - 'tests/modern/r42/**'
+      - 'scripts/checkRuntimeR42Architecture.ts'
+      - 'tsconfig.r42.json'
+      - '.github/workflows/runtime-r42.yml'
+      - 'package.json'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/strict/r42/**'
+      - 'tests/modern/r42/**'
+      - 'scripts/checkRuntimeR42Architecture.ts'
+      - 'tsconfig.r42.json'
+      - '.github/workflows/runtime-r42.yml'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r42-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node --experimental-strip-types scripts/checkRuntimeR42Architecture.ts
+      - run: npx tsc -p tsconfig.r42.json --noEmit
+      - run: npx vitest run tests/modern/r42 --passWithNoTests
+
+  package-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node --experimental-strip-types scripts/checkRuntimeR42Architecture.ts
+      - name: Guard R42 deterministic boundaries
+        run: |
+          set -eu
+          for file in src/3d/strict/r42/*.ts; do
+            if grep -nE 'Math\.random\(|Date\.now\(|eval\(|new Function\(' "$file"; then
+              echo "Unsafe primitive detected in $file"
+              exit 1
+            fi
+          done
