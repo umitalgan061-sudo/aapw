@@ -59,6 +59,11 @@ export interface TouchJoystickAxes {
 	readonly strafe: number;
 	readonly running: boolean;
 	readonly guarding: boolean;
+	readonly lookX: number;
+	readonly lookY: number;
+	readonly lookMagnitude: number;
+	readonly lookDeltaSeconds: number;
+	readonly cameraZoom: number;
 }
 
 export interface TouchJoystickOptions {
@@ -84,6 +89,12 @@ export class TouchJoystick {
 	private _dragY = 0;
 	private _pointerId: number | null = null;
 	private _origin: TouchVector = { x: 0, y: 0 };
+	private _cameraPointerId: number | null = null;
+	private _cameraOrigin: TouchVector = { x: 0, y: 0 };
+	private _cameraLookX = 0;
+	private _cameraLookY = 0;
+	private _lastCameraSampleSeconds: number | null = null;
+	private _cameraSensitivity = 0.012;
 	private _jumpRequested = false;
 	private _lockOnRequested = false;
 	private _guardHeld = false;
@@ -98,6 +109,7 @@ export class TouchJoystick {
 	private _lockOnButton: HTMLButtonElement;
 	private _lightAttackButton: HTMLButtonElement;
 	private _heavyAttackButton: HTMLButtonElement;
+	private _cameraPad: HTMLDivElement;
 	private _dodgeButton: HTMLButtonElement;
 	private _parryButton: HTMLButtonElement;
 	private readonly _onJumpClick: (event: MouseEvent) => void;
@@ -111,6 +123,9 @@ export class TouchJoystick {
 	private readonly _onPointerDown: (event: TouchPointerEvent) => void;
 	private readonly _onPointerMove: (event: TouchPointerEvent) => void;
 	private readonly _onPointerUp: (event: TouchPointerEvent) => void;
+	private readonly _onCameraPointerDown: (event: TouchPointerEvent) => void;
+	private readonly _onCameraPointerMove: (event: TouchPointerEvent) => void;
+	private readonly _onCameraPointerUp: (event: TouchPointerEvent) => void;
 
 	constructor({ container = document.body, haptics = true, actionBufferMaxEntries = 48, actionTtlSeconds = 0.36 }: TouchJoystickOptions = {}) {
 		this._container = container;
@@ -159,6 +174,43 @@ export class TouchJoystick {
 
 		this._applyLayout();
 
+
+
+		this._cameraPad = document.createElement('div');
+		this._cameraPad.className = 'g3d-touch-camera-pad';
+		this._cameraPad.setAttribute('aria-label', 'Kamera kontrol alanı');
+		Object.assign(this._cameraPad.style, {
+			position: 'fixed', left: '50%', top: '8%', right: '0', bottom: '34%', zIndex: '8',
+			touchAction: 'none', pointerEvents: 'auto', background: 'transparent',
+		});
+		container.appendChild(this._cameraPad);
+		this._cameraPointerId = null;
+		this._onCameraPointerDown = (event: TouchPointerEvent) => {
+			if (!this._enabled || this._cameraPointerId !== null) return;
+			this._cameraPointerId = event.pointerId;
+			this._cameraOrigin = { x: event.clientX, y: event.clientY };
+			this._cameraPad.setPointerCapture(event.pointerId);
+			event.preventDefault();
+		};
+		this._onCameraPointerMove = (event: TouchPointerEvent) => {
+			if (event.pointerId !== this._cameraPointerId) return;
+			const dx = event.clientX - this._cameraOrigin.x;
+			const dy = event.clientY - this._cameraOrigin.y;
+			this._cameraLookX = clamp(dx * this._cameraSensitivity, -1, 1);
+			this._cameraLookY = clamp(dy * this._cameraSensitivity, -1, 1);
+			event.preventDefault();
+		};
+		this._onCameraPointerUp = (event: TouchPointerEvent) => {
+			if (event.pointerId !== this._cameraPointerId) return;
+			this._cameraPointerId = null;
+			this._cameraLookX = 0;
+			this._cameraLookY = 0;
+			this._lastCameraSampleSeconds = null;
+		};
+		this._cameraPad.addEventListener('pointerdown', this._onCameraPointerDown);
+		this._cameraPad.addEventListener('pointermove', this._onCameraPointerMove);
+		this._cameraPad.addEventListener('pointerup', this._onCameraPointerUp);
+		this._cameraPad.addEventListener('pointercancel', this._onCameraPointerUp);
 
 		this._onPointerDown = this._handlePointerDown.bind(this); this._onPointerMove = this._handlePointerMove.bind(this); this._onPointerUp = this._handlePointerUp.bind(this);
 		this._base.addEventListener('pointerdown', this._onPointerDown); this._base.addEventListener('pointermove', this._onPointerMove); this._base.addEventListener('pointerup', this._onPointerUp); this._base.addEventListener('pointercancel', this._onPointerUp); window.addEventListener('resize', this._onViewportChange, { passive: true }); window.addEventListener('orientationchange', this._onViewportChange, { passive: true });
@@ -221,12 +273,38 @@ export class TouchJoystick {
 	getAxes(): TouchJoystickAxes {
 		const ratio = this._radiusPx > 0 ? Math.hypot(this._dragX, this._dragY) / this._radiusPx : 0;
 		const axis = normalizePlayerInputAxis(this._dragX / Math.max(1, this._radiusPx), -this._dragY / Math.max(1, this._radiusPx), this._deadzoneRatio);
-		if (ratio < this._deadzoneRatio || !this._enabled) { const result = Object.freeze({ forward: 0, strafe: 0, running: this._dodgeRequested, guarding: (this._guardHeld || this._parryRequested) && this._enabled }); this._dodgeRequested = false; this._parryRequested = false; return result; }
+		const now = this._nowSeconds();
+		const lookDeltaSeconds = this._lastCameraSampleSeconds === null
+			? 0
+			: clamp(now - this._lastCameraSampleSeconds, 0, 0.08);
+		this._lastCameraSampleSeconds = now;
+		const lookX = this._enabled ? this._cameraLookX : 0;
+		const lookY = this._enabled ? this._cameraLookY : 0;
+		const lookMagnitude = Math.min(1, Math.hypot(lookX, lookY));
+		this._cameraLookX *= 0.6;
+		this._cameraLookY *= 0.6;
+		if (ratio < this._deadzoneRatio || !this._enabled) {
+			const result = Object.freeze({
+				forward: 0, strafe: 0, running: this._dodgeRequested,
+				guarding: (this._guardHeld || this._parryRequested) && this._enabled,
+				lookX: Number(lookX.toFixed(6)), lookY: Number(lookY.toFixed(6)),
+				lookMagnitude: Number(lookMagnitude.toFixed(6)),
+				lookDeltaSeconds, cameraZoom: 0,
+			});
+			this._dodgeRequested = false;
+			this._parryRequested = false;
+			return result;
+		}
 		const result = Object.freeze({
 			forward: clamp(axis.y, -1, 1),
 			strafe: clamp(axis.x, -1, 1),
 			running: ratio >= this._runThresholdRatio || this._dodgeRequested,
 			guarding: (this._guardHeld || this._parryRequested) && this._enabled,
+			lookX: Number(lookX.toFixed(6)),
+			lookY: Number(lookY.toFixed(6)),
+			lookMagnitude: Number(lookMagnitude.toFixed(6)),
+			lookDeltaSeconds,
+			cameraZoom: 0,
 		});
 		this._dodgeRequested = false;
 		this._parryRequested = false;
@@ -265,7 +343,7 @@ export class TouchJoystick {
 			this._parryRequested = false;
 			this._jumpRequested = false;
 			this._lockOnRequested = false;
-			this._resetPointerState();
+			this._resetPointerState(); this._cameraPointerId = null; this._cameraLookX = 0; this._cameraLookY = 0; this._lastCameraSampleSeconds = null;
 			this._actionBuffer.clear();
 			this._guardButton.setAttribute('aria-pressed', 'false');
 		}
@@ -291,6 +369,8 @@ export class TouchJoystick {
 	}
 	dispose(): void { this.setEnabled(false);
 		window.removeEventListener('resize', this._onViewportChange); window.removeEventListener('orientationchange', this._onViewportChange);
+		this._cameraPad.removeEventListener('pointerdown', this._onCameraPointerDown); this._cameraPad.removeEventListener('pointermove', this._onCameraPointerMove); this._cameraPad.removeEventListener('pointerup', this._onCameraPointerUp); this._cameraPad.removeEventListener('pointercancel', this._onCameraPointerUp);
+		this._cameraPad.remove();
 		this._base.removeEventListener('pointerdown', this._onPointerDown); this._base.removeEventListener('pointermove', this._onPointerMove); this._base.removeEventListener('pointerup', this._onPointerUp); this._base.removeEventListener('pointercancel', this._onPointerUp);
 		this._jumpButton.removeEventListener('click', this._onJumpClick); this._guardButton.removeEventListener('pointerdown', this._onGuardDown); this._guardButton.removeEventListener('pointerup', this._onGuardUp); this._guardButton.removeEventListener('pointercancel', this._onGuardUp); this._guardButton.removeEventListener('pointerleave', this._onGuardUp);
 		this._lockOnButton.removeEventListener('pointerdown', this._onLockOn); this._lightAttackButton.removeEventListener('pointerdown', this._onLightAttack); this._heavyAttackButton.removeEventListener('pointerdown', this._onHeavyAttack); this._dodgeButton.removeEventListener('pointerdown', this._onDodge); this._parryButton.removeEventListener('pointerdown', this._onParry);
