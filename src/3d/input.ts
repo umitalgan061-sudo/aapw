@@ -388,6 +388,130 @@ export function resolvePlayerInputDevicePriority(
 	})).sort((a, b) => b.score - a.score));
 }
 
+
+
+export interface PlayerInputCoalescerSnapshot {
+	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
+	readonly emittedFrames: number;
+	readonly suppressedFrames: number;
+	readonly lastSequence: number;
+	readonly lastDevice: PlayerInputDevice;
+	readonly compressionRatio: number;
+}
+
+export class PlayerInputFrameCoalescer {
+	private readonly _epsilon: number;
+	private _last: PlayerInputFrame | null = null;
+	private _emittedFrames = 0;
+	private _suppressedFrames = 0;
+
+	constructor(epsilon = 0.00001) {
+		this._epsilon = Math.max(0, finiteInput(epsilon, 0.00001));
+	}
+
+	accept(frame: PlayerInputFrame): PlayerInputFrame | null {
+		const normalized = normalizePlayerInputFrame(frame);
+		if (this._last && diffPlayerInputFrames(this._last, normalized, this._epsilon).equal) {
+			this._suppressedFrames += 1;
+			return null;
+		}
+		this._last = normalized;
+		this._emittedFrames += 1;
+		return normalized;
+	}
+
+	flush(): PlayerInputFrame | null {
+		const frame = this._last;
+		this._last = null;
+		return frame;
+	}
+
+	reset(): void {
+		this._last = null;
+		this._emittedFrames = 0;
+		this._suppressedFrames = 0;
+	}
+
+	snapshot(): PlayerInputCoalescerSnapshot {
+		const total = this._emittedFrames + this._suppressedFrames;
+		return Object.freeze({
+			version: PLAYER_INPUT_CONTRACT_VERSION,
+			emittedFrames: this._emittedFrames,
+			suppressedFrames: this._suppressedFrames,
+			lastSequence: this._last?.sequence ?? 0,
+			lastDevice: this._last?.device ?? 'unknown',
+			compressionRatio: total > 0 ? Number((this._suppressedFrames / total).toFixed(4)) : 0,
+		});
+	}
+}
+
+export interface PlayerInputDeviceActionStats {
+	readonly count: number;
+	readonly lastSequence: number;
+	readonly firstTimestampSeconds: number;
+	readonly lastTimestampSeconds: number;
+}
+
+export interface PlayerInputActionStatsSnapshot {
+	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
+	readonly totalActions: number;
+	readonly byAction: Readonly<Record<PlayerInputAction, number>>;
+	readonly byDevice: Readonly<Record<PlayerInputDevice, number>>;
+	readonly last: PlayerInputActionRecord | null;
+	readonly actions: Readonly<Partial<Record<PlayerInputAction, PlayerInputDeviceActionStats>>>;
+}
+
+export class PlayerInputActionStats {
+	private _totalActions = 0;
+	private _last: PlayerInputActionRecord | null = null;
+	private readonly _byAction: Record<PlayerInputAction, number> = {
+		jump: 0, dodge: 0, light: 0, heavy: 0, parry: 0, 'lock-on': 0,
+	};
+	private readonly _byDevice: Record<PlayerInputDevice, number> = {
+		keyboard: 0, mouse: 0, gamepad: 0, touch: 0, unknown: 0,
+	};
+	private readonly _actionStats = new Map<PlayerInputAction, PlayerInputDeviceActionStats>();
+
+	record(record: PlayerInputActionRecord): void {
+		this._totalActions += 1;
+		this._last = record;
+		this._byAction[record.action] += 1;
+		this._byDevice[record.device] += 1;
+		const current = this._actionStats.get(record.action);
+		this._actionStats.set(record.action, {
+			count: (current?.count ?? 0) + 1,
+			lastSequence: record.sequence,
+			firstTimestampSeconds: current?.firstTimestampSeconds ?? record.timestampSeconds,
+			lastTimestampSeconds: record.timestampSeconds,
+		});
+	}
+
+	recordMany(records: readonly PlayerInputActionRecord[]): void {
+		for (const record of records) this.record(record);
+	}
+
+	reset(): void {
+		this._totalActions = 0;
+		this._last = null;
+		for (const action of Object.keys(this._byAction) as PlayerInputAction[]) this._byAction[action] = 0;
+		for (const device of Object.keys(this._byDevice) as PlayerInputDevice[]) this._byDevice[device] = 0;
+		this._actionStats.clear();
+	}
+
+	snapshot(): PlayerInputActionStatsSnapshot {
+		const actions: Partial<Record<PlayerInputAction, PlayerInputDeviceActionStats>> = {};
+		for (const [action, stats] of this._actionStats) actions[action] = Object.freeze({ ...stats });
+		return Object.freeze({
+			version: PLAYER_INPUT_CONTRACT_VERSION,
+			totalActions: this._totalActions,
+			byAction: Object.freeze({ ...this._byAction }),
+			byDevice: Object.freeze({ ...this._byDevice }),
+			last: this._last,
+			actions: Object.freeze(actions),
+		});
+	}
+}
+
 export interface PlayerInputLatencySample {
 	readonly sequence: number;
 	readonly action: PlayerInputAction;
@@ -1045,6 +1169,8 @@ export class KeyboardInput {
 	private readonly _recorder: PlayerInputRecorder | null;
 	private readonly _contextGate: PlayerInputContextGate;
 	private readonly _latencyMonitor = new PlayerInputLatencyMonitor(180);
+	private readonly _frameCoalescer = new PlayerInputFrameCoalescer();
+	private readonly _actionStats = new PlayerInputActionStats();
 	private _jumpRequested = false;
 	private _lockOnRequested = false;
 	private _guardPointerHeld = false;
@@ -1130,11 +1256,13 @@ export class KeyboardInput {
 	}
 	private _recordActionAt(action: PlayerInputAction, device: PlayerInputDevice, timestampSeconds: number): PlayerInputActionRecord {
 		const record = this._actionBuffer.enqueue(action, device, device, timestampSeconds);
+		this._actionStats.record(record);
 		this._latencyMonitor.mark(record);
 		if (this._recorder?.isRecording()) this._recorder.record(createPlayerInputFrame({ device, sequence: record.sequence, timestampSeconds }));
 		emitPlayerInputAction(action, device, device);
 		return record;
 	}
+	getInputDiagnostics(): Readonly<{ latency: PlayerInputLatencySnapshot; actions: PlayerInputActionStatsSnapshot; coalescer: PlayerInputCoalescerSnapshot; context: PlayerInputContextSnapshot }> { return Object.freeze({ latency: this._latencyMonitor.snapshot(), actions: this._actionStats.snapshot(), coalescer: this._frameCoalescer.snapshot(), context: this._contextGate.snapshot() }); }
 	getRuntimeDiagnostics(): PlayerInputRuntimeDiagnostics {
 		return Object.freeze({
 			version: PLAYER_INPUT_CONTRACT_VERSION,
@@ -1214,7 +1342,8 @@ export class KeyboardInput {
 		const actions = this._actionBuffer.peek(this._nowSeconds());
 		const frame = createPlayerInputFrame({ ...axes, device: this._activeGamepadIndex === null ? 'keyboard' : 'gamepad', sequence: actions.at(-1)?.sequence ?? 0, timestampSeconds: this._nowSeconds(), actionCount: actions.length, jumpRequested: axes.jumpRequested || actions.some((a) => a.action === 'jump'), lockOnRequested: axes.lockOnRequested || actions.some((a) => a.action === 'lock-on'), dodgeRequested: actions.some((a) => a.action === 'dodge'), parryRequested: actions.some((a) => a.action === 'parry'), lightRequested: actions.some((a) => a.action === 'light'), heavyRequested: actions.some((a) => a.action === 'heavy') });
 		this._latencyMonitor.observe(frame);
-		return frame;
+		const coalesced = this._frameCoalescer.accept(frame) ?? frame;
+		return coalesced;
 	}
 	consumeActionBuffer(nowSeconds = this._nowSeconds(), limit = 8): readonly PlayerInputActionRecord[] { return this._actionBuffer.drain(nowSeconds, limit); }
 
