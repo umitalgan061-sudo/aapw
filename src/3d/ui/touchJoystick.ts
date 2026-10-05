@@ -123,7 +123,7 @@ export class TouchJoystick {
 		this._runThresholdRatio = TOUCH_JOYSTICK_CONFIG.RUN_THRESHOLD_RATIO;
 		this._dragX = 0; this._dragY = 0; this._pointerId = null;
 		this._jumpRequested = false; this._lockOnRequested = false; this._guardHeld = false;
-		this._base = document.createElement('div'); this._base.className = 'g3d-joystick-base'; this._applyLayout();
+		this._base = document.createElement('div'); this._base.className = 'g3d-joystick-base';
 		this._knob = document.createElement('div'); this._knob.className = 'g3d-joystick-knob'; this._base.appendChild(this._knob); container.appendChild(this._base);
 		this._jumpButton = document.createElement('button'); this._jumpButton.type = 'button'; this._jumpButton.className = 'g3d-touch-jump-button'; this._jumpButton.textContent = 'Zıpla'; this._jumpButton.setAttribute('aria-label', 'Zıpla');
 		this._onJumpClick = (event: MouseEvent) => { if (!this._enabled) return; this._jumpRequested = true; this._queueAction('jump'); event.preventDefault?.(); }; this._jumpButton.addEventListener('click', this._onJumpClick); container.appendChild(this._jumpButton);
@@ -149,13 +149,15 @@ export class TouchJoystick {
 		this._heavyAttackButton.addEventListener('pointerdown', this._onHeavyAttack); container.appendChild(this._heavyAttackButton);
 		this._dodgeButton = document.createElement('button'); this._dodgeButton.type = 'button'; this._dodgeButton.className = 'g3d-touch-dodge-button'; this._dodgeButton.textContent = 'Kaçın'; this._dodgeButton.setAttribute('aria-label', 'Kaçın');
 		Object.assign(this._dodgeButton.style, { position: 'fixed', right: '28px', bottom: '96px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
-		this._onDodge = (event: TouchPointerEvent) => { if (!this._enabled) return; this._dodgeRequested = true; this._queueAction('dodge'); event.preventDefault?.(); this._vibrate(34); };
+		this._onDodge = (event: TouchPointerEvent) => { if (!this._enabled) return; this._dodgeRequested = true; this._jumpRequested = true; this._queueAction('dodge'); event.preventDefault?.(); this._vibrate(34); };
 		this._dodgeButton.addEventListener('pointerdown', this._onDodge); container.appendChild(this._dodgeButton);
 
 		this._parryButton = document.createElement('button'); this._parryButton.type = 'button'; this._parryButton.className = 'g3d-touch-parry-button'; this._parryButton.textContent = 'Karşıla'; this._parryButton.setAttribute('aria-label', 'Karşıla');
 		Object.assign(this._parryButton.style, { position: 'fixed', right: '196px', bottom: '156px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
 		this._onParry = (event: TouchPointerEvent) => { if (!this._enabled) return; this._parryRequested = true; this._queueAction('parry'); event.preventDefault?.(); this._vibrate(22); };
 		this._parryButton.addEventListener('pointerdown', this._onParry); container.appendChild(this._parryButton);
+
+		this._applyLayout();
 
 
 		this._onPointerDown = this._handlePointerDown.bind(this); this._onPointerMove = this._handlePointerMove.bind(this); this._onPointerUp = this._handlePointerUp.bind(this);
@@ -247,7 +249,7 @@ export class TouchJoystick {
 			jumpRequested: this._jumpRequested || dodgeRequested,
 			lockOnRequested: this._lockOnRequested,
 			dodgeRequested: dodgeRequested || pending.some((action) => action.action === 'dodge'),
-			parryRequested: parryRequested || pending.some((action) => action.action === 'parry'), pending.some((action) => action.action === 'parry'),
+			parryRequested: parryRequested || pending.some((action) => action.action === 'parry'),
 			lightRequested: pending.some((action) => action.action === 'light'),
 			heavyRequested: pending.some((action) => action.action === 'heavy'),
 		});
