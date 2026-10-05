@@ -622,6 +622,55 @@ export function deserializePlayerInputBindings(serialized: unknown): PlayerInput
 }
 
 
+
+
+export type PlayerInputContext = 'gameplay' | 'ui' | 'disabled';
+
+export interface PlayerInputContextSnapshot {
+	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
+	readonly mode: PlayerInputContext;
+	readonly generation: number;
+	readonly gameplayEnabled: boolean;
+	readonly actionsEnabled: boolean;
+}
+
+export class PlayerInputContextGate {
+	private _mode: PlayerInputContext = 'gameplay';
+	private _generation = 0;
+
+	setMode(mode: PlayerInputContext): PlayerInputContextSnapshot {
+		if (mode !== 'gameplay' && mode !== 'ui' && mode !== 'disabled') this._mode = 'gameplay';
+		else this._mode = mode;
+		this._generation += 1;
+		return this.snapshot();
+	}
+
+	getMode(): PlayerInputContext { return this._mode; }
+
+	allowsGameplay(): boolean { return this._mode === 'gameplay'; }
+
+	allowsAction(action: PlayerInputAction): boolean {
+		if (this._mode !== 'gameplay') return false;
+		return action !== 'lock-on' || this._mode === 'gameplay';
+	}
+
+	snapshot(): PlayerInputContextSnapshot {
+		const gameplayEnabled = this._mode === 'gameplay';
+		return Object.freeze({
+			version: PLAYER_INPUT_CONTRACT_VERSION,
+			mode: this._mode,
+			generation: this._generation,
+			gameplayEnabled,
+			actionsEnabled: gameplayEnabled,
+		});
+	}
+
+	reset(): void {
+		this._mode = 'gameplay';
+		this._generation += 1;
+	}
+}
+
 export interface PlayerInputStorage {
 	getItem: (key: string) => string | null;
 	setItem: (key: string, value: string) => void;
@@ -994,6 +1043,7 @@ export class KeyboardInput {
 		run: ReadonlySet<string>; jump: ReadonlySet<string>; guard: ReadonlySet<string>; lightAttack: ReadonlySet<string>; heavyAttack: ReadonlySet<string>; lockOn: ReadonlySet<string>;
 	}>;
 	private readonly _recorder: PlayerInputRecorder | null;
+	private readonly _contextGate: PlayerInputContextGate;
 	private readonly _latencyMonitor = new PlayerInputLatencyMonitor(180);
 	private _jumpRequested = false;
 	private _lockOnRequested = false;
@@ -1023,14 +1073,15 @@ export class KeyboardInput {
 		this._refreshBindingSets();
 		this._actionBuffer = new PlayerInputActionBuffer(actionBuffer);
 		this._recorder = recorder;
+		this._contextGate = contextGate ?? new PlayerInputContextGate();
 		this._keys.clear(); this._actionBuffer.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false;
 		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target;
 		this._onKeyDown = (event: Event) => { const keyboardEvent = event as KeyboardEvent;
 			const firstPress = !this._keys.has(keyboardEvent.code);
 			if (this._bindingSets.jump.has(keyboardEvent.code) && firstPress) { this._jumpRequested = true; this._actionBuffer.this._recordAction('jump', 'keyboard'); }
-			if (firstPress && this._bindingSets.lockOn.has(keyboardEvent.code) && !isInteractiveTarget(keyboardEvent.target)) { this._lockOnRequested = true; this._recordAction('lock-on', 'keyboard'); keyboardEvent.preventDefault?.(); }
-			if (firstPress && this._bindingSets.lightAttack.has(keyboardEvent.code)) { this._recordAction('light', 'keyboard'); emitPlayerCombatIntent('light', 'keyboard'); }
-			if (firstPress && this._bindingSets.heavyAttack.has(keyboardEvent.code)) { this._recordAction('heavy', 'keyboard'); emitPlayerCombatIntent('heavy', 'keyboard'); }
+			if (this._contextGate.allowsAction('lock-on') && firstPress && this._bindingSets.lockOn.has(keyboardEvent.code) && !isInteractiveTarget(keyboardEvent.target)) { this._lockOnRequested = true; this._recordAction('lock-on', 'keyboard'); keyboardEvent.preventDefault?.(); }
+			if (this._contextGate.allowsAction('light') && firstPress && this._bindingSets.lightAttack.has(keyboardEvent.code)) { this._recordAction('light', 'keyboard'); emitPlayerCombatIntent('light', 'keyboard'); }
+			if (this._contextGate.allowsAction('heavy') && firstPress && this._bindingSets.heavyAttack.has(keyboardEvent.code)) { this._recordAction('heavy', 'keyboard'); emitPlayerCombatIntent('heavy', 'keyboard'); }
 			this._keys.add(keyboardEvent.code);
 		};
 		this._onKeyUp = (event: Event) => { this._keys.delete((event as KeyboardEvent).code); };
@@ -1168,6 +1219,7 @@ export class KeyboardInput {
 	consumeActionBuffer(nowSeconds = this._nowSeconds(), limit = 8): readonly PlayerInputActionRecord[] { return this._actionBuffer.drain(nowSeconds, limit); }
 
 	getAxes(): Readonly<{ forward:number; strafe:number; running:boolean; jumpRequested:boolean; lockOnRequested:boolean; guarding:boolean; lookX:number; lookY:number; cameraZoom:number; lookDeltaSeconds?:number }> {
+		if (!this._contextGate.allowsGameplay()) { this.resetInputState(); return Object.freeze({ forward: 0, strafe: 0, running: false, jumpRequested: false, lockOnRequested: false, guarding: false, lookX: 0, lookY: 0, cameraZoom: 0, lookDeltaSeconds: 0 }); }
 		const gamepad = this._pollGamepad(); let forward = gamepad.forward, strafe = gamepad.strafe, running = gamepad.running, guarding = this._guardPointerHeld || gamepad.guarding;
 		for (const code of this._keys) { if (this._bindingSets.forward.has(code)) forward += 1; else if (this._bindingSets.back.has(code)) forward -= 1; else if (this._bindingSets.right.has(code)) strafe += 1; else if (this._bindingSets.left.has(code)) strafe -= 1; else if (this._bindingSets.run.has(code)) running = true; else if (this._bindingSets.guard.has(code)) guarding = true; }
 		const dodgeRequested = gamepad.dodgePressed && gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE;
@@ -1184,6 +1236,8 @@ export class KeyboardInput {
 	getRecordedInput(): PlayerInputReplaySnapshot { return this._recorder?.snapshot() ?? Object.freeze({ version: PLAYER_INPUT_CONTRACT_VERSION, frameCount: 0, frames: Object.freeze([]) }); }
 	getDeviceSnapshot(): PlayerInputDeviceSnapshot { const snapshot = readPlayerInputDeviceSnapshot(); return Object.freeze({ ...snapshot, gamepadIndex: this._activeGamepadIndex }); }
 	getBindingProfile(): PlayerInputBindingProfile { return this._bindings; }
+	getContextSnapshot(): PlayerInputContextSnapshot { return this._contextGate.snapshot(); }
+	setContextMode(mode: PlayerInputContext): PlayerInputContextSnapshot { const snapshot = this._contextGate.setMode(mode); if (!snapshot.gameplayEnabled) this.resetInputState(); return snapshot; }
 	getCalibration(): PlayerInputCalibration { return this._calibration; }
 
 	consumeLockOnRequested(): boolean { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
