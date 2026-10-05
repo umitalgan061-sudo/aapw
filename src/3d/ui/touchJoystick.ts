@@ -11,6 +11,49 @@ import { PlayerInputActionBuffer, createPlayerInputFrame, emitPlayerCombatIntent
 function clamp(value: number, min: number, max: number): number { return Math.max(min, Math.min(max, value)); }
 
 
+
+
+export interface TouchControlLayout {
+	readonly scale: number;
+	readonly buttonWidthPx: number;
+	readonly buttonHeightPx: number;
+	readonly sideInsetPx: number;
+	readonly bottomInsetPx: number;
+	readonly verticalGapPx: number;
+	readonly compact: boolean;
+	readonly orientation: 'portrait' | 'landscape';
+}
+
+export function resolveTouchControlLayout(
+	viewportWidth: unknown,
+	viewportHeight: unknown,
+	safeAreaBottomPx: unknown = 0,
+): TouchControlLayout {
+	const width = Math.max(240, finiteTouchNumber(viewportWidth, 390));
+	const height = Math.max(240, finiteTouchNumber(viewportHeight, 844));
+	const compact = width < 520;
+	const orientation: TouchControlLayout['orientation'] = width >= height ? 'landscape' : 'portrait';
+	const scale = clamp(width / 430, 0.82, 1.12);
+	const baseButton = compact ? 68 : 76;
+	const gap = compact ? 10 : 14;
+	const bottom = Math.max(72, Math.min(128, finiteTouchNumber(safeAreaBottomPx, 0) + (orientation === 'landscape' ? 58 : 88)));
+	return Object.freeze({
+		scale: Number(scale.toFixed(3)),
+		buttonWidthPx: Math.round(baseButton * scale),
+		buttonHeightPx: Math.round((baseButton * 0.68) * scale),
+		sideInsetPx: Math.round((compact ? 18 : 26) * scale),
+		bottomInsetPx: Math.round(bottom),
+		verticalGapPx: Math.round(gap * scale),
+		compact,
+		orientation,
+	});
+}
+
+function finiteTouchNumber(value: unknown, fallback: number): number {
+	const numeric = Number(value);
+	return Number.isFinite(numeric) ? numeric : fallback;
+}
+
 export interface TouchJoystickAxes {
 	readonly forward: number;
 	readonly strafe: number;
@@ -31,7 +74,9 @@ type TouchPointerEvent = PointerEvent;
 export class TouchJoystick {
 	private readonly _container: HTMLElement;
 	private readonly _actionBuffer: PlayerInputActionBuffer;
-	private readonly _hapticsEnabled: boolean;
+	private _hapticsEnabled: boolean;
+	private _layout: TouchControlLayout;
+	private readonly _onViewportChange: () => void;
 	private _radiusPx: number;
 	private _deadzoneRatio: number;
 	private _runThresholdRatio: number;
@@ -69,14 +114,16 @@ export class TouchJoystick {
 
 	constructor({ container = document.body, haptics = true, actionBufferMaxEntries = 48, actionTtlSeconds = 0.36 }: TouchJoystickOptions = {}) {
 		this._container = container;
-		this._hapticsEnabled = Boolean(haptics && 'vibrate' in navigator);
+		this._hapticsEnabled = Boolean(haptics && typeof navigator !== 'undefined' && 'vibrate' in navigator);
+		this._layout = resolveTouchControlLayout(globalThis.innerWidth, globalThis.innerHeight);
+		this._onViewportChange = () => { this.refreshLayout(); };
 		this._actionBuffer = new PlayerInputActionBuffer({ maxEntries: actionBufferMaxEntries, ttlSeconds: actionTtlSeconds });
 		this._radiusPx = TOUCH_JOYSTICK_CONFIG.RADIUS_PX;
 		this._deadzoneRatio = TOUCH_JOYSTICK_CONFIG.DEADZONE_RATIO;
 		this._runThresholdRatio = TOUCH_JOYSTICK_CONFIG.RUN_THRESHOLD_RATIO;
 		this._dragX = 0; this._dragY = 0; this._pointerId = null;
 		this._jumpRequested = false; this._lockOnRequested = false; this._guardHeld = false;
-		this._base = document.createElement('div'); this._base.className = 'g3d-joystick-base';
+		this._base = document.createElement('div'); this._base.className = 'g3d-joystick-base'; this._applyLayout();
 		this._knob = document.createElement('div'); this._knob.className = 'g3d-joystick-knob'; this._base.appendChild(this._knob); container.appendChild(this._base);
 		this._jumpButton = document.createElement('button'); this._jumpButton.type = 'button'; this._jumpButton.className = 'g3d-touch-jump-button'; this._jumpButton.textContent = 'Zıpla'; this._jumpButton.setAttribute('aria-label', 'Zıpla');
 		this._onJumpClick = (event: MouseEvent) => { if (!this._enabled) return; this._jumpRequested = true; this._queueAction('jump'); event.preventDefault?.(); }; this._jumpButton.addEventListener('click', this._onJumpClick); container.appendChild(this._jumpButton);
@@ -112,7 +159,7 @@ export class TouchJoystick {
 
 
 		this._onPointerDown = this._handlePointerDown.bind(this); this._onPointerMove = this._handlePointerMove.bind(this); this._onPointerUp = this._handlePointerUp.bind(this);
-		this._base.addEventListener('pointerdown', this._onPointerDown); this._base.addEventListener('pointermove', this._onPointerMove); this._base.addEventListener('pointerup', this._onPointerUp); this._base.addEventListener('pointercancel', this._onPointerUp);
+		this._base.addEventListener('pointerdown', this._onPointerDown); this._base.addEventListener('pointermove', this._onPointerMove); this._base.addEventListener('pointerup', this._onPointerUp); this._base.addEventListener('pointercancel', this._onPointerUp); window.addEventListener('resize', this._onViewportChange, { passive: true }); window.addEventListener('orientationchange', this._onViewportChange, { passive: true });
 	}
 	private _handlePointerDown(event: TouchPointerEvent): void {
 		if (!this._enabled || this._pointerId !== null) return;
@@ -127,6 +174,37 @@ export class TouchJoystick {
 		if (event.pointerId !== this._pointerId) return;
 		this._pointerId = null; this._dragX = 0; this._dragY = 0; this._knob.style.transform = ''; this._base.classList.remove('g3d-joystick-active');
 	}
+
+	private _applyLayout(): void {
+		const layout = this._layout;
+		const buttons: readonly HTMLElement[] = [this._jumpButton, this._guardButton, this._lockOnButton, this._lightAttackButton, this._heavyAttackButton, this._dodgeButton, this._parryButton];
+		this._base.style.setProperty('--g3d-touch-scale', String(layout.scale));
+		this._base.style.setProperty('--g3d-touch-side-inset', `${layout.sideInsetPx}px`);
+		this._base.style.setProperty('--g3d-touch-bottom-inset', `calc(${layout.bottomInsetPx}px + env(safe-area-inset-bottom))`);
+		this._base.style.touchAction = 'none';
+		for (const button of buttons) {
+			button.style.minWidth = `${layout.buttonWidthPx}px`;
+			button.style.minHeight = `${layout.buttonHeightPx}px`;
+			button.style.transformOrigin = 'center';
+			button.style.transform = `scale(${layout.scale})`;
+		}
+	}
+
+	refreshLayout(): TouchControlLayout {
+		const safeAreaBottom = Number.parseFloat(getComputedStyle(this._base).getPropertyValue('padding-bottom')) || 0;
+		this._layout = resolveTouchControlLayout(globalThis.innerWidth, globalThis.innerHeight, safeAreaBottom);
+		this._applyLayout();
+		return this._layout;
+	}
+
+	getLayout(): TouchControlLayout { return this._layout; }
+
+	setHapticsEnabled(enabled: boolean): void {
+		this._hapticsEnabled = Boolean(enabled);
+	}
+
+	isHapticsEnabled(): boolean { return this._hapticsEnabled; }
+
 	private _nowSeconds(): number { return Number(((globalThis.performance?.now?.() ?? Date.now()) / 1000).toFixed(6)); }
 	private _queueAction(action: PlayerInputAction, emitEvent = true): PlayerInputActionRecord {
 		const record = this._actionBuffer.enqueue(action, 'touch', 'touch', this._nowSeconds());
@@ -191,6 +269,7 @@ export class TouchJoystick {
 		}
 		this._base.toggleAttribute('aria-disabled', !this._enabled);
 		this._base.classList.toggle('g3d-joystick-disabled', !this._enabled);
+		for (const button of [this._jumpButton, this._guardButton, this._lockOnButton, this._lightAttackButton, this._heavyAttackButton, this._dodgeButton, this._parryButton]) button.disabled = !this._enabled;
 	}
 	isEnabled(): boolean { return this._enabled; }
 	private _resetPointerState(): void {
@@ -209,6 +288,7 @@ export class TouchJoystick {
 		this._lockOnButton.textContent = locked ? 'Kilitli' : 'Hedef';
 	}
 	dispose(): void { this.setEnabled(false);
+		window.removeEventListener('resize', this._onViewportChange); window.removeEventListener('orientationchange', this._onViewportChange);
 		this._base.removeEventListener('pointerdown', this._onPointerDown); this._base.removeEventListener('pointermove', this._onPointerMove); this._base.removeEventListener('pointerup', this._onPointerUp); this._base.removeEventListener('pointercancel', this._onPointerUp);
 		this._jumpButton.removeEventListener('click', this._onJumpClick); this._guardButton.removeEventListener('pointerdown', this._onGuardDown); this._guardButton.removeEventListener('pointerup', this._onGuardUp); this._guardButton.removeEventListener('pointercancel', this._onGuardUp); this._guardButton.removeEventListener('pointerleave', this._onGuardUp);
 		this._lockOnButton.removeEventListener('pointerdown', this._onLockOn); this._lightAttackButton.removeEventListener('pointerdown', this._onLightAttack); this._heavyAttackButton.removeEventListener('pointerdown', this._onHeavyAttack); this._dodgeButton.removeEventListener('pointerdown', this._onDodge); this._parryButton.removeEventListener('pointerdown', this._onParry);
