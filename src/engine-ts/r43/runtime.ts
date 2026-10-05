@@ -216,13 +216,15 @@ export class R43Runtime {
 
   pause(reason = 'manual'): Result<true> {
     this.#paused = true;
-    this.enqueue({ type: 'pause', reason }).ok;
+    this.telemetry.count('runtime.pause', 1, this.clock.frame());
+    this.simulation.emit('runtime:paused', { reason });
     return success(true);
   }
 
   resume(): Result<true> {
     this.#paused = false;
-    this.enqueue({ type: 'resume' }).ok;
+    this.telemetry.count('runtime.resume', 1, this.clock.frame());
+    this.simulation.emit('runtime:resumed');
     return success(true);
   }
 
