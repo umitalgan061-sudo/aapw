@@ -230,6 +230,159 @@ const HEAVY_ATTACK_KEYS = new Set(['KeyR']);
 const LOCK_ON_KEYS = new Set(['Tab']);
 const GUARD_POINTER_BUTTON = 2;
 const LIGHT_ATTACK_POINTER_BUTTON = 0;
+
+export interface PlayerInputBindingProfile {
+	readonly forward: readonly string[];
+	readonly back: readonly string[];
+	readonly right: readonly string[];
+	readonly left: readonly string[];
+	readonly run: readonly string[];
+	readonly jump: readonly string[];
+	readonly guard: readonly string[];
+	readonly lightAttack: readonly string[];
+	readonly heavyAttack: readonly string[];
+	readonly lockOn: readonly string[];
+}
+
+export const DEFAULT_PLAYER_INPUT_BINDINGS: PlayerInputBindingProfile = Object.freeze({
+	forward: Object.freeze([...FORWARD_KEYS]),
+	back: Object.freeze([...BACK_KEYS]),
+	right: Object.freeze([...RIGHT_KEYS]),
+	left: Object.freeze([...LEFT_KEYS]),
+	run: Object.freeze([...RUN_KEYS]),
+	jump: Object.freeze([...JUMP_KEYS]),
+	guard: Object.freeze([...GUARD_KEYS]),
+	lightAttack: Object.freeze([...LIGHT_ATTACK_KEYS]),
+	heavyAttack: Object.freeze([...HEAVY_ATTACK_KEYS]),
+	lockOn: Object.freeze([...LOCK_ON_KEYS]),
+});
+
+const sanitizeBindings = (bindings: Partial<Record<keyof PlayerInputBindingProfile, unknown>>): PlayerInputBindingProfile => {
+	const read = (key: keyof PlayerInputBindingProfile, fallback: readonly string[]): readonly string[] => {
+		const raw = bindings[key];
+		if (!Array.isArray(raw)) return fallback;
+		const values = raw.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+		return Object.freeze([...new Set(values)].slice(0, 8));
+	};
+	return Object.freeze({
+		forward: read('forward', DEFAULT_PLAYER_INPUT_BINDINGS.forward),
+		back: read('back', DEFAULT_PLAYER_INPUT_BINDINGS.back),
+		right: read('right', DEFAULT_PLAYER_INPUT_BINDINGS.right),
+		left: read('left', DEFAULT_PLAYER_INPUT_BINDINGS.left),
+		run: read('run', DEFAULT_PLAYER_INPUT_BINDINGS.run),
+		jump: read('jump', DEFAULT_PLAYER_INPUT_BINDINGS.jump),
+		guard: read('guard', DEFAULT_PLAYER_INPUT_BINDINGS.guard),
+		lightAttack: read('lightAttack', DEFAULT_PLAYER_INPUT_BINDINGS.lightAttack),
+		heavyAttack: read('heavyAttack', DEFAULT_PLAYER_INPUT_BINDINGS.heavyAttack),
+		lockOn: read('lockOn', DEFAULT_PLAYER_INPUT_BINDINGS.lockOn),
+	});
+};
+
+export function normalizePlayerInputBindings(bindings: Partial<Record<keyof PlayerInputBindingProfile, unknown>> = {}): PlayerInputBindingProfile {
+	return sanitizeBindings(bindings);
+}
+
+export function serializePlayerInputBindings(bindings: PlayerInputBindingProfile): string {
+	return JSON.stringify(bindings);
+}
+
+export function deserializePlayerInputBindings(serialized: unknown): PlayerInputBindingProfile {
+	if (typeof serialized !== 'string') return DEFAULT_PLAYER_INPUT_BINDINGS;
+	try {
+		const parsed = JSON.parse(serialized) as unknown;
+		return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+			? sanitizeBindings(parsed as Partial<Record<keyof PlayerInputBindingProfile, unknown>>)
+			: DEFAULT_PLAYER_INPUT_BINDINGS;
+	} catch {
+		return DEFAULT_PLAYER_INPUT_BINDINGS;
+	}
+}
+
+export interface PlayerInputDeviceSnapshot {
+	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
+	readonly keyboard: boolean;
+	readonly pointer: boolean;
+	readonly touch: boolean;
+	readonly gamepad: boolean;
+	readonly gamepadIndex: number | null;
+	readonly standardGamepad: boolean;
+	readonly haptics: boolean;
+	readonly timestampSeconds: number;
+}
+
+export function readPlayerInputDeviceSnapshot(): PlayerInputDeviceSnapshot {
+	const pads = globalThis.navigator?.getGamepads?.() ?? [];
+	const gamepad = selectPlayerGamepad(pads, null);
+	const touch = Boolean(globalThis.navigator && ('maxTouchPoints' in globalThis.navigator) && Number(globalThis.navigator.maxTouchPoints) > 0);
+	const pointer = typeof globalThis.PointerEvent !== 'undefined';
+	const keyboard = typeof globalThis.KeyboardEvent !== 'undefined';
+	const haptics = Boolean(gamepad && (gamepad.vibrationActuator || (gamepad as Gamepad & { hapticActuators?: unknown[] }).hapticActuators?.length));
+	return Object.freeze({
+		version: PLAYER_INPUT_CONTRACT_VERSION,
+		keyboard,
+		pointer,
+		touch,
+		gamepad: Boolean(gamepad),
+		gamepadIndex: gamepad?.index ?? null,
+		standardGamepad: Boolean(gamepad?.mapping === 'standard'),
+		haptics,
+		timestampSeconds: Number(((globalThis.performance?.now?.() ?? Date.now()) / 1000).toFixed(6)),
+	});
+}
+
+export interface PlayerInputRecorderOptions {
+	readonly maxFrames?: number;
+}
+
+export interface PlayerInputReplaySnapshot {
+	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
+	readonly frameCount: number;
+	readonly frames: readonly PlayerInputFrame[];
+}
+
+export class PlayerInputRecorder {
+	private readonly _maxFrames: number;
+	private _frames: PlayerInputFrame[] = [];
+	private _recording = false;
+
+	constructor({ maxFrames = 600 }: PlayerInputRecorderOptions = {}) {
+		this._maxFrames = Math.max(1, Math.min(3600, Math.floor(finiteInput(maxFrames, 600))));
+	}
+
+	start(): void { this._recording = true; }
+	stop(): void { this._recording = false; }
+	isRecording(): boolean { return this._recording; }
+
+	record(frame: PlayerInputFrame): void {
+		if (!this._recording) return;
+		this._frames.push(Object.freeze({ ...normalizePlayerInputFrame(frame) }));
+		if (this._frames.length > this._maxFrames) this._frames = this._frames.slice(-this._maxFrames);
+	}
+
+	clear(): void { this._frames = []; }
+
+	snapshot(): PlayerInputReplaySnapshot {
+		return Object.freeze({
+			version: PLAYER_INPUT_CONTRACT_VERSION,
+			frameCount: this._frames.length,
+			frames: Object.freeze([...this._frames]),
+		});
+	}
+
+	serialize(): string { return JSON.stringify(this.snapshot()); }
+
+	load(snapshot: unknown): number {
+		const source = snapshot && typeof snapshot === 'object' ? snapshot as { frames?: unknown } : {};
+		const frames = Array.isArray(source.frames) ? source.frames : [];
+		this._frames = frames
+			.map((frame) => normalizePlayerInputFrame(frame && typeof frame === 'object' ? frame as Partial<PlayerInputFrame> : {}))
+			.slice(-this._maxFrames);
+		return this._frames.length;
+	}
+
+	next(): PlayerInputFrame | null { return this._frames.shift() ?? null; }
+}
+
 const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
 const COMBAT_FEEDBACK_EVENT = 'aapw:player-combat-feedback';
 const INPUT_DEVICE_EVENT = 'aapw:player-input-device';
