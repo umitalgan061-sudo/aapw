@@ -258,7 +258,11 @@ const GAMEPAD_COMBAT_FEEDBACK_HAPTICS = Object.freeze({
 	'hit-stagger': Object.freeze({ duration: 128, weakMagnitude: 0.62, strongMagnitude: 0.92 }),
 });
 
-function isInteractiveTarget(target: EventTarget | null): boolean { return target instanceof Element ? Boolean(target.closest('button, a, input, textarea, select, [contenteditable="true"]')) : false; }
+function isInteractiveTarget(target: EventTarget | null): boolean {
+	return typeof Element !== 'undefined' && target instanceof Element
+		? Boolean(target.closest('button, a, input, textarea, select, [contenteditable="true"]'))
+		: false;
+}
 function buttonPressed(gamepad: Gamepad | null, index: number): boolean { return Boolean(gamepad?.buttons?.[index]?.pressed); }
 function buttonValue(gamepad: Gamepad | null, index: number): number {
 	const value = gamepad?.buttons?.[index]?.value;
@@ -335,9 +339,9 @@ export function samplePlayerGamepad(gamepad: Gamepad | null, previousButtons: Pa
 
 function readGamepadHapticActuator(gamepad: Gamepad | null): GamepadHapticActuatorLike | null {
 	const vibrationActuator = gamepad?.vibrationActuator;
-	if (typeof vibrationActuator?.playEffect === 'function') return vibrationActuator;
-	const fallbackActuator = gamepad?.hapticActuators?.[0];
-	return typeof fallbackActuator?.playEffect === 'function' ? fallbackActuator : null;
+	if (vibrationActuator && typeof vibrationActuator.playEffect === 'function') return vibrationActuator as unknown as GamepadHapticActuatorLike;
+	const fallbackActuator = (gamepad as (Gamepad & { hapticActuators?: readonly GamepadHapticActuatorLike[] }) | null)?.hapticActuators?.[0];
+	return fallbackActuator && typeof fallbackActuator.playEffect === 'function' ? fallbackActuator : null;
 }
 function requestGamepadHaptic(gamepad: Gamepad | null, profile: GamepadHapticProfile | null): Promise<boolean> | null {
 	const actuator = readGamepadHapticActuator(gamepad);
@@ -393,11 +397,11 @@ export class KeyboardInput {
 	private _lastPollSeconds: number | null = null;
 	private _lastCombatFeedbackSerial = 0;
 	private _pendingCombatFeedbackSerial = 0;
-	private readonly _onKeyDown: (event: KeyboardEvent) => void;
-	private readonly _onKeyUp: (event: KeyboardEvent) => void;
-	private readonly _onPointerDown: (event: PointerEvent) => void;
-	private readonly _onPointerUp: (event: PointerEvent) => void;
-	private readonly _onContextMenu: (event: MouseEvent) => void;
+	private readonly _onKeyDown: (event: Event) => void;
+	private readonly _onKeyUp: (event: Event) => void;
+	private readonly _onPointerDown: (event: Event) => void;
+	private readonly _onPointerUp: (event: Event) => void;
+	private readonly _onContextMenu: (event: Event) => void;
 	private readonly _onCombatFeedback: (event: Event) => void;
 	private readonly _onFocusLoss: (event: Event) => void;
 	private readonly _onVisibilityChange: () => void;
@@ -406,20 +410,20 @@ export class KeyboardInput {
 		
 		this._keys.clear(); this._actionBuffer.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false;
 		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target;
-		this._onKeyDown = (event: KeyboardEvent) => {
-			const firstPress = !this._keys.has(event.code);
-			if (JUMP_KEYS.has(event.code) && firstPress) { this._jumpRequested = true; this._actionBuffer.enqueue('jump', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('jump', 'keyboard', 'keyboard'); }
-			if (firstPress && LOCK_ON_KEYS.has(event.code) && !isInteractiveTarget(event.target)) { this._lockOnRequested = true; this._actionBuffer.enqueue('lock-on', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('lock-on', 'keyboard', 'keyboard'); event.preventDefault?.(); }
+		this._onKeyDown = (event: Event) => { const keyboardEvent = event as KeyboardEvent;
+			const firstPress = !this._keys.has(keyboardEvent.code);
+			if (JUMP_KEYS.has(keyboardEvent.code) && firstPress) { this._jumpRequested = true; this._actionBuffer.enqueue('jump', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('jump', 'keyboard', 'keyboard'); }
+			if (firstPress && LOCK_ON_KEYS.has(event.code) && !isInteractiveTarget(pointerEvent.target)) { this._lockOnRequested = true; this._actionBuffer.enqueue('lock-on', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('lock-on', 'keyboard', 'keyboard'); keyboardEvent.preventDefault?.(); }
 			if (firstPress && LIGHT_ATTACK_KEYS.has(event.code)) { this._actionBuffer.enqueue('light', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('light', 'keyboard'); }
 			if (firstPress && HEAVY_ATTACK_KEYS.has(event.code)) { this._actionBuffer.enqueue('heavy', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('heavy', 'keyboard'); }
-			this._keys.add(event.code);
+			this._keys.add(keyboardEvent.code);
 		};
-		this._onKeyUp = (event: KeyboardEvent) => { this._keys.delete(event.code); };
-		this._onPointerDown = (event: PointerEvent) => { if (event.button === GUARD_POINTER_BUTTON) { this._guardPointerHeld = true; event.preventDefault?.(); return; } if (event.button === LIGHT_ATTACK_POINTER_BUTTON && !isInteractiveTarget(event.target)) { this._actionBuffer.enqueue('light', 'mouse', 'mouse', this._nowSeconds()); emitPlayerCombatIntent('light', 'mouse'); } };
-		this._onPointerUp = (event: PointerEvent) => { if (event.button === GUARD_POINTER_BUTTON) this._guardPointerHeld = false; };
-		this._onContextMenu = (event: MouseEvent) => { if (this._guardPointerHeld) event.preventDefault?.(); };
+		this._onKeyUp = (event: Event) => { this._keys.delete((event as KeyboardEvent).code); };
+		this._onPointerDown = (event: Event) => { const pointerEvent = event as PointerEvent; if (pointerEvent.button === GUARD_POINTER_BUTTON) { this._guardPointerHeld = true; pointerEvent.preventDefault?.(); return; } if (pointerEvent.button === LIGHT_ATTACK_POINTER_BUTTON && !isInteractiveTarget(event.target)) { this._actionBuffer.enqueue('light', 'mouse', 'mouse', this._nowSeconds()); emitPlayerCombatIntent('light', 'mouse'); } };
+		this._onPointerUp = (event: Event) => { if ((event as PointerEvent).button === GUARD_POINTER_BUTTON) this._guardPointerHeld = false; };
+		this._onContextMenu = (event: Event) => { if (this._guardPointerHeld) event.preventDefault?.(); };
 		this._onCombatFeedback = (event: Event) => {
-			const detail = event instanceof CustomEvent ? event.detail as PlayerCombatFeedbackDetail : {}; const serial = detail.serial;
+			const detail = typeof CustomEvent !== 'undefined' && event instanceof CustomEvent ? event.detail as PlayerCombatFeedbackDetail : {}; const serial = detail.serial;
 			if (!Number.isSafeInteger(serial) || serial <= 0 || serial <= Math.max(this._lastCombatFeedbackSerial, this._pendingCombatFeedbackSerial)) return;
 			const pads = globalThis.navigator?.getGamepads?.() ?? [], gamepad = selectPlayerGamepad(pads, this._activeGamepadIndex);
 			if (!gamepad || gamepad.index !== this._activeGamepadIndex) return;
@@ -436,7 +440,7 @@ export class KeyboardInput {
 			this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null;
 			if (hadActiveInput) emitInputDeviceChange(null, event?.type === 'pagehide' ? 'page-hidden' : event?.type === 'visibilitychange' ? 'visibility-hidden' : 'focus-lost');
 		};
-		this._onVisibilityChange = (): void => { if (this._target?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss({ type: 'visibilitychange' }); };
+		this._onVisibilityChange = (): void => { if (this._target?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss(new Event('visibilitychange')); };
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) target.addEventListener(type, handler);
 	}
 	private _nowSeconds(): number { return Number(((globalThis.performance?.now?.() ?? Date.now()) / 1000).toFixed(6)); }
@@ -478,4 +482,49 @@ export class KeyboardInput {
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) this._target.removeEventListener(type, handler);
 		this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0;
 	}
+}
+
+
+export interface PlayerInputParityAudit {
+	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
+	readonly finiteAxis: boolean;
+	readonly boundedAxis: boolean;
+	readonly deterministicSequence: boolean;
+	readonly expiryBounded: boolean;
+	readonly immutableFrame: boolean;
+	readonly deviceCoverage: readonly PlayerInputDevice[];
+	readonly ok: boolean;
+}
+
+export function auditPlayerInputParity(): PlayerInputParityAudit {
+	const deadzone = normalizePlayerInputAxis(0.4, -0.4);
+	const frame = createPlayerInputFrame({
+		sequence: 7,
+		timestampSeconds: 12.5,
+		device: 'gamepad',
+		forward: 2,
+		strafe: -2,
+		lookX: Number.NaN,
+		lookY: Number.POSITIVE_INFINITY,
+	});
+	const buffer = new PlayerInputActionBuffer({ maxEntries: 4, ttlSeconds: 0.25 });
+	const first = buffer.enqueue('light', 'keyboard', 'keyboard', 1);
+	const second = buffer.enqueue('heavy', 'gamepad', 'gamepad', 1.01);
+	const expired = buffer.peek(1.3);
+	const devices: readonly PlayerInputDevice[] = ['keyboard', 'mouse', 'gamepad', 'touch'];
+	const deterministicSequence = second.sequence === first.sequence + 1;
+	const finiteAxis = [deadzone.x, deadzone.y, deadzone.magnitude, frame.forward, frame.strafe, frame.lookX, frame.lookY].every(Number.isFinite);
+	const boundedAxis = [frame.forward, frame.strafe, frame.lookX, frame.lookY, frame.cameraZoom].every((value) => value >= -1 && value <= 1);
+	const expiryBounded = expired.length === 0;
+	const immutableFrame = Object.isFrozen(frame) && Object.isFrozen(first) && Object.isFrozen(second);
+	return Object.freeze({
+		version: PLAYER_INPUT_CONTRACT_VERSION,
+		finiteAxis,
+		boundedAxis,
+		deterministicSequence,
+		expiryBounded,
+		immutableFrame,
+		deviceCoverage: devices,
+		ok: finiteAxis && boundedAxis && deterministicSequence && expiryBounded && immutableFrame,
+	});
 }
