@@ -1065,7 +1065,7 @@ export class KeyboardInput {
 	private readonly _onGamepadConnected: (event: Event) => void;
 	private readonly _onGamepadDisconnected: (event: Event) => void;
 
-	constructor(target: PlayerInputTarget = window, { bindings = {}, calibration = {}, actionBuffer = { maxEntries: 48, ttlSeconds: 0.36 }, recorder = null }: KeyboardInputOptions = {}) {
+	constructor(target: PlayerInputTarget = window, { bindings = {}, calibration = {}, actionBuffer = { maxEntries: 48, ttlSeconds: 0.36 }, recorder = null, contextGate = new PlayerInputContextGate() }: KeyboardInputOptions = {}) {
 		
 		this._bindingValidation = validatePlayerInputBindings(bindings);
 		this._bindings = this._bindingValidation.ok ? this._bindingValidation.normalized : DEFAULT_PLAYER_INPUT_BINDINGS;
