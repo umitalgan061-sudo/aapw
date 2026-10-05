@@ -188,7 +188,11 @@
     "verify:typescript-ownership-r41": "node --experimental-strip-types scripts/checkTypeScriptOwnershipR41.ts",
     "typecheck:runtime-r41": "tsc -p tsconfig.runtime-r41.json --noEmit",
     "test:runtime-r41": "vitest run tests/modern/r41*.test.ts --passWithNoTests",
-    "check:runtime-r41": "npm run verify:runtime-r41 && npm run verify:typescript-ownership-r41 && npm run typecheck:runtime-r41 && npm run test:runtime-r41"
+    "check:runtime-r41": "npm run verify:runtime-r41 && npm run verify:typescript-ownership-r41 && npm run typecheck:runtime-r41 && npm run test:runtime-r41",
+    "typecheck:player-input-parity": "tsc -p tsconfig.player-input-parity.json --noEmit",
+    "test:player-input-parity": "vitest run tests/modern/playerInputParityModern.test.ts tests/modern/playerTouchInputParity.test.ts",
+    "verify:player-input-parity": "node scripts/checkPlayerInputParityModernization.mjs",
+    "check:player-input-parity": "npm run verify:player-input-parity && npm run typecheck:player-input-parity && npm run test:player-input-parity"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
