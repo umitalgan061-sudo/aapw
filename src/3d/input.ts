@@ -452,6 +452,84 @@ export interface PlayerInputDeviceActionStats {
 	readonly lastTimestampSeconds: number;
 }
 
+
+
+export interface PlayerInputActionJournalSnapshot {
+	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
+	readonly capacity: number;
+	readonly totalRecorded: number;
+	readonly actionCount: number;
+	readonly byDevice: Readonly<Record<PlayerInputDevice, number>>;
+	readonly recent: readonly PlayerInputActionRecord[];
+}
+
+export class PlayerInputActionJournal {
+	private readonly _capacity: number;
+	private _records: PlayerInputActionRecord[] = [];
+	private _totalRecorded = 0;
+	private readonly _byDevice: Record<PlayerInputDevice, number> = {
+		keyboard: 0, mouse: 0, gamepad: 0, touch: 0, unknown: 0,
+	};
+
+	constructor(capacity = 128) {
+		this._capacity = Math.max(16, Math.min(2048, Math.floor(finiteInput(capacity, 128))));
+	}
+
+	record(record: PlayerInputActionRecord): void {
+		this._records.push(record);
+		this._totalRecorded += 1;
+		this._byDevice[record.device] += 1;
+		if (this._records.length > this._capacity) this._records = this._records.slice(-this._capacity);
+	}
+
+	clear(): void {
+		this._records = [];
+		this._totalRecorded = 0;
+		for (const device of Object.keys(this._byDevice) as PlayerInputDevice[]) this._byDevice[device] = 0;
+	}
+
+	snapshot(limit = 24): PlayerInputActionJournalSnapshot {
+		const max = Math.max(0, Math.min(this._records.length, Math.floor(finiteInput(limit, 24))));
+		return Object.freeze({
+			version: PLAYER_INPUT_CONTRACT_VERSION,
+			capacity: this._capacity,
+			totalRecorded: this._totalRecorded,
+			actionCount: this._records.length,
+			byDevice: Object.freeze({ ...this._byDevice }),
+			recent: Object.freeze(this._records.slice(-max)),
+		});
+	}
+}
+
+export interface PlayerInputFrameDigest {
+	readonly sequence: number;
+	readonly timestampSeconds: number;
+	readonly device: PlayerInputDevice;
+	readonly movementMagnitude: number;
+	readonly lookMagnitude: number;
+	readonly actionCount: number;
+	readonly actionMask: number;
+}
+
+export function digestPlayerInputFrame(frame: PlayerInputFrame): PlayerInputFrameDigest {
+	const actionMask =
+		(Number(frame.jumpRequested) << 0)
+		| (Number(frame.dodgeRequested) << 1)
+		| (Number(frame.parryRequested) << 2)
+		| (Number(frame.lightRequested) << 3)
+		| (Number(frame.heavyRequested) << 4)
+		| (Number(frame.lockOnRequested) << 5);
+	return Object.freeze({
+		sequence: frame.sequence,
+		timestampSeconds: frame.timestampSeconds,
+		device: frame.device,
+		movementMagnitude: frame.magnitude,
+		lookMagnitude: frame.lookMagnitude,
+		actionCount: frame.actionCount,
+		actionMask,
+	});
+}
+
 export interface PlayerInputActionStatsSnapshot {
 	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
 	readonly totalActions: number;
@@ -1171,6 +1249,7 @@ export class KeyboardInput {
 	private readonly _latencyMonitor = new PlayerInputLatencyMonitor(180);
 	private readonly _frameCoalescer = new PlayerInputFrameCoalescer();
 	private readonly _actionStats = new PlayerInputActionStats();
+	private readonly _actionJournal = new PlayerInputActionJournal(160);
 	private _jumpRequested = false;
 	private _lockOnRequested = false;
 	private _guardPointerHeld = false;
@@ -1257,12 +1336,13 @@ export class KeyboardInput {
 	private _recordActionAt(action: PlayerInputAction, device: PlayerInputDevice, timestampSeconds: number): PlayerInputActionRecord {
 		const record = this._actionBuffer.enqueue(action, device, device, timestampSeconds);
 		this._actionStats.record(record);
+		this._actionJournal.record(record);
 		this._latencyMonitor.mark(record);
 		if (this._recorder?.isRecording()) this._recorder.record(createPlayerInputFrame({ device, sequence: record.sequence, timestampSeconds }));
 		emitPlayerInputAction(action, device, device);
 		return record;
 	}
-	getInputDiagnostics(): Readonly<{ latency: PlayerInputLatencySnapshot; actions: PlayerInputActionStatsSnapshot; coalescer: PlayerInputCoalescerSnapshot; context: PlayerInputContextSnapshot }> { return Object.freeze({ latency: this._latencyMonitor.snapshot(), actions: this._actionStats.snapshot(), coalescer: this._frameCoalescer.snapshot(), context: this._contextGate.snapshot() }); }
+	getInputDiagnostics(): Readonly<{ latency: PlayerInputLatencySnapshot; actions: PlayerInputActionStatsSnapshot; journal: PlayerInputActionJournalSnapshot; coalescer: PlayerInputCoalescerSnapshot; context: PlayerInputContextSnapshot }> { return Object.freeze({ latency: this._latencyMonitor.snapshot(), actions: this._actionStats.snapshot(), journal: this._actionJournal.snapshot(), coalescer: this._frameCoalescer.snapshot(), context: this._contextGate.snapshot() }); }
 	getRuntimeDiagnostics(): PlayerInputRuntimeDiagnostics {
 		return Object.freeze({
 			version: PLAYER_INPUT_CONTRACT_VERSION,
