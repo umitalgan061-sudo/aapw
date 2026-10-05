@@ -93,12 +93,12 @@ export class TouchJoystick {
 
 		this._lightAttackButton = document.createElement('button'); this._lightAttackButton.type = 'button'; this._lightAttackButton.className = 'g3d-touch-light-attack-button'; this._lightAttackButton.textContent = 'Hafif'; this._lightAttackButton.setAttribute('aria-label', 'Hafif saldırı');
 		Object.assign(this._lightAttackButton.style, { position: 'fixed', right: '28px', bottom: '156px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
-		this._onLightAttack = (event: TouchPointerEvent) => { if (!this._enabled) return; this._queueAction('light'); emitPlayerCombatIntent('light', 'touch'); event.preventDefault?.(); this._vibrate(28); };
+		this._onLightAttack = (event: TouchPointerEvent) => { if (!this._enabled) return; this._queueAction('light', false); emitPlayerCombatIntent('light', 'touch'); event.preventDefault?.(); this._vibrate(28); };
 		this._lightAttackButton.addEventListener('pointerdown', this._onLightAttack); container.appendChild(this._lightAttackButton);
 
 		this._heavyAttackButton = document.createElement('button'); this._heavyAttackButton.type = 'button'; this._heavyAttackButton.className = 'g3d-touch-heavy-attack-button'; this._heavyAttackButton.textContent = 'Ağır'; this._heavyAttackButton.setAttribute('aria-label', 'Ağır saldırı');
 		Object.assign(this._heavyAttackButton.style, { position: 'fixed', right: '112px', bottom: '156px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
-		this._onHeavyAttack = (event: TouchPointerEvent) => { if (!this._enabled) return; this._queueAction('heavy'); emitPlayerCombatIntent('heavy', 'touch'); event.preventDefault?.(); this._vibrate(42); };
+		this._onHeavyAttack = (event: TouchPointerEvent) => { if (!this._enabled) return; this._queueAction('heavy', false); emitPlayerCombatIntent('heavy', 'touch'); event.preventDefault?.(); this._vibrate(42); };
 		this._heavyAttackButton.addEventListener('pointerdown', this._onHeavyAttack); container.appendChild(this._heavyAttackButton);
 		this._dodgeButton = document.createElement('button'); this._dodgeButton.type = 'button'; this._dodgeButton.className = 'g3d-touch-dodge-button'; this._dodgeButton.textContent = 'Kaçın'; this._dodgeButton.setAttribute('aria-label', 'Kaçın');
 		Object.assign(this._dodgeButton.style, { position: 'fixed', right: '28px', bottom: '96px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
@@ -128,9 +128,9 @@ export class TouchJoystick {
 		this._pointerId = null; this._dragX = 0; this._dragY = 0; this._knob.style.transform = ''; this._base.classList.remove('g3d-joystick-active');
 	}
 	private _nowSeconds(): number { return Number(((globalThis.performance?.now?.() ?? Date.now()) / 1000).toFixed(6)); }
-	private _queueAction(action: PlayerInputAction): PlayerInputActionRecord {
+	private _queueAction(action: PlayerInputAction, emitEvent = true): PlayerInputActionRecord {
 		const record = this._actionBuffer.enqueue(action, 'touch', 'touch', this._nowSeconds());
-		emitPlayerInputAction(action, 'touch', 'touch');
+		if (emitEvent) emitPlayerInputAction(action, 'touch', 'touch');
 		this._lastFrameSequence = record.sequence;
 		return record;
 	}
