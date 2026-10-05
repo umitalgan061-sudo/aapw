@@ -98,6 +98,10 @@ export class InputHistory {
     return this.#frames.length;
   }
 
+  values(): readonly InputFrame[] {
+    return Object.freeze([...this.#frames]);
+  }
+
   clear(): void {
     this.#frames = [];
   }
