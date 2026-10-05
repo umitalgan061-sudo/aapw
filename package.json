@@ -151,12 +151,6 @@
     "typecheck:r31": "tsc -p tsconfig.strict-runtime-r31.json --noEmit",
     "test:r31": "vitest run tests/modern/r31 --passWithNoTests",
     "check:r31": "npm run verify:r31 && npm run typecheck:r31 && npm run test:r31",
-    "verify:tooling-r32": "node scripts/checkTypeScriptToolingR32.mjs",
-    "typecheck:tooling-r32": "tsc -p tsconfig.tooling-r32.json --noEmit",
-    "test:tooling-r32": "npm test -- tests/modern/typedToolingMigrationR32.test.ts",
-    "verify:service-worker-artifact": "node scripts/checkServiceWorkerArtifact.mjs",
-    "build:service-worker:r32": "npm run build:service-worker && npm run verify:service-worker-artifact",
-    "check:tooling-r32": "npm run verify:tooling-r32 && npm run typecheck:tooling-r32 && npm run test:tooling-r32 && npm run verify:service-worker-artifact",
     "verify:strict-runtime-r33": "node scripts/checkStrictRuntimeR33.mjs",
     "typecheck:strict-runtime-r33": "tsc -p tsconfig.strict-runtime-r33.json --noEmit",
     "test:strict-runtime-r33": "npm test -- tests/modern/strictRuntimeR33.test.ts",
@@ -189,9 +183,10 @@
     "typecheck:runtime-r41": "tsc -p tsconfig.runtime-r41.json --noEmit",
     "test:runtime-r41": "vitest run tests/modern/r41*.test.ts --passWithNoTests",
     "check:runtime-r41": "npm run verify:runtime-r41 && npm run verify:typescript-ownership-r41 && npm run typecheck:runtime-r41 && npm run test:runtime-r41",
-    "verify:living-world-r11": "node scripts/checkLivingWorldRuntimeR11.mjs",
-    "test:living-world-r11": "vitest run tests/modern/livingWorldRuntimeKernelR11.test.ts",
-    "check:living-world-r11": "npm run verify:living-world-r11 && npm run test:living-world-r11 && npm run typecheck"
+    "verify:r32": "node scripts/checkModernPlatformR32.mjs",
+    "typecheck:r32": "tsc -p tsconfig.modern-r32.json --noEmit",
+    "test:r32": "vitest run tests/modern/r32",
+    "check:r32": "npm run verify:r32 && npm run typecheck:r32 && npm run test:r32"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
