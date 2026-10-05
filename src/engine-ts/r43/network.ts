@@ -1,4 +1,4 @@
-import { stableDigest, type NetworkEnvelope, type Result, type RuntimeSnapshot } from './contracts.ts';
+import { stableDigest, stableStringify, type NetworkEnvelope, type Result, type RuntimeSnapshot } from './contracts.ts';
 
 export interface SequenceAcceptance {
   readonly accepted: boolean;
@@ -194,8 +194,8 @@ export class NetworkSession<S extends Record<string, unknown>> {
       sentAtMs: Math.max(0, Number.isFinite(sentAtMs) ? sentAtMs : 0),
       payload,
     });
-    const encoded = stableDigest(envelope);
-    if (encoded.length * 8 > this.options.maxPayloadBytes) throw new Error('Network envelope exceeds configured payload budget');
+    const encodedBytes = new TextEncoder().encode(stableStringify(envelope)).byteLength;
+    if (encodedBytes > this.options.maxPayloadBytes) throw new Error('Network envelope exceeds configured payload budget');
     this.sent.push(envelope);
     return envelope;
   }
@@ -204,7 +204,8 @@ export class NetworkSession<S extends Record<string, unknown>> {
     if (envelope.sessionId !== this.options.sessionId) {
       return { ok: false, error: { code: 'NETWORK_SESSION_MISMATCH', message: 'Session id mismatch.', retryable: false } };
     }
-    if (stableDigest(envelope.payload).length * 8 > this.options.maxPayloadBytes) {
+    const encodedBytes = new TextEncoder().encode(stableStringify(envelope)).byteLength;
+    if (encodedBytes > this.options.maxPayloadBytes) {
       return { ok: false, error: { code: 'NETWORK_PAYLOAD_LIMIT', message: 'Network payload budget exceeded.', retryable: false } };
     }
     const sequence = this.received.accept(envelope.sequence);
