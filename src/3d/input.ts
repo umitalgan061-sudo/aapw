@@ -463,7 +463,7 @@ export class KeyboardInput {
 	getInputFrame(): PlayerInputFrame {
 		const axes = this.getAxes();
 		const actions = this._actionBuffer.peek(this._nowSeconds());
-		return createPlayerInputFrame({ ...axes, device: this._activeGamepadIndex === null ? 'keyboard' : 'gamepad', sequence: actions.at(-1)?.sequence ?? 0, timestampSeconds: this._nowSeconds(), actionCount: actions.length, dodgeRequested: actions.some((a) => a.action === 'dodge'), parryRequested: actions.some((a) => a.action === 'parry'), lightRequested: actions.some((a) => a.action === 'light'), heavyRequested: actions.some((a) => a.action === 'heavy') });
+		return createPlayerInputFrame({ ...axes, device: this._activeGamepadIndex === null ? 'keyboard' : 'gamepad', sequence: actions.at(-1)?.sequence ?? 0, timestampSeconds: this._nowSeconds(), actionCount: actions.length, jumpRequested: axes.jumpRequested || actions.some((a) => a.action === 'jump'), lockOnRequested: axes.lockOnRequested || actions.some((a) => a.action === 'lock-on'), dodgeRequested: actions.some((a) => a.action === 'dodge'), parryRequested: actions.some((a) => a.action === 'parry'), lightRequested: actions.some((a) => a.action === 'light'), heavyRequested: actions.some((a) => a.action === 'heavy') });
 	}
 	consumeActionBuffer(nowSeconds = this._nowSeconds(), limit = 8): readonly PlayerInputActionRecord[] { return this._actionBuffer.drain(nowSeconds, limit); }
 
