@@ -165,7 +165,8 @@ export class R43Runtime {
     if (this.#paused) return success(this.snapshotResult());
     const advance = this.simulation.advance(deltaSeconds);
     this.#qualityDecision = this.quality.observe(frameMs, this.config.frameBudget.targetFrameMs, deltaSeconds);
-    const assetPressure = this.assets.stats().queued / Math.max(1, this.config.limits.maxEventsPerFrame);
+    const assetStats = this.assets.stats();
+    const assetPressure = Math.min(1, assetStats.cache.utilization * 0.65 + assetStats.queued / Math.max(1, this.config.limits.maxEventsPerFrame) * 0.35);
     const networkPressure = Math.min(1, this.network.sent.size() / this.config.limits.maxSnapshots);
     this.#lastHealth = this.health.observe({
       frameMs,
@@ -182,7 +183,7 @@ export class R43Runtime {
     this.#frameEvents = this.simulation.eventsSince(Math.max(0, advance.clock.frame - 1)).slice(-this.config.limits.maxEventsPerFrame) as typeof this.#frameEvents;
     const snapshot = advance.snapshot;
     if (advance.clock.tick % Math.max(1, Math.round(this.config.fixedStepHz / this.config.networkSnapshotHz)) === 0) {
-      this.network.createEnvelope({ digest: snapshot.digest, entities: snapshot.entities }, snapshot.tick, frameMs, this.network.received.highest());
+      this.network.createEnvelope({ digest: snapshot.digest, entities: snapshot.entities }, snapshot.tick, this.clock.simTimeSeconds() * 1000, this.network.received.highest());
       this.checkpoints.push(snapshot);
     }
     return success(Object.freeze({
@@ -196,7 +197,10 @@ export class R43Runtime {
     }));
   }
 
-  async requestAsset<T>(descriptor: Parameters<AssetOrchestrator<T>['request']>[0], provider: AssetProvider<T>): Promise<Result<unknown>> {
+  async requestAsset<T>(
+    descriptor: Omit<Parameters<AssetOrchestrator<T>['request']>[0], 'provider'>,
+    provider: AssetProvider<T>,
+  ): Promise<Result<unknown>> {
     return this.assets.request({ ...descriptor, provider }) as Promise<Result<unknown>>;
   }
 
