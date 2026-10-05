@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "noEmit": true,
+    "strict": true
+  },
+  "include": [
+    "src/3d/input.ts",
+    "src/3d/ui/touchJoystick.ts",
+    "tests/modern/playerInputParityModern.test.ts",
+    "tests/modern/playerTouchInputParity.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
