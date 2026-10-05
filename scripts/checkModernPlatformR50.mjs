@@ -147,9 +147,10 @@ if (!rootBarrel.includes("./r50/index.ts")) {
   );
 }
 
-const configSource = contents.get(
-  'tsconfig.modern-r50.json',
-) ?? '';
+const configSource = await readFile(
+  new URL('tsconfig.modern-r50.json', sourceRoot),
+  'utf8',
+);
 
 for (const requiredToken of [
   '"strict": true',
