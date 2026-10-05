@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FixedStepClock } from '../../src/engine-ts/r43/clock.ts';
+import { FixedStepClock, FrameBudgetMeter } from '../../src/engine-ts/r43/clock.ts';
 import { SimulationKernel } from '../../src/engine-ts/r43/simulation.ts';
 
 describe('r43 clock', () => {
@@ -25,13 +25,13 @@ describe('r43 clock', () => {
   });
 
   it('tracks average and p95 frame budget', () => {
-    const meter = new (awaitableMeter())();
-    expect(meter.average()).toBe(0);
+    const meter = new FrameBudgetMeter(8);
+    meter.observe(10, 16.67);
+    meter.observe(20, 16.67);
+    meter.observe(30, 16.67);
+    expect(meter.average()).toBeCloseTo(20, 6);
+    expect(meter.p95()).toBe(30);
   });
-});
-
-function awaitableMeter() {
-  return class MeterPlaceholder {};
 }
 
 describe('r43 simulation kernel', () => {
