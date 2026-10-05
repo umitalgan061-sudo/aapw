@@ -579,7 +579,8 @@ export function selectPlayerGamepad(gamepads: readonly (Gamepad | null)[] | null
 	return standard.sort((a, b) => (a.index ?? 999) - (b.index ?? 999))[0] ?? null;
 }
 
-export function samplePlayerGamepad(gamepad: Gamepad | null, previousButtons: Partial<GamepadButtonState> = {}, previousRunning = false): GamepadSample {
+export function samplePlayerGamepad(gamepad: Gamepad | null, previousButtons = {}, previousRunning = false): GamepadSample {
+	const previous = previousButtons as Partial<GamepadButtonState>;
 	if (!gamepad?.connected || gamepad.mapping !== 'standard') return { forward: 0, strafe: 0, magnitude: 0, lookX: 0, lookY: 0, lookMagnitude: 0, cameraZoom: 0, running: false, guarding: false, jumpPressed: false, dodgePressed: false, lightPressed: false, heavyPressed: false, parryPressed: false, lockOnPressed: false, buttons: { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false } };
 	const stick = applyGamepadRadialDeadzone(gamepad.axes?.[0] ?? 0, gamepad.axes?.[1] ?? 0);
 	const dpad = readGamepadDpad(gamepad), locomotion = stick.magnitude > 0 ? stick : dpad;
@@ -593,12 +594,12 @@ export function samplePlayerGamepad(gamepad: Gamepad | null, previousButtons: Pa
 		cameraZoom: zoomIn - zoomOut,
 		running: resolveGamepadSprintIntent(locomotion.magnitude, buttonPressed(gamepad, GAMEPAD_BUTTON.SPRINT), previousRunning),
 		guarding: buttonPressed(gamepad, GAMEPAD_BUTTON.GUARD),
-		jumpPressed: buttons.jump && !previousButtons.jump,
-		dodgePressed: buttons.dodge && !previousButtons.dodge,
-		lightPressed: buttons.light && !previousButtons.light,
-		heavyPressed: buttons.heavy && !previousButtons.heavy,
-		parryPressed: buttons.parry && !previousButtons.parry,
-		lockOnPressed: buttons.lockOn && !previousButtons.lockOn,
+		jumpPressed: buttons.jump && !previous.jump,
+		dodgePressed: buttons.dodge && !previous.dodge,
+		lightPressed: buttons.light && !previous.light,
+		heavyPressed: buttons.heavy && !previous.heavy,
+		parryPressed: buttons.parry && !previous.parry,
+		lockOnPressed: buttons.lockOn && !previous.lockOn,
 		buttons,
 	};
 }
