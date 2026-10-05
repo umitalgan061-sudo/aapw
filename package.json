@@ -189,6 +189,10 @@
     "typecheck:runtime-r41": "tsc -p tsconfig.runtime-r41.json --noEmit",
     "test:runtime-r41": "vitest run tests/modern/r41*.test.ts --passWithNoTests",
     "check:runtime-r41": "npm run verify:runtime-r41 && npm run verify:typescript-ownership-r41 && npm run typecheck:runtime-r41 && npm run test:runtime-r41",
+    "verify:runtime-r42": "node --experimental-strip-types scripts/checkRuntimeR42Architecture.ts",
+    "typecheck:runtime-r42": "tsc -p tsconfig.r42.json --noEmit",
+    "test:runtime-r42": "vitest run tests/modern/r42 --passWithNoTests",
+    "check:runtime-r42": "npm run verify:runtime-r42 && npm run typecheck:runtime-r42 && npm run test:runtime-r42",
     "verify:living-world-r11": "node scripts/checkLivingWorldRuntimeR11.mjs",
     "test:living-world-r11": "vitest run tests/modern/livingWorldRuntimeKernelR11.test.ts",
     "check:living-world-r11": "npm run verify:living-world-r11 && npm run test:living-world-r11 && npm run typecheck"
@@ -196,8 +200,8 @@
   "devDependencies": {
     "@types/node": "^26.5.1",
     "typescript": "^7.0.2",
-    "vite": "^8.3.1",
-    "vitest": "^5.0.1",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3",
     "@types/three": "^0.186.0"
   },
   "dependencies": {

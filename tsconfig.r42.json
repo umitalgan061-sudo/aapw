@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "src/3d/strict/r42/**/*.ts",
+    "tests/modern/r42/**/*.test.ts",
+    "scripts/checkRuntimeR42Architecture.ts"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
