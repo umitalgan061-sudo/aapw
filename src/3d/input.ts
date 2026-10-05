@@ -298,6 +298,119 @@ export function deserializePlayerInputBindings(serialized: unknown): PlayerInput
 	}
 }
 
+
+export interface PlayerInputStorage {
+	getItem: (key: string) => string | null;
+	setItem: (key: string, value: string) => void;
+	removeItem: (key: string) => void;
+}
+
+export const PLAYER_INPUT_BINDINGS_STORAGE_KEY = 'aapw.player.input.bindings.v1';
+
+export function createPlayerInputSettingsStore(
+	storage: PlayerInputStorage | null = typeof globalThis.localStorage !== 'undefined' ? globalThis.localStorage : null,
+	key = PLAYER_INPUT_BINDINGS_STORAGE_KEY,
+) {
+	return Object.freeze({
+		load(): PlayerInputBindingProfile {
+			if (!storage) return DEFAULT_PLAYER_INPUT_BINDINGS;
+			return deserializePlayerInputBindings(storage.getItem(key));
+		},
+		save(bindings: PlayerInputBindingProfile): PlayerInputBindingProfile {
+			const normalized = normalizePlayerInputBindings(bindings);
+			try { storage?.setItem(key, serializePlayerInputBindings(normalized)); } catch { /* storage is optional */ }
+			return normalized;
+		},
+		clear(): void {
+			try { storage?.removeItem(key); } catch { /* storage is optional */ }
+		},
+	});
+}
+
+export interface PlayerInputCalibration {
+	readonly deadzone: number;
+	readonly curve: number;
+	readonly maxMagnitude: number;
+	readonly lookSensitivity: number;
+	readonly zoomSensitivity: number;
+}
+
+export const DEFAULT_PLAYER_INPUT_CALIBRATION: PlayerInputCalibration = Object.freeze({
+	deadzone: GAMEPAD_DEADZONE,
+	curve: 1,
+	maxMagnitude: 1,
+	lookSensitivity: 1,
+	zoomSensitivity: 1,
+});
+
+export function normalizePlayerInputCalibration(
+	calibration: Partial<Record<keyof PlayerInputCalibration, unknown>> = {},
+): PlayerInputCalibration {
+	const positive = (value: unknown, fallback: number, min: number, max: number): number => Math.max(min, Math.min(max, Number.isFinite(Number(value)) ? Number(value) : fallback));
+	return Object.freeze({
+		deadzone: positive(calibration.deadzone, DEFAULT_PLAYER_INPUT_CALIBRATION.deadzone, 0, 0.5),
+		curve: positive(calibration.curve, DEFAULT_PLAYER_INPUT_CALIBRATION.curve, 0.5, 2.5),
+		maxMagnitude: positive(calibration.maxMagnitude, 1, 0.5, 1),
+		lookSensitivity: positive(calibration.lookSensitivity, 1, 0.1, 3),
+		zoomSensitivity: positive(calibration.zoomSensitivity, 1, 0.1, 3),
+	});
+}
+
+export function applyPlayerInputCurve(value: unknown, curve = 1): number {
+	const normalized = Math.max(-1, Math.min(1, finiteInput(value)));
+	const exponent = Math.max(0.5, Math.min(2.5, finiteInput(curve, 1)));
+	return normalized === 0 ? 0 : Math.sign(normalized) * (Math.abs(normalized) ** exponent);
+}
+
+export function calibratePlayerInputAxis(
+	x: unknown,
+	y: unknown,
+	calibration: Partial<PlayerInputCalibration> = {},
+): PlayerInputAxis {
+	const settings = normalizePlayerInputCalibration(calibration);
+	const axis = normalizePlayerInputAxis(x, y, settings.deadzone);
+	const curved = normalizePlayerInputAxis(
+		applyPlayerInputCurve(axis.x, settings.curve),
+		applyPlayerInputCurve(axis.y, settings.curve),
+		0,
+	);
+	const magnitude = Math.min(settings.maxMagnitude, curved.magnitude);
+	if (magnitude === 0) return Object.freeze({ x: 0, y: 0, magnitude: 0 });
+	const rawMagnitude = Math.hypot(curved.x, curved.y) || 1;
+	const scale = magnitude / rawMagnitude;
+	return Object.freeze({
+		x: Number((curved.x * scale).toFixed(6)),
+		y: Number((curved.y * scale).toFixed(6)),
+		magnitude: Number(magnitude.toFixed(6)),
+	});
+}
+
+export function diffPlayerInputFrames(
+	first: PlayerInputFrame | null,
+	second: PlayerInputFrame | null,
+	epsilon = 0.00001,
+): Readonly<{ equal: boolean; reasons: readonly string[] }> {
+	if (!first || !second) return Object.freeze({ equal: false, reasons: Object.freeze(['missing-frame']) });
+	const reasons: string[] = [];
+	const numeric = (key: keyof Pick<PlayerInputFrame, 'forward' | 'strafe' | 'magnitude' | 'lookX' | 'lookY' | 'lookMagnitude' | 'cameraZoom'>): void => {
+		if (Math.abs(first[key] - second[key]) > Math.max(0, finiteInput(epsilon, 0.00001))) reasons.push(key);
+	};
+	(['forward', 'strafe', 'magnitude', 'lookX', 'lookY', 'lookMagnitude', 'cameraZoom'] as const).forEach(numeric);
+	if (first.running !== second.running) reasons.push('running');
+	if (first.guarding !== second.guarding) reasons.push('guarding');
+	if (first.jumpRequested !== second.jumpRequested) reasons.push('jumpRequested');
+	if (first.lockOnRequested !== second.lockOnRequested) reasons.push('lockOnRequested');
+	if (first.dodgeRequested !== second.dodgeRequested) reasons.push('dodgeRequested');
+	if (first.parryRequested !== second.parryRequested) reasons.push('parryRequested');
+	if (first.lightRequested !== second.lightRequested) reasons.push('lightRequested');
+	if (first.heavyRequested !== second.heavyRequested) reasons.push('heavyRequested');
+	return Object.freeze({ equal: reasons.length === 0, reasons: Object.freeze(reasons) });
+}
+
+export function replayPlayerInputFrames(frames: readonly PlayerInputFrame[], onFrame: (frame: PlayerInputFrame, index: number) => void): void {
+	for (let index = 0; index < frames.length; index += 1) onFrame(frames[index], index);
+}
+
 export interface PlayerInputDeviceSnapshot {
 	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
 	readonly keyboard: boolean;
@@ -537,10 +650,20 @@ function emitInputDeviceChange(index: number | null, reason: string): void {
 	globalThis.dispatchEvent(new globalThis.CustomEvent(INPUT_DEVICE_EVENT, { detail: Object.freeze({ device: index === null ? 'keyboard-pointer' : 'gamepad', gamepadIndex: index, reason }) }));
 }
 
+export interface KeyboardInputOptions {
+	readonly bindings?: Partial<Record<keyof PlayerInputBindingProfile, unknown>>;
+	readonly calibration?: Partial<PlayerInputCalibration>;
+	readonly actionBuffer?: PlayerInputActionBufferOptions;
+	readonly recorder?: PlayerInputRecorder;
+}
+
 export class KeyboardInput {
 	private readonly _target: PlayerInputTarget;
 	private readonly _keys = new Set<string>();
-	private readonly _actionBuffer = new PlayerInputActionBuffer({ maxEntries: 48, ttlSeconds: 0.36 });
+	private _actionBuffer: PlayerInputActionBuffer;
+	private readonly _bindings: PlayerInputBindingProfile;
+	private readonly _calibration: PlayerInputCalibration;
+	private readonly _recorder: PlayerInputRecorder | null;
 	private _jumpRequested = false;
 	private _lockOnRequested = false;
 	private _guardPointerHeld = false;
@@ -559,16 +682,20 @@ export class KeyboardInput {
 	private readonly _onFocusLoss: (event: Event) => void;
 	private readonly _onVisibilityChange: () => void;
 
-	constructor(target: PlayerInputTarget = window) {
+	constructor(target: PlayerInputTarget = window, { bindings = {}, calibration = {}, actionBuffer = { maxEntries: 48, ttlSeconds: 0.36 }, recorder = null }: KeyboardInputOptions = {}) {
 		
+		this._bindings = normalizePlayerInputBindings(bindings);
+		this._calibration = normalizePlayerInputCalibration(calibration);
+		this._actionBuffer = new PlayerInputActionBuffer(actionBuffer);
+		this._recorder = recorder;
 		this._keys.clear(); this._actionBuffer.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false;
 		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target;
 		this._onKeyDown = (event: Event) => { const keyboardEvent = event as KeyboardEvent;
 			const firstPress = !this._keys.has(keyboardEvent.code);
-			if (JUMP_KEYS.has(keyboardEvent.code) && firstPress) { this._jumpRequested = true; this._actionBuffer.enqueue('jump', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('jump', 'keyboard', 'keyboard'); }
-			if (firstPress && LOCK_ON_KEYS.has(keyboardEvent.code) && !isInteractiveTarget(keyboardEvent.target)) { this._lockOnRequested = true; this._actionBuffer.enqueue('lock-on', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('lock-on', 'keyboard', 'keyboard'); keyboardEvent.preventDefault?.(); }
-			if (firstPress && LIGHT_ATTACK_KEYS.has(keyboardEvent.code)) { this._actionBuffer.enqueue('light', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('light', 'keyboard'); }
-			if (firstPress && HEAVY_ATTACK_KEYS.has(keyboardEvent.code)) { this._actionBuffer.enqueue('heavy', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('heavy', 'keyboard'); }
+			if (new Set(this._bindings.jump).has(keyboardEvent.code) && firstPress) { this._jumpRequested = true; this._actionBuffer.enqueue('jump', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('jump', 'keyboard', 'keyboard'); }
+			if (firstPress && new Set(this._bindings.lockOn).has(keyboardEvent.code) && !isInteractiveTarget(keyboardEvent.target)) { this._lockOnRequested = true; this._actionBuffer.enqueue('lock-on', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('lock-on', 'keyboard', 'keyboard'); keyboardEvent.preventDefault?.(); }
+			if (firstPress && new Set(this._bindings.lightAttack).has(keyboardEvent.code)) { this._actionBuffer.enqueue('light', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('light', 'keyboard'); }
+			if (firstPress && new Set(this._bindings.heavyAttack).has(keyboardEvent.code)) { this._actionBuffer.enqueue('heavy', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('heavy', 'keyboard'); }
 			this._keys.add(keyboardEvent.code);
 		};
 		this._onKeyUp = (event: Event) => { this._keys.delete((event as KeyboardEvent).code); };
@@ -620,16 +747,25 @@ export class KeyboardInput {
 	}
 	consumeActionBuffer(nowSeconds = this._nowSeconds(), limit = 8): readonly PlayerInputActionRecord[] { return this._actionBuffer.drain(nowSeconds, limit); }
 
-	getAxes() {
+	getAxes(): Readonly<{ forward:number; strafe:number; running:boolean; jumpRequested:boolean; lockOnRequested:boolean; guarding:boolean; lookX:number; lookY:number; cameraZoom:number; lookDeltaSeconds?:number }> {
 		const gamepad = this._pollGamepad(); let forward = gamepad.forward, strafe = gamepad.strafe, running = gamepad.running, guarding = this._guardPointerHeld || gamepad.guarding;
-		for (const code of this._keys) { if (FORWARD_KEYS.has(code)) forward += 1; else if (BACK_KEYS.has(code)) forward -= 1; else if (RIGHT_KEYS.has(code)) strafe += 1; else if (LEFT_KEYS.has(code)) strafe -= 1; else if (RUN_KEYS.has(code)) running = true; else if (GUARD_KEYS.has(code)) guarding = true; }
+		for (const code of this._keys) { if (this._bindings.forward.includes(code)) forward += 1; else if (this._bindings.back.includes(code)) forward -= 1; else if (this._bindings.right.includes(code)) strafe += 1; else if (this._bindings.left.includes(code)) strafe -= 1; else if (this._bindings.run.includes(code)) running = true; else if (this._bindings.guard.includes(code)) guarding = true; }
 		const dodgeRequested = gamepad.dodgePressed && gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE;
 		if (dodgeRequested) running = true;
 		if (gamepad.parryPressed) guarding = true;
 		const jumpRequested = this._jumpRequested;
 		this._jumpRequested = false;
-		return { forward: Math.max(-1, Math.min(1, forward)), strafe: Math.max(-1, Math.min(1, strafe)), running, jumpRequested: jumpRequested || dodgeRequested, lockOnRequested: this._lockOnRequested, guarding, lookX: gamepad.lookX, lookY: gamepad.lookY, cameraZoom: gamepad.cameraZoom, lookDeltaSeconds: gamepad.lookDeltaSeconds };
+		const result = { forward: Math.max(-1, Math.min(1, forward)), strafe: Math.max(-1, Math.min(1, strafe)), running, jumpRequested: jumpRequested || dodgeRequested, lockOnRequested: this._lockOnRequested, guarding, lookX: Number((gamepad.lookX * this._calibration.lookSensitivity).toFixed(6)), lookY: Number((gamepad.lookY * this._calibration.lookSensitivity).toFixed(6)), cameraZoom: Number((gamepad.cameraZoom * this._calibration.zoomSensitivity).toFixed(6)), lookDeltaSeconds: gamepad.lookDeltaSeconds };
+		if (this._recorder?.isRecording()) this._recorder.record(createPlayerInputFrame({ ...result, device: this._activeGamepadIndex === null ? 'keyboard' : 'gamepad', timestampSeconds: this._nowSeconds(), actionCount: this._actionBuffer.peek(this._nowSeconds()).length }));
+		return Object.freeze(result);
 	}
+	startRecording(): void { this._recorder?.start(); }
+	stopRecording(): void { this._recorder?.stop(); }
+	getRecordedInput(): PlayerInputReplaySnapshot { return this._recorder?.snapshot() ?? Object.freeze({ version: PLAYER_INPUT_CONTRACT_VERSION, frameCount: 0, frames: Object.freeze([]) }); }
+	getDeviceSnapshot(): PlayerInputDeviceSnapshot { const snapshot = readPlayerInputDeviceSnapshot(); return Object.freeze({ ...snapshot, gamepadIndex: this._activeGamepadIndex }); }
+	getBindingProfile(): PlayerInputBindingProfile { return this._bindings; }
+	getCalibration(): PlayerInputCalibration { return this._calibration; }
+
 	consumeLockOnRequested(): boolean { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
 	dispose(): void {
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) this._target.removeEventListener(type, handler);
