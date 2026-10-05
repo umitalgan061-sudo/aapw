@@ -5,6 +5,7 @@ import {
   PlayerInputActionBuffer,
   PlayerInputRecorder,
   PlayerInputLatencyMonitor,
+  PlayerInputContextGate,
   DEFAULT_PLAYER_INPUT_BINDINGS,
   DEFAULT_PLAYER_INPUT_CALIBRATION,
   KeyboardInput,
