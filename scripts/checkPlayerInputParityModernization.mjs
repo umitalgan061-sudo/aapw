@@ -42,3 +42,10 @@ console.log(JSON.stringify({
   deviceSnapshot: true,
   touchDodgeParryParity: true,
 }));
+
+if (!touch.includes("g3d-touch-camera-pad")) fail.push('touch:g3d-touch-camera-pad');
+if (!touch.includes("_cameraPointers")) fail.push('touch:_cameraPointers');
+if (!touch.includes("_lastPinchDistance")) fail.push('touch:_lastPinchDistance');
+if (!touch.includes("_cameraZoom")) fail.push('touch:_cameraZoom');
+if (!touch.includes("const dodgeFallback")) fail.push('touch:const dodgeFallback');
+if (!touch.includes("safe-area-inset-bottom")) fail.push('touch:safe-area-inset-bottom');
