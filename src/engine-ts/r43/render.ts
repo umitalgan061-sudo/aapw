@@ -38,6 +38,14 @@ const TIER_SCALE: Record<QualityTier, number> = {
   safe: 0.5,
 };
 
+const PRIORITY_WEIGHT: Record<WorkPriority, number> = {
+  critical: 0,
+  high: 1,
+  normal: 2,
+  low: 3,
+  background: 4,
+};
+
 export class RenderGraph {
   #passes = new Map<string, RenderPass>();
 
@@ -122,7 +130,7 @@ export class RenderGraph {
   #compare = (a: RenderPass, b: RenderPass): number => {
     const phase = PASS_ORDER[a.phase] - PASS_ORDER[b.phase];
     if (phase !== 0) return phase;
-    const pa = a.priority.localeCompare(b.priority);
+    const pa = PRIORITY_WEIGHT[a.priority] - PRIORITY_WEIGHT[b.priority];
     return pa !== 0 ? pa : a.id.localeCompare(b.id);
   };
 }
