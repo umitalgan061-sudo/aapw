@@ -141,18 +141,21 @@ export class TouchJoystick {
 	getAxes(): TouchJoystickAxes {
 		const ratio = this._radiusPx > 0 ? Math.hypot(this._dragX, this._dragY) / this._radiusPx : 0;
 		const axis = normalizePlayerInputAxis(this._dragX / Math.max(1, this._radiusPx), -this._dragY / Math.max(1, this._radiusPx), this._deadzoneRatio);
-		if (ratio < this._deadzoneRatio || !this._enabled) return Object.freeze({ forward: 0, strafe: 0, running: this._dodgeRequested, guarding: (this._guardHeld || this._parryRequested) && this._enabled });
-		return Object.freeze({
+		if (ratio < this._deadzoneRatio || !this._enabled) { const result = Object.freeze({ forward: 0, strafe: 0, running: this._dodgeRequested, guarding: (this._guardHeld || this._parryRequested) && this._enabled }); this._dodgeRequested = false; this._parryRequested = false; return result; }
+		const result = Object.freeze({
 			forward: clamp(axis.y, -1, 1),
 			strafe: clamp(axis.x, -1, 1),
 			running: ratio >= this._runThresholdRatio || this._dodgeRequested,
 			guarding: (this._guardHeld || this._parryRequested) && this._enabled,
 		});
+		this._dodgeRequested = false;
+		this._parryRequested = false;
+		return result;
 	}
 	getInputFrame(): PlayerInputFrame {
-		const axes = this.getAxes();
 		const dodgeRequested = this._dodgeRequested;
 		const parryRequested = this._parryRequested;
+		const axes = this.getAxes();
 		this._dodgeRequested = false;
 		this._parryRequested = false;
 		const now = this._nowSeconds();
@@ -197,7 +200,7 @@ export class TouchJoystick {
 		this._knob.style.transform = '';
 		this._base.classList.remove('g3d-joystick-active');
 	}
-	consumeJumpRequested(): boolean { const requested = this._jumpRequested; this._jumpRequested = false; return requested; }
+	consumeJumpRequested(): boolean { const requested = this._jumpRequested || this._dodgeRequested; this._jumpRequested = false; this._dodgeRequested = false; return requested; }
 	consumeLockOnRequested(): boolean { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
 	setLockOnActive(active: boolean): void {
 		const locked = Boolean(active);
