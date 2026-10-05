@@ -170,6 +170,25 @@ export class SimulationAuthorityR42 {
       return true;
     }
 
+    if (command.kind === 'move') {
+      const x = typeof command.payload.x === 'number' ? command.payload.x : 0;
+      const z = typeof command.payload.y === 'number' ? command.payload.y : 0;
+      const direction = normalize2({ x, y: z });
+      const speed = this.rules.maxSpeed;
+      this.world.patch({
+        entityId: entity.id,
+        revision: entity.revision,
+        changes: {
+          linearVelocity: {
+            x: direction.x * speed,
+            y: entity.velocity.linear.y,
+            z: direction.y * speed,
+          },
+        },
+      });
+      return true;
+    }
+
     if (command.kind === 'guard') {
       this.world.patch({
         entityId: entity.id,
