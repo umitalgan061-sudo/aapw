@@ -13,6 +13,17 @@ import {
 } from '../../src/3d/input.ts';
 
 describe('Kızıl Ufuk touch/input parity contract', () => {
+  it('defines right-thumb camera, pinch zoom and dodge/parry controls in the same owner', () => {
+    const source = readFileSync(new URL('../../src/3d/ui/touchJoystick.ts', import.meta.url), 'utf8');
+    expect(source).toContain('g3d-touch-camera-pad');
+    expect(source).toContain('_cameraPointers');
+    expect(source).toContain('_lastPinchDistance');
+    expect(source).toContain('_cameraZoom');
+    expect(source).toContain('_queueAction(' + "'dodge'" + ')');
+    expect(source).toContain('_queueAction(' + "'parry'" + ')');
+    expect(source).toContain('const dodgeFallback');
+    expect(source).toContain('safe-area-inset-bottom');
+  });
   it('resolves a bounded responsive safe-area layout for portrait and landscape', () => {
     const portrait = resolveTouchControlLayout(390, 844, 34);
     const landscape = resolveTouchControlLayout(844, 390, 24);
