@@ -69,7 +69,7 @@ export interface QueryResult {
 export class EcsWorld {
   #nextEntity = 1;
   #alive = new Set<EntityId>();
-  #free = new number[0];
+  #free: number[] = [];
   #stores = new Map<ComponentKey, ComponentStore<unknown>>();
   #componentFactories = new Map<ComponentKey, () => unknown>();
 
