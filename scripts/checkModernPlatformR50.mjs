@@ -216,7 +216,7 @@ for (const [file, source] of contents) {
 }
 
 console.log(
-  '[R50] production boundary verified: '
+  '[R50] production boundary verified: ' +
   requiredFiles.length +
   ' required files; ' +
   sourceFiles.length +
