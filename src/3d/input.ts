@@ -278,6 +278,77 @@ const sanitizeBindings = (bindings: Partial<Record<keyof PlayerInputBindingProfi
 	});
 };
 
+
+
+export interface PlayerInputBindingValidation {
+	readonly ok: boolean;
+	readonly collisions: readonly Readonly<{ code: string; actions: readonly string[] }>[];
+	readonly emptyActions: readonly string[];
+	readonly normalized: PlayerInputBindingProfile;
+}
+
+export function mergePlayerInputBindings(
+	base: PlayerInputBindingProfile = DEFAULT_PLAYER_INPUT_BINDINGS,
+	overrides: Partial<Record<keyof PlayerInputBindingProfile, unknown>> = {},
+): PlayerInputBindingProfile {
+	const source = base as unknown as Record<string, unknown>;
+	return normalizePlayerInputBindings({
+		forward: overrides.forward ?? source.forward,
+		back: overrides.back ?? source.back,
+		right: overrides.right ?? source.right,
+		left: overrides.left ?? source.left,
+		run: overrides.run ?? source.run,
+		jump: overrides.jump ?? source.jump,
+		guard: overrides.guard ?? source.guard,
+		lightAttack: overrides.lightAttack ?? source.lightAttack,
+		heavyAttack: overrides.heavyAttack ?? source.heavyAttack,
+		lockOn: overrides.lockOn ?? source.lockOn,
+	});
+}
+
+export function validatePlayerInputBindings(
+	bindings: Partial<Record<keyof PlayerInputBindingProfile, unknown>> = {},
+): PlayerInputBindingValidation {
+	const normalized = normalizePlayerInputBindings(bindings);
+	const entries: readonly (readonly [string, readonly string[]])[] = [
+		['forward', normalized.forward], ['back', normalized.back], ['right', normalized.right], ['left', normalized.left],
+		['run', normalized.run], ['jump', normalized.jump], ['guard', normalized.guard],
+		['lightAttack', normalized.lightAttack], ['heavyAttack', normalized.heavyAttack], ['lockOn', normalized.lockOn],
+	];
+	const byCode = new Map<string, string[]>();
+	for (const [action, codes] of entries) {
+		for (const code of codes) {
+			const actions = byCode.get(code) ?? [];
+			actions.push(action);
+			byCode.set(code, actions);
+		}
+	}
+	const collisions = [...byCode.entries()]
+		.filter(([, actions]) => actions.length > 1)
+		.map(([code, actions]) => Object.freeze({ code, actions: Object.freeze([...actions]) }));
+	const emptyActions = entries.filter(([, codes]) => codes.length === 0).map(([action]) => action);
+	return Object.freeze({
+		ok: collisions.length === 0 && emptyActions.length === 0,
+		collisions: Object.freeze(collisions),
+		emptyActions: Object.freeze(emptyActions),
+		normalized,
+	});
+}
+
+export function resolvePlayerInputKeyAction(
+	code: unknown,
+	bindings: PlayerInputBindingProfile = DEFAULT_PLAYER_INPUT_BINDINGS,
+): PlayerInputAction | null {
+	if (typeof code !== 'string' || code.length === 0) return null;
+	const profile = bindings;
+	if (profile.heavyAttack.includes(code)) return 'heavy';
+	if (profile.lightAttack.includes(code)) return 'light';
+	if (profile.jump.includes(code)) return 'jump';
+	if (profile.lockOn.includes(code)) return 'lock-on';
+	if (profile.guard.includes(code)) return 'parry';
+	return null;
+}
+
 export function normalizePlayerInputBindings(bindings: Partial<Record<keyof PlayerInputBindingProfile, unknown>> = {}): PlayerInputBindingProfile {
 	return sanitizeBindings(bindings);
 }
