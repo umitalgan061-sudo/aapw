@@ -1,0 +1,84 @@
+name: modern-runtime-r50
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/modern/r50/**'
+      - 'tests/modern/r50/**'
+      - 'scripts/checkModernPlatformR50.mjs'
+      - 'tsconfig.modern-r50.json'
+      - 'package.json'
+      - '.github/workflows/modern-runtime-r50.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/3d/modern/r50/**'
+      - 'tests/modern/r50/**'
+      - 'scripts/checkModernPlatformR50.mjs'
+      - 'tsconfig.modern-r50.json'
+      - 'package.json'
+      - '.github/workflows/modern-runtime-r50.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r50-${ github.workflow }-${ github.ref }
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: R50 static + type + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Static runtime boundary
+        run: npm run verify:r50
+
+      - name: TypeScript R50 contract
+        run: npm run typecheck:r50
+
+      - name: R50 regression suite
+        run: npm run test:r50
+
+      - name: Full project typecheck
+        run: npm run typecheck
+
+  determinism:
+    name: R50 deterministic surface
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+
+      - name: Guard deterministic/security primitives
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r file; do
+            if grep -nE 'Math\\.random\\(|Date\\.now\\(|eval\\(|new[[:space:]]+Function\\(' "$file"; then
+              echo "Forbidden primitive found in R50 surface: $file"
+              exit 1
+            fi
+          done < <(find src/3d/modern/r50 -name '*.ts' -type f | sort)
+
+          echo "R50 deterministic/security primitive guard passed."
