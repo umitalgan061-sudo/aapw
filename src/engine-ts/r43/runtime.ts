@@ -13,7 +13,6 @@ import {
 } from './contracts.ts';
 import { AssetOrchestrator, type AssetProvider } from './assets.ts';
 import { FixedStepClock } from './clock.ts';
-import { EcsWorld } from './ecs.ts';
 import { InputBuffer, InputHistory, type InputBinding } from './input.ts';
 import { NetworkSession, type SnapshotDelta } from './network.ts';
 import { HealthMonitor, TelemetryRegistry } from './observability.ts';
@@ -22,7 +21,6 @@ import { RenderBudgetGovernor, RenderGraph } from './render.ts';
 import { DeterministicScheduler } from './scheduler.ts';
 import { CommandSecurityGate, createDefaultSecurityPolicy } from './security.ts';
 import { SimulationKernel } from './simulation.ts';
-import { SpatialGrid } from './spatial.ts';
 
 export interface R43RuntimeOptions {
   readonly config?: Partial<R43Config>;
@@ -69,8 +67,8 @@ const DEFAULT_CONFIG: R43Config = Object.freeze({
 export class R43Runtime {
   readonly config: R43Config;
   readonly clock: FixedStepClock;
-  readonly world: EcsWorld;
-  readonly spatial: SpatialGrid;
+  readonly world: SimulationKernel['world'];
+  readonly spatial: SimulationKernel['spatial'];
   readonly scheduler: DeterministicScheduler;
   readonly simulation: SimulationKernel;
   readonly render: RenderGraph;
@@ -99,10 +97,10 @@ export class R43Runtime {
       maxSubSteps: this.config.maxSubSteps,
       maxDeltaSeconds: this.config.maxFrameDeltaSeconds,
     });
-    this.world = new EcsWorld();
-    this.spatial = new SpatialGrid(32);
     this.scheduler = new DeterministicScheduler();
     this.simulation = new SimulationKernel({ clock: this.clock, scheduler: this.scheduler, spatialCellSize: 32 });
+    this.world = this.simulation.world;
+    this.spatial = this.simulation.spatial;
     this.render = new RenderGraph();
     this.quality = new RenderBudgetGovernor(this.config.initialQuality, 0.5, 1);
     this.assets = new AssetOrchestrator({ maxBytes: this.config.limits.maxAssetBytes, concurrency: 6 });
@@ -155,7 +153,7 @@ export class R43Runtime {
     if (!this.security.validatePayload(command).ok) return failure({ code: 'R43_COMMAND_REJECTED', message: 'Command payload rejected.', retryable: false });
     const valid = this.security.validateCommand(command, nowSeconds);
     if (!valid.ok || !valid.value) return valid;
-    if (this.simulation.eventsSince(Math.max(0, this.clock.frame() - 1)).length >= this.config.limits.maxCommandsPerFrame) {
+    if (this.simulation.commandCount() >= this.config.limits.maxCommandsPerFrame) {
       return failure({ code: 'R43_COMMAND_QUEUE_LIMIT', message: 'Command budget reached.', retryable: true });
     }
     this.simulation.enqueue(valid.value);
