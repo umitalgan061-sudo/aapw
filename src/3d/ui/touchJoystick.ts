@@ -6,7 +6,7 @@
  */
 
 import { TOUCH_JOYSTICK_CONFIG } from '../config.ts';
-import { PlayerInputActionBuffer, createPlayerInputFrame, emitPlayerCombatIntent, emitPlayerInputAction, normalizePlayerInputAxis, type PlayerInputFrame, type PlayerInputActionRecord } from '../input.ts';
+import { PlayerInputActionBuffer, createPlayerInputFrame, emitPlayerCombatIntent, emitPlayerInputAction, normalizePlayerInputAxis, type PlayerInputAction, type PlayerInputFrame, type PlayerInputActionRecord } from '../input.ts';
 
 function clamp(value: number, min: number, max: number): number { return Math.max(min, Math.min(max, value)); }
 
@@ -42,6 +42,8 @@ export class TouchJoystick {
 	private _jumpRequested = false;
 	private _lockOnRequested = false;
 	private _guardHeld = false;
+	private _dodgeRequested = false;
+	private _parryRequested = false;
 	private _enabled = true;
 	private _lastFrameSequence = 0;
 	private _base: HTMLDivElement;
@@ -51,12 +53,16 @@ export class TouchJoystick {
 	private _lockOnButton: HTMLButtonElement;
 	private _lightAttackButton: HTMLButtonElement;
 	private _heavyAttackButton: HTMLButtonElement;
+	private _dodgeButton: HTMLButtonElement;
+	private _parryButton: HTMLButtonElement;
 	private readonly _onJumpClick: (event: MouseEvent) => void;
 	private readonly _onGuardDown: (event: TouchPointerEvent) => void;
 	private readonly _onGuardUp: (event: TouchPointerEvent) => void;
 	private readonly _onLockOn: (event: TouchPointerEvent) => void;
 	private readonly _onLightAttack: (event: TouchPointerEvent) => void;
 	private readonly _onHeavyAttack: (event: TouchPointerEvent) => void;
+	private readonly _onDodge: (event: TouchPointerEvent) => void;
+	private readonly _onParry: (event: TouchPointerEvent) => void;
 	private readonly _onPointerDown: (event: TouchPointerEvent) => void;
 	private readonly _onPointerMove: (event: TouchPointerEvent) => void;
 	private readonly _onPointerUp: (event: TouchPointerEvent) => void;
@@ -94,6 +100,16 @@ export class TouchJoystick {
 		Object.assign(this._heavyAttackButton.style, { position: 'fixed', right: '112px', bottom: '156px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
 		this._onHeavyAttack = (event: TouchPointerEvent) => { if (!this._enabled) return; this._queueAction('heavy'); emitPlayerCombatIntent('heavy', 'touch'); event.preventDefault?.(); this._vibrate(42); };
 		this._heavyAttackButton.addEventListener('pointerdown', this._onHeavyAttack); container.appendChild(this._heavyAttackButton);
+		this._dodgeButton = document.createElement('button'); this._dodgeButton.type = 'button'; this._dodgeButton.className = 'g3d-touch-dodge-button'; this._dodgeButton.textContent = 'Kaçın'; this._dodgeButton.setAttribute('aria-label', 'Kaçın');
+		Object.assign(this._dodgeButton.style, { position: 'fixed', right: '28px', bottom: '96px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
+		this._onDodge = (event: TouchPointerEvent) => { if (!this._enabled) return; this._dodgeRequested = true; this._queueAction('dodge'); event.preventDefault?.(); this._vibrate(34); };
+		this._dodgeButton.addEventListener('pointerdown', this._onDodge); container.appendChild(this._dodgeButton);
+
+		this._parryButton = document.createElement('button'); this._parryButton.type = 'button'; this._parryButton.className = 'g3d-touch-parry-button'; this._parryButton.textContent = 'Karşıla'; this._parryButton.setAttribute('aria-label', 'Karşıla');
+		Object.assign(this._parryButton.style, { position: 'fixed', right: '196px', bottom: '156px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
+		this._onParry = (event: TouchPointerEvent) => { if (!this._enabled) return; this._parryRequested = true; this._queueAction('parry'); event.preventDefault?.(); this._vibrate(22); };
+		this._parryButton.addEventListener('pointerdown', this._onParry); container.appendChild(this._parryButton);
+
 
 		this._onPointerDown = this._handlePointerDown.bind(this); this._onPointerMove = this._handlePointerMove.bind(this); this._onPointerUp = this._handlePointerUp.bind(this);
 		this._base.addEventListener('pointerdown', this._onPointerDown); this._base.addEventListener('pointermove', this._onPointerMove); this._base.addEventListener('pointerup', this._onPointerUp); this._base.addEventListener('pointercancel', this._onPointerUp);
@@ -112,7 +128,7 @@ export class TouchJoystick {
 		this._pointerId = null; this._dragX = 0; this._dragY = 0; this._knob.style.transform = ''; this._base.classList.remove('g3d-joystick-active');
 	}
 	private _nowSeconds(): number { return Number(((globalThis.performance?.now?.() ?? Date.now()) / 1000).toFixed(6)); }
-	private _queueAction(action: Parameters<PlayerInputActionBuffer['enqueue']>[0]): PlayerInputActionRecord {
+	private _queueAction(action: PlayerInputAction): PlayerInputActionRecord {
 		const record = this._actionBuffer.enqueue(action, 'touch', 'touch', this._nowSeconds());
 		emitPlayerInputAction(action, 'touch', 'touch');
 		this._lastFrameSequence = record.sequence;
@@ -125,16 +141,20 @@ export class TouchJoystick {
 	getAxes(): TouchJoystickAxes {
 		const ratio = this._radiusPx > 0 ? Math.hypot(this._dragX, this._dragY) / this._radiusPx : 0;
 		const axis = normalizePlayerInputAxis(this._dragX / Math.max(1, this._radiusPx), -this._dragY / Math.max(1, this._radiusPx), this._deadzoneRatio);
-		if (ratio < this._deadzoneRatio || !this._enabled) return Object.freeze({ forward: 0, strafe: 0, running: false, guarding: this._guardHeld && this._enabled });
+		if (ratio < this._deadzoneRatio || !this._enabled) return Object.freeze({ forward: 0, strafe: 0, running: this._dodgeRequested, guarding: (this._guardHeld || this._parryRequested) && this._enabled });
 		return Object.freeze({
 			forward: clamp(axis.y, -1, 1),
 			strafe: clamp(axis.x, -1, 1),
-			running: ratio >= this._runThresholdRatio,
-			guarding: this._guardHeld && this._enabled,
+			running: ratio >= this._runThresholdRatio || this._dodgeRequested,
+			guarding: (this._guardHeld || this._parryRequested) && this._enabled,
 		});
 	}
 	getInputFrame(): PlayerInputFrame {
 		const axes = this.getAxes();
+		const dodgeRequested = this._dodgeRequested;
+		const parryRequested = this._parryRequested;
+		this._dodgeRequested = false;
+		this._parryRequested = false;
 		const now = this._nowSeconds();
 		const pending = this._actionBuffer.peek(now);
 		return createPlayerInputFrame({
@@ -143,10 +163,10 @@ export class TouchJoystick {
 			sequence: pending.at(-1)?.sequence ?? this._lastFrameSequence,
 			timestampSeconds: now,
 			actionCount: pending.length,
-			jumpRequested: this._jumpRequested,
+			jumpRequested: this._jumpRequested || dodgeRequested,
 			lockOnRequested: this._lockOnRequested,
-			dodgeRequested: pending.some((action) => action.action === 'dodge'),
-			parryRequested: pending.some((action) => action.action === 'parry'),
+			dodgeRequested: dodgeRequested || pending.some((action) => action.action === 'dodge'),
+			parryRequested: parryRequested || pending.some((action) => action.action === 'parry'), pending.some((action) => action.action === 'parry'),
 			lightRequested: pending.some((action) => action.action === 'light'),
 			heavyRequested: pending.some((action) => action.action === 'heavy'),
 		});
@@ -158,6 +178,8 @@ export class TouchJoystick {
 		this._enabled = Boolean(enabled);
 		if (!this._enabled) {
 			this._guardHeld = false;
+			this._dodgeRequested = false;
+			this._parryRequested = false;
 			this._jumpRequested = false;
 			this._lockOnRequested = false;
 			this._resetPointerState();
@@ -186,7 +208,7 @@ export class TouchJoystick {
 	dispose(): void { this.setEnabled(false);
 		this._base.removeEventListener('pointerdown', this._onPointerDown); this._base.removeEventListener('pointermove', this._onPointerMove); this._base.removeEventListener('pointerup', this._onPointerUp); this._base.removeEventListener('pointercancel', this._onPointerUp);
 		this._jumpButton.removeEventListener('click', this._onJumpClick); this._guardButton.removeEventListener('pointerdown', this._onGuardDown); this._guardButton.removeEventListener('pointerup', this._onGuardUp); this._guardButton.removeEventListener('pointercancel', this._onGuardUp); this._guardButton.removeEventListener('pointerleave', this._onGuardUp);
-		this._lockOnButton.removeEventListener('pointerdown', this._onLockOn); this._lightAttackButton.removeEventListener('pointerdown', this._onLightAttack); this._heavyAttackButton.removeEventListener('pointerdown', this._onHeavyAttack);
+		this._lockOnButton.removeEventListener('pointerdown', this._onLockOn); this._lightAttackButton.removeEventListener('pointerdown', this._onLightAttack); this._heavyAttackButton.removeEventListener('pointerdown', this._onHeavyAttack); this._dodgeButton.removeEventListener('pointerdown', this._onDodge); this._parryButton.removeEventListener('pointerdown', this._onParry);
 		this._jumpRequested = false; this._lockOnRequested = false; this._guardHeld = false; this._guardButton.remove(); this._lockOnButton.remove(); this._jumpButton.remove(); this._lightAttackButton.remove(); this._heavyAttackButton.remove(); this._base.remove();
 	}
 }
