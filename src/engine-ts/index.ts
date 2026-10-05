@@ -77,3 +77,4 @@ export const createModernEngineFacade = (): ModernEngineFacade => {
     dispose: () => { runtime.dispose(); telemetry.dispose(); typed.dispose(); },
   };
 };
+export * from './r43/index.ts';

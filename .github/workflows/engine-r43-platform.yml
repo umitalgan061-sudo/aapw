@@ -1,0 +1,42 @@
+name: engine-r43-platform
+
+on:
+  pull_request:
+    paths:
+      - 'src/engine-ts/r43/**'
+      - 'tests/engine-r43/**'
+      - 'scripts/checkEngineR43.ts'
+      - 'src/engine-ts/index.ts'
+      - 'tsconfig.r43.json'
+      - 'package.json'
+      - '.github/workflows/engine-r43-platform.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/engine-ts/r43/**'
+      - 'tests/engine-r43/**'
+      - 'scripts/checkEngineR43.ts'
+      - 'src/engine-ts/index.ts'
+      - 'tsconfig.r43.json'
+      - 'package.json'
+      - '.github/workflows/engine-r43-platform.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-r43-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  r43:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run check:r43
+      - run: npm run typecheck

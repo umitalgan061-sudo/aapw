@@ -195,7 +195,12 @@
     "check:runtime-r42": "npm run verify:runtime-r42 && npm run typecheck:runtime-r42 && npm run test:runtime-r42",
     "verify:living-world-r11": "node scripts/checkLivingWorldRuntimeR11.mjs",
     "test:living-world-r11": "vitest run tests/modern/livingWorldRuntimeKernelR11.test.ts",
-    "check:living-world-r11": "npm run verify:living-world-r11 && npm run test:living-world-r11 && npm run typecheck"
+    "check:living-world-r11": "npm run verify:living-world-r11 && npm run test:living-world-r11 && npm run typecheck",
+    "verify:r43": "node --experimental-strip-types scripts/checkEngineR43.ts",
+    "typecheck:r43": "tsc -p tsconfig.r43.json --noEmit",
+    "test:r43": "vitest run tests/engine-r43 --passWithNoTests",
+    "check:r43": "npm run verify:r43 && npm run typecheck:r43 && npm run test:r43",
+    "check:modern:r43": "npm run check:r43 && npm run typecheck && npm test -- --passWithNoTests"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
