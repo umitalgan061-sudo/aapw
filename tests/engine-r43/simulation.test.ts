@@ -32,7 +32,7 @@ describe('r43 clock', () => {
     expect(meter.average()).toBeCloseTo(20, 6);
     expect(meter.p95()).toBe(30);
   });
-}
+});
 
 describe('r43 simulation kernel', () => {
   it('runs a fixed-step system and advances components', () => {
