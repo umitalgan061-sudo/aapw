@@ -80,7 +80,19 @@ export function computeCameraRelativeMove(camera, controls, axes) {
 	_move.normalize().multiplyScalar(inputMagnitude); return { x: _move.x, z: _move.z, guarding };
 }
 export function combineAxes(keyboardAxes, joystickAxes) {
-	if (!joystickAxes) return keyboardAxes; return { forward: Math.max(-1, Math.min(1, keyboardAxes.forward + joystickAxes.forward)), strafe: Math.max(-1, Math.min(1, keyboardAxes.strafe + joystickAxes.strafe)), running: keyboardAxes.running || joystickAxes.running, guarding: Boolean(keyboardAxes.guarding || joystickAxes.guarding), lockOnRequested: Boolean(keyboardAxes.lockOnRequested), lookX: keyboardAxes.lookX ?? 0, lookY: keyboardAxes.lookY ?? 0, cameraZoom: keyboardAxes.cameraZoom ?? 0, lookDeltaSeconds: keyboardAxes.lookDeltaSeconds ?? 0 };
+	if (!joystickAxes) return keyboardAxes;
+	const joystickHasLook = Math.abs(Number(joystickAxes.lookX) || 0) > 0 || Math.abs(Number(joystickAxes.lookY) || 0) > 0 || Math.abs(Number(joystickAxes.cameraZoom) || 0) > 0;
+	return Object.freeze({
+		forward: Math.max(-1, Math.min(1, keyboardAxes.forward + joystickAxes.forward)),
+		strafe: Math.max(-1, Math.min(1, keyboardAxes.strafe + joystickAxes.strafe)),
+		running: Boolean(keyboardAxes.running || joystickAxes.running),
+		guarding: Boolean(keyboardAxes.guarding || joystickAxes.guarding),
+		lockOnRequested: Boolean(keyboardAxes.lockOnRequested),
+		lookX: joystickHasLook ? Math.max(-1, Math.min(1, Number(joystickAxes.lookX) || 0)) : Number(keyboardAxes.lookX) || 0,
+		lookY: joystickHasLook ? Math.max(-1, Math.min(1, Number(joystickAxes.lookY) || 0)) : Number(keyboardAxes.lookY) || 0,
+		cameraZoom: joystickHasLook ? Math.max(-1, Math.min(1, Number(joystickAxes.cameraZoom) || 0)) : Number(keyboardAxes.cameraZoom) || 0,
+		lookDeltaSeconds: joystickHasLook ? Math.max(0, Math.min(0.3, Number(joystickAxes.lookDeltaSeconds) || 0)) : Math.max(0, Math.min(0.3, Number(keyboardAxes.lookDeltaSeconds) || 0)),
+	});
 }
 export function updatePlayerLockOn(state) {
 	if (!state?.player?.object3D || !state?.camera || !state?.controls || !state?.keyboardInput) return null; state.playerLockOn ??= createPlayerLockOnController(); const nowSeconds = (globalThis.performance?.now?.() ?? Date.now()) / 1000, previousSeconds = Number.isFinite(state.playerLockOnLastSeconds) ? state.playerLockOnLastSeconds : nowSeconds; state.playerLockOnLastSeconds = nowSeconds; const delta = state.paused ? 0 : Math.max(0, Math.min(0.1, nowSeconds - previousSeconds));
