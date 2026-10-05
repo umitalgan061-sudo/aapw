@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { resolveTouchControlLayout } from '../../src/3d/ui/touchJoystick.ts';
 import {
   PLAYER_INPUT_CONTRACT_VERSION,
   createPlayerInputFrame,
@@ -12,6 +13,19 @@ import {
 } from '../../src/3d/input.ts';
 
 describe('Kızıl Ufuk touch/input parity contract', () => {
+  it('resolves a bounded responsive safe-area layout for portrait and landscape', () => {
+    const portrait = resolveTouchControlLayout(390, 844, 34);
+    const landscape = resolveTouchControlLayout(844, 390, 24);
+    expect(portrait.orientation).toBe('portrait');
+    expect(landscape.orientation).toBe('landscape');
+    expect(portrait.bottomInsetPx).toBeGreaterThanOrEqual(106);
+    expect(landscape.bottomInsetPx).toBeGreaterThanOrEqual(72);
+    expect(portrait.scale).toBeLessThanOrEqual(1.12);
+    expect(landscape.scale).toBeGreaterThanOrEqual(0.82);
+    expect(portrait.buttonWidthPx).toBeGreaterThan(0);
+    expect(landscape.buttonHeightPx).toBeGreaterThan(0);
+    expect(Object.isFrozen(portrait)).toBe(true);
+  });
   it('keeps the touch controller on the same versioned frame contract', () => {
     const frame = createPlayerInputFrame({
       device: 'touch',
