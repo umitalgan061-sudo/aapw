@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "src/engine-ts/r43/**/*.ts",
+    "tests/engine-r43/**/*.ts",
+    "scripts/checkEngineR43.ts"
+  ]
+}
