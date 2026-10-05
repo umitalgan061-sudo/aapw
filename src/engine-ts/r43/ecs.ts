@@ -179,7 +179,8 @@ export class EcsWorld {
         if (this.alive(entity)) store.set(entity, value);
       }
     }
-    this.#nextEntity = Math.max(this.#nextEntity, ...this.#alive, 0) + 1;
+    const highest = this.#alive.size === 0 ? 0 : Math.max(...this.#alive);
+    this.#nextEntity = Math.max(this.#nextEntity, highest + 1);
   }
 }
 
