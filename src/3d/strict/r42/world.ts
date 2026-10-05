@@ -167,8 +167,7 @@ export class EntityWorldR42 {
     const next: WorldEntity = Object.freeze({
       ...current,
       revision: current.revision + 1,
-      transform: patch.transforms?.position ? current.transform : current.transform,
-    } as WorldEntity);
+    });
     const changes = patch.changes as Record<string, unknown>;
     const merged = applyKnownChanges(next, changes);
     this.#entities.set(current.id, merged);
