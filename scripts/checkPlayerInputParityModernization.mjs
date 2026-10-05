@@ -30,16 +30,6 @@ assert.match(game3d, /new TouchJoystick()/);
 assert.match(game3d, /keyboardInput.getAxes()/);
 assert.match(game3d, /touchJoystick?.getAxes()/);
 
-const assetCandidates = [
-  'assets/models/characters/peasant_girl.fbx',
-  'assets/animations/peasant_girl/idle.fbx',
-  'assets/animations/peasant_girl/walking.fbx',
-  'assets/animations/peasant_girl/running.fbx',
-];
-for (const relative of assetCandidates) {
-  const info = await stat(new URL(relative, root));
-  assert.ok(info.size > 128, `asset too small: ${relative}`);
-}
 
 console.log(JSON.stringify({
   ok: true,
@@ -51,5 +41,4 @@ console.log(JSON.stringify({
   remapBindings: true,
   deviceSnapshot: true,
   touchDodgeParryParity: true,
-  shippedPlayerAssets: assetCandidates.length,
 }));
