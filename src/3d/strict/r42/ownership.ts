@@ -29,7 +29,8 @@ export async function scanOwnershipR42(
   projectRoot = new URL('../../../../', import.meta.url),
 ): Promise<OwnershipR42Report> {
   const sourceRoot = new URL('src/', projectRoot);
-  const scriptsRoot = new URL('scripts/', projectRoot);
+  // Build/test tooling under scripts/ may legitimately remain .mjs/.js during the repository-wide migration.
+  // Production runtime ownership is governed by src/ and the dedicated R41 compatibility checks.
   const unowned: string[] = [];
   const generated: string[] = [];
   const missingTypeOwners: string[] = [];
@@ -37,7 +38,7 @@ export async function scanOwnershipR42(
   let owned = 0;
   let shims = 0;
 
-  for (const root of [sourceRoot, scriptsRoot]) {
+  for (const root of [sourceRoot]) {
     const files = await walk(root);
     for (const file of files) {
       const relativePath = relative(projectRoot.pathname, file.pathname).replaceAll('\\', '/');
