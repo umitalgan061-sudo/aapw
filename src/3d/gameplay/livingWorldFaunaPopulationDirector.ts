@@ -23,6 +23,7 @@ import {
   auditEcologyPlan,
 } from './livingWorldEcologyPolicy.js';
 import { planFaunaRuntimeTick } from './livingWorldFaunaRuntimeBridge.js';
+import { createLivingWorldRuntimeKernel } from './livingWorldRuntimeKernel.ts';
 
 const freeze = (value) => Object.freeze(value);
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -477,16 +478,30 @@ export function auditFaunaPopulationPlan(plan) {
 
 export function createFaunaPopulationDirector(defaults = {}) {
   let disposed = false;
+  const runtimeKernel = createLivingWorldRuntimeKernel({
+    stimulusBudget: Number(defaults.stimulusBudget ?? FAUNA_POPULATION_DIRECTOR_POLICY.maxExistingActors),
+    bucketCount: Number(defaults.stimulusBucketCount ?? 8),
+  });
   return {
     tick(input = {}) {
       if (disposed) return freeze({ accepted: false, reason: 'disposed' });
-      return freeze({ accepted: true, plan: planFaunaPopulationTick({ ...defaults, ...input }) });
+      const merged = { ...defaults, ...input };
+      const plan = planFaunaPopulationTick(merged);
+      const actors = Array.isArray(merged.actors) ? merged.actors : [];
+      const workBudget = runtimeKernel.tick({
+        tick: plan.tick,
+        actors,
+        faunaCandidates: actors,
+        budget: Number(merged.stimulusBudget ?? FAUNA_POPULATION_DIRECTOR_POLICY.maxGroupsPerTick * 4),
+        context: merged.context && typeof merged.context === 'object' ? merged.context : {},
+      });
+      return freeze({ accepted: true, plan, workBudget });
     },
     apply(plan, owners = {}) {
       if (disposed) return freeze({ accepted: false, reason: 'disposed' });
       return freeze({ accepted: true, result: applyFaunaPopulationTick(plan, owners) });
     },
-    read() { return freeze({ disposed, policy: FAUNA_POPULATION_DIRECTOR_POLICY.id, lodLevels: LOD_LEVELS }); },
-    dispose() { disposed = true; },
+    read() { return freeze({ disposed, policy: FAUNA_POPULATION_DIRECTOR_POLICY.id, lodLevels: LOD_LEVELS, runtimeKernelTick: runtimeKernel.snapshotTick }); },
+    dispose() { disposed = true; runtimeKernel.dispose(); },
   };
 }
