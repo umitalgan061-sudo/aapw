@@ -89,6 +89,10 @@ export class TouchJoystick {
 	private _dragY = 0;
 	private _pointerId: number | null = null;
 	private _origin: TouchVector = { x: 0, y: 0 };
+	private _lastMoveAxis: TouchVector = { x: 0, y: 0 };
+	private readonly _cameraPointers = new Map<number, TouchVector>();
+	private _lastPinchDistance = 0;
+	private _cameraZoom = 0;
 	private _cameraPointerId: number | null = null;
 	private _cameraOrigin: TouchVector = { x: 0, y: 0 };
 	private _cameraLookX = 0;
@@ -186,25 +190,42 @@ export class TouchJoystick {
 		container.appendChild(this._cameraPad);
 		this._cameraPointerId = null;
 		this._onCameraPointerDown = (event: TouchPointerEvent) => {
-			if (!this._enabled || this._cameraPointerId !== null) return;
-			this._cameraPointerId = event.pointerId;
-			this._cameraOrigin = { x: event.clientX, y: event.clientY };
-			this._cameraPad.setPointerCapture(event.pointerId);
+			if (!this._enabled || this._cameraPointers.size >= 2) return;
+			this._cameraPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+			if (this._cameraPointers.size === 1) {
+				this._cameraPointerId = event.pointerId;
+				this._cameraOrigin = { x: event.clientX, y: event.clientY };
+				this._cameraPad.setPointerCapture(event.pointerId);
+			} else {
+				this._lastPinchDistance = this._readPinchDistance();
+			}
 			event.preventDefault();
 		};
 		this._onCameraPointerMove = (event: TouchPointerEvent) => {
-			if (event.pointerId !== this._cameraPointerId) return;
-			const dx = event.clientX - this._cameraOrigin.x;
-			const dy = event.clientY - this._cameraOrigin.y;
-			this._cameraLookX = clamp(dx * this._cameraSensitivity, -1, 1);
-			this._cameraLookY = clamp(dy * this._cameraSensitivity, -1, 1);
+			if (!this._cameraPointers.has(event.pointerId)) return;
+			this._cameraPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+			if (this._cameraPointers.size >= 2) {
+				const pinchDistance = this._readPinchDistance();
+				if (this._lastPinchDistance > 0) {
+					this._cameraZoom = clamp((this._lastPinchDistance - pinchDistance) / Math.max(80, pinchDistance), -1, 1);
+				}
+				this._lastPinchDistance = pinchDistance;
+			} else if (event.pointerId === this._cameraPointerId) {
+				const dx = event.clientX - this._cameraOrigin.x;
+				const dy = event.clientY - this._cameraOrigin.y;
+				this._cameraLookX = clamp(dx * this._cameraSensitivity, -1, 1);
+				this._cameraLookY = clamp(dy * this._cameraSensitivity, -1, 1);
+			}
 			event.preventDefault();
 		};
 		this._onCameraPointerUp = (event: TouchPointerEvent) => {
-			if (event.pointerId !== this._cameraPointerId) return;
-			this._cameraPointerId = null;
+			if (!this._cameraPointers.has(event.pointerId)) return;
+			this._cameraPointers.delete(event.pointerId);
+			if (this._cameraPointerId === event.pointerId) this._cameraPointerId = [...this._cameraPointers.keys()][0] ?? null;
 			this._cameraLookX = 0;
 			this._cameraLookY = 0;
+			this._cameraZoom = 0;
+			this._lastPinchDistance = this._cameraPointers.size === 2 ? this._readPinchDistance() : 0;
 			this._lastCameraSampleSeconds = null;
 		};
 		this._cameraPad.addEventListener('pointerdown', this._onCameraPointerDown);
@@ -229,6 +250,12 @@ export class TouchJoystick {
 		this._pointerId = null; this._dragX = 0; this._dragY = 0; this._knob.style.transform = ''; this._base.classList.remove('g3d-joystick-active');
 	}
 
+
+	private _readPinchDistance(): number {
+		const points = [...this._cameraPointers.values()];
+		if (points.length < 2) return 0;
+		return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+	}
 	private _applyLayout(): void {
 		const layout = this._layout;
 		const buttons: readonly HTMLElement[] = [this._jumpButton, this._guardButton, this._lockOnButton, this._lightAttackButton, this._heavyAttackButton, this._dodgeButton, this._parryButton];
@@ -280,6 +307,7 @@ export class TouchJoystick {
 		this._lastCameraSampleSeconds = now;
 		const lookX = this._enabled ? this._cameraLookX : 0;
 		const lookY = this._enabled ? this._cameraLookY : 0;
+		const cameraZoom = this._enabled ? this._cameraZoom : 0;
 		const lookMagnitude = Math.min(1, Math.hypot(lookX, lookY));
 		this._cameraLookX *= 0.6;
 		this._cameraLookY *= 0.6;
@@ -289,22 +317,24 @@ export class TouchJoystick {
 				guarding: (this._guardHeld || this._parryRequested) && this._enabled,
 				lookX: Number(lookX.toFixed(6)), lookY: Number(lookY.toFixed(6)),
 				lookMagnitude: Number(lookMagnitude.toFixed(6)),
-				lookDeltaSeconds, cameraZoom: 0,
+				lookDeltaSeconds, cameraZoom: Number(cameraZoom.toFixed(6)),
 			});
 			this._dodgeRequested = false;
 			this._parryRequested = false;
 			return result;
 		}
+		if (ratio >= this._deadzoneRatio) this._lastMoveAxis = { x: axis.x, y: axis.y };
+		const dodgeFallback = this._dodgeRequested && ratio < this._deadzoneRatio ? this._lastMoveAxis : { x: 0, y: 0 };
 		const result = Object.freeze({
-			forward: clamp(axis.y, -1, 1),
-			strafe: clamp(axis.x, -1, 1),
+			forward: clamp(ratio >= this._deadzoneRatio ? axis.y : dodgeFallback.y, -1, 1),
+			strafe: clamp(ratio >= this._deadzoneRatio ? axis.x : dodgeFallback.x, -1, 1),
 			running: ratio >= this._runThresholdRatio || this._dodgeRequested,
 			guarding: (this._guardHeld || this._parryRequested) && this._enabled,
 			lookX: Number(lookX.toFixed(6)),
 			lookY: Number(lookY.toFixed(6)),
 			lookMagnitude: Number(lookMagnitude.toFixed(6)),
 			lookDeltaSeconds,
-			cameraZoom: 0,
+			cameraZoom: Number(cameraZoom.toFixed(6)),
 		});
 		this._dodgeRequested = false;
 		this._parryRequested = false;
@@ -343,7 +373,7 @@ export class TouchJoystick {
 			this._parryRequested = false;
 			this._jumpRequested = false;
 			this._lockOnRequested = false;
-			this._resetPointerState(); this._cameraPointerId = null; this._cameraLookX = 0; this._cameraLookY = 0; this._lastCameraSampleSeconds = null;
+			this._resetPointerState(); this._cameraPointerId = null; this._cameraLookX = 0; this._cameraLookY = 0; this._cameraZoom = 0; this._cameraPointers.clear(); this._lastCameraSampleSeconds = null;
 			this._actionBuffer.clear();
 			this._guardButton.setAttribute('aria-pressed', 'false');
 		}
