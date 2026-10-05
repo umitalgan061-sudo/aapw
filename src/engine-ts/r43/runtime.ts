@@ -180,7 +180,7 @@ export class R43Runtime {
     this.telemetry.record('runtime.cpu.ms', cpuMs, advance.clock.frame);
     this.telemetry.record('runtime.gpu.ms', gpuMs, advance.clock.frame);
     this.telemetry.record('runtime.health.score', this.#lastHealth.score, advance.clock.frame);
-    this.#frameEvents = this.simulation.eventsSince(Math.max(0, advance.clock.frame - 1)).slice(-this.config.limits.maxEventsPerFrame) as typeof this.#frameEvents;
+    this.#frameEvents = this.simulation.eventsSince(Math.max(0, advance.clock.frame - 1)).slice(-this.config.limits.maxEventsPerFrame).map((event) => ({ ...event }));
     const snapshot = advance.snapshot;
     if (advance.clock.tick % Math.max(1, Math.round(this.config.fixedStepHz / this.config.networkSnapshotHz)) === 0) {
       this.network.createEnvelope({ digest: snapshot.digest, entities: snapshot.entities }, snapshot.tick, this.clock.simTimeSeconds() * 1000, this.network.received.highest());
