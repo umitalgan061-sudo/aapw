@@ -66,7 +66,11 @@ export class SimulationAuthorityR42 {
     this.ground = ground;
   }
 
-  step(tick: number, inputs: readonly InputFrame[], commands: readonly ActionCommand[]): SimulationResult {
+  step(
+    tick: number,
+    inputs: readonly (InputFrame & { readonly entityId?: string })[],
+    commands: readonly ActionCommand[],
+  ): SimulationResult {
     const inputByEntity = indexInputs(inputs);
     let acceptedCommands = 0;
     let rejectedCommands = 0;
@@ -244,11 +248,11 @@ export class SimulationAuthorityR42 {
   }
 }
 
-function indexInputs(inputs: readonly InputFrame[]): ReadonlyMap<string, InputFrame> {
+function indexInputs(inputs: readonly (InputFrame & { readonly entityId?: string })[]): ReadonlyMap<string, InputFrame> {
   const map = new Map<string, InputFrame>();
   for (const input of inputs) {
-    const entityId = String(input.source) + ':' + input.sequence;
-    map.set(entityId, input);
+    const entityId = input.entityId?.slice(0, 128) ?? '';
+    if (entityId) map.set(entityId, input);
   }
   return map;
 }
