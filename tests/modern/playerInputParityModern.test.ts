@@ -25,6 +25,14 @@ import {
   normalizePlayerInputFrame,
   readPlayerInputDeviceSnapshot,
   replayPlayerInputFrames,
+  decodePlayerInputReplay,
+  encodePlayerInputReplay,
+  stablePlayerInputChecksum,
+  quantizePlayerInputFrame,
+  quantizePlayerInputTimestamp,
+  createPlayerInputSampleClock,
+  resolvePlayerInputDevicePriority,
+  PlayerInputLatencyMonitor,
   resolveGamepadSprintIntent,
   resolvePlayerCombatFeedbackHaptic,
   samplePlayerGamepad,
@@ -282,6 +290,78 @@ describe('Kızıl Ufuk — cross-device input contract', () => {
     expect(calibration.deadzone).toBe(0.2);
     const axis = calibratePlayerInputAxis(0.8, -0.4, calibration);
     expect(Math.hypot(axis.x, axis.y)).toBeLessThanOrEqual(0.800001);
+  });
+
+  it('keeps a replay envelope tamper-evident and fixed-tick deterministic', () => {
+    const frames = [
+      createPlayerInputFrame({ sequence: 1, timestampSeconds: 0.010, device: 'keyboard', forward: 1 }),
+      createPlayerInputFrame({ sequence: 2, timestampSeconds: 0.028, device: 'gamepad', forward: 0.5 }),
+    ];
+    const encoded = encodePlayerInputReplay(frames, 1 / 60);
+    const decoded = decodePlayerInputReplay(encoded);
+    expect(decoded.ok).toBe(true);
+    expect(decoded.envelope?.checksum).toBe(stablePlayerInputChecksum(frames));
+    expect(decoded.envelope?.tickSeconds).toBeCloseTo(1 / 60, 6);
+    expect(decoded.envelope?.frames).toHaveLength(2);
+
+    const tampered = encoded.replace('0.5', '0.6');
+    expect(decodePlayerInputReplay(tampered).ok).toBe(false);
+    expect(decodePlayerInputReplay('bad json').error).toBe('invalid-json');
+    expect(decodePlayerInputReplay(JSON.stringify({ version: 'wrong', frames: [] })).error).toBe('invalid-version-or-frames');
+
+    expect(quantizePlayerInputTimestamp(0.024, 1 / 60)).toBeCloseTo(1 / 60, 6);
+    const quantized = quantizePlayerInputFrame(frames[0], 1 / 60);
+    expect(quantized.timestampSeconds).toBeCloseTo(1 / 60, 6);
+  });
+
+  it('advances the input sample clock on deterministic fixed ticks', () => {
+    const clock = createPlayerInputSampleClock(1 / 60);
+    expect(clock.tickIndex).toBe(0);
+    expect(clock.advance(0.010)).toBe(0);
+    expect(clock.advance(0.010)).toBe(1);
+    expect(clock.tickIndex).toBe(1);
+    expect(clock.timestampSeconds).toBeCloseTo(1 / 60, 6);
+    expect(clock.advance(0.050)).toBe(3);
+    expect(clock.tickIndex).toBe(4);
+    clock.reset(0.5);
+    expect(clock.tickIndex).toBe(30);
+    expect(clock.timestampSeconds).toBeCloseTo(0.5, 6);
+  });
+
+  it('prioritizes the last active device while preserving availability', () => {
+    const gamepadFirst = resolvePlayerInputDevicePriority('gamepad', {
+      gamepad: true,
+      touch: true,
+      keyboard: true,
+      mouse: true,
+    });
+    expect(gamepadFirst[0].device).toBe('gamepad');
+    expect(gamepadFirst[0].score).toBeGreaterThan(gamepadFirst[1].score);
+
+    const touchFirst = resolvePlayerInputDevicePriority('touch', { gamepad: false, touch: true });
+    expect(touchFirst[0].device).toBe('touch');
+    expect(touchFirst.find((entry) => entry.device === 'gamepad')?.available).toBe(false);
+  });
+
+  it('keeps latency monitor statistics bounded and healthy under normal input timing', () => {
+    const monitor = new PlayerInputLatencyMonitor(32);
+    const buffer = new PlayerInputActionBuffer({ maxEntries: 32, ttlSeconds: 1 });
+    for (let index = 0; index < 8; index += 1) {
+      const record = buffer.enqueue('light', 'keyboard', 'KeyE', index);
+      monitor.mark(record);
+      monitor.observe(createPlayerInputFrame({
+        sequence: record.sequence,
+        device: 'keyboard',
+        timestampSeconds: index + 0.02,
+      }));
+    }
+    const snapshot = monitor.snapshot();
+    expect(snapshot.sampleCount).toBe(8);
+    expect(snapshot.meanSeconds).toBeCloseTo(0.02, 4);
+    expect(snapshot.p50Seconds).toBeCloseTo(0.02, 4);
+    expect(snapshot.p95Seconds).toBeCloseTo(0.02, 4);
+    expect(snapshot.maxSeconds).toBeCloseTo(0.02, 4);
+    expect(snapshot.healthy).toBe(true);
   });
 
   it('records only while enabled and enforces bounded replay history', () => {
