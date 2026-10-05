@@ -238,6 +238,156 @@ const LIGHT_ATTACK_POINTER_BUTTON = 0;
 
 
 
+
+
+export const PLAYER_INPUT_FIXED_TICK_SECONDS = 1 / 60;
+
+export interface PlayerInputReplayEnvelope {
+	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
+	readonly tickSeconds: number;
+	readonly frameCount: number;
+	readonly checksum: string;
+	readonly frames: readonly PlayerInputFrame[];
+}
+
+export function stablePlayerInputChecksum(frames: readonly PlayerInputFrame[]): string {
+	let hash = 0x811c9dc5;
+	for (const frame of frames) {
+		const canonical = [
+			frame.sequence, frame.timestampSeconds.toFixed(6), frame.device,
+			frame.forward.toFixed(6), frame.strafe.toFixed(6), frame.magnitude.toFixed(6),
+			frame.lookX.toFixed(6), frame.lookY.toFixed(6), frame.lookMagnitude.toFixed(6),
+			frame.cameraZoom.toFixed(6),
+			frame.running ? '1' : '0', frame.guarding ? '1' : '0',
+			frame.jumpRequested ? '1' : '0', frame.lockOnRequested ? '1' : '0',
+			frame.dodgeRequested ? '1' : '0', frame.parryRequested ? '1' : '0',
+			frame.lightRequested ? '1' : '0', frame.heavyRequested ? '1' : '0',
+			frame.actionCount,
+		].join('|');
+		for (let index = 0; index < canonical.length; index += 1) {
+			hash ^= canonical.charCodeAt(index);
+			hash = Math.imul(hash, 0x01000193);
+		}
+	}
+	return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+export function encodePlayerInputReplay(
+	frames: readonly PlayerInputFrame[],
+	tickSeconds = PLAYER_INPUT_FIXED_TICK_SECONDS,
+): string {
+	const normalizedFrames = Object.freeze(frames.map(normalizePlayerInputFrame));
+	const tick = Math.max(1 / 240, Math.min(1 / 15, finiteInput(tickSeconds, PLAYER_INPUT_FIXED_TICK_SECONDS)));
+	const envelope: PlayerInputReplayEnvelope = Object.freeze({
+		version: PLAYER_INPUT_CONTRACT_VERSION,
+		tickSeconds: Number(tick.toFixed(6)),
+		frameCount: normalizedFrames.length,
+		checksum: stablePlayerInputChecksum(normalizedFrames),
+		frames: normalizedFrames,
+	});
+	return JSON.stringify(envelope);
+}
+
+export function decodePlayerInputReplay(
+	payload: unknown,
+	maxFrames = 3600,
+): Readonly<{ ok: boolean; envelope: PlayerInputReplayEnvelope | null; error: string | null }> {
+	if (typeof payload !== 'string') return Object.freeze({ ok: false, envelope: null, error: 'payload-not-string' });
+	try {
+		const parsed = JSON.parse(payload) as Partial<PlayerInputReplayEnvelope> | null;
+		if (!parsed || parsed.version !== PLAYER_INPUT_CONTRACT_VERSION || !Array.isArray(parsed.frames)) {
+			return Object.freeze({ ok: false, envelope: null, error: 'invalid-version-or-frames' });
+		}
+		const frames = parsed.frames.slice(0, Math.max(1, Math.min(10000, Math.floor(maxFrames))))
+			.map((frame) => normalizePlayerInputFrame(frame && typeof frame === 'object' ? frame as Partial<PlayerInputFrame> : {}));
+		const expectedCount = Number.isSafeInteger(parsed.frameCount) ? parsed.frameCount : -1;
+		if (expectedCount !== frames.length) return Object.freeze({ ok: false, envelope: null, error: 'frame-count-mismatch' });
+		const checksum = stablePlayerInputChecksum(frames);
+		if (typeof parsed.checksum !== 'string' || parsed.checksum !== checksum) {
+			return Object.freeze({ ok: false, envelope: null, error: 'checksum-mismatch' });
+		}
+		const tickSeconds = finiteInput(parsed.tickSeconds, PLAYER_INPUT_FIXED_TICK_SECONDS);
+		const envelope: PlayerInputReplayEnvelope = Object.freeze({
+			version: PLAYER_INPUT_CONTRACT_VERSION,
+			tickSeconds: Math.max(1 / 240, Math.min(1 / 15, tickSeconds)),
+			frameCount: frames.length,
+			checksum,
+			frames: Object.freeze(frames),
+		});
+		return Object.freeze({ ok: true, envelope, error: null });
+	} catch {
+		return Object.freeze({ ok: false, envelope: null, error: 'invalid-json' });
+	}
+}
+
+export function quantizePlayerInputTimestamp(seconds: unknown, tickSeconds = PLAYER_INPUT_FIXED_TICK_SECONDS): number {
+	const tick = Math.max(1 / 240, Math.min(1 / 15, finiteInput(tickSeconds, PLAYER_INPUT_FIXED_TICK_SECONDS)));
+	const value = Math.max(0, finiteInput(seconds, 0));
+	return Number((Math.round(value / tick) * tick).toFixed(6));
+}
+
+export function quantizePlayerInputFrame(frame: PlayerInputFrame, tickSeconds = PLAYER_INPUT_FIXED_TICK_SECONDS): PlayerInputFrame {
+	return normalizePlayerInputFrame({
+		...frame,
+		timestampSeconds: quantizePlayerInputTimestamp(frame.timestampSeconds, tickSeconds),
+	});
+}
+
+export interface PlayerInputSampleClock {
+	readonly tickSeconds: number;
+	readonly tickIndex: number;
+	readonly timestampSeconds: number;
+	advance: (deltaSeconds: unknown) => number;
+	reset: (timestampSeconds?: unknown) => void;
+}
+
+export function createPlayerInputSampleClock(tickSeconds = PLAYER_INPUT_FIXED_TICK_SECONDS): PlayerInputSampleClock {
+	const tick = Math.max(1 / 240, Math.min(1 / 15, finiteInput(tickSeconds, PLAYER_INPUT_FIXED_TICK_SECONDS)));
+	let accumulator = 0;
+	let tickIndex = 0;
+	let timestampSeconds = 0;
+	return {
+		tickSeconds: tick,
+		get tickIndex() { return tickIndex; },
+		get timestampSeconds() { return timestampSeconds; },
+		advance(deltaSeconds: unknown): number {
+			accumulator += Math.max(0, Math.min(0.5, finiteInput(deltaSeconds, 0)));
+			let produced = 0;
+			while (accumulator >= tick) {
+				accumulator -= tick;
+				tickIndex += 1;
+				timestampSeconds = Number((tickIndex * tick).toFixed(6));
+				produced += 1;
+			}
+			return produced;
+		},
+		reset(nextTimestampSeconds = 0): void {
+			accumulator = 0;
+			tickIndex = Math.max(0, Math.round(Math.max(0, finiteInput(nextTimestampSeconds, 0)) / tick));
+			timestampSeconds = Number((tickIndex * tick).toFixed(6));
+		},
+	};
+}
+
+export interface PlayerInputDevicePriority {
+	readonly device: PlayerInputDevice;
+	readonly score: number;
+	readonly available: boolean;
+}
+
+export function resolvePlayerInputDevicePriority(
+	lastActiveDevice: PlayerInputDevice = 'keyboard',
+	availability: Partial<Record<PlayerInputDevice, boolean>> = {},
+): readonly PlayerInputDevicePriority[] {
+	const base: readonly PlayerInputDevice[] = ['gamepad', 'touch', 'keyboard', 'mouse'];
+	const normalizedLast = base.includes(lastActiveDevice) ? lastActiveDevice : 'keyboard';
+	return Object.freeze(base.map((device, index) => Object.freeze({
+		device,
+		score: (device === normalizedLast ? 1000 : 0) + (base.length - index),
+		available: availability[device] !== false,
+	})).sort((a, b) => b.score - a.score));
+}
+
 export interface PlayerInputLatencySample {
 	readonly sequence: number;
 	readonly action: PlayerInputAction;
@@ -655,9 +805,10 @@ export class PlayerInputRecorder {
 		});
 	}
 
-	serialize(): string { return JSON.stringify(this.snapshot()); }
+	serialize(): string { return encodePlayerInputReplay(this._frames); }
 
 	load(snapshot: unknown): number {
+		if (typeof snapshot === 'string') { const decoded = decodePlayerInputReplay(snapshot, this._maxFrames); if (!decoded.ok || !decoded.envelope) return 0; this._frames = [...decoded.envelope.frames].slice(-this._maxFrames); return this._frames.length; }
 		const source = snapshot && typeof snapshot === 'object' ? snapshot as { frames?: unknown } : {};
 		const frames = Array.isArray(source.frames) ? source.frames : [];
 		this._frames = frames
