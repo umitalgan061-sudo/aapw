@@ -75,7 +75,7 @@ export class OwnershipLedger {
 }
 
 export function normalizePath(path: string): string {
-  return path.replaceAll('\\\\', '/').replace(/^\\.\\//, '').replace(/\/+/g, '/').trim();
+  return path.replaceAll('\\', '/').replace(/^\.\//, '').replace(/\/+/g, '/').trim();
 }
 
 export function createCoreR43OwnershipLedger(): OwnershipLedger {
