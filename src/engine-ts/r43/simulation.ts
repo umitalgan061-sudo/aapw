@@ -124,6 +124,10 @@ export class SimulationKernel {
     });
   }
 
+  commandCount(): number {
+    return this.#commands.length;
+  }
+
   lastAdvance(): SimulationAdvance | null {
     return this.#lastAdvance;
   }
