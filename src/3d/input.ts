@@ -163,6 +163,7 @@ export class PlayerInputActionBuffer {
 	private readonly _ttlSeconds: number;
 	private _sequence = 0;
 	private _queue: PlayerInputActionRecord[] = [];
+	private _droppedCount = 0;
 
 	constructor({ maxEntries = 32, ttlSeconds = 0.32 }: PlayerInputActionBufferOptions = {}) {
 		this._maxEntries = Math.max(1, Math.min(128, Math.floor(finiteInput(maxEntries, 32))));
@@ -180,7 +181,10 @@ export class PlayerInputActionBuffer {
 			expiresAtSeconds: Number((now + this._ttlSeconds).toFixed(6)),
 		});
 		this._queue.push(record);
-		if (this._queue.length > this._maxEntries) this._queue = this._queue.slice(-this._maxEntries);
+		if (this._queue.length > this._maxEntries) {
+			this._droppedCount += this._queue.length - this._maxEntries;
+			this._queue = this._queue.slice(-this._maxEntries);
+		}
 		return record;
 	}
 
@@ -203,11 +207,12 @@ export class PlayerInputActionBuffer {
 		this._queue = [];
 	}
 
-	snapshot(nowSeconds = 0): Readonly<{ version: typeof PLAYER_INPUT_CONTRACT_VERSION; nextSequence: number; pending: readonly PlayerInputActionRecord[] }> {
+	snapshot(nowSeconds = 0): Readonly<{ version: typeof PLAYER_INPUT_CONTRACT_VERSION; nextSequence: number; pending: readonly PlayerInputActionRecord[]; droppedCount: number }> {
 		return Object.freeze({
 			version: PLAYER_INPUT_CONTRACT_VERSION,
 			nextSequence: this._sequence + 1,
 			pending: this.peek(nowSeconds),
+			droppedCount: this._droppedCount,
 		});
 	}
 }
@@ -230,6 +235,103 @@ const HEAVY_ATTACK_KEYS = new Set(['KeyR']);
 const LOCK_ON_KEYS = new Set(['Tab']);
 const GUARD_POINTER_BUTTON = 2;
 const LIGHT_ATTACK_POINTER_BUTTON = 0;
+
+
+
+export interface PlayerInputLatencySample {
+	readonly sequence: number;
+	readonly action: PlayerInputAction;
+	readonly device: PlayerInputDevice;
+	readonly latencySeconds: number;
+}
+
+export interface PlayerInputLatencySnapshot {
+	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
+	readonly sampleCount: number;
+	readonly meanSeconds: number;
+	readonly p50Seconds: number;
+	readonly p95Seconds: number;
+	readonly maxSeconds: number;
+	readonly lastSeconds: number;
+	readonly healthy: boolean;
+}
+
+export class PlayerInputLatencyMonitor {
+	private readonly _maxSamples: number;
+	private readonly _pending = new Map<number, PlayerInputActionRecord>();
+	private _samples: PlayerInputLatencySample[] = [];
+
+	constructor(maxSamples = 180) {
+		this._maxSamples = Math.max(16, Math.min(1000, Math.floor(finiteInput(maxSamples, 180))));
+	}
+
+	mark(record: PlayerInputActionRecord): void {
+		this._pending.set(record.sequence, record);
+		if (this._pending.size > this._maxSamples * 2) {
+			const oldest = [...this._pending.keys()].slice(0, Math.floor(this._pending.size / 2));
+			for (const sequence of oldest) this._pending.delete(sequence);
+		}
+	}
+
+	observe(frame: PlayerInputFrame): void {
+		if (!frame.sequence) return;
+		const record = this._pending.get(frame.sequence);
+		if (!record) return;
+		this._pending.delete(frame.sequence);
+		const latencySeconds = Math.max(0, Number((frame.timestampSeconds - record.timestampSeconds).toFixed(6)));
+		this._samples.push(Object.freeze({
+			sequence: frame.sequence,
+			action: record.action,
+			device: record.device,
+			latencySeconds,
+		}));
+		if (this._samples.length > this._maxSamples) this._samples = this._samples.slice(-this._maxSamples);
+	}
+
+	snapshot(): PlayerInputLatencySnapshot {
+		const values = this._samples.map((sample) => sample.latencySeconds).sort((a, b) => a - b);
+		if (values.length === 0) {
+			return Object.freeze({
+				version: PLAYER_INPUT_CONTRACT_VERSION,
+				sampleCount: 0,
+				meanSeconds: 0,
+				p50Seconds: 0,
+				p95Seconds: 0,
+				maxSeconds: 0,
+				lastSeconds: 0,
+				healthy: true,
+			});
+		}
+		const percentile = (ratio: number): number => values[Math.min(values.length - 1, Math.floor((values.length - 1) * ratio))];
+		const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+		const last = this._samples.at(-1)?.latencySeconds ?? 0;
+		return Object.freeze({
+			version: PLAYER_INPUT_CONTRACT_VERSION,
+			sampleCount: values.length,
+			meanSeconds: Number(mean.toFixed(6)),
+			p50Seconds: Number(percentile(0.5).toFixed(6)),
+			p95Seconds: Number(percentile(0.95).toFixed(6)),
+			maxSeconds: Number(Math.max(...values).toFixed(6)),
+			lastSeconds: Number(last.toFixed(6)),
+			healthy: mean <= 0.08 && percentile(0.95) <= 0.16,
+		});
+	}
+
+	clear(): void {
+		this._pending.clear();
+		this._samples = [];
+	}
+}
+
+export interface PlayerInputRuntimeDiagnostics {
+	readonly version: typeof PLAYER_INPUT_CONTRACT_VERSION;
+	readonly actionBuffer: ReturnType<PlayerInputActionBuffer['snapshot']>;
+	readonly latency: PlayerInputLatencySnapshot;
+	readonly device: PlayerInputDeviceSnapshot;
+	readonly bindings: PlayerInputBindingValidation;
+	readonly calibration: PlayerInputCalibration;
+	readonly healthy: boolean;
+}
 
 export interface PlayerInputBindingProfile {
 	readonly forward: readonly string[];
@@ -741,6 +843,7 @@ export class KeyboardInput {
 		run: ReadonlySet<string>; jump: ReadonlySet<string>; guard: ReadonlySet<string>; lightAttack: ReadonlySet<string>; heavyAttack: ReadonlySet<string>; lockOn: ReadonlySet<string>;
 	}>;
 	private readonly _recorder: PlayerInputRecorder | null;
+	private readonly _latencyMonitor = new PlayerInputLatencyMonitor(180);
 	private _jumpRequested = false;
 	private _lockOnRequested = false;
 	private _guardPointerHeld = false;
@@ -773,10 +876,10 @@ export class KeyboardInput {
 		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target;
 		this._onKeyDown = (event: Event) => { const keyboardEvent = event as KeyboardEvent;
 			const firstPress = !this._keys.has(keyboardEvent.code);
-			if (this._bindingSets.jump.has(keyboardEvent.code) && firstPress) { this._jumpRequested = true; this._actionBuffer.enqueue('jump', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('jump', 'keyboard', 'keyboard'); }
-			if (firstPress && this._bindingSets.lockOn.has(keyboardEvent.code) && !isInteractiveTarget(keyboardEvent.target)) { this._lockOnRequested = true; this._actionBuffer.enqueue('lock-on', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerInputAction('lock-on', 'keyboard', 'keyboard'); keyboardEvent.preventDefault?.(); }
-			if (firstPress && this._bindingSets.lightAttack.has(keyboardEvent.code)) { this._actionBuffer.enqueue('light', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('light', 'keyboard'); }
-			if (firstPress && this._bindingSets.heavyAttack.has(keyboardEvent.code)) { this._actionBuffer.enqueue('heavy', 'keyboard', 'keyboard', this._nowSeconds()); emitPlayerCombatIntent('heavy', 'keyboard'); }
+			if (this._bindingSets.jump.has(keyboardEvent.code) && firstPress) { this._jumpRequested = true; this._actionBuffer.this._recordAction('jump', 'keyboard'); }
+			if (firstPress && this._bindingSets.lockOn.has(keyboardEvent.code) && !isInteractiveTarget(keyboardEvent.target)) { this._lockOnRequested = true; this._recordAction('lock-on', 'keyboard'); keyboardEvent.preventDefault?.(); }
+			if (firstPress && this._bindingSets.lightAttack.has(keyboardEvent.code)) { this._recordAction('light', 'keyboard'); emitPlayerCombatIntent('light', 'keyboard'); }
+			if (firstPress && this._bindingSets.heavyAttack.has(keyboardEvent.code)) { this._recordAction('heavy', 'keyboard'); emitPlayerCombatIntent('heavy', 'keyboard'); }
 			this._keys.add(keyboardEvent.code);
 		};
 		this._onKeyUp = (event: Event) => { this._keys.delete((event as KeyboardEvent).code); };
@@ -818,6 +921,28 @@ export class KeyboardInput {
 		};
 		this._onVisibilityChange = (): void => { if (this._target?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss(new Event('visibilitychange')); };
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange], ['gamepadconnected', this._onGamepadConnected], ['gamepaddisconnected', this._onGamepadDisconnected]]) target.addEventListener(type, handler);
+	}
+
+	private _recordAction(action: PlayerInputAction, device: PlayerInputDevice): PlayerInputActionRecord {
+		return this._recordActionAt(action, device, this._nowSeconds());
+	}
+	private _recordActionAt(action: PlayerInputAction, device: PlayerInputDevice, timestampSeconds: number): PlayerInputActionRecord {
+		const record = this._actionBuffer.enqueue(action, device, device, timestampSeconds);
+		this._latencyMonitor.mark(record);
+		if (this._recorder?.isRecording()) this._recorder.record(createPlayerInputFrame({ device, sequence: record.sequence, timestampSeconds }));
+		emitPlayerInputAction(action, device, device);
+		return record;
+	}
+	getRuntimeDiagnostics(): PlayerInputRuntimeDiagnostics {
+		return Object.freeze({
+			version: PLAYER_INPUT_CONTRACT_VERSION,
+			actionBuffer: this._actionBuffer.snapshot(this._nowSeconds()),
+			latency: this._latencyMonitor.snapshot(),
+			device: this.getDeviceSnapshot(),
+			bindings: this._bindingValidation,
+			calibration: this._calibration,
+			healthy: this._bindingValidation.ok && this._latencyMonitor.snapshot().healthy,
+		});
 	}
 
 	private _refreshBindingSets(): void {
@@ -873,19 +998,21 @@ export class KeyboardInput {
 		if (switched) { this._gamepadButtons = gamepad ? readActionButtons(gamepad) : { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = nextIndex; emitInputDeviceChange(nextIndex, gamepad ? 'selected' : 'disconnected'); }
 		const sample = samplePlayerGamepad(gamepad, this._gamepadButtons, this._gamepadSprintActive);
 		if (!switched) {
-			if (sample.jumpPressed) { this._jumpRequested = true; this._actionBuffer.enqueue('jump', 'gamepad', 'gamepad', nowSeconds); emitPlayerInputAction('jump', 'gamepad', 'gamepad'); }
-			if (sample.lockOnPressed) { this._lockOnRequested = true; this._actionBuffer.enqueue('lock-on', 'gamepad', 'gamepad', nowSeconds); emitPlayerInputAction('lock-on', 'gamepad', 'gamepad'); }
-			if (sample.dodgePressed && sample.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE) { this._actionBuffer.enqueue('dodge', 'gamepad', 'gamepad', nowSeconds); emitPlayerInputAction('dodge', 'gamepad', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'dodge'); }
-			if (sample.parryPressed) { this._actionBuffer.enqueue('parry', 'gamepad', 'gamepad', nowSeconds); emitPlayerInputAction('parry', 'gamepad', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'parry'); }
-			if (sample.lightPressed) { this._actionBuffer.enqueue('light', 'gamepad', 'gamepad', nowSeconds); emitPlayerCombatIntent('light', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'light'); }
-			if (sample.heavyPressed) { this._actionBuffer.enqueue('heavy', 'gamepad', 'gamepad', nowSeconds); emitPlayerCombatIntent('heavy', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'heavy'); }
+			if (sample.jumpPressed) { this._jumpRequested = true; this._recordActionAt('jump', 'gamepad', nowSeconds); }
+			if (sample.lockOnPressed) { this._lockOnRequested = true; this._recordActionAt('lock-on', 'gamepad', nowSeconds); }
+			if (sample.dodgePressed && sample.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE) { this._recordActionAt('dodge', 'gamepad', nowSeconds); pulsePlayerGamepadAction(gamepad, 'dodge'); }
+			if (sample.parryPressed) { this._recordActionAt('parry', 'gamepad', nowSeconds); pulsePlayerGamepadAction(gamepad, 'parry'); }
+			if (sample.lightPressed) { this._recordActionAt('light', 'gamepad', nowSeconds); emitPlayerCombatIntent('light', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'light'); }
+			if (sample.heavyPressed) { this._recordActionAt('heavy', 'gamepad', nowSeconds); emitPlayerCombatIntent('heavy', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'heavy'); }
 		}
 		this._gamepadButtons = sample.buttons; this._gamepadSprintActive = sample.running; return { ...sample, lookDeltaSeconds };
 	}
 	getInputFrame(): PlayerInputFrame {
 		const axes = this.getAxes();
 		const actions = this._actionBuffer.peek(this._nowSeconds());
-		return createPlayerInputFrame({ ...axes, device: this._activeGamepadIndex === null ? 'keyboard' : 'gamepad', sequence: actions.at(-1)?.sequence ?? 0, timestampSeconds: this._nowSeconds(), actionCount: actions.length, jumpRequested: axes.jumpRequested || actions.some((a) => a.action === 'jump'), lockOnRequested: axes.lockOnRequested || actions.some((a) => a.action === 'lock-on'), dodgeRequested: actions.some((a) => a.action === 'dodge'), parryRequested: actions.some((a) => a.action === 'parry'), lightRequested: actions.some((a) => a.action === 'light'), heavyRequested: actions.some((a) => a.action === 'heavy') });
+		const frame = createPlayerInputFrame({ ...axes, device: this._activeGamepadIndex === null ? 'keyboard' : 'gamepad', sequence: actions.at(-1)?.sequence ?? 0, timestampSeconds: this._nowSeconds(), actionCount: actions.length, jumpRequested: axes.jumpRequested || actions.some((a) => a.action === 'jump'), lockOnRequested: axes.lockOnRequested || actions.some((a) => a.action === 'lock-on'), dodgeRequested: actions.some((a) => a.action === 'dodge'), parryRequested: actions.some((a) => a.action === 'parry'), lightRequested: actions.some((a) => a.action === 'light'), heavyRequested: actions.some((a) => a.action === 'heavy') });
+		this._latencyMonitor.observe(frame);
+		return frame;
 	}
 	consumeActionBuffer(nowSeconds = this._nowSeconds(), limit = 8): readonly PlayerInputActionRecord[] { return this._actionBuffer.drain(nowSeconds, limit); }
 
