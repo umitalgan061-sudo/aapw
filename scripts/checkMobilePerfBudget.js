@@ -14,8 +14,11 @@
  * 30-60 FPS phone target. The structural GPU-submission counters are deterministic enough for CI.
  */
 
-const path = require('path');
-const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { startStaticServer, loadPlaywright } from './devServerHelper.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const ROOT = path.resolve(__dirname, '..');
 void ROOT;
