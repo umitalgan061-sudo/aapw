@@ -101,11 +101,18 @@ export function planStimulusWork(
     Math.max(1, integer(bucketCount, LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.defaultBucketCount)),
   );
   const groups: StimulusActor[][] = Array.from({ length: count }, () => []);
+  const byId = new Map<string, StimulusActor>();
   for (const [index, raw] of actors.slice(0, LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.maxActorsPerTick).entries()) {
-    const actor = normalizeStimulusActor(raw, index);
     if (raw.active === false) continue;
-    groups[actor.bucket].push(actor);
+    const actor = normalizeStimulusActor(raw, index);
+    const previous = byId.get(actor.id);
+    const preferred = !previous
+      || actor.priority > previous.priority
+      || (actor.priority === previous.priority && actor.urgency > previous.urgency)
+      || (actor.priority === previous.priority && actor.urgency === previous.urgency && actor.ageTicks > previous.ageTicks);
+    if (preferred) byId.set(actor.id, actor);
   }
+  for (const actor of byId.values()) groups[actor.bucket].push(actor);
   for (const group of groups) {
     group.sort((a, b) => b.priority - a.priority || b.ageTicks - a.ageTicks || a.id.localeCompare(b.id));
   }
@@ -139,8 +146,13 @@ export function selectStimulusWork(
     }
   }
 
-  const urgent = selected.filter((actor) => actor.urgency >= 0.8).slice(0, LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.maxUrgentActors);
-  const ordered = [...urgent, ...selected.filter((actor) => actor.urgency < 0.8 && !urgent.some((item) => item.id === actor.id))];
+  const urgentCandidates = selected.filter((actor) => actor.urgency >= 0.8);
+  const urgent = urgentCandidates.slice(0, LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.maxUrgentActors);
+  const urgentIds = new Set(urgent.map((actor) => actor.id));
+  const ordinary = selected.filter((actor) => actor.urgency < 0.8);
+  const deferredUrgent = urgentCandidates.filter((actor) => !urgentIds.has(actor.id));
+  // The urgent lane is capped, but overflow remains eligible after ordinary work.
+  const ordered = [...urgent, ...ordinary, ...deferredUrgent];
 
   return freeze({
     tick: integer(tick),
@@ -174,12 +186,20 @@ export function createLivingWorldStimulusWorkBudget(options: {
   const select = (actors: readonly StimulusActorInput[] = [], requestedBudget = budget): StimulusSelection => {
     if (disposed) return freeze({ tick, budget: 0, selected: freeze([]), buckets: freeze([]) });
     tick += 1;
-    const selection = selectStimulusWork(actors, Math.min(requestedBudget, budget), tick, bucketCount);
+    const safeRequestedBudget = Math.min(budget, integer(requestedBudget, budget));
+    const selection = selectStimulusWork(actors, safeRequestedBudget, tick, bucketCount);
+    const candidates = selection.buckets.flatMap((bucket) => bucket.actors);
+    const activeIds = new Set(candidates.map((actor) => actor.id));
     const selectedIds = new Set(selection.selected.map((actor) => actor.id));
-    for (const raw of actors) {
-      const id = String(raw.id ?? '').trim();
-      if (!id) continue;
-      debt.set(id, (debt.get(id) ?? 0) + (selectedIds.has(id) ? -Math.min(1, debt.get(id) ?? 0) : 1));
+
+    // Forget departed/inactive actors so long-lived worlds cannot grow debt forever.
+    for (const id of debt.keys()) {
+      if (!activeIds.has(id)) debt.delete(id);
+    }
+    // Update each canonical actor once; duplicate observations must not inflate starvation debt.
+    for (const actor of candidates) {
+      const previous = debt.get(actor.id) ?? 0;
+      debt.set(actor.id, selectedIds.has(actor.id) ? Math.max(0, previous - 1) : previous + 1);
     }
     return selection;
   };
