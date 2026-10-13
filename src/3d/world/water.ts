@@ -122,14 +122,14 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 
 	vec2 sampleWaterField(vec2 worldXZ) {
 		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
-		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec2(1.0, 1.0);
+		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec2(1.0, 0.0);
 		vec4 field = texture2D(uDepthMap, uv);
 		return field.rg;
 	}
 
 	float sampleOffshoreOptical(vec2 worldXZ) {
 		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
-		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
 		return texture2D(uOffshoreMap, uv).r;
 	}
 
@@ -224,7 +224,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 
 		vec2 waterField = sampleWaterField(vWorldPosition.xz);
 		float fragmentDepth = waterField.x;
-		float waterCoverage = smoothstep(0.08, 0.72, waterField.y);
+		float waterCoverage = clamp(waterField.y, 0.0, 1.0);
 		if (waterCoverage <= 0.01) discard;
 
 		float offshoreOptical = smoothstep(0.08, 0.92, sampleOffshoreOptical(vWorldPosition.xz));
