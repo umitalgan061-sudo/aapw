@@ -1,0 +1,26 @@
+name: player-runtime-director
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerRuntimeDirector.js'
+      - 'scripts/checkPlayerRuntimeDirector.mjs'
+      - '.github/workflows/player-runtime-director.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: syntax
+        run: node --check src/3d/gameplay/playerRuntimeDirector.js && node --check scripts/checkPlayerRuntimeDirector.mjs
+      - name: executable regression
+        run: node scripts/checkPlayerRuntimeDirector.mjs
+      - name: ownership boundary
+        shell: bash
+        run: |
+          ! grep -R "EditorMaterialStudio" -n src/3d/gameplay/playerRuntimeDirector.js
+          ! grep -R "from ['\"].*MaterialAssignmentCore\|from ['\"].*WorldAssetPlacementPipeline" -n src/3d/gameplay/playerRuntimeDirector.js
+      - name: focused diff budget
+        shell: bash
+        run: |
+          changed=$(git diff --numstat "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
