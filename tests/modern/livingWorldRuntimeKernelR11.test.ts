@@ -41,6 +41,52 @@ describe('R11 living-world runtime kernel', () => {
     expect(a).toEqual(b);
   });
 
+
+
+  it('fills the configured budget for dense single and non-default buckets', () => {
+    const denseActors = Array.from({ length: 128 }, (_, index) => ({
+      id: `guard-${index}`,
+      urgency: (index % 10) / 10,
+      ageTicks: index % 31,
+    }));
+
+    const singleBucket = createLivingWorldStimulusWorkBudget({ bucketCount: 1, budget: 128 });
+    const singleSelection = singleBucket.select(denseActors, 128);
+    expect(singleSelection.selected).toHaveLength(128);
+    expect(singleSelection.buckets).toHaveLength(1);
+    expect(singleSelection.selected.every((actor) => actor.bucket === 0)).toBe(true);
+
+    const threeBuckets = createLivingWorldStimulusWorkBudget({ bucketCount: 3, budget: 128 });
+    const multiSelection = threeBuckets.select(denseActors, 128);
+    expect(multiSelection.selected).toHaveLength(128);
+    expect(multiSelection.buckets).toHaveLength(3);
+    expect(multiSelection.buckets.every((bucket) =>
+      bucket.actors.every((actor) => actor.bucket === bucket.bucket),
+    )).toBe(true);
+  });
+
+  it('counts starvation once per active actor and clears inactive or absent debt', () => {
+    const budget = createLivingWorldStimulusWorkBudget({
+      bucketCount: 1,
+      budget: 1,
+      starvationTicks: 2,
+    });
+    const duplicate = [
+      { id: 'same-actor', urgency: 0.2 },
+      { id: 'same-actor', urgency: 0.2 },
+    ];
+
+    budget.select(duplicate, 0);
+    expect(budget.starvationSnapshot().starving).toEqual([]);
+    budget.select(duplicate, 0);
+    expect(budget.starvationSnapshot().starving).toEqual([{ id: 'same-actor', ticks: 2 }]);
+
+    budget.select([{ id: 'sleeping-actor', active: false }], 0);
+    expect(budget.starvationSnapshot().starving).toEqual([]);
+    budget.select([], 0);
+    expect(budget.starvationSnapshot().starving).toEqual([]);
+  });
+
   it('keeps fauna activity selection bounded and replayable', () => {
     const result = evaluateFaunaActivityBudget(faunaCandidates, {
       tick: 12,
