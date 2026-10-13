@@ -25,6 +25,8 @@ import { scatterCreatures, DESKTOP_SPECIES_COUNTS, MOBILE_SPECIES_COUNTS, wrapCr
 import { spawnConfiguredCarts } from './cartBrain.ts';
 import { mulberry32 } from '../world/terrain.ts';
 import { spawnConfiguredDragons } from './dragons.js';
+// Typed runtime contract import keeps the R11 ownership gate aligned with the dragon adapter.
+import type { DragonRuntimeContract } from './dragonController.ts';
 import { isCoarsePointerDevice } from '../sceneManager.ts';
 import { createDynamicCircleCollider } from '../physics.ts';
 
