@@ -1,0 +1,27 @@
+name: Settlement Progress Ledger Projection
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementProgressLedgerProjection.ts'
+      - 'scripts/checkSettlementProgressLedgerProjection.mjs'
+      - '.github/workflows/settlement-progress-ledger-projection.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact main ancestry
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+      - name: TypeScript syntax
+        run: node --experimental-strip-types --check src/3d/gameplay/settlementProgressLedgerProjection.ts
+      - name: Focused proof
+        run: node --experimental-strip-types scripts/checkSettlementProgressLedgerProjection.mjs
