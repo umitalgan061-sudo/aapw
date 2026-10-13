@@ -1,0 +1,23 @@
+name: Settlement Trade Plan
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementTradePlan.ts'
+      - 'scripts/checkSettlementTradePlan.mjs'
+      - '.github/workflows/settlement-trade-plan.yml'
+  push:
+    branches:
+      - 'agent/gunbatimi-settlement-trade-plan-r22-20260924'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --experimental-strip-types scripts/checkSettlementTradePlan.mjs
+      - run: node --check scripts/checkSettlementTradePlan.mjs
+      - run: node --check src/3d/gameplay/settlementTradePlan.ts
