@@ -1,0 +1,65 @@
+import type {
+  DialogueConditionFailure,
+  DialogueConditionsEvaluation,
+} from './questDialogueConditions.ts';
+
+export type DialogueConditionFailureAction = 'show-quest' | 'show-reputation' | 'show-service' | 'hide-branch';
+
+export interface DialogueConditionFailureHint {
+  readonly failure: DialogueConditionFailure;
+  readonly action: DialogueConditionFailureAction;
+  readonly priority: number;
+}
+
+export interface DialogueConditionFailureSummary {
+  readonly failures: readonly DialogueConditionFailure[];
+  readonly hints: readonly DialogueConditionFailureHint[];
+  readonly primary: DialogueConditionFailureHint;
+  readonly hideBranch: boolean;
+}
+
+const HINTS: Readonly<Record<DialogueConditionFailure, DialogueConditionFailureHint>> = Object.freeze({
+  'missing-quest': Object.freeze({ failure: 'missing-quest', action: 'hide-branch', priority: 0 }),
+  'invalid-condition': Object.freeze({ failure: 'invalid-condition', action: 'hide-branch', priority: 0 }),
+  'quest-status-mismatch': Object.freeze({ failure: 'quest-status-mismatch', action: 'show-quest', priority: 10 }),
+  'objective-missing': Object.freeze({ failure: 'objective-missing', action: 'show-quest', priority: 20 }),
+  'objective-incomplete': Object.freeze({ failure: 'objective-incomplete', action: 'show-quest', priority: 30 }),
+  'reputation-too-low': Object.freeze({ failure: 'reputation-too-low', action: 'show-reputation', priority: 40 }),
+  'service-unavailable': Object.freeze({ failure: 'service-unavailable', action: 'show-service', priority: 50 }),
+});
+
+export const isDialogueConditionFailure = (failure: unknown): failure is DialogueConditionFailure => (
+  typeof failure === 'string' && Object.prototype.hasOwnProperty.call(HINTS, failure)
+);
+
+export const getDialogueConditionFailureHint = (failure: DialogueConditionFailure): DialogueConditionFailureHint => {
+  if (isDialogueConditionFailure(failure)) return HINTS[failure];
+  return HINTS['invalid-condition'];
+};
+
+export const orderDialogueConditionFailures = (
+  failures: readonly DialogueConditionFailure[],
+): readonly DialogueConditionFailure[] => Object.freeze([...new Set(failures)]
+  .map((failure) => (isDialogueConditionFailure(failure) ? failure : 'invalid-condition' as const))
+  .sort((left, right) => {
+    const priorityDelta = HINTS[left].priority - HINTS[right].priority;
+    return priorityDelta || left.localeCompare(right);
+  }));
+
+export const summarizeDialogueConditionFailures = (
+  failures: readonly DialogueConditionFailure[],
+): DialogueConditionFailureSummary => {
+  const ordered = orderDialogueConditionFailures(failures);
+  const hints = Object.freeze(ordered.map(getDialogueConditionFailureHint));
+  const primary = hints[0] ?? HINTS['invalid-condition'];
+  return Object.freeze({
+    failures: ordered,
+    hints,
+    primary,
+    hideBranch: hints.some((hint) => hint.action === 'hide-branch'),
+  });
+};
+
+export const summarizeDialogueConditionEvaluation = (
+  evaluation: Pick<DialogueConditionsEvaluation, 'failures'>,
+): DialogueConditionFailureSummary => summarizeDialogueConditionFailures(evaluation.failures);
