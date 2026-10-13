@@ -1,0 +1,23 @@
+name: Kızıl Ufuk Player Combat Feedback Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatFeedbackDirector.ts'
+      - 'src/3d/gameplay/playerEquipmentCombatRules.ts'
+      - 'scripts/checkPlayerCombatFeedbackDirector.mjs'
+      - '.github/workflows/player-combat-feedback-director.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install
+      - run: node scripts/checkPlayerCombatFeedbackDirector.mjs
+      - run: npm run typecheck
