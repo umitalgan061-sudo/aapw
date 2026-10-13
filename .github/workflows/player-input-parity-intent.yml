@@ -1,0 +1,25 @@
+name: Player Input Parity Intent
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerInputParityIntent.ts'
+      - 'scripts/checkPlayerInputParityIntent.mjs'
+      - '.github/workflows/player-input-parity-intent.yml'
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Exact ancestry
+        run: git merge-base --is-ancestor "${{ github.event.pull_request.base.sha }}" HEAD
+      - name: TypeScript syntax
+        run: node --check src/3d/gameplay/playerInputParityIntent.ts
+      - name: Focused proof
+        run: node scripts/checkPlayerInputParityIntent.mjs
