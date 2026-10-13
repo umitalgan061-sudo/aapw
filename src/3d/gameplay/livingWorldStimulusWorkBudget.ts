@@ -78,14 +78,18 @@ export function assignStimulusWorkBucket(
   return stableHash(actorId) % count;
 }
 
-export function normalizeStimulusActor(raw: StimulusActorInput, index = 0): StimulusActor {
+export function normalizeStimulusActor(
+  raw: StimulusActorInput,
+  index = 0,
+  bucketCount = LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.defaultBucketCount,
+): StimulusActor {
   const id = String(raw.id ?? `actor-${index}`).trim().slice(0, LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.maxIdLength) || `actor-${index}`;
   const urgency = clamp01(raw.urgency);
   const ageTicks = integer(raw.ageTicks);
   const ageBoost = Math.min(1, ageTicks / LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.starvationTicks);
   return freeze({
     id,
-    bucket: assignStimulusWorkBucket(id),
+    bucket: assignStimulusWorkBucket(id, bucketCount),
     urgency,
     ageTicks,
     priority: urgency * 0.72 + ageBoost * 0.28,
@@ -102,7 +106,7 @@ export function planStimulusWork(
   );
   const groups: StimulusActor[][] = Array.from({ length: count }, () => []);
   for (const [index, raw] of actors.slice(0, LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.maxActorsPerTick).entries()) {
-    const actor = normalizeStimulusActor(raw, index);
+    const actor = normalizeStimulusActor(raw, index, count);
     if (raw.active === false) continue;
     groups[actor.bucket].push(actor);
   }
@@ -125,9 +129,9 @@ export function selectStimulusWork(
   ));
   const selected: StimulusActor[] = [];
   const seen = new Set<string>();
-  const rounds = Math.max(1, buckets.length);
+  const maxRounds = buckets.reduce((largest, bucket) => Math.max(largest, bucket.count), 0);
 
-  for (let round = 0; selected.length < max && round < rounds + LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.starvationTicks; round += 1) {
+  for (let round = 0; selected.length < max && round < maxRounds; round += 1) {
     for (const bucket of buckets) {
       if (selected.length >= max) break;
       if (bucket.count === 0) continue;
@@ -174,12 +178,20 @@ export function createLivingWorldStimulusWorkBudget(options: {
   const select = (actors: readonly StimulusActorInput[] = [], requestedBudget = budget): StimulusSelection => {
     if (disposed) return freeze({ tick, budget: 0, selected: freeze([]), buckets: freeze([]) });
     tick += 1;
-    const selection = selectStimulusWork(actors, Math.min(requestedBudget, budget), tick, bucketCount);
+    const eligibleActors = actors.slice(0, LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.maxActorsPerTick);
+    const selection = selectStimulusWork(eligibleActors, Math.min(requestedBudget, budget), tick, bucketCount);
     const selectedIds = new Set(selection.selected.map((actor) => actor.id));
-    for (const raw of actors) {
-      const id = String(raw.id ?? '').trim();
-      if (!id) continue;
-      debt.set(id, (debt.get(id) ?? 0) + (selectedIds.has(id) ? -Math.min(1, debt.get(id) ?? 0) : 1));
+    const activeIds = new Set<string>();
+    for (const [index, raw] of eligibleActors.entries()) {
+      if (raw.active === false) continue;
+      const id = normalizeStimulusActor(raw, index, bucketCount).id;
+      if (activeIds.has(id)) continue;
+      activeIds.add(id);
+      const previous = debt.get(id) ?? 0;
+      debt.set(id, selectedIds.has(id) ? Math.max(0, previous - 1) : previous + 1);
+    }
+    for (const id of debt.keys()) {
+      if (!activeIds.has(id)) debt.delete(id);
     }
     return selection;
   };
