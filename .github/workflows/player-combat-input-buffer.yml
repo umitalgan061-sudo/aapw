@@ -1,0 +1,42 @@
+name: Player Combat Input Buffer
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatInputBuffer.ts'
+      - 'scripts/checkPlayerCombatInputBuffer.mjs'
+      - '.github/workflows/player-combat-input-buffer.yml'
+  push:
+    branches:
+      - 'agent/kizil-ufuk-combat-input-buffer-20260924-r11'
+
+jobs:
+  focused-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - name: Assert exact main ancestry and bounded scope
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          BASE="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$BASE" HEAD
+          CHANGED="$(git diff --name-only "$BASE"...HEAD)"
+          ALLOW='^(src/3d/gameplay/playerCombatInputBuffer\.ts|scripts/checkPlayerCombatInputBuffer\.mjs|\.github/workflows/player-combat-input-buffer\.yml)$'
+          while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
+            [[ "$file" =~ $ALLOW ]] || { echo "out-of-scope: $file"; exit 1; }
+          done <<< "$CHANGED"
+          ADDITIONS="$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0}')"
+          DELETIONS="$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print d+0}')"
+          (( ADDITIONS + DELETIONS <= 3000 ))
+      - name: Run focused proof
+        run: node --experimental-strip-types scripts/checkPlayerCombatInputBuffer.mjs
+      - name: Parse changed TypeScript
+        run: node --check src/3d/gameplay/playerCombatInputBuffer.ts
