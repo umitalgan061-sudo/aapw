@@ -1,0 +1,56 @@
+name: Buzul Muhafızı Live Photorealism Runtime
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/photorealismAcceptanceSampler.ts'
+      - 'src/3d/world/photorealismAssetClusterPlanner.ts'
+      - 'src/3d/world/photorealismBatchExecutor.ts'
+      - 'src/3d/world/photorealismDirector.js'
+      - 'src/3d/world/photorealismDirector.ts'
+      - 'src/3d/world/photorealismEnvironmentPass.ts'
+      - 'src/3d/world/photorealismLiveSceneRuntime.ts'
+      - 'src/3d/world/photorealismMaterialAssignmentAdapter.ts'
+      - 'src/3d/world/photorealismRuntimeAdapter.js'
+      - 'src/3d/world/photorealismRuntimeAdapter.ts'
+      - 'src/3d/world/photorealismRuntimeController.ts'
+      - 'src/3d/world/photorealismRuntimeSafety.ts'
+      - 'src/3d/world/photorealismSceneBridge.js'
+      - 'src/3d/world/photorealismSceneBridge.ts'
+      - 'src/3d/world/photorealismSceneIntegration.ts'
+      - 'src/3d/world/photorealismSceneTargetFactory.ts'
+      - 'src/3d/world/photorealismStructuralSuppression.ts'
+      - 'tests/modern/photorealismDirector.test.ts'
+      - 'tests/modern/photorealismRuntimeAdapter.test.ts'
+      - 'tests/modern/photorealismSceneBridge.test.ts'
+      - 'tests/world/photorealismAcceptanceSampler.test.ts'
+      - 'tests/world/photorealismEnvironmentPass.test.ts'
+      - 'tests/world/photorealismLiveSceneRuntime.test.ts'
+      - 'tests/world/photorealismMaterialAssignmentAdapter.test.ts'
+      - 'tests/world/photorealismRuntimeController.test.ts'
+      - 'tests/world/photorealismRuntimeSafety.test.ts'
+      - 'tests/world/photorealismSceneTargetFactory.test.ts'
+      - 'tests/world/photorealismStructuralSuppression.test.ts'
+      - '.github/workflows/buzul-photorealism-live-runtime.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: >-
+          npx tsc --noEmit --ignoreConfig --allowImportingTsExtensions
+          --target ES2024 --module ESNext --moduleResolution Bundler --skipLibCheck
+          src/3d/world/photorealismDirector.ts
+          src/3d/world/photorealismEnvironmentPass.ts
+          src/3d/world/photorealismRuntimeController.ts
+          src/3d/world/photorealismSceneIntegration.ts
+          src/3d/world/photorealismRuntimeSafety.ts
+          src/3d/world/photorealismLiveSceneRuntime.ts
+      - run: npx vitest run tests/modern/photorealismDirector.test.ts tests/modern/photorealismRuntimeAdapter.test.ts tests/modern/photorealismSceneBridge.test.ts tests/world/photorealismAcceptanceSampler.test.ts tests/world/photorealismEnvironmentPass.test.ts tests/world/photorealismLiveSceneRuntime.test.ts tests/world/photorealismMaterialAssignmentAdapter.test.ts tests/world/photorealismRuntimeController.test.ts tests/world/photorealismRuntimeSafety.test.ts tests/world/photorealismSceneTargetFactory.test.ts tests/world/photorealismStructuralSuppression.test.ts
