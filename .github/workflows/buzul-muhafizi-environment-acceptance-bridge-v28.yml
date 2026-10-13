@@ -1,0 +1,55 @@
+name: Buzul Muhafizi Environment Acceptance Bridge v28
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentAcceptanceRuntimeBridge.js'
+      - 'scripts/checkEnvironmentAcceptanceRuntimeBridge.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-acceptance-bridge-v28.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Exact-main and focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+          changed=$(git diff --numstat origin/main...HEAD)
+          test -n "$changed"
+          files=$(printf '%s\n' "$changed" | awk '{print $3}')
+          test "$(printf '%s\n' "$files" | wc -l | tr -d ' ')" -eq 3
+          printf '%s\n' "$files" | grep -Fx 'src/3d/world/environmentAcceptanceRuntimeBridge.js'
+          printf '%s\n' "$files" | grep -Fx 'scripts/checkEnvironmentAcceptanceRuntimeBridge.mjs'
+          printf '%s\n' "$files" | grep -Fx '.github/workflows/buzul-muhafizi-environment-acceptance-bridge-v28.yml'
+          total=$(printf '%s\n' "$changed" | awk '{a+=$1; d+=$2} END {print a+d}')
+          test "$total" -le 3000
+      - name: Syntax and executable regression
+        run: |
+          node --check src/3d/world/environmentAcceptanceRuntimeBridge.js
+          node --check scripts/checkEnvironmentAcceptanceRuntimeBridge.mjs
+          node scripts/checkEnvironmentAcceptanceRuntimeBridge.mjs
+      - name: Ownership boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" -n src/3d/world/environmentAcceptanceRuntimeBridge.js scripts/checkEnvironmentAcceptanceRuntimeBridge.mjs
+          ! grep -R "terrain.js\|water.js\|sceneManager.js\|naturalGeology.js\|rivers.js\|roads.js" -n src/3d/world/environmentAcceptanceRuntimeBridge.js scripts/checkEnvironmentAcceptanceRuntimeBridge.mjs
+      - name: Diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only origin/main...HEAD | grep -E '\.(png|jpg|jpeg|webp|glb|fbx|blend|bin)$' || true)"
+          git diff --check origin/main...HEAD
