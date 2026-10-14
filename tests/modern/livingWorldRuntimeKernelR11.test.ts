@@ -65,6 +65,31 @@ describe('R11 living-world runtime kernel', () => {
     )).toBe(true);
   });
 
+  it('preserves urgent actors beyond the reserved priority slice', () => {
+    const mixedActors = [
+      ...Array.from({ length: 20 }, (_, index) => ({
+        id: `urgent-${index}`,
+        urgency: 0.8 + (index % 5) * 0.05,
+        ageTicks: index,
+      })),
+      ...Array.from({ length: 12 }, (_, index) => ({
+        id: `ambient-${index}`,
+        urgency: 0.2,
+        ageTicks: index,
+      })),
+    ];
+    const budget = createLivingWorldStimulusWorkBudget({ bucketCount: 1, budget: 32 });
+    const first = budget.select(mixedActors, 32);
+
+    expect(first.selected).toHaveLength(32);
+    expect(first.selected.slice(0, 16).every((actor) => actor.urgency >= 0.8)).toBe(true);
+    expect(first.selected.filter((actor) => actor.urgency >= 0.8)).toHaveLength(20);
+    expect(new Set(first.selected.map((actor) => actor.id)).size).toBe(32);
+
+    budget.reset();
+    expect(budget.select(mixedActors, 32)).toEqual(first);
+  });
+
   it('counts starvation once per active actor and clears inactive or absent debt', () => {
     const budget = createLivingWorldStimulusWorkBudget({
       bucketCount: 1,
