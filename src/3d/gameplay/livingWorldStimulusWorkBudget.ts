@@ -143,8 +143,13 @@ export function selectStimulusWork(
     }
   }
 
-  const urgent = selected.filter((actor) => actor.urgency >= 0.8).slice(0, LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.maxUrgentActors);
-  const ordered = [...urgent, ...selected.filter((actor) => actor.urgency < 0.8 && !urgent.some((item) => item.id === actor.id))];
+  // Reserve a bounded priority slice without dropping urgent overflow.
+  const urgent = selected
+    .filter((actor) => actor.urgency >= 0.8)
+    .sort((a, b) => b.priority - a.priority || b.ageTicks - a.ageTicks || a.id.localeCompare(b.id))
+    .slice(0, LIVING_WORLD_STIMULUS_WORK_BUDGET_POLICY.maxUrgentActors);
+  const urgentIds = new Set(urgent.map((actor) => actor.id));
+  const ordered = [...urgent, ...selected.filter((actor) => !urgentIds.has(actor.id))];
 
   return freeze({
     tick: integer(tick),
