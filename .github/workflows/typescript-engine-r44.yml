@@ -60,6 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           base="${{ github.event.pull_request.base.sha }}"
+          git fetch --no-tags --depth=1 origin "$base"
           additions="$(git diff --numstat "$base"...HEAD -- src/engine-ts/r44 tests/engine-r44 scripts/checkEngineR44.mjs package.json tsconfig.r44.json src/engine-ts/index.ts .github/workflows/typescript-engine-r44.yml docs/ENGINE_R44_RUNTIME.md | awk '{sum += $1} END {print sum+0}')"
           echo "meaningful additions: $additions"
           test "$additions" -ge 4000
