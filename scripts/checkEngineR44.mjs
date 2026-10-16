@@ -46,7 +46,7 @@ if (testFiles.length < 8) failures.push("test-suite-count:" + testFiles.length);
 
 const index = await read("src/engine-ts/index.ts");
 if (!index.includes("export * from './r43/index.ts';")) failures.push("missing-r43-entry");
-if (!index.includes("export * from './r44/index.ts';")) failures.push("missing-r44-entry");
+if (!index.includes("export * as R44RuntimeGovernance from './r44/index.ts';")) failures.push("missing-r44-namespace");
 const pkg = JSON.parse(await read("package.json"));
 for (const name of ["verify:r44", "typecheck:r44", "test:r44", "check:r44"]) {
   if (!pkg.scripts?.[name]) failures.push("missing-script:" + name);
