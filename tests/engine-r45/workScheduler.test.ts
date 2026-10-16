@@ -56,6 +56,29 @@ describe("BoundedWorkScheduler", () => {
     expect(failing.get("blocked")?.status).toBe("cancelled");
   });
 
+  it("bounds dependency history while preserving outcomes needed by queued dependents", () => {
+    const scheduler = new BoundedWorkScheduler({ maxHistory: 2, capacity: 8 });
+    for (let index = 0; index < 6; index += 1) {
+      scheduler.enqueue({ id: "done-" + index, lane: "batch", run: () => index }, index);
+      scheduler.pump(index);
+    }
+    expect(scheduler.stats().dependencyOutcomes).toBeLessThanOrEqual(2);
+    scheduler.enqueue({ id: "parent", lane: "batch", run: () => "done" }, 7);
+    scheduler.enqueue({ id: "child", lane: "batch", dependencies: ["parent"], run: () => "child" }, 7);
+    scheduler.pump(7);
+    expect(scheduler.get("child")?.status).toBe("completed");
+  });
+
+  it("rejects self-dependencies and oversized dependency lists", () => {
+    const scheduler = new BoundedWorkScheduler();
+    expect(() => scheduler.enqueue({ id: "self", lane: "batch", dependencies: ["self"], run: () => true }, 1)).toThrow(/itself/u);
+    expect(() => scheduler.enqueue({
+      id: "many", lane: "batch",
+      dependencies: Array.from({ length: 65 }, (_, index) => "dep-" + index),
+      run: () => true,
+    }, 1)).toThrow(/64 tasks/u);
+  });
+
   it("cancels queued work and records a cancellation outcome", () => {
     const scheduler = new BoundedWorkScheduler();
     scheduler.enqueue({ id: "pending", lane: "assets", run: () => true }, 1);

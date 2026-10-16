@@ -100,6 +100,7 @@ export class RuntimeOperations {
   #frameNumber = 0;
   #sections = new Map<string, RuntimeStateSection<unknown>>();
   #lastFrameTick = 0;
+  readonly #maxStateSections = 256;
 
   constructor(options: RuntimeOperationsOptions = {}) {
     this.clock = new DeterministicLogicalClock(options.clock);
@@ -140,6 +141,11 @@ export class RuntimeOperations {
     this.#assertMutable("registerSection");
     if (!section.key.trim() || section.key.length > 128 || this.#sections.has(section.key)) {
       throw new RuntimeFault("CONFLICT", "Runtime persistence section key is invalid or duplicated", "runtimeOperations.registerSection");
+    }
+    if (this.#sections.size >= this.#maxStateSections) {
+      throw new RuntimeFault("CAPACITY_EXCEEDED", "Runtime persistence section capacity is full", "runtimeOperations.registerSection", {
+        details: { maxStateSections: this.#maxStateSections },
+      });
     }
     this.#sections.set(section.key, Object.freeze({ ...section }) as RuntimeStateSection<unknown>);
   }

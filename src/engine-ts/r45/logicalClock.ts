@@ -7,6 +7,7 @@ export interface LogicalClockConfig {
   readonly maxRealDeltaMs?: number;
   readonly maxCatchUpSteps?: number;
   readonly maxScheduledCallbacksPerAdvance?: number;
+  readonly maxTimers?: number;
   readonly initialTick?: number;
   readonly initialMode?: ClockMode;
   readonly initialScale?: number;
@@ -60,6 +61,7 @@ export class DeterministicLogicalClock {
   readonly maxRealDeltaMs: number;
   readonly maxCatchUpSteps: number;
   readonly maxScheduledCallbacksPerAdvance: number;
+  readonly maxTimers: number;
   #tick: number;
   #accumulatorMs = 0;
   #mode: ClockMode;
@@ -82,6 +84,7 @@ export class DeterministicLogicalClock {
       1,
       10_000,
     );
+    this.maxTimers = integer(config.maxTimers ?? 4096, "clock.maxTimers", 1, 1_000_000);
     this.#tick = integer(config.initialTick ?? 0, "clock.initialTick", 0, Number.MAX_SAFE_INTEGER - 10_000);
     this.#mode = config.initialMode ?? "running";
     this.#timeScale = clamp(config.initialScale ?? 1, 0, 4);
@@ -120,6 +123,11 @@ export class DeterministicLogicalClock {
     const delay = integer(delayTicks, "clock.schedule.delayTicks", 1, 10_000_000);
     if (typeof callback !== "function") {
       throw new RuntimeFault("INVALID_INPUT", "Timer callback must be callable", "clock.schedule");
+    }
+    if (this.#timers.size >= this.maxTimers) {
+      throw new RuntimeFault("CAPACITY_EXCEEDED", "Logical timer capacity is full", "clock.schedule", {
+        details: { maxTimers: this.maxTimers },
+      });
     }
     if (this.#nextTimerId >= Number.MAX_SAFE_INTEGER) {
       throw new RuntimeFault("CAPACITY_EXCEEDED", "Timer identifier space exhausted", "clock.schedule");

@@ -76,6 +76,12 @@ describe("DeterministicLogicalClock", () => {
     expect(() => clock.advance(Number.NaN)).toThrow();
   });
 
+  it("bounds the number of outstanding logical timers", () => {
+    const clock = new DeterministicLogicalClock({ fixedStepMs: 10, maxTimers: 1 });
+    clock.schedule(2, () => undefined);
+    expect(() => clock.schedule(2, () => undefined)).toThrow(/timer capacity/u);
+  });
+
   it("does not use ambient wall-clock or random sources", () => {
     const clock = new DeterministicLogicalClock({ fixedStepMs: 1 });
     const before = clock.tick;

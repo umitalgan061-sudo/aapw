@@ -60,6 +60,8 @@ const SEVERITY_RANK: Readonly<Record<DiagnosticSeverity, number>> = {
 export class RuntimeDiagnosticLedger {
   readonly dedupeWindowTicks: number;
   readonly maxIncidentMessageLength: number;
+  readonly maxMetricNames: number;
+  readonly maxActiveIncidents: number;
   #incidents: BoundedRing<DiagnosticIncident>;
   #samples: BoundedRing<DiagnosticSample>;
   #active = new Map<string, DiagnosticIncident>();
@@ -69,10 +71,15 @@ export class RuntimeDiagnosticLedger {
   #totalOccurrences = 0;
 
   constructor(options: DiagnosticLedgerOptions = {}) {
-    this.#incidents = new BoundedRing(options.incidentCapacity ?? 512);
+    this.maxActiveIncidents = options.incidentCapacity ?? 512;
+    this.#incidents = new BoundedRing(this.maxActiveIncidents);
     this.#samples = new BoundedRing(options.sampleCapacity ?? 2048);
     this.dedupeWindowTicks = options.dedupeWindowTicks ?? 120;
     this.maxIncidentMessageLength = options.maxIncidentMessageLength ?? 512;
+    this.maxMetricNames = options.metricCapacity ?? 256;
+    if (!Number.isInteger(this.maxMetricNames) || this.maxMetricNames < 1 || this.maxMetricNames > 100_000) {
+      throw new RuntimeFault("INVALID_INPUT", "Metric name capacity is invalid", "diagnostics.constructor");
+    }
     if (!Number.isInteger(this.dedupeWindowTicks) || this.dedupeWindowTicks < 0 || this.dedupeWindowTicks > 1_000_000) {
       throw new RuntimeFault("INVALID_INPUT", "Incident deduplication window is invalid", "diagnostics.constructor");
     }
@@ -127,6 +134,12 @@ export class RuntimeDiagnosticLedger {
       firstSeenTick: input.tick,
       lastSeenTick: input.tick,
     });
+    if (this.#active.size >= this.maxActiveIncidents && !this.#active.has(activeKey)) {
+      const candidates = [...this.#active.entries()].sort((left, right) =>
+        left[1].lastSeenTick - right[1].lastSeenTick || left[1].sequence - right[1].sequence);
+      const removable = candidates.find(([, value]) => value.severity !== "critical") ?? candidates[0];
+      if (removable) this.#active.delete(removable[0]);
+    }
     this.#active.set(activeKey, incident);
     this.#incidents.push(incident);
     return incident;
@@ -142,7 +155,14 @@ export class RuntimeDiagnosticLedger {
     }
     const sample: DiagnosticSample = Object.freeze({ tick, name, value, unit });
     this.#samples.push(sample);
-    const values = this.#metricWindows.get(name) ?? [];
+    let values = this.#metricWindows.get(name);
+    if (!values) {
+      if (this.#metricWindows.size >= this.maxMetricNames) {
+        const oldest = this.#metricWindows.keys().next().value;
+        if (oldest !== undefined) this.#metricWindows.delete(oldest);
+      }
+      values = [];
+    }
     values.push(value);
     if (values.length > 512) values.shift();
     this.#metricWindows.set(name, values);

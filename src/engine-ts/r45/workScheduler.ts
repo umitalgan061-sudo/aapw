@@ -116,6 +116,13 @@ export class BoundedWorkScheduler {
     }
     const id = taskId(definition.id);
     const priority = definition.priority ?? "normal";
+    const dependencies = [...new Set((definition.dependencies ?? []).map((entry) => taskId(entry)))];
+    if (dependencies.length > 64) {
+      throw new RuntimeFault("CAPACITY_EXCEEDED", "A work item cannot depend on more than 64 tasks", "scheduler.enqueue");
+    }
+    if (dependencies.includes(id)) {
+      throw new RuntimeFault("CONFLICT", "A work item cannot depend on itself", "scheduler.enqueue");
+    }
     const cost = definition.estimatedCost ?? 1;
     if (!Number.isFinite(cost) || cost < 1 || cost > this.maxCostPerPump) {
       this.#metrics.rejected += 1;
@@ -142,7 +149,7 @@ export class BoundedWorkScheduler {
       lane,
       priority,
       estimatedCost: cost,
-      dependencies: Object.freeze([...(definition.dependencies ?? [])]),
+      dependencies: Object.freeze(dependencies),
     });
     const internal: InternalTask = {
       definition: frozen,
@@ -166,7 +173,7 @@ export class BoundedWorkScheduler {
     task.controller.abort(reason);
     this.#queue.delete(id);
     this.#removeDedupe(task);
-    this.#dependencyOutcomes.set(id, "cancelled");
+    this.#rememberDependencyOutcome(id, "cancelled");
     this.#remember({
       id,
       lane: task.definition.lane,
@@ -240,7 +247,7 @@ export class BoundedWorkScheduler {
         });
         receipts.push(receipt);
         this.#remember(receipt);
-        this.#dependencyOutcomes.set(candidate.id, "completed");
+        this.#rememberDependencyOutcome(candidate.id, "completed");
         this.#metrics.completed += 1;
       } catch (error) {
         const fault = normalizeError(error, "scheduler.task");
@@ -256,7 +263,7 @@ export class BoundedWorkScheduler {
         });
         receipts.push(receipt);
         this.#remember(receipt);
-        this.#dependencyOutcomes.set(candidate.id, "failed");
+        this.#rememberDependencyOutcome(candidate.id, "failed");
         this.#metrics.failed += 1;
       }
       remaining -= cost;
@@ -301,6 +308,7 @@ export class BoundedWorkScheduler {
     return Object.freeze({
       queued: this.#queue.size,
       history: this.#history.size,
+      dependencyOutcomes: this.#dependencyOutcomes.size,
       ...this.#metrics,
       lanes: new Set([...this.#queue.values()].map((task) => task.definition.lane)).size,
     });
@@ -337,7 +345,7 @@ export class BoundedWorkScheduler {
     task.status = status;
     this.#queue.delete(task.id);
     this.#removeDedupe(task);
-    this.#dependencyOutcomes.set(task.id, status);
+    this.#rememberDependencyOutcome(task.id, status);
     this.#remember({
       id: task.id,
       lane: task.definition.lane,
@@ -348,6 +356,24 @@ export class BoundedWorkScheduler {
       cost: 0,
       fault: Object.freeze({ code, message }),
     });
+  }
+
+  #rememberDependencyOutcome(
+    id: TaskId,
+    outcome: "completed" | "failed" | "cancelled" | "expired",
+  ): void {
+    if (this.#dependencyOutcomes.has(id)) this.#dependencyOutcomes.delete(id);
+    this.#dependencyOutcomes.set(id, outcome);
+    const required = new Set<string>();
+    for (const task of this.#queue.values()) {
+      for (const dependency of task.definition.dependencies ?? []) required.add(dependency);
+    }
+    const historyBudget = this.maxHistory + required.size;
+    while (this.#dependencyOutcomes.size > historyBudget) {
+      const oldestUnreferenced = [...this.#dependencyOutcomes.keys()].find((candidate) => !required.has(candidate));
+      if (oldestUnreferenced === undefined) break;
+      this.#dependencyOutcomes.delete(oldestUnreferenced);
+    }
   }
 
   #remember(receipt: WorkReceipt): void {

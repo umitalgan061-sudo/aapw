@@ -31,12 +31,15 @@ describe("RuntimeDiagnosticLedger", () => {
   });
 
   it("bounds incident and sample history while exposing dropped counters", () => {
-    const ledger = new RuntimeDiagnosticLedger({ incidentCapacity: 2, sampleCapacity: 2 });
+    const ledger = new RuntimeDiagnosticLedger({ incidentCapacity: 2, sampleCapacity: 2, metricCapacity: 1 });
     for (let tick = 1; tick <= 4; tick += 1) {
       ledger.recordIncident({ tick, component: "runtime", code: "E" + tick, severity: "warning", message: "warning " + tick });
       ledger.sample(tick, "queue", tick, "items");
     }
-    expect(ledger.summary()).toMatchObject({ uniqueIncidents: 4, droppedIncidents: 2, droppedSamples: 2 });
+    expect(ledger.summary()).toMatchObject({ uniqueIncidents: 2, droppedIncidents: 2, droppedSamples: 2 });
+    ledger.sample(5, "other", 1, "items");
+    expect(ledger.metric("queue").count).toBe(0);
+    expect(ledger.metric("other").count).toBe(1);
   });
 
   it("requires monotonic-safe tick and finite numeric telemetry", () => {
