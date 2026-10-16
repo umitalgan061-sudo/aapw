@@ -66,3 +66,7 @@ console.log('[checkPindex05NaturalSoilVariation] PASS', JSON.stringify({
   mineralDryRange: Number(range('mineralDry').toFixed(4)),
   luminanceRange: Number(range('luminance').toFixed(4)),
 }));
+
+// Keep the existing full-world CI entrypoint responsible for the live shader and deterministic mesh-normal regression too.
+await import('./checkTerrainPindexQualityV2.js');
+await import('./checkPindexTerrainAntiTiling.mjs');
