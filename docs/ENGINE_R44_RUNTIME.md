@@ -18,7 +18,7 @@ R44 adds a bounded production-governance layer on top of the R43 engine. It rema
 
 ## Integration
 
-1. Import the public surface from `src/engine-ts/index.ts` or `src/engine-ts/r44/index.ts`.
+1. Import `R44RuntimeGovernance` from `src/engine-ts/index.ts` for namespaced access, or import individual APIs directly from `src/engine-ts/r44/index.ts`.
 2. Register service dependencies and command schemas during bootstrap.
 3. Start the runtime before accepting external commands.
 4. Issue a capability with a narrow scope and only the permissions required by the command.
