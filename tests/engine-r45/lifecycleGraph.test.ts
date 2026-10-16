@@ -24,8 +24,8 @@ describe("ServiceLifecycleGraph", () => {
   it("starts in dependency order and stops in reverse dependency order", async () => {
     const calls: string[] = [];
     const graph = new ServiceLifecycleGraph();
-    graph.register({ id: "a", start: () => calls.push("start-a"), stop: () => calls.push("stop-a") });
-    graph.register({ id: "b", dependsOn: ["a"], start: () => calls.push("start-b"), stop: () => calls.push("stop-b") });
+    graph.register({ id: "a", start: () => { calls.push("start-a"); }, stop: () => { calls.push("stop-a"); } });
+    graph.register({ id: "b", dependsOn: ["a"], start: () => { calls.push("start-b"); }, stop: () => { calls.push("stop-b"); } });
     await graph.startAll();
     expect(graph.get("a")?.state).toBe("ready");
     expect(graph.get("b")?.state).toBe("ready");

@@ -194,7 +194,7 @@ export class RuntimeOperations {
       ...(metrics.inputLatencyMs === undefined ? {} : { inputLatencyMs: metrics.inputLatencyMs }),
       ...(metrics.memoryBytes === undefined ? {} : { memoryBytes: metrics.memoryBytes }),
       ...(metrics.networkRttMs === undefined ? {} : { networkRttMs: metrics.networkRttMs }),
-      ...(metrics.taskQueueDepth === undefined ? { taskQueueDepth: this.scheduler.stats().queued } : { taskQueueDepth: metrics.taskQueueDepth }),
+      ...(metrics.taskQueueDepth === undefined ? { taskQueueDepth: this.scheduler.stats().queued ?? 0 } : { taskQueueDepth: metrics.taskQueueDepth }),
       ...(metrics.assetQueueDepth === undefined ? {} : { assetQueueDepth: metrics.assetQueueDepth }),
       ...(metrics.droppedFrames === undefined ? {} : { droppedFrames: metrics.droppedFrames }),
       ...(metrics.frameBudgetMs === undefined ? {} : { frameBudgetMs: metrics.frameBudgetMs }),

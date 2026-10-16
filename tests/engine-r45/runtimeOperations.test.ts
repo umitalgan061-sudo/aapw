@@ -5,10 +5,10 @@ describe("RuntimeOperations integration facade", () => {
   it("starts services, runs bounded work and shuts services down in reverse order", async () => {
     const calls: string[] = [];
     const runtime = new RuntimeOperations({ clock: { fixedStepMs: 10 }, quality: { minTicksBetweenChanges: 0 } });
-    runtime.registerService({ id: "assets", start: () => calls.push("start-assets"), stop: () => calls.push("stop-assets") });
+    runtime.registerService({ id: "assets", start: () => { calls.push("start-assets"); }, stop: () => { calls.push("stop-assets"); } });
     runtime.registerService({
       id: "world", dependsOn: ["assets"],
-      start: () => calls.push("start-world"), stop: () => calls.push("stop-world"),
+      start: () => { calls.push("start-world"); }, stop: () => { calls.push("stop-world"); },
     });
     const started = await runtime.start();
     expect(started.ok).toBe(true);

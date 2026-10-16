@@ -128,7 +128,7 @@ export class ServiceLifecycleGraph {
         });
       }
       marks.set(id, "visiting");
-      for (const dependency of definition.dependsOn ?? []) visit(dependency, [...trail, id]);
+      for (const dependency of definition.dependsOn ?? []) visit(serviceId(dependency), [...trail, id]);
       marks.set(id, "visited");
       result.push(id);
     };

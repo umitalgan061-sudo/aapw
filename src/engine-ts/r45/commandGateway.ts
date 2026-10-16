@@ -212,7 +212,7 @@ export class CommandGateway {
         tick: metadata.tick,
         payloadFingerprint: fingerprint,
         status: "accepted",
-        result,
+        result: result as R,
       });
       this.#accepted += 1;
       this.#appendReceipt(receipt);
