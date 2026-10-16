@@ -210,7 +210,7 @@ export class SnapshotSequenceGate<T = unknown> {
 
   constructor(sessionId: string, options: { readonly maxAgeMs?: number; readonly maxFutureSkewMs?: number } = {}) {
     this.sessionId = sessionId;
-    this.maxAgeMs = Math.max(100, Math.trunc(options.maxAgeMs ?? 5000));
+    this.maxAgeMs = Math.max(1, Math.trunc(options.maxAgeMs ?? 5000));
     this.maxFutureSkewMs = Math.max(0, Math.trunc(options.maxFutureSkewMs ?? 250));
   }
 

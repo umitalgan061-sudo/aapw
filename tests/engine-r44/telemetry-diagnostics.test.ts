@@ -20,8 +20,9 @@ describe("R44 telemetry and diagnostics", () => {
     for (let index = 0; index < 32; index += 1) telemetry.record("unique." + index, index, index, index);
     expect(telemetry.listNames().length).toBe(8);
     expect(telemetry.droppedNames).toBeGreaterThan(0);
-    telemetry.record("stable", 1, 1, 1, { "unsafe key": "ignored", platform: "web".repeat(60) });
-    const item = telemetry.ring.latest("stable");
+    const tagTelemetry = new TelemetryHub({ capacity: 32, maxMetricNames: 8 });
+    tagTelemetry.record("stable", 1, 1, 1, { "unsafe key": "ignored", platform: "web".repeat(60) });
+    const item = tagTelemetry.ring.latest("stable");
     expect(item?.tags["unsafe key"]).toBeUndefined();
     expect(item?.tags.platform?.length).toBeLessThanOrEqual(96);
   });

@@ -250,7 +250,7 @@ export class RuntimeLifecycle {
 
   healthCheck(): readonly { readonly serviceId: string; readonly healthy: boolean; readonly state: LifecycleState }[] {
     const results = [...this.#services.values()].map((entry) => {
-      let healthy = entry.state === "ready";
+      let healthy = entry.state === "ready" || entry.state === "degraded";
       try {
         if (entry.definition.health) healthy = healthy && entry.definition.health(entry.value);
       } catch {
