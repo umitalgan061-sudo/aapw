@@ -124,10 +124,6 @@ export function detectRenderCapabilities({
   readonly navigatorObject?: NavigatorCapabilities;
   readonly documentObject?: Document;
   readonly windowObject?: CapabilityWindow;
-}: {
-  readonly navigatorObject?: NavigatorCapabilities;
-  readonly documentObject?: Document;
-  readonly windowObject?: CapabilityWindow;
 } = {}): RenderCapabilities {
   const webgpu = detectWebGPU({ navigatorObject });
   const webgl2 = detectWebGLContext({ documentObject, kind: 'webgl2' });

@@ -1,4 +1,3 @@
-
 #!/usr/bin/env node
 import { scanTypeScriptOwnership } from '../src/3d/strict/r41/ownership.ts';
 

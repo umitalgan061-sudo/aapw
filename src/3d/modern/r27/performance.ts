@@ -135,7 +135,7 @@ export class AdaptiveQualityController {
     }
 
     if (this.#underBudgetStreak >= this.config.upshiftFrames && this.#level < this.config.maxLevel) {
-      this.#level = (this.#level + 1) as typeof this.#level;
+      this.#level = (this.#level + 1) as QualityDecision["level"];
       this.#underBudgetStreak = 0;
       return { level: this.#level, reason: 'under-utilized', changed: true };
     }
