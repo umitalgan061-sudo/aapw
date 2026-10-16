@@ -1,0 +1,43 @@
+name: runtime-assurance-r44
+
+on:
+  pull_request:
+    paths:
+      - "src/engine-ts/r44/**"
+      - "src/engine-ts/index.ts"
+      - "tests/engine-ts/r44/**"
+      - "scripts/checkRuntimeAssuranceR44.mjs"
+      - "docs/RUNTIME_ASSURANCE_R44.md"
+      - "package.json"
+      - ".github/workflows/runtime-assurance-r44.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/engine-ts/r44/**"
+      - "src/engine-ts/index.ts"
+      - "tests/engine-ts/r44/**"
+      - "scripts/checkRuntimeAssuranceR44.mjs"
+      - "docs/RUNTIME_ASSURANCE_R44.md"
+      - "package.json"
+      - ".github/workflows/runtime-assurance-r44.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-assurance-r44-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract-and-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:runtime-assurance-r44
+      - run: npm run typecheck
+      - run: npm run test:runtime-assurance-r44
