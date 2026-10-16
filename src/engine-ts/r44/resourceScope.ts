@@ -117,7 +117,7 @@ export class R44ResourceScope implements R44Disposable {
     const child = new R44ResourceScope(this.#id + "/" + r44NormalizeId(id, "child id", 96), {
       tick: this.#tick,
       strictRegistration: this.#strictRegistration,
-      onFailure: this.#onFailure,
+      ...(this.#onFailure === undefined ? {} : { onFailure: this.#onFailure }),
     });
     this.defer(() => child.dispose(), { owner: "child-scope", id: "child:" + id });
     return child;
@@ -224,7 +224,8 @@ export interface R44LeaseRegistryOptions {
   readonly maxAgeTicks?: number;
 }
 
-interface R44LeaseRecord extends Omit<R44LeaseSnapshot, "references" | "ageTicks"> {
+interface R44LeaseRecord extends Omit<R44LeaseSnapshot, "id" | "references" | "ageTicks"> {
+  readonly id: R44ResourceId;
   references: number;
   readonly releaseAction: () => void | Promise<void>;
   released: boolean;
@@ -351,7 +352,7 @@ export class R44ResourceLeaseRegistry {
     return Object.freeze(failures);
   }
 
-  diagnostics(): Readonly<Record<string, number>> {
+  diagnostics(): R44LeaseRegistryDiagnostics {
     return Object.freeze({
       activeLeases: this.#leases.size,
       estimatedBytes: this.#estimatedBytes,

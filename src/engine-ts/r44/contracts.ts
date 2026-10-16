@@ -142,7 +142,11 @@ export function r44AsSequence(value: number): R44Sequence {
   return r44FiniteInteger(value, "sequence", 0, Number.MAX_SAFE_INTEGER) as R44Sequence;
 }
 
-export function r44NormalizeId(value: string, label = "identifier", maxLength = R44_DEFAULT_LIMITS.idLength): string {
+export function r44NormalizeId(
+  value: string,
+  label: string = "identifier",
+  maxLength: number = R44_DEFAULT_LIMITS.idLength,
+): string {
   if (typeof value !== "string") throw new R44BoundaryError("invalid-id", label + " must be a string");
   const normalized = value.trim();
   if (normalized.length === 0) throw new R44BoundaryError("empty-id", label + " must not be empty");
@@ -155,7 +159,7 @@ export function r44NormalizeId(value: string, label = "identifier", maxLength = 
   return normalized;
 }
 
-export function r44NormalizeLabel(value: string, maxLength = R44_DEFAULT_LIMITS.labelLength): string {
+export function r44NormalizeLabel(value: string, maxLength: number = R44_DEFAULT_LIMITS.labelLength): string {
   const normalized = r44NormalizeId(value, "label", maxLength);
   return normalized.replace(/\s+/gu, " ");
 }
