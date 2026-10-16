@@ -73,4 +73,14 @@ describe("R44 security boundary", () => {
     for (let index = 0; index < 100; index += 1) limiter.consume("key-" + index, index);
     expect(limiter.keyCount()).toBeLessThanOrEqual(8);
   });
+
+  it("revokes all previously issued capabilities in bulk", () => {
+    const authority = new CapabilityAuthority();
+    const first = authority.issue({ scope: "session-a", permissions: ["read"], issuedAtMs: 1, expiresAtMs: 100, label: "one" });
+    const second = authority.issue({ scope: "session-b", permissions: ["write"], issuedAtMs: 1, expiresAtMs: 100, label: "two" });
+    authority.revokeAll();
+    expect(authority.authorize(first, "session-a", "read", 2)).toBe(false);
+    expect(authority.authorize(second, "session-b", "write", 2)).toBe(false);
+    expect(authority.hasIssued(first)).toBe(false);
+  });
 });
