@@ -224,7 +224,8 @@ export interface R44LeaseRegistryOptions {
   readonly maxAgeTicks?: number;
 }
 
-interface R44LeaseRecord extends R44LeaseSnapshot {
+interface R44LeaseRecord extends Omit<R44LeaseSnapshot, "references" | "ageTicks"> {
+  references: number;
   readonly releaseAction: () => void | Promise<void>;
   released: boolean;
 }
@@ -266,7 +267,6 @@ export class R44ResourceLeaseRegistry {
       kind: r44NormalizeLabel(options.kind, 96),
       estimatedBytes,
       acquiredTick,
-      ageTicks: 0,
       references: 1,
       tags: Object.freeze((options.tags ?? []).map((tag) => r44NormalizeLabel(tag, 64)).slice(0, 24)),
       releaseAction: options.release,

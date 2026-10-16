@@ -93,7 +93,7 @@ describe("R44 network guard", () => {
   });
 
   it("refills rate buckets only from monotonic logical ticks", () => {
-    const guard = new R44NetworkGuard({ rateCapacity: 10, rateRefillPerTick: 0.5 });
+    const guard = new R44NetworkGuard({ rateCapacity: 1, rateRefillPerTick: 0.5 });
     expect(guard.validate(envelope(1), 10).accepted).toBe(true);
     expect(guard.validate(envelope(2), 10).code).toBe("rate-limited");
     expect(guard.validate(envelope(3), 12).accepted).toBe(true);

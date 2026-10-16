@@ -301,7 +301,7 @@ export class R44AssetPipeline {
 
   #validateUri(input: string): string {
     const uri = r44NormalizeId(input, "asset URI", 2048);
-    if (/[\u0000-\u001f\u007f]/u.test(uri) || uri.includes("\\\\")) {
+    if (/[\u0000-\u001f\u007f]/u.test(uri) || uri.includes("\\")) {
       throw new R44BoundaryError("asset-uri-invalid", "Asset URI contains forbidden characters");
     }
     if (/%2e%2e/iu.test(uri) || /(^|\/)\.\.(\/|$)/u.test(uri)) {
