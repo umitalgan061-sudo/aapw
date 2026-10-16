@@ -108,7 +108,8 @@ export class R44AssetPipeline {
   constructor(options: R44AssetPipelineOptions = {}) {
     this.#maxAssets = r44FiniteInteger(options.maxAssets ?? 50_000, "maxAssets", 1, 1_000_000);
     this.#maxResidentBytes = r44FiniteInteger(options.maxResidentBytes ?? 2048 * 1024 * 1024, "maxResidentBytes", 1);
-    this.#maxAssetBytes = r44FiniteInteger(options.maxAssetBytes ?? 128 * 1024 * 1024, "maxAssetBytes", 1, this.#maxResidentBytes);
+    const maxAssetBytes = options.maxAssetBytes ?? Math.min(128 * 1024 * 1024, this.#maxResidentBytes);
+    this.#maxAssetBytes = r44FiniteInteger(maxAssetBytes, "maxAssetBytes", 1, this.#maxResidentBytes);
     this.#maxConcurrentLoads = r44FiniteInteger(options.maxConcurrentLoads ?? 8, "maxConcurrentLoads", 1, 256);
     this.#allowedSchemes = new Set((options.allowedSchemes ?? ["https:", "http:"]).map((scheme) => scheme.toLowerCase()));
     this.#allowedOrigins = new Set(options.allowedOrigins ?? []);

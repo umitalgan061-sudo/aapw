@@ -345,7 +345,7 @@ export class R44IncidentSupervisor {
     if (message.length === 0) throw new R44BoundaryError("incident-message", "Incident message must not be empty");
     const details = Object.freeze({ ...(input.details ?? {}) });
     const key = input.fingerprint ?? r44Fingerprint({
-      subsystem, code, message, severity: input.severity,
+      subsystem, code, message,
     } as unknown as R44JsonValue).fingerprint;
     const existing = this.#active.get(key);
     if (existing !== undefined && tick - existing.lastTick <= this.#coalesceWindowTicks) {

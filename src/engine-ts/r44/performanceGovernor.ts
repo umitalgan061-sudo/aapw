@@ -180,7 +180,8 @@ export class R44PerformanceGovernor {
       r44FiniteNumber(value, "budget." + key, 0.0001, 1_000_000_000);
     }
     this.#alpha = r44Clamp(options.smoothingAlpha ?? 0.18, 0.01, 1);
-    this.#minimumSamplesForPercentile = r44FiniteInteger(options.minimumSamplesForPercentile ?? 12, "minimumSamplesForPercentile", 1, this.#capacity);
+    const minimumSamplesForPercentile = options.minimumSamplesForPercentile ?? Math.min(12, this.#capacity);
+    this.#minimumSamplesForPercentile = r44FiniteInteger(minimumSamplesForPercentile, "minimumSamplesForPercentile", 1, this.#capacity);
     this.#promoteAfter = r44FiniteInteger(options.promoteAfter ?? 3, "promoteAfter", 1, 1000);
     this.#recoverAfter = r44FiniteInteger(options.recoverAfter ?? 20, "recoverAfter", 1, 10_000);
     this.#windows = Object.fromEntries(R44_METRICS.map((key) => [key, createWindow(this.#capacity)])) as Record<keyof R44PerformanceBudgets, R44MetricWindow>;

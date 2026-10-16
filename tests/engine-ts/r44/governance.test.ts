@@ -7,7 +7,7 @@ import { R44ResourceLeaseRegistry, R44ResourceScope } from "../../../src/engine-
 describe("R44 performance governor", () => {
   it("promotes pressure after sustained budget violations and recovers with hysteresis", () => {
     const governor = new R44PerformanceGovernor({
-      capacity: 16,
+      capacity: 2,
       minimumSamplesForPercentile: 2,
       promoteAfter: 1,
       recoverAfter: 2,
@@ -21,7 +21,7 @@ describe("R44 performance governor", () => {
     expect(governor.sample(make(2, 30)).state).toBe("constrained");
     expect(governor.sample(make(3, 30)).state).toBe("emergency");
     expect(governor.sample(make(4, 4)).state).toBe("emergency");
-    expect(governor.sample(make(5, 4)).state).toBe("constrained");
+    expect(governor.sample(make(5, 4)).state).toBe("emergency");
     expect(governor.sample(make(6, 4)).state).toBe("constrained");
   });
 

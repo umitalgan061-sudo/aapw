@@ -128,7 +128,7 @@ export class R44EventLedger {
       kind,
       source,
       tick,
-      payload: input.payload,
+      payload: normalizedPayload,
       correlationId,
       tags,
       previousFingerprint: this.#tipFingerprint,
