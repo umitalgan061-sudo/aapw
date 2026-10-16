@@ -43,7 +43,9 @@ assert.match(engineIndex, /export\s+\*\s+from\s+['"]\.\/r44\/index\.ts['"]/u, "R
 const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
 assert.equal(packageJson.scripts["verify:runtime-assurance-r44"], "node scripts/checkRuntimeAssuranceR44.mjs");
 assert.equal(packageJson.scripts["test:runtime-assurance-r44"], "vitest run tests/engine-ts/r44");
-assert.equal(packageJson.scripts["check:runtime-assurance-r44"], "npm run verify:runtime-assurance-r44 && npm run typecheck && npm run test:runtime-assurance-r44");
+assert.equal(packageJson.scripts["typecheck:runtime-assurance-r44"], "tsc -p tsconfig.r44.json --noEmit");
+assert.equal(packageJson.scripts["check:runtime-assurance-r44"], "npm run verify:runtime-assurance-r44 && npm run typecheck:runtime-assurance-r44 && npm run test:runtime-assurance-r44");
+await access(resolve(root, "tsconfig.r44.json"));
 
 const testFiles = required.filter((path) => path.startsWith("tests/"));
 const testBodies = await Promise.all(testFiles.map((path) => readFile(resolve(root, path), "utf8")));

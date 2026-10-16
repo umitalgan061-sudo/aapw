@@ -203,7 +203,8 @@
     "check:modern:r43": "npm run check:r43 && npm run typecheck && npm test -- --passWithNoTests",
     "verify:runtime-assurance-r44": "node scripts/checkRuntimeAssuranceR44.mjs",
     "test:runtime-assurance-r44": "vitest run tests/engine-ts/r44",
-    "check:runtime-assurance-r44": "npm run verify:runtime-assurance-r44 && npm run typecheck && npm run test:runtime-assurance-r44"
+    "check:runtime-assurance-r44": "npm run verify:runtime-assurance-r44 && npm run typecheck:runtime-assurance-r44 && npm run test:runtime-assurance-r44",
+    "typecheck:runtime-assurance-r44": "tsc -p tsconfig.r44.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

@@ -5,6 +5,7 @@ on:
     paths:
       - "src/engine-ts/r44/**"
       - "src/engine-ts/index.ts"
+      - "tsconfig.r44.json"
       - "tests/engine-ts/r44/**"
       - "scripts/checkRuntimeAssuranceR44.mjs"
       - "docs/RUNTIME_ASSURANCE_R44.md"
@@ -39,5 +40,5 @@ jobs:
           node-version: 24.21.0
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run verify:runtime-assurance-r44
-      - run: npm run typecheck
+      - run: npm run typecheck:runtime-assurance-r44
       - run: npm run test:runtime-assurance-r44

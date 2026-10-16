@@ -57,7 +57,7 @@ Asset URLs, payload sizes, content types, sender IDs, message types, sequences, 
 Run the R44 structural contract and focused tests with:
 
     npm run verify:runtime-assurance-r44
-    npm run typecheck
+    npm run typecheck:runtime-assurance-r44
     npm run test:runtime-assurance-r44
 
 The dedicated workflow invokes these checks on changes to the R44 modules, tests, package scripts, entry barrel, or this documentation. Passing static checks is not proof of full browser, graphics-driver, or production-network correctness; integration acceptance still belongs to the deployment environment.
