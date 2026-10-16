@@ -42,6 +42,8 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: git diff --check
       - run: npm run check:r44
+      - name: Check the integrated repository TypeScript surface
+        run: npm run typecheck
       - name: Guard deterministic R44 boundaries
         shell: bash
         run: |
