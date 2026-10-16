@@ -1,0 +1,63 @@
+name: TypeScript Engine R44 Runtime Governance
+
+on:
+  pull_request:
+    paths:
+      - 'src/engine-ts/r44/**'
+      - 'tests/engine-r44/**'
+      - 'scripts/checkEngineR44.mjs'
+      - 'src/engine-ts/index.ts'
+      - 'package.json'
+      - 'tsconfig.r44.json'
+      - '.github/workflows/typescript-engine-r44.yml'
+      - 'docs/ENGINE_R44_RUNTIME.md'
+  push:
+    branches: [main]
+    paths:
+      - 'src/engine-ts/r44/**'
+      - 'tests/engine-r44/**'
+      - 'scripts/checkEngineR44.mjs'
+      - 'src/engine-ts/index.ts'
+      - 'package.json'
+      - 'tsconfig.r44.json'
+      - '.github/workflows/typescript-engine-r44.yml'
+      - 'docs/ENGINE_R44_RUNTIME.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-r44-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  governed-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: git diff --check
+      - run: npm run check:r44
+      - name: Guard deterministic R44 boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in src/engine-ts/r44/*.ts; do
+            if grep -nE 'Math\.random\(|Date\.now\(|@ts-nocheck' "$file"; then
+              echo "Forbidden primitive in $file"
+              exit 1
+            fi
+          done
+      - name: Enforce meaningful additions
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          additions="$(git diff --numstat "$base"...HEAD -- src/engine-ts/r44 tests/engine-r44 scripts/checkEngineR44.mjs package.json tsconfig.r44.json src/engine-ts/index.ts .github/workflows/typescript-engine-r44.yml docs/ENGINE_R44_RUNTIME.md | awk '{sum += $1} END {print sum+0}')"
+          echo "meaningful additions: $additions"
+          test "$additions" -ge 4000
