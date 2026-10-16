@@ -205,7 +205,12 @@
     "typecheck:r44": "tsc -p tsconfig.r44.json --noEmit",
     "test:r44": "vitest run tests/engine-r44 --passWithNoTests",
     "check:r44": "npm run verify:r44 && npm run typecheck:r44 && npm run test:r44",
-    "check:modern:r44": "npm run check:r44 && npm run typecheck && npm test -- --passWithNoTests"
+    "check:modern:r44": "npm run check:r44 && npm run typecheck && npm test -- --passWithNoTests",
+    "verify:r45": "node scripts/checkEngineR45.mjs",
+    "typecheck:r45": "tsc -p tsconfig.r45.json --noEmit",
+    "test:r45": "vitest run tests/engine-r45 --passWithNoTests",
+    "check:r45": "npm run verify:r45 && npm run typecheck:r45 && npm run test:r45",
+    "check:modern:r45": "npm run check:r45 && npm run typecheck && npm test -- --passWithNoTests"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

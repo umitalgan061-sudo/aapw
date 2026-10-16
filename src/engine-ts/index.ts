@@ -79,3 +79,4 @@ export const createModernEngineFacade = (): ModernEngineFacade => {
 };
 export * from './r43/index.ts';
 export * as R44RuntimeGovernance from './r44/index.ts';
+export * as R45RuntimeOperations from './r45/index.ts';

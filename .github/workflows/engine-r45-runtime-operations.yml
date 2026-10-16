@@ -1,0 +1,44 @@
+name: engine-r45-runtime-operations
+
+on:
+  pull_request:
+    paths:
+      - 'src/engine-ts/r45/**'
+      - 'tests/engine-r45/**'
+      - 'scripts/checkEngineR45.mjs'
+      - 'tsconfig.r45.json'
+      - 'src/engine-ts/index.ts'
+      - 'package.json'
+      - 'docs/ENGINE_R45_RUNTIME_OPERATIONS.md'
+      - '.github/workflows/engine-r45-runtime-operations.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/engine-ts/r45/**'
+      - 'tests/engine-r45/**'
+      - 'scripts/checkEngineR45.mjs'
+      - 'tsconfig.r45.json'
+      - 'src/engine-ts/index.ts'
+      - 'package.json'
+      - '.github/workflows/engine-r45-runtime-operations.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-r45-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-operations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:r45
+      - run: npm run typecheck:r45
+      - run: npm run test:r45
