@@ -67,6 +67,22 @@ describe("AssetPipeline", () => {
     expect(pipeline.metrics().queued).toBe(0);
   });
 
+  it("invalidates one asset without invalidating unrelated cache entries", async () => {
+    let loads = 0;
+    const pipeline = new AssetPipeline(async (request) => ({
+      value: { key: request.key, load: ++loads },
+      bytes: 1,
+    }), { maxResidentBytes: 8, maxAssetBytes: 8, cacheTtlMs: 1000 });
+    await pipeline.request({ key: "a", url: "/a", priority: 0 });
+    await pipeline.request({ key: "b", url: "/b", priority: 0 });
+    expect(pipeline.cacheKeys()).toEqual(["a", "b"]);
+    expect(pipeline.invalidate("a")).toBe(true);
+    expect(pipeline.cacheKeys()).toEqual(["b"]);
+    expect((await pipeline.request({ key: "a", url: "/a", priority: 0 })).ok).toBe(true);
+    expect(loads).toBe(3);
+    expect(pipeline.cacheKeys()).toEqual(["a", "b"]);
+  });
+
   it("expires cached records using the supplied monotonic clock", async () => {
     let now = 0;
     let loads = 0;
