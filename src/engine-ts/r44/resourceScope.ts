@@ -224,6 +224,15 @@ export interface R44LeaseRegistryOptions {
   readonly maxAgeTicks?: number;
 }
 
+export interface R44LeaseRegistryDiagnostics {
+  readonly activeLeases: number;
+  readonly estimatedBytes: number;
+  readonly capacity: number;
+  readonly byteCapacity: number;
+  readonly duplicateReleases: number;
+  readonly oldLeaseCount: number;
+}
+
 interface R44LeaseRecord extends Omit<R44LeaseSnapshot, "id" | "references" | "ageTicks"> {
   readonly id: R44ResourceId;
   references: number;
