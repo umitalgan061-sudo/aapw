@@ -78,8 +78,20 @@ export class RuntimeLifecycle {
     if (!id) return err("LIFECYCLE_EMPTY_ID", "Service identifier must not be empty.");
     if (this.#services.has(id)) return err("LIFECYCLE_DUPLICATE_ID", "Service identifier is already registered.", false, { id });
     const dependencies = [...new Set((service.dependencies ?? []).map((item) => item.trim()).filter(Boolean))].sort(compareStrings);
+    const definition: RuntimeService<unknown> = Object.freeze({
+      id,
+      dependencies: Object.freeze(dependencies),
+      ...(service.critical === undefined ? {} : { critical: service.critical }),
+      ...(service.start === undefined ? {} : { start: (context: ServiceStartContext) => service.start!(context) }),
+      ...(service.stop === undefined ? {} : {
+        stop: (value: unknown, context: ServiceStopContext) => service.stop!(value as T | undefined, context),
+      }),
+      ...(service.health === undefined ? {} : {
+        health: (value: unknown) => service.health!(value as T | undefined),
+      }),
+    });
     this.#services.set(id, {
-      definition: Object.freeze({ ...service, id, dependencies: Object.freeze(dependencies) }),
+      definition,
       state: "registered",
       value: undefined,
       startOrder: null,

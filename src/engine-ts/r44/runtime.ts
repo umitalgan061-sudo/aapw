@@ -159,18 +159,19 @@ export class R44Runtime {
     if (!name) return err("R44_COMMAND_NAME", "Command name must not be empty.");
     if (this.#commands.has(name)) return err("R44_COMMAND_DUPLICATE", "Command name is already registered.", false, { name });
     if (!normalizeName(definition.permission)) return err("R44_PERMISSION_REQUIRED", "Every command requires an explicit permission.");
+    const lane = definition.lane ?? "critical";
     const normalized: CommandDefinition<unknown> = Object.freeze({
       ...definition,
       name,
       permission: normalizeName(definition.permission),
       ...(definition.scope === undefined ? {} : { scope: normalizeName(definition.scope) }),
-      lane: definition.lane ?? "critical",
+      lane,
       priority: (definition.priority ?? 1) as 0 | 1 | 2 | 3 | 4,
       costMs: Math.max(0.1, definition.costMs ?? 0.25),
       execute: (payload: unknown, context: CommandContext) => definition.execute(payload as T, context),
     });
-    if (!this.budget.laneIds().includes(normalized.lane)) {
-      return err("R44_COMMAND_LANE", "Command references an unknown budget lane.", false, { lane: normalized.lane });
+    if (!this.budget.laneIds().includes(lane)) {
+      return err("R44_COMMAND_LANE", "Command references an unknown budget lane.", false, { lane });
     }
     this.#commands.set(name, normalized);
     return ok(true);
