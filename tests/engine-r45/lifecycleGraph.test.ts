@@ -37,7 +37,7 @@ describe("ServiceLifecycleGraph", () => {
   it("rolls back previously started services after a startup fault", async () => {
     const calls: string[] = [];
     const graph = new ServiceLifecycleGraph();
-    graph.register({ id: "a", start: () => calls.push("start-a"), stop: () => calls.push("stop-a") });
+    graph.register({ id: "a", start: () => { calls.push("start-a"); }, stop: () => { calls.push("stop-a"); } });
     graph.register({ id: "b", dependsOn: ["a"], start: () => { throw new Error("boot failed"); } });
     await expect(graph.startAll()).rejects.toThrow("boot failed");
     expect(calls).toEqual(["start-a", "stop-a"]);
