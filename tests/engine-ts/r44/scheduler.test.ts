@@ -86,7 +86,8 @@ describe("R44TaskScheduler", () => {
     expect(scheduler.cancel(cancel.id, 1)).toBe(true);
     const report = scheduler.drain({ tick: 3 });
     expect(report.expired).toBe(1);
-    expect(report.cancelled).toBe(1);
+    expect(report.cancelled).toBe(0);
+    expect(scheduler.stats().cancelled).toBe(1);
     expect(scheduler.size).toBe(0);
     expect(() => scheduler.submit({ key: "replacement", owner: "test", lane: "background", createdTick: 3, run: () => true })).not.toThrow();
   });
