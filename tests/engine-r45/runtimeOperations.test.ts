@@ -150,7 +150,7 @@ describe("RuntimeOperations integration facade", () => {
     const runtime = new RuntimeOperations();
     await runtime.start();
     await runtime.shutdown();
-    expect(() => runtime.frame(16)).toThrow(/running/u);
+    expect(() => runtime.frame(16)).toThrow(/no longer accepting work/u);
     expect(() => runtime.dispatch("missing", {}, {
       principalId: "p", sessionId: "s", scopes: new Set(),
     }, "req")).toThrow(RuntimeFault);
