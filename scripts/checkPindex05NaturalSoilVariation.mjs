@@ -10,10 +10,13 @@ import {
 import { referencePindexFromNormalizedX } from '../src/3d/world/worldReferenceSurfacePindexes.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SOURCE = readFileSync(resolve(HERE, '../src/3d/world/worldReferencePindex05Detail.js'), 'utf8');
+const SOURCE = readFileSync(resolve(HERE, '../src/3d/world/worldReferencePindex05Detail.legacy.js'), 'utf8');
 
 assert.equal(PINDEX05_DETAIL_POLICY.pindex, 5);
 assert.equal(PINDEX05_DETAIL_POLICY.naturalSoilFabric, true);
+assert.equal(PINDEX05_DETAIL_POLICY.worldSpaceNormalWeathering, true);
+assert.deepEqual(PINDEX05_DETAIL_POLICY.normalStrengthBySurface, { sea: 0, lake: 0, soil: 0.35, rock: 0.52, snow: 0.14 });
+assert.equal(PINDEX05_DETAIL_POLICY.normalGradientStepFraction, 0.18);
 assert.equal(referencePindexFromNormalizedX(0.45), 5);
 assert.equal(PINDEX05_DETAIL_POLICY.pindexStartX, 0.4);
 assert.equal(PINDEX05_DETAIL_POLICY.pindexEndX, 0.5);
@@ -48,6 +51,10 @@ assert.ok(samples.every((sample) => sample.mineralDry >= 0 && sample.mineralDry 
 assert.match(SOURCE, /if \(c\.surface === 'soil'\)/);
 assert.match(SOURCE, /scratch\.lerp\(WET_SOIL, wetWeight\)/);
 assert.match(SOURCE, /scratch\.lerp\(DRY_HEATH, dryWeight\)/);
+assert.match(SOURCE, /getAttribute\?\.\('normal'\)/);
+assert.match(SOURCE, /applyPindex05WeatheredNormal\(/);
+assert.match(SOURCE, /normal\.setXYZ\(/);
+assert.match(SOURCE, /weatheredNormalVertices/);
 assert.doesNotMatch(SOURCE, /position\.set[XYZ]\(/);
 assert.doesNotMatch(SOURCE, /geometry\.setAttribute\(['"]position['"]/);
 assert.doesNotMatch(SOURCE, /createHeightSampler|waterDepth|collider|hydrology/i);

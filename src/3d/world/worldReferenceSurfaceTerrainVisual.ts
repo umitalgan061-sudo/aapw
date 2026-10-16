@@ -314,7 +314,7 @@ export function installRuntimePindexTerrainPolish() {
 import { REFERENCE_PINDEX_QUALITY_V2_POLICY, sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.ts';
 
 export const RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY = Object.freeze({
-	id: 'terrain-pindex-quality-v2-runtime-2026-08-12-v2',
+	id: 'terrain-pindex-quality-v2-runtime-2026-10-16-v3-nonperiodic-worldspace',
 	atlasWidth: 192,
 	atlasHeight: 128,
 	qualityBlend: 0.34,
@@ -324,6 +324,9 @@ export const RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY = Object.freeze({
 	roughnessBlend: 0.52,
 	shaderColorMicroVariation: 0.055,
 	shaderRoughnessMicroVariation: 0.05,
+	roughnessDetailRevision: 'v3-nonperiodic-world-space-value-noise',
+	roughnessDetailFrequencies: Object.freeze([0.021, 0.0087, 0.0031, 0.013]),
+	repeatAtlasRemoved: true,
 	naturalTransitionRevision: 'v1-slope-aspect-shelter',
 	slopeAwareAtlasIntegration: true,
 	aspectWeathering: true,
@@ -409,35 +412,6 @@ function buildRuntimePindexQualityV2Atlas() {
 
 const RUNTIME_PINDEX_QUALITY_V2_ATLAS = buildRuntimePindexQualityV2Atlas();
 
-function buildRuntimePindexQualityV2DetailAtlas() {
-	const size = 64;
-	const bytes = new Uint8Array(size * size * 4);
-	const hashByte = (x, y, channel) => {
-		let value = Math.imul(x + 17 + channel * 131, 374761393) ^ Math.imul(y + 29 + channel * 197, 668265263);
-		value = Math.imul(value ^ (value >>> 13), 1274126177);
-		return (value ^ (value >>> 16)) & 255;
-	};
-	for (let y = 0; y < size; y += 1) {
-		for (let x = 0; x < size; x += 1) {
-			const offset = (y * size + x) * 4;
-			bytes[offset] = hashByte(x, y, 0);
-			bytes[offset + 1] = hashByte(x, y, 1);
-			bytes[offset + 2] = hashByte(x, y, 2);
-			bytes[offset + 3] = 255;
-		}
-	}
-	const texture = new THREE.DataTexture(bytes, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
-	texture.minFilter = THREE.LinearFilter;
-	texture.magFilter = THREE.LinearFilter;
-	texture.wrapS = THREE.RepeatWrapping;
-	texture.wrapT = THREE.RepeatWrapping;
-	texture.generateMipmaps = false;
-	texture.needsUpdate = true;
-	return texture;
-}
-
-const RUNTIME_PINDEX_QUALITY_V2_DETAIL_ATLAS = buildRuntimePindexQualityV2DetailAtlas();
-
 function installRuntimePindexQualityV2Shader(material) {
 	if (material.userData?.runtimePindexQualityV2Shader === RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id) return false;
 	const previousCompile = material.onBeforeCompile;
@@ -450,17 +424,16 @@ function installRuntimePindexQualityV2Shader(material) {
 		previousCompile.call(this, shader, renderer);
 		shader.uniforms.pindexQualityColorAtlas = { value: RUNTIME_PINDEX_QUALITY_V2_ATLAS.color };
 		shader.uniforms.pindexQualityDataAtlas = { value: RUNTIME_PINDEX_QUALITY_V2_ATLAS.data };
-		shader.uniforms.pindexQualityDetailAtlas = { value: RUNTIME_PINDEX_QUALITY_V2_DETAIL_ATLAS };
 		shader.uniforms.pindexQualityMapTransform = { value: new THREE.Vector4(scaleX, scaleY, centerX, centerY) };
 		shader.vertexShader = shader.vertexShader
 			.replace('#include <common>', '#include <common>\nvarying vec3 vPindexQualityWorldPosition;')
 			.replace('#include <begin_vertex>', '#include <begin_vertex>\nvPindexQualityWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;');
 		shader.fragmentShader = shader.fragmentShader
-			.replace('#include <common>', '#include <common>\nuniform sampler2D pindexQualityColorAtlas;\nuniform sampler2D pindexQualityDataAtlas;\nuniform sampler2D pindexQualityDetailAtlas;\nuniform vec4 pindexQualityMapTransform;\nvarying vec3 vPindexQualityWorldPosition;')
-			.replace('#include <color_fragment>', `#include <color_fragment>\nvec3 pindexGeoDx=dFdx(vPindexQualityWorldPosition);\nvec3 pindexGeoDy=dFdy(vPindexQualityWorldPosition);\nvec3 pindexGeoNormal=normalize(cross(pindexGeoDy,pindexGeoDx));\npindexGeoNormal*=pindexGeoNormal.y<0.0?-1.0:1.0;\nfloat pindexGeoSlope=1.0-clamp(abs(pindexGeoNormal.y),0.0,1.0);\nvec2 pindexGeoHorizontal=pindexGeoNormal.xz/max(length(pindexGeoNormal.xz),0.0001);\nfloat pindexGeoAspect=dot(pindexGeoHorizontal,normalize(vec2(0.64,-0.77)))*0.5+0.5;\nvec2 pindexGeoMacroUv=vPindexQualityWorldPosition.xz*0.00073+vec2(7.3,-11.9);\nvec2 pindexGeoMacroRotated=vec2(pindexGeoMacroUv.x*0.73-pindexGeoMacroUv.y*0.68,pindexGeoMacroUv.x*0.68+pindexGeoMacroUv.y*0.73)*1.61+vec2(-3.7,8.1);\nfloat pindexGeoMacro=texture2D(pindexQualityDetailAtlas,pindexGeoMacroUv).g*0.62+texture2D(pindexQualityDetailAtlas,pindexGeoMacroRotated).b*0.38;\nfloat pindexGeoCliff=smoothstep(0.24,0.70,pindexGeoSlope)*pindexQualityDry;\nfloat pindexGeoShelter=clamp((1.0-pindexGeoAspect)*0.58+(1.0-pindexGeoMacro)*0.42,0.0,1.0);\nfloat pindexGeoWetShelter=pindexGeoCliff*smoothstep(0.56,0.84,pindexGeoShelter);\nfloat pindexGeoWeatheredFace=pindexGeoCliff*(1.0-pindexGeoWetShelter)*smoothstep(0.40,0.78,pindexGeoAspect);\nfloat pindexGeoMossPocket=(1.0-smoothstep(0.58,0.86,pindexGeoSlope))*pindexQualityDry*smoothstep(0.62,0.88,pindexGeoShelter)*smoothstep(0.38,0.74,pindexGeoMacro);\nvec3 pindexGeoShadowRock=vec3(${PINDEX_QUALITY_V2_GRANITE_SHADOW.r.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SHADOW.g.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SHADOW.b.toFixed(6)});\nvec3 pindexGeoSunRock=vec3(${PINDEX_QUALITY_V2_GRANITE_SUNLIT.r.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SUNLIT.g.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SUNLIT.b.toFixed(6)});\nvec3 pindexGeoWetRock=vec3(${PINDEX_QUALITY_V2_BASALT_WET.r.toFixed(6)},${PINDEX_QUALITY_V2_BASALT_WET.g.toFixed(6)},${PINDEX_QUALITY_V2_BASALT_WET.b.toFixed(6)});\nvec3 pindexGeoMoss=vec3(${PINDEX_QUALITY_V2_MOSS_SHADOW.r.toFixed(6)},${PINDEX_QUALITY_V2_MOSS_SHADOW.g.toFixed(6)},${PINDEX_QUALITY_V2_MOSS_SHADOW.b.toFixed(6)});\npindexQualityColor=mix(pindexQualityColor,mix(pindexGeoShadowRock,pindexGeoSunRock,pindexGeoAspect),pindexGeoCliff*0.30);\npindexQualityColor=mix(pindexQualityColor,pindexGeoWetRock,pindexGeoWetShelter*0.34);\npindexQualityColor=mix(pindexQualityColor,pindexGeoSunRock,pindexGeoWeatheredFace*0.16);\npindexQualityColor=mix(pindexQualityColor,pindexGeoMoss,pindexGeoMossPocket*0.18);`)
-			.replace('#include <color_fragment>', `#include <color_fragment>\nvec2 pindexQualityUv=clamp(vPindexQualityWorldPosition.xz*pindexQualityMapTransform.xy+pindexQualityMapTransform.zw,vec2(0.0),vec2(1.0));\nvec4 pindexQualityAtlasColor=texture2D(pindexQualityColorAtlas,pindexQualityUv);\nvec4 pindexQualityAtlasData=texture2D(pindexQualityDataAtlas,pindexQualityUv);\nvec3 pindexQualityColor=pindexQualityAtlasColor.rgb;\nfloat pindexQualityRelief=pindexQualityAtlasData.r;\nfloat pindexQualityDry=pindexQualityAtlasColor.a;\nfloat pindexQualityHeightRock=smoothstep(22.0,82.0,vPindexQualityWorldPosition.y)*pindexQualityDry;\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_ROCK_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.b.toFixed(6)}),pindexQualityRelief*pindexQualityDry*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.reliefRockBlend.toFixed(3)});\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_ROCK_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.b.toFixed(6)}),pindexQualityHeightRock*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.elevationRockBlend.toFixed(3)});\nfloat pindexQualityNorthSnow=pindexQualityRelief*(1.0-smoothstep(0.08,0.34,pindexQualityUv.y))*smoothstep(16.0,58.0,vPindexQualityWorldPosition.y);\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_SNOW_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_SNOW_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_SNOW_COLOR.b.toFixed(6)}),pindexQualityNorthSnow*0.42);\nvec2 pindexQualityDetailUv=vPindexQualityWorldPosition.xz*0.021;\nvec4 pindexQualityNoiseA=texture2D(pindexQualityDetailAtlas,pindexQualityDetailUv);\nvec2 pindexQualityRotatedUv=vec2(pindexQualityDetailUv.x*0.8-pindexQualityDetailUv.y*0.6,pindexQualityDetailUv.x*0.6+pindexQualityDetailUv.y*0.8)*2.73+vec2(0.37,0.19);\nvec4 pindexQualityNoiseB=texture2D(pindexQualityDetailAtlas,pindexQualityRotatedUv);\nfloat pindexQualityGrain=(pindexQualityNoiseA.r*2.0-1.0)*0.64+(pindexQualityNoiseB.g*2.0-1.0)*0.36;\npindexQualityColor*=1.0+pindexQualityGrain*mix(0.025,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderColorMicroVariation.toFixed(3)},pindexQualityAtlasData.a);\ndiffuseColor.rgb=mix(diffuseColor.rgb,pindexQualityColor,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.qualityBlend.toFixed(3)});`)
+			.replace('#include <common>', '#include <common>\nuniform sampler2D pindexQualityColorAtlas;\nuniform sampler2D pindexQualityDataAtlas;\nuniform vec4 pindexQualityMapTransform;\nvarying vec3 vPindexQualityWorldPosition;\nfloat pindexQualityHash(vec2 p){vec3 q=fract(vec3(p.xyx)*vec3(0.1031,0.1030,0.0973));q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}\nfloat pindexQualityNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);float a=pindexQualityHash(i),b=pindexQualityHash(i+vec2(1.0,0.0)),c=pindexQualityHash(i+vec2(0.0,1.0)),d=pindexQualityHash(i+vec2(1.0,1.0));return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}')
+			.replace('#include <color_fragment>', `#include <color_fragment>\nvec3 pindexGeoDx=dFdx(vPindexQualityWorldPosition);\nvec3 pindexGeoDy=dFdy(vPindexQualityWorldPosition);\nvec3 pindexGeoNormal=normalize(cross(pindexGeoDy,pindexGeoDx));\npindexGeoNormal*=pindexGeoNormal.y<0.0?-1.0:1.0;\nfloat pindexGeoSlope=1.0-clamp(abs(pindexGeoNormal.y),0.0,1.0);\nvec2 pindexGeoHorizontal=pindexGeoNormal.xz/max(length(pindexGeoNormal.xz),0.0001);\nfloat pindexGeoAspect=dot(pindexGeoHorizontal,normalize(vec2(0.64,-0.77)))*0.5+0.5;\nfloat pindexGeoMacro=pindexQualityNoise(vPindexQualityWorldPosition.xz*0.00147+vec2(7.3,-11.9))*0.62+pindexQualityNoise(vec2(vPindexQualityWorldPosition.x*0.0041-vPindexQualityWorldPosition.z*0.0031,vPindexQualityWorldPosition.x*0.0031+vPindexQualityWorldPosition.z*0.0041)+vec2(-3.7,8.1))*0.38;\nfloat pindexGeoCliff=smoothstep(0.24,0.70,pindexGeoSlope)*pindexQualityDry;\nfloat pindexGeoShelter=clamp((1.0-pindexGeoAspect)*0.58+(1.0-pindexGeoMacro)*0.42,0.0,1.0);\nfloat pindexGeoWetShelter=pindexGeoCliff*smoothstep(0.56,0.84,pindexGeoShelter);\nfloat pindexGeoWeatheredFace=pindexGeoCliff*(1.0-pindexGeoWetShelter)*smoothstep(0.40,0.78,pindexGeoAspect);\nfloat pindexGeoMossPocket=(1.0-smoothstep(0.58,0.86,pindexGeoSlope))*pindexQualityDry*smoothstep(0.62,0.88,pindexGeoShelter)*smoothstep(0.38,0.74,pindexGeoMacro);\nvec3 pindexGeoShadowRock=vec3(${PINDEX_QUALITY_V2_GRANITE_SHADOW.r.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SHADOW.g.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SHADOW.b.toFixed(6)});\nvec3 pindexGeoSunRock=vec3(${PINDEX_QUALITY_V2_GRANITE_SUNLIT.r.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SUNLIT.g.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SUNLIT.b.toFixed(6)});\nvec3 pindexGeoWetRock=vec3(${PINDEX_QUALITY_V2_BASALT_WET.r.toFixed(6)},${PINDEX_QUALITY_V2_BASALT_WET.g.toFixed(6)},${PINDEX_QUALITY_V2_BASALT_WET.b.toFixed(6)});\nvec3 pindexGeoMoss=vec3(${PINDEX_QUALITY_V2_MOSS_SHADOW.r.toFixed(6)},${PINDEX_QUALITY_V2_MOSS_SHADOW.g.toFixed(6)},${PINDEX_QUALITY_V2_MOSS_SHADOW.b.toFixed(6)});\npindexQualityColor=mix(pindexQualityColor,mix(pindexGeoShadowRock,pindexGeoSunRock,pindexGeoAspect),pindexGeoCliff*0.30);\npindexQualityColor=mix(pindexQualityColor,pindexGeoWetRock,pindexGeoWetShelter*0.34);\npindexQualityColor=mix(pindexQualityColor,pindexGeoSunRock,pindexGeoWeatheredFace*0.16);\npindexQualityColor=mix(pindexQualityColor,pindexGeoMoss,pindexGeoMossPocket*0.18);`)
+			.replace('#include <color_fragment>', `#include <color_fragment>\nvec2 pindexQualityUv=clamp(vPindexQualityWorldPosition.xz*pindexQualityMapTransform.xy+pindexQualityMapTransform.zw,vec2(0.0),vec2(1.0));\nvec4 pindexQualityAtlasColor=texture2D(pindexQualityColorAtlas,pindexQualityUv);\nvec4 pindexQualityAtlasData=texture2D(pindexQualityDataAtlas,pindexQualityUv);\nvec3 pindexQualityColor=pindexQualityAtlasColor.rgb;\nfloat pindexQualityRelief=pindexQualityAtlasData.r;\nfloat pindexQualityDry=pindexQualityAtlasColor.a;\nfloat pindexQualityHeightRock=smoothstep(22.0,82.0,vPindexQualityWorldPosition.y)*pindexQualityDry;\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_ROCK_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.b.toFixed(6)}),pindexQualityRelief*pindexQualityDry*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.reliefRockBlend.toFixed(3)});\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_ROCK_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.b.toFixed(6)}),pindexQualityHeightRock*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.elevationRockBlend.toFixed(3)});\nfloat pindexQualityNorthSnow=pindexQualityRelief*(1.0-smoothstep(0.08,0.34,pindexQualityUv.y))*smoothstep(16.0,58.0,vPindexQualityWorldPosition.y);\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_SNOW_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_SNOW_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_SNOW_COLOR.b.toFixed(6)}),pindexQualityNorthSnow*0.42);\nvec2 pindexQualityWorldXZ=vPindexQualityWorldPosition.xz;\nvec2 pindexQualityRotatedXZ=vec2(pindexQualityWorldXZ.x*0.83-pindexQualityWorldXZ.y*0.56,pindexQualityWorldXZ.x*0.56+pindexQualityWorldXZ.y*0.83);\nfloat pindexQualityNoiseA=pindexQualityNoise(pindexQualityWorldXZ*0.021+vec2(0.37,0.19));\nfloat pindexQualityNoiseB=pindexQualityNoise(pindexQualityRotatedXZ*0.0087+vec2(-13.7,4.9));\nfloat pindexQualityNoiseC=pindexQualityNoise(pindexQualityWorldXZ*0.0031+vec2(17.3,-9.1));\nfloat pindexQualityGrain=(pindexQualityNoiseA*2.0-1.0)*0.45+(pindexQualityNoiseB*2.0-1.0)*0.35+(pindexQualityNoiseC*2.0-1.0)*0.20;\npindexQualityColor*=1.0+pindexQualityGrain*mix(0.025,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderColorMicroVariation.toFixed(3)},pindexQualityAtlasData.a);\ndiffuseColor.rgb=mix(diffuseColor.rgb,pindexQualityColor,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.qualityBlend.toFixed(3)});`)
 			.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor-pindexGeoWetShelter*0.11+pindexGeoWeatheredFace*0.045+pindexGeoMossPocket*0.035,0.04,1.0);`)
-			.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,pindexQualityAtlasData.g,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.roughnessBlend.toFixed(3)});\nfloat pindexQualityRoughNoise=texture2D(pindexQualityDetailAtlas,vPindexQualityWorldPosition.xz*0.033+vec2(0.11,0.57)).b*2.0-1.0;\nroughnessFactor=clamp(roughnessFactor+pindexQualityRoughNoise*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderRoughnessMicroVariation.toFixed(3)},0.04,1.0);`);
+			.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,pindexQualityAtlasData.g,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.roughnessBlend.toFixed(3)});\nfloat pindexQualityRoughNoise=pindexQualityNoise(pindexQualityRotatedXZ*0.013+vec2(0.11,0.57))*2.0-1.0;\nroughnessFactor=clamp(roughnessFactor+pindexQualityRoughNoise*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderRoughnessMicroVariation.toFixed(3)},0.04,1.0);`);
 	};
 	material.customProgramCacheKey = () => `${previousCacheKey()}|${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id}`;
 	material.userData.runtimePindexQualityV2Shader = RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id;
@@ -493,7 +466,7 @@ export function applyRuntimePindexTerrainQualityV2ToMesh(mesh) {
 }
 
 const installRuntimePindexTerrainPolishIteration008 = installRuntimePindexTerrainPolish;
-const RUNTIME_PINDEX_QUALITY_V2_INSTALL_FLAG = Symbol.for('westeros.runtime-pindex-terrain-quality-v2.2026-08-12-v2');
+const RUNTIME_PINDEX_QUALITY_V2_INSTALL_FLAG = Symbol.for('westeros.runtime-pindex-terrain-quality-v2.2026-10-16-v3');
 
 installRuntimePindexTerrainPolish = function installRuntimePindexTerrainPolishQualityV2() {
 	const iteration008 = installRuntimePindexTerrainPolishIteration008();

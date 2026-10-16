@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const root = path.resolve(__dirname, '..');
-const pindexes = fs.readFileSync(path.join(root, 'src/3d/world/worldReferenceSurfacePindexes.js'), 'utf8');
-const visual = fs.readFileSync(path.join(root, 'src/3d/world/worldReferenceSurfaceTerrainVisual.js'), 'utf8');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const pindexes = fs.readFileSync(path.join(root, 'src/3d/world/worldReferenceSurfacePindexes.ts'), 'utf8');
+const visual = fs.readFileSync(path.join(root, 'src/3d/world/worldReferenceSurfaceTerrainVisual.ts'), 'utf8');
 
 function requireTokens(source, label, tokens) {
   for (const token of tokens) if (!source.includes(token)) throw new Error(`${label} missing: ${token}`);
@@ -23,26 +24,27 @@ requireTokens(pindexes, 'Pindex Quality V2 sampling contract', [
   'reliefInfluence',
 ]);
 requireTokens(visual, 'Pindex Quality V2 shader-first runtime contract', [
-  "id: 'terrain-pindex-quality-v2-runtime-2026-08-12-v2'",
+  "id: 'terrain-pindex-quality-v2-runtime-2026-10-16-v3-nonperiodic-worldspace'",
   'atlasWidth: 192',
   'atlasHeight: 128',
   'buildRuntimePindexQualityV2Atlas()',
-  'buildRuntimePindexQualityV2DetailAtlas()',
-  'const size = 64',
   'new THREE.DataTexture',
-  'THREE.RepeatWrapping',
   'pindexQualityColorAtlas',
   'pindexQualityDataAtlas',
-  'pindexQualityDetailAtlas',
+  'pindexQualityHash(vec2 p)',
+  'pindexQualityNoise(vec2 p)',
+  'pindexQualityWorldXZ',
+  'pindexQualityRotatedXZ',
   'pindexQualityNoiseA',
   'pindexQualityNoiseB',
-  'pindexQualityRotatedUv',
+  'pindexQualityNoiseC',
   'pindexQualityRoughNoise',
+  "roughnessDetailRevision: 'v3-nonperiodic-world-space-value-noise'",
   'vPindexQualityWorldPosition',
   'applyRuntimePindexTerrainQualityV2ToMesh(mesh)',
   'cpuVertexPassesAdded: 0',
   'installRuntimePindexTerrainPolishQualityV2()',
-  "Symbol.for('westeros.runtime-pindex-terrain-quality-v2.2026-08-12-v2')",
+  "Symbol.for('westeros.runtime-pindex-terrain-quality-v2.2026-10-16-v3')",
 ]);
 
 const pindexSection = pindexes.slice(pindexes.indexOf('// Pindex Quality V2'));
@@ -52,9 +54,9 @@ for (const [label, source] of [['sampling', pindexSection], ['runtime', visualSe
   if (source.includes('position.setY(')) throw new Error(`${label} V2 must not mutate terrain height`);
 }
 if (/for\s*\([^)]*position\.count/.test(visualSection)) throw new Error('V2 runtime reintroduced a second per-vertex CPU pass');
-if (visualSection.includes('float pindexQualityDetail(vec2 p)')) throw new Error('Directional sine-wave grain returned; use the organic repeat-noise atlas');
-if (!visualSection.includes('texture2D(pindexQualityColorAtlas')) throw new Error('GPU atlas is not sampled in the fragment shader');
-if (!visualSection.includes('texture2D(pindexQualityDetailAtlas')) throw new Error('Organic GPU detail atlas is not sampled in the fragment shader');
+if (visualSection.includes('pindexQualityDetailAtlas') || visualSection.includes('buildRuntimePindexQualityV2DetailAtlas')) throw new Error('Fixed-period detail atlas returned; terrain detail must remain non-periodic in world space');
+if (!visualSection.includes('pindexQualityNoise(')) throw new Error('Non-periodic world-space value noise is missing');
+if (!visualSection.includes('texture2D(pindexQualityColorAtlas')) throw new Error('Canonical GPU color atlas is not sampled in the fragment shader');
 if (!visualSection.includes('roughnessFactor=mix')) throw new Error('PBR roughness atlas blend is missing');
 
 const pindexLines = pindexes.split(/\r?\n/).length;
@@ -64,4 +66,4 @@ if (visualLines > 600) throw new Error(`Terrain visual source exceeded 600-line 
 if (!pindexes.includes("maskSha256: 'afe62a77fcc9b15887540b49b3b60b199e416f5e033aefb987a192411c25ae44'")) throw new Error('Canonical mask identity drifted');
 for (const token of ['sea: 4046', 'lake: 6', 'soil: 1638', 'rock: 323', 'snow: 131']) if (!pindexes.includes(token)) throw new Error(`Canonical cell-count drift: ${token}`);
 
-console.log(`[checkTerrainPindexQualityV2] PASS: continuous P01..P10 + audited biome/relief + organic GPU atlas runtime; lines pindex=${pindexLines}, visual=${visualLines}`);
+console.log(`[checkTerrainPindexQualityV2] PASS: continuous P01..P10 + audited biome/relief + non-periodic world-space detail; lines pindex=${pindexLines}, visual=${visualLines}`);
